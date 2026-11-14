@@ -49,7 +49,7 @@ Update `STATE.md` → **Now** and commit it straight to `main` (`chore(factory):
 
 ## 4 · Decide, don't wait
 
-For every open question: the spec says → `DECISIONS.md` says → research (dispatch the `researcher` agent: KodeKloud first, then Killercoda, iximiuz Labs, Instruqt) → choose the simplest option that keeps the guardrails. Write a D-entry (decision or assumption, why, alternatives, how to revert). Only owner-only blockers (a secret, DNS, money, the owner's other services) go to `OWNER.md` and the issue gets `status:needs-owner`. Then **go back to step 3** with another issue.
+For every open question: the spec says → `DECISIONS.md` says → research (dispatch the `researcher` agent: KodeKloud first, then Killercoda, iximiuz Labs, Instruqt) → choose the simplest option that keeps the guardrails. Write a D-entry (decision or assumption, why, alternatives, how to revert). **Take the next D-number only right after `git pull --rebase origin main`**: other sessions write here too. If a rebase shows two entries with your number, renumber yours. Only owner-only blockers (a secret, DNS, money, the owner's other services) go to `OWNER.md` and the issue gets `status:needs-owner`. Then **go back to step 3** with another issue.
 
 ## 5 · Exam → build → check (make · check · fix)
 

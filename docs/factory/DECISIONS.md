@@ -78,8 +78,15 @@ in force · factory · 2026-11-14
 **Alternatives.** Separate exam PR with `xfail` markers (noisy, two PRs per issue); a CODEOWNERS lock on `tests/acceptance/` (needs a second GitHub user).
 **Revert.** Change the job to compare the whole PR diff (both paths changed → fail) and land exams in their own PRs.
 
-## D10 · Owner: the manager may push to any branch; infrastructure for both subdomains is in place
-in force · **owner (Ilia)** + factory · 2026-11-14
+## D10 · Review rounds on #20 closed by the manager; exam tamper-proofing is good enough for now
+in force · factory · 2026-11-14
+
+**Decision.** After two review rounds, #20 merges with: per-commit exam integrity (D9 + amendment), pytest config files under `labs/` counted as exam surface, the acceptance gate run with `--confcutdir=tests -o addopts=""` (zero skips; docker-marked exams gated in the docker job). Still open and moved to #21: pinning the exam SHA, running the check from a `pull_request_target` workflow on `main` instead of the PR's own `ci.yml`, removing the bootstrap fallback, and pinning actions by SHA.
+**Why.** The party that could tamper with the exam is our own build step, not an outside attacker; every change is still visible in the PR diff and read by the reviewer. Each extra round blocks the whole line (everything depends on #1).
+**Revert.** Reopen #20's findings as blockers and do #21 before any other issue.
+
+## D11 · Owner: the manager may push to any branch; infrastructure for both subdomains is in place
+in force · **owner (Ilia)** + factory · 2026-11-14 (renumbered from a duplicate D10)
 
 **Owner:** the factory manager may push to any branch (including `main`) and decide on merges without asking.
 **Done outside the queue (owner request, so the subdomain stopped showing n8n):** DNS records for `labs` and `factory` are in the EMEW-AI terraform (imported, TTL 300). The shared certificate covers both. Placeholder HTTPS blocks `learning-factory:factory` and `learning-factory:labs` and the port 80 block `learning-factory:http` are installed, and the EMEW-AI repo copy of `default.conf` matches the server (commit `1894c50` in AI-Brainstorms/EMEW-AI). Issues #13, #14 and #19 were updated.
@@ -87,9 +94,3 @@ in force · **owner (Ilia)** + factory · 2026-11-14
 
 > **D9 amendment (factory, 2026-11-14, review of #20).** The exam surface is every file under `labs/*/tests/` except `labs/*/tests/unit/`. Merge commits on PR branches are rejected (rebase instead). The check runs the base branch's copy of `scripts/ci/exam_integrity.py`, and a PR may not change the exam together with `scripts/ci/**` or `ci.yml`. The acceptance suite must run with zero skips. **Known gap:** history rewriting on the branch (fixup + autosquash) can still reshape the exam; closing it by pinning the exam SHA is #21.
 
-## D10 · Review rounds on #20 closed by the manager; exam tamper-proofing is good enough for now
-in force · factory · 2026-11-14
-
-**Decision.** After two review rounds, #20 merges with: per-commit exam integrity (D9 + amendment), pytest config files under `labs/` counted as exam surface, the acceptance gate run with `--confcutdir=tests -o addopts=""` (zero skips; docker-marked exams gated in the docker job). Still open and moved to #21: pinning the exam SHA, running the check from a `pull_request_target` workflow on `main` instead of the PR's own `ci.yml`, removing the bootstrap fallback, and pinning actions by SHA.
-**Why.** The party that could tamper with the exam is our own build step, not an outside attacker; every change is still visible in the PR diff and read by the reviewer. Each extra round blocks the whole line (everything depends on #1).
-**Revert.** Reopen #20's findings as blockers and do #21 before any other issue.
