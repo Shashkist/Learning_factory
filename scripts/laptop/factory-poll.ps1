@@ -21,6 +21,21 @@ $MaxPassesPerDay = 10        # cost guard
 New-Item -ItemType Directory -Force $StateDir, $RunsDir | Out-Null
 function Log($m) { "$(Get-Date -Format s)  $m" | Add-Content -Encoding utf8 $Log }
 
+function Notify($title, $text, $key) {
+    # Rate-limited Windows notification: the same $key alerts at most once every 3 hours.
+    $f = Join-Path $StateDir "alert-$key"
+    if ((Test-Path $f) -and ((Get-Item $f).LastWriteTime -gt (Get-Date).AddHours(-3))) { return }
+    New-Item -ItemType File -Force $f | Out-Null
+    Log "ALERT [$key] $text"
+    try {
+        Add-Type -AssemblyName System.Windows.Forms
+        $n = New-Object System.Windows.Forms.NotifyIcon
+        $n.Icon = [System.Drawing.SystemIcons]::Warning; $n.Visible = $true
+        $n.ShowBalloonTip(20000, $title, $text, 'Warning')
+        Start-Sleep -Seconds 20; $n.Dispose()
+    } catch {}
+}
+
 if (Test-Path (Join-Path $StateDir 'PAUSE')) { Log 'paused (PAUSE file present)'; exit 0 }
 
 # One run at a time; a lock older than 3 hours is considered dead.
@@ -52,7 +67,11 @@ if (-not (Test-Path $DashFlag)) {
 $today = Get-Date -Format 'yyyy-MM-dd'
 $countFile = Join-Path $StateDir "passes-$today.txt"
 $passes = if (Test-Path $countFile) { [int](Get-Content $countFile) } else { 0 }
-if ($passes -ge $MaxPassesPerDay) { Log "skip: daily budget reached ($passes passes)"; exit 0 }
+if ($passes -ge $MaxPassesPerDay) {
+    Log "skip: daily budget reached ($passes passes)"
+    Notify 'Learning Factory: daily budget used' "All $MaxPassesPerDay passes for today are used; the factory resumes tomorrow. Raise MaxPassesPerDay in factory-poll.ps1 to allow more." 'budget'
+    exit 0
+}
 
 # Cheap pre-check: is there anything to do?
 try {
@@ -105,12 +124,32 @@ Stop after about $PassMinutes minutes of work or 3 merged PRs, and update docs/f
         Set-Location $wt
         & $claude -p $p --model $model --permission-mode auto *>&1 | Out-File -Encoding utf8 $out
     } -ArgumentList $Worktree, $Claude, $Model, $prompt, $runLog
-    if (-not (Wait-Job $job -Timeout (($PassMinutes + 20) * 60))) { Stop-Job $job; Log 'stopped: pass exceeded its time limit' }
+    $result = 'done'
+    if (-not (Wait-Job $job -Timeout (($PassMinutes + 20) * 60))) {
+        Stop-Job $job; $result = 'timeout'; Log 'stopped: pass exceeded its time limit'
+        Notify 'Learning Factory: pass timed out' "A pass ran longer than $($PassMinutes + 20) min and was stopped. See $runLog" 'timeout'
+    }
     Remove-Job $job -Force
     $tail = if (Test-Path $runLog) { (Get-Content $runLog -Tail 3) -join ' | ' } else { '(no output)' }
-    Log "done. last lines: $tail"
+    Log "$result. last lines: $tail"
+    if ((Test-Path $runLog) -and ((Get-Item $runLog).Length -eq 0)) {
+        Notify 'Learning Factory: pass produced no output' "The last pass wrote nothing. Is Claude Code logged in? See $runLog" 'empty'
+    }
+    # No-progress detector: 3 passes in a row without a new commit on origin/main.
+    git -C $Worktree fetch -q origin
+    $sha = (git -C $Worktree rev-parse origin/main).Trim()
+    $pf = Join-Path $StateDir 'progress.json'
+    $prog = if (Test-Path $pf) { Get-Content $pf -Raw | ConvertFrom-Json } else { [pscustomobject]@{ sha = ''; stale = 0 } }
+    if ($prog.sha -eq $sha) { $prog.stale = [int]$prog.stale + 1 } else { $prog.sha = $sha; $prog.stale = 0 }
+    $prog | ConvertTo-Json | Set-Content -Encoding utf8 $pf
+    if ($prog.stale -ge 3) {
+        Notify 'Learning Factory: no progress' "3 passes in a row ended without a new commit on main. Check docs/factory/STATE.md and $runLog" 'stalled'
+    }
+    [pscustomobject]@{ ended = (Get-Date -Format s); result = $result; log = $runLog; main = $sha } |
+        ConvertTo-Json | Set-Content -Encoding utf8 (Join-Path $StateDir 'last-pass.json')
 } catch {
     Log "error: $($_.Exception.Message)"
+    Notify 'Learning Factory: pass failed' "$($_.Exception.Message)" 'error'
 } finally {
     Remove-Item $Lock -Force -ErrorAction SilentlyContinue
 }
