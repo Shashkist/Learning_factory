@@ -1,0 +1,36 @@
+id: hello
+title:
+  en: Hello, terminal
+  he: שלום, טרמינל
+description:
+  en: Your first lab. Answer one question and create a small file.
+  he: המעבדה הראשונה שלך. עונים על שאלה אחת ויוצרים קובץ קטן.
+image: term
+time_limit_min: 15
+internet: false
+allow_domains: []
+sudo: false
+status: draft
+module: 1
+lesson: 5
+tasks:
+  - id: 01-which-command
+    kind: quiz
+    question:
+      en: Which command prints text to the terminal?
+      he: איזו פקודה מדפיסה טקסט לטרמינל?
+    options:
+      - en: cd
+        he: cd
+      - en: echo
+        he: echo
+      - en: rm
+        he: rm
+    correct: 1
+  - id: 02-make-file
+    kind: hands-on
+    checklist:
+      - en: The file ~/hello.txt exists
+        he: הקובץ ‎~/hello.txt‎ קיים
+      - en: The file contains the word hello
+        he: הקובץ מכיל את המילה hello
