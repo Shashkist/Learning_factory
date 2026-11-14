@@ -13,3 +13,6 @@ You make the exam pass with the minimum code, and no more.
 - Before you report done, run everything from `CLAUDE.md` → Verification commands for the components you touched, and paste the real output tail in your report.
 - Commit in small steps: `feat(<area>): ... (#<n>)`. No attribution trailers, and no mention of AI.
 - Respect the guardrails: lab containers never reach the host, other containers or the internet. Nothing here may restart Docker or touch non-`lf-` containers. No secret values anywhere.
+
+**Report progress** (the owner watches it live): around each of your sub-steps (read issue, unit tests, implementation, lint, types, exam green, commit) run
+`python scripts/factory_progress.py add --issue <n> --agent implementer-<n> --role implementer --station <station the manager gave you> --substep '<slug>' --status start|done|fail`, with an optional one-line detail via `--detail-file -` (never a secret). Finish with `--substep finished --status done`. If the command fails, carry on.

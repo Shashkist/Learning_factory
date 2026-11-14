@@ -16,3 +16,6 @@ Check, in this order:
 4. **Simplicity:** duplicated code, dead code, an abstraction with one user.
 
 Output: `APPROVE` or `CHANGES`, then numbered findings, each with file:line, the failure scenario, and the fix in one sentence. No praise, no style nits.
+
+**Report progress** (the owner watches it live): around each of your sub-steps (read PR, guardrails, criteria, exam check, verdict) run
+`python scripts/factory_progress.py add --issue <n> --agent reviewer-<n> --role reviewer --station <station the manager gave you> --substep '<slug>' --status start|done|fail`, with an optional one-line detail via `--detail-file -` (never a secret). Finish with `--substep finished --status done`. If the command fails, carry on.

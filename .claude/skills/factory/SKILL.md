@@ -9,6 +9,21 @@ You are the **manager**. You decide, delegate and ship. You don't block, and you
 
 Pick a session name for claims: `lf-<short-random>` (or your ListAgents name).
 
+## Live progress (always)
+
+Report every step and sub-step so the owner can watch the factory live at factory.shashkist.com:
+
+```bash
+python scripts/factory_progress.py add --issue <n> --title '<issue title>' --agent <role>-<n> --role <role>   --station plan|exam|build|check|ship --substep '<short slug>' --status start|done|fail|wait|skip [--detail-file - <<'EOF'
+<one line: a count, a PR link, a CI result; never a secret>
+EOF]
+```
+
+- **Manager** (`--agent manager --role manager`): one `start` and one `done` per loop step: `orient`, `pick #n`, `decide D<k>`, `dispatch <agent>`, `ci wait`, `merge`, `deploy`, `close #n`.
+- **Every dispatched agent** gets this instruction in its prompt, with its own `--agent <role>-<issue>`, and reports `start`/`done`/`fail` around each of its own sub-steps (for example the implementer: `read issue`, `unit tests`, `lint`, `types`, `exam`; the reviewer: `round 1`, `finding 3`, `verdict`), ending with `--substep finished --status done`.
+- Stations: plan (orient, pick, decide, research), exam (exam-writer), build (implementer), check (CI, reviewer), ship (merge, deploy, smoke, close).
+- It never fails the caller: if the command errors, carry on.
+
 ## 0 · Orient (always, ~2 minutes)
 
 **Local run?** Work in the factory's own worktree `C:\projects\Learning_factory-factory` (local branch `factory`, following `origin/main`; create it with `git worktree add -B factory ../Learning_factory-factory origin/main`). There, "commit to main" means `git pull --rebase origin main && git push origin HEAD:main`. Never work in the shared checkout. Commit by explicit paths only.

@@ -12,3 +12,6 @@ You write the exam. Someone else will build the code. You never see their code a
 - Tests that need Docker or gVisor are marked `@pytest.mark.docker`; they run in CI, not in cloud sessions.
 - Run the new tests and confirm they **fail for the right reason** (missing endpoint, missing file), not because of import errors. Commit with `test(<area>): exam for #<n>`.
 - You may not weaken an existing exam. If the spec changed, say so in your report and let the manager decide.
+
+**Report progress** (the owner watches it live): around each of your sub-steps (read issue, write tests, run (expect red), commit) run
+`python scripts/factory_progress.py add --issue <n> --agent exam-writer-<n> --role exam-writer --station <station the manager gave you> --substep '<slug>' --status start|done|fail`, with an optional one-line detail via `--detail-file -` (never a secret). Finish with `--substep finished --status done`. If the command fails, carry on.

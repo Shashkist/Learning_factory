@@ -17,6 +17,17 @@ $Claude      = 'C:\nvm4w\nodejs\claude.ps1'
 $Model       = 'claude-opus-5-5'
 $PassMinutes = 90            # the manager stops itself after ~90 min or 3 merged PRs
 $MaxPassesPerDay = 10        # cost guard
+$ProgressKey = Join-Path $StateDir 'progress_key'   # forced-command key: can only write live.json
+$ServerHost  = 'root@207.154.193.238'
+$env:LF_PROGRESS_FILE = Join-Path $StateDir 'progress.jsonl'
+$Progress    = if (Test-Path (Join-Path $Worktree 'scriptsactory_progress.py')) { Join-Path $Worktree 'scriptsactory_progress.py' } else { Join-Path $Main 'scriptsactory_progress.py' }
+function Publish-Live([string]$state = '', [string]$note = '') {
+    # Best effort: never let the live view break the factory.
+    try {
+        if ($state) { & python $Progress runner-state --state $state --note $note 2>$null | Out-Null }
+        if (Test-Path $ProgressKey) { & python $Progress publish --key $ProgressKey --host $ServerHost 2>$null | Out-Null }
+    } catch {}
+}
 
 New-Item -ItemType Directory -Force $StateDir, $RunsDir | Out-Null
 function Log($m) { "$(Get-Date -Format s)  $m" | Add-Content -Encoding utf8 $Log }
@@ -36,7 +47,7 @@ function Notify($title, $text, $key) {
     } catch {}
 }
 
-if (Test-Path (Join-Path $StateDir 'PAUSE')) { Log 'paused (PAUSE file present)'; exit 0 }
+if (Test-Path (Join-Path $StateDir 'PAUSE')) { Log 'paused (PAUSE file present)'; Publish-Live 'paused' 'PAUSE file present'; exit 0 }
 
 # One run at a time; a lock older than 3 hours is considered dead.
 if (Test-Path $Lock) {
@@ -69,6 +80,7 @@ $countFile = Join-Path $StateDir "passes-$today.txt"
 $passes = if (Test-Path $countFile) { [int](Get-Content $countFile) } else { 0 }
 if ($passes -ge $MaxPassesPerDay) {
     Log "skip: daily budget reached ($passes passes)"
+    Publish-Live 'budget' "daily budget of $MaxPassesPerDay passes used"
     Notify 'Learning Factory: daily budget used' "All $MaxPassesPerDay passes for today are used; the factory resumes tomorrow. Raise MaxPassesPerDay in factory-poll.ps1 to allow more." 'budget'
     exit 0
 }
@@ -82,7 +94,7 @@ try {
     $work = @($issues | Where-Object { @($_.labels.name | Where-Object { $wanted -contains $_ }).Count -gt 0 }).Count
     $prs  = [int](gh pr list -R $Repo --state open --json number --jq length)   # no quotes, safe in PS 5.1
 } catch { Log "skip: gh failed ($($_.Exception.Message))"; exit 0 }
-if ([int]$work -eq 0 -and [int]$prs -eq 0) { Log 'idle: nothing ready, no open PRs'; exit 0 }
+if ([int]$work -eq 0 -and [int]$prs -eq 0) { Log 'idle: nothing ready, no open PRs'; Publish-Live 'idle' 'nothing ready'; exit 0 }
 
 New-Item -ItemType File -Force $Lock | Out-Null
 try {
@@ -118,6 +130,8 @@ Read CLAUDE.md, then load the project skill 'factory' and follow it exactly, sta
 Decide yourself and record decisions in docs/factory/DECISIONS.md; put owner-only blockers in docs/factory/OWNER.md and move on. Commits, pushes and squash-merges of green, reviewed PRs are pre-approved; commit by explicit paths only; never add attribution or mention Claude, AI or agents in commits, PRs or comments.
 Stop after about $PassMinutes minutes of work or 3 merged PRs, and update docs/factory/STATE.md so the next pass resumes exactly where you stopped.
 "@
+    & python $Progress pass-start --pass-no ($passes + 1) --budget $MaxPassesPerDay 2>$null | Out-Null
+    Publish-Live
     $runLog = Join-Path $RunsDir ("{0}.log" -f (Get-Date -Format 'yyyyMMdd-HHmm'))
     $job = Start-Job -ScriptBlock {
         param($wt, $claude, $model, $p, $out)
@@ -125,13 +139,17 @@ Stop after about $PassMinutes minutes of work or 3 merged PRs, and update docs/f
         & $claude -p $p --model $model --permission-mode auto *>&1 | Out-File -Encoding utf8 $out
     } -ArgumentList $Worktree, $Claude, $Model, $prompt, $runLog
     $result = 'done'
-    if (-not (Wait-Job $job -Timeout (($PassMinutes + 20) * 60))) {
+    $deadline = (Get-Date).AddMinutes($PassMinutes + 20)
+    while ($job.State -eq 'Running' -and (Get-Date) -lt $deadline) { Publish-Live; Start-Sleep -Seconds 15 }
+    if ($job.State -eq 'Running') {
         Stop-Job $job; $result = 'timeout'; Log 'stopped: pass exceeded its time limit'
         Notify 'Learning Factory: pass timed out' "A pass ran longer than $($PassMinutes + 20) min and was stopped. See $runLog" 'timeout'
     }
     Remove-Job $job -Force
     $tail = if (Test-Path $runLog) { (Get-Content $runLog -Tail 3) -join ' | ' } else { '(no output)' }
     Log "$result. last lines: $tail"
+    & python $Progress pass-end --result $result 2>$null | Out-Null
+    Publish-Live
     if ((Test-Path $runLog) -and ((Get-Item $runLog).Length -eq 0)) {
         Notify 'Learning Factory: pass produced no output' "The last pass wrote nothing. Is Claude Code logged in? See $runLog" 'empty'
     }
