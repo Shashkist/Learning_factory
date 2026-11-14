@@ -158,3 +158,17 @@ in force · factory · 2026-11-14
 **Also.** The #2 exam read the container IP from `.NetworkSettings.IPAddress`, which Docker 28+ leaves empty; the manager fixed the lookup in a separate exam-only commit (per-network address). The assertions did not change.
 **Alternatives.** Allow exam + CI changes when the CI diff only adds a job (needs a YAML-aware gate; later, if it happens often); write the CI part of the exam as a follow-up issue.
 **Revert.** Ship such issues in one PR again after changing the gate.
+
+## D20 · How lab containers run (from the review of #2)
+in force · factory · 2026-11-14
+
+**Decision.**
+- Lab containers run with `--cap-drop ALL --cap-add SETUID --cap-add SETGID --security-opt no-new-privileges` under `runsc`. `SETUID`/`SETGID` are needed for ttyd (root) to start `su - student`; `no-new-privileges` still blocks any setuid binary from raising the student's rights.
+- `sudo` is installed in `lf-lab-term` with no rule for `student`. A lab with `sudo: true` gets a file in `/etc/sudoers.d/` from the manager, and that lab's container starts **without** `no-new-privileges` (sudo is setuid). Only such labs drop it (#7).
+- `tini` is PID 1 in lab images, so orphaned processes are reaped and do not eat the `--pids-limit`.
+- The command log is appended to (`script -a`), so a reconnect keeps the history. Its size is capped by #7: `/var/log/lf` is a size-capped tmpfs (`mode=0700`), counted against the container's memory limit.
+- ttyd has no login of its own. Lab containers must not reach each other: #3 creates `lf-labs` with inter-container traffic off (`com.docker.network.bridge.enable_icc=false`) in addition to the DOCKER-USER rules; only the manager talks to port 7681. A per-session ttyd credential injected by the #8 proxy is an option if that ever proves insufficient.
+- The CI job that pushes `lf-lab-term` waits for the docker exam job (`needs: docker`). The docker job builds its own copy from the same commit; D18(b)'s "build once" is relaxed to that.
+**Why.** The review of #30 found that `su` fails under `--cap-drop ALL`, that the image had no `sudo` to grant, that `man` is stubbed out in minimized Ubuntu, and that a reconnect truncated the log.
+**Alternatives.** Start ttyd as `student` and log with a root helper (more moving parts); `--init` instead of tini (a run flag every caller must remember).
+**Revert.** Drop the capability adds and the `sudo` package in the image and in #7.
