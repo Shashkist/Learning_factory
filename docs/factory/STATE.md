@@ -6,8 +6,8 @@ _Last updated: 2026-11-14 ~21:30 UTC, laptop pass lf-k7m2 (stopped at 3 merged P
 
 ## Now
 
-- **Issue:** none claimed.
-- **Next session starts at:** Next 1 below (pick the highest `status:ready` p1 whose dependencies are closed).
+- **Issue:** #4 database schema, claimed by lf-q4d9. Branches: `f/4-exam` (exam), `f/4-db-schema` (code + CI, PR A per D19). Design in D22.
+- **Next session starts at:** if the claim is stale, continue #4 from its branches; otherwise Next 1 below.
 
 ## Next (in order)
 

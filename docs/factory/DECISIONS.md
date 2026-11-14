@@ -179,3 +179,16 @@ in force · factory · 2026-11-14
 **Decision.** Round 2 of the review of #31 left one finding (a served lab was also listed in `errors` when a broken copy shared its id). The manager had it fixed (72b1b4f), checked the diff, and merged on green CI without a round 3. The two non-blocking findings went to the issues that own them: the student API must not send the quiz answer (`Task.correct`) (#9); the allowlist proxy must refuse hostnames that resolve to private or link-local addresses (#3).
 **Why.** The fix was four lines with a unit test; a third round would cost more than it finds (FACTORY: two rounds, then the manager decides).
 **Revert.** Reopen #5 with a new review.
+
+## D22 · Database layer for #4: asyncpg, plain SQL migrations, a separate health endpoint
+in force · factory · 2026-11-14
+
+**Decision.**
+- **Driver:** `asyncpg` directly (no ORM). Every connection uses `statement_cache_size=0`, because Supabase's transaction pooler (port 6543) does not keep prepared statements.
+- **Migrations:** plain SQL files `labs/manager/migrations/NNN_<slug>.sql`, applied in name order by `app.db` (`migrate(dsn) -> list[str]` of newly applied versions), each in its own transaction under `pg_advisory_xact_lock`, recorded in `learning_factory.schema_migrations(version, applied_at)`. A second run applies nothing. The manager runs them on startup when `LF_DATABASE_URL` is set.
+- **Schema and role:** migrations never create the schema (the `lf_app` role has no CREATE on the database, and `create schema if not exists` checks that privilege first). `labs/deploy/db/001-create-schema-and-role.sql` is the owner's script (already applied, O3): idempotent, creates role `lf_app` (login, password set separately by the owner), schema `learning_factory` with usage+create for `lf_app`, revokes `public`, sets `search_path`. CI runs that file as the Postgres superuser and then everything else as `lf_app`, so CI proves the role works with only that schema.
+- **Degraded mode:** `LF_DATABASE_URL` absent → the manager starts, logs one line, and DB-backed endpoints answer 503 `database not configured`. `/healthz` stays the plain liveness probe (`{"ok": true}`, exam of #1). The new `GET /api/health` reports `{"status": "ok"|"degraded", "database": "ok"|"not_configured"|"unavailable"}` with HTTP 200.
+- **Tests:** tests that need Postgres read `LF_TEST_DATABASE_URL` (a superuser DSN to a throwaway database) and skip when it is absent (local runs). CI's `manager` job gets a `postgres:16` service and sets it, so the no-skip exam gate makes them run there. #4 needs a `ci.yml` change, so it ships in two PRs (D19).
+**Why.** The spec allows SQLAlchemy/asyncpg; seven tables and hand-written queries do not need an ORM or Alembic, and plain SQL is what the owner can read. A separate health endpoint keeps #1's exam intact.
+**Alternatives.** SQLAlchemy Core + Alembic (more moving parts, pooler quirks in two layers); putting the database state into `/healthz` (would change #1's exam).
+**Revert.** Add SQLAlchemy/Alembic later behind `app.db`; the SQL files become the first Alembic revision.
