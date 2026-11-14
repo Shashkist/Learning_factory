@@ -39,6 +39,15 @@ The factory never waits on these. It works around them and comes back when they 
   ```
   Do the deletes only after #25 is merged (the workflows then use `environment: production`); until then nothing changes.
 
+- [ ] **O9 · (security, your call) What `lf_app` can still reach through `PUBLIC` in the Supabase database.** The role sees tables only in `learning_factory`, but like every role it inherits `PUBLIC`'s rights: it can call functions in schema `public` (Postgres grants EXECUTE to `PUBLIC` by default) and read the catalog (table names, function source). A `SECURITY DEFINER` function in `public` would run with its owner's rights, so `lf_app` could reach JSoul data through it. The factory does not change `PUBLIC` because JSoul shares the database (D22, review of #34). To check, in the Supabase SQL editor:
+  ```sql
+  select p.oid::regprocedure as fn, p.prosecdef as security_definer
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public' and has_function_privilege('lf_app', p.oid, 'EXECUTE')
+  order by 2 desc, 1;
+  ```
+  If a `security_definer = true` row should not be callable by everyone, `revoke execute on function <fn> from public;` (Supabase's `anon`/`authenticated`/`service_role` grants are separate, but test JSoul afterwards). Nothing in the labs platform depends on this.
+
 ## Questions
 
 _None yet._ When the factory meets something only Ilia can answer, it lands here with the issue link and the assumption it made meanwhile.

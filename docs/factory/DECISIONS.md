@@ -192,3 +192,9 @@ in force · factory · 2026-11-14
 **Why.** The spec allows SQLAlchemy/asyncpg; seven tables and hand-written queries do not need an ORM or Alembic, and plain SQL is what the owner can read. A separate health endpoint keeps #1's exam intact.
 **Alternatives.** SQLAlchemy Core + Alembic (more moving parts, pooler quirks in two layers); putting the database state into `/healthz` (would change #1's exam).
 **Revert.** Add SQLAlchemy/Alembic later behind `app.db`; the SQL files become the first Alembic revision.
+**Amended after the review of #34 (round 1).**
+- *What "only schema `learning_factory`" means.* The owner script gives `lf_app` tables only in `learning_factory` and revokes its direct rights on `public`, but `lf_app` keeps what every role gets through `PUBLIC`: USAGE on schema `public`, EXECUTE on functions in `public` (the Postgres default), CONNECT/TEMP, and catalog reads. Changing `PUBLIC` affects the other app in the same database, so the factory does not do it; the owner checks the exposure (O9). The manager never calls anything outside `learning_factory`.
+- *Robustness.* Any startup error (including a malformed URL, whose `ValueError` can echo part of the password) leaves the manager degraded and logs only the error class (plus SQLSTATE and message for server errors); a failed start is retried in the background with backoff; connect, health ping and the migration lock all have timeouts; `migrate()` fails when it finds no migration files.
+- *Data integrity in 001.* One `task_results` row per (session, task); one `lab_runs` row per session; at most one `first_completion` per (student, lab).
+- *Tests.* Database tests (unit and exam) refuse any `LF_TEST_DATABASE_URL` that is not localhost: they drop the schema.
+- *Limits.* Migrations run in a transaction through the transaction pooler, so a migration can never use `CREATE INDEX CONCURRENTLY`.
