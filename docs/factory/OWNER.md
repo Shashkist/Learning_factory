@@ -20,6 +20,13 @@ The factory never waits on these. It works around them and comes back when they 
 - [ ] **O4 · (optional, skipped for now) Second-opinion reviewer.** `gh secret set OPENROUTER_API_KEY -R Shashkist/Learning_factory`. Without it, the cross-company PR review is skipped and the PRs say so.
 - [x] **O5 · (optional) Copy the labs nginx block** (done 2026-11-14 for the placeholder blocks; repeat when the factory changes them) from `labs/deploy/nginx/labs.conf` into `EMEW-AI/Digital Ocean/default.conf`, so that repo's copy matches the server (see D3).
 
+- [ ] **O6 · Before 2026-11-20: a long-lived Claude Code token for the laptop runner.** Claude Code warned: "this sign-in ends between 2026-11-20 and 2026-11-23 … use claude setup-token for unattended jobs". In a terminal:
+  ```powershell
+  claude setup-token        # sign in in the browser; it prints a token
+  [Environment]::SetEnvironmentVariable('CLAUDE_CODE_OAUTH_TOKEN', '<paste token>', 'User')
+  ```
+  The scheduled task inherits user environment variables. Without this, passes fail after that date (the watchdog alerts "no progress").
+
 ## Questions
 
 _None yet._ When the factory meets something only Ilia can answer, it lands here with the issue link and the assumption it made meanwhile.
