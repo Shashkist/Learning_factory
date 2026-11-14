@@ -2,12 +2,12 @@
 
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
-_Last updated: 2026-11-14 ~20:55 UTC, laptop pass lf-r4q9 (stopped at 3 merged PRs: #23, #24, #27)._
+_Last updated: 2026-11-14 ~20:58 UTC, laptop pass lf-k7m2._
 
 ## Now
 
-- **Issue:** none claimed.
-- **Next session starts at:** Next 1 below (pick the highest `status:ready` p1 whose dependencies are closed).
+- **Issues:** #5 content loader (branch `f/5-content-loader`) and #2 lab image (branch `f/2-lab-image-term`), both claimed by lf-k7m2, step: exam.
+- If the claims are stale (>90 min): continue those branches, do not restart.
 
 ## Next (in order)
 
