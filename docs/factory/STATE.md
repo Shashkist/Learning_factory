@@ -2,13 +2,13 @@
 
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
-_Last updated: 2026-11-14, factory setup (initial session)._
+_Last updated: 2026-11-14, laptop pass lf-k7m2._
 
 ## Now
 
-- **Issue:** none in progress.
-- **Step:** factory set up; the issue queue for phase 1 is seeded; the first run will pick the top `status:ready` issue.
-- **Branch:** –
+- **Issue:** #1 Repo skeleton and CI pipeline (claimed by lf-k7m2).
+- **Step:** exam, then build.
+- **Branch:** `f/1-skeleton-ci`
 
 ## Next (in order)
 
