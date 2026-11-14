@@ -42,6 +42,15 @@ Short entries with insights and fun facts about building this with Claude Code, 
 - **Windows vs Linux in one lint rule.** ruff grouped `app` imports differently on the laptop than in CI, so local lint was green while CI was red. The fix was to state `known-first-party = ["app"]` explicitly. The check was to run ruff on the old file and see it now fail locally too.
 - **Numbers:** 2 issues closed, 3 PRs merged, 4 decisions recorded (D18–D21), 2 review rounds per PR. The image is in GHCR with both tags at one digest.
 
+## 2026-11-14 · Fifth pass (#4, #6): the database and login, with no database on the laptop
+
+- **CI as the only Postgres.** The laptop has no Docker and no Postgres, so every database test skipped locally and ran for real only in GitHub Actions (a `postgres:16` service container). An exam-integrity gate that fails on *skipped* tests turned "it skipped" into "it must run there": 21 schema tests and 20 login tests ran against a real database as the restricted role, on every PR.
+- **Prove the exam before the code merges.** #4 needed a CI change, so it shipped as two PRs (D19). A draft "evidence" PR stacked the exam on the code branch, so the exam ran green against the code before the code reached `main`. Then the exam shipped on its own.
+- **The reviewer kept finding what the tests could not.** For #4: a `revoke` that looked like it closed access to `public` did nothing, because the role's access came through `PUBLIC` (the exam passed anyway, because Postgres 15 changed the default). The factory did not "fix" it: the database is shared with another app, so it became an owner check (O9) with the exact query to run. For #6: the reviewer fired 100 parallel wrong passwords at the login and all 100 got through a "10 per 15 minutes" limit. The fix records each attempt before any await, and caps argon2 so a flood cannot eat the CPU the owner's bots need.
+- **A test harness bug, not a code bug.** The first CI run of #6 failed with "Future attached to a different loop": the exam's second test client ran on its own event loop while the app's database pool belonged to the first one. The manager fixed the harness (one line, no assertion changed). The per-commit gate then rejected an exam change after code, so the branch was re-sequenced (exam, harness fix, code) into a new PR rather than force-pushed.
+- **Agents in parallel, one conductor.** While the reviewer read #4's round 2, the exam for #6 was being written in another worktree from the decision D23; the #6 implementer started the minute #4 merged.
+- **Numbers:** 2 issues, 3 merged PRs (#34, #38, #40), 2 decisions (D22, D23) amended once each after review, 4 review rounds, 1 owner item (O9), 0 secrets touched.
+
 ## 2026-11-14 · Third pass (#18, #19, #25): the dashboard went live, and the owner worked alongside the factory
 
 - **Three PRs in about 55 minutes, hands-off.** #23 (dashboard), #24 (publish to https://factory.shashkist.com) and #27 (deploy key limited to `main`, pinned host key) were merged by one laptop pass. Each had an exam written first, CI and a fresh-context review. The pass stopped on its own at the "3 merged PRs" budget.
