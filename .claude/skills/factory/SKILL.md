@@ -11,10 +11,10 @@ Pick a session name for claims: `lf-<short-random>` (or your ListAgents name).
 
 ## 0 · Orient (always, ~2 minutes)
 
-**Local run?** Work in the factory's own worktree, never in the shared checkout: `git worktree add ../Learning_factory-factory main` (once), then `cd ../Learning_factory-factory`. Commit by explicit paths only.
+**Local run?** Work in the factory's own worktree `C:\projects\Learning_factory-factory` (local branch `factory`, following `origin/main`; create it with `git worktree add -B factory ../Learning_factory-factory origin/main`). There, "commit to main" means `git pull --rebase origin main && git push origin HEAD:main`. Never work in the shared checkout. Commit by explicit paths only.
 
 ```bash
-git fetch -q && git checkout -q main && git pull -q --ff-only
+git fetch -q && git status --short   # local runs: the factory worktree on branch 'factory'
 cat docs/factory/STATE.md
 gh issue list --state open --limit 100 --json number,title,labels \
   --jq '.[] | "\(.number)\t\([.labels[].name]|join(","))\t\(.title)"'

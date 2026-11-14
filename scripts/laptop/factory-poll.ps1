@@ -5,7 +5,7 @@
 # Pause:   New-Item "$env:LOCALAPPDATA\learning-factory\PAUSE"     (delete the file to resume)
 # Logs:    $env:LOCALAPPDATA\learning-factory\poll.log  and  ...\runs\<time>.log
 
-$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Continue'   # native git/gh write progress to stderr; never treat that as fatal
 $Repo        = 'Shashkist/Learning_factory'
 $Main        = 'C:\projects\Learning_factory'
 $Worktree    = 'C:\projects\Learning_factory-factory'
@@ -51,10 +51,20 @@ try {
     Set-Content $countFile ($passes + 1)
     Log "pass $($passes + 1)/$MaxPassesPerDay today: $work issue(s) with work, $prs open PR(s)"
 
-    if (-not (Test-Path $Worktree)) { git -C $Main worktree add $Worktree main 2>&1 | Out-Null }
+    # The factory's worktree lives on its own local branch 'factory' that follows origin/main
+    # (main itself is checked out in the shared checkout and cannot be checked out twice).
+    if (-not (Test-Path $Worktree)) {
+        git -C $Main fetch -q origin
+        git -C $Main worktree add -q -B factory $Worktree origin/main
+        if ($LASTEXITCODE -ne 0) { throw "worktree add failed ($LASTEXITCODE)" }
+    }
     git -C $Worktree fetch -q origin
-    git -C $Worktree checkout -q main
-    git -C $Worktree pull -q --ff-only
+    $dirty = git -C $Worktree status --porcelain
+    if ($dirty) { Log 'worktree has uncommitted changes from a previous pass: the manager will handle them' }
+    else {
+        git -C $Worktree checkout -q factory
+        git -C $Worktree reset -q --hard origin/main
+    }
 
     try {
         Add-Type -AssemblyName System.Windows.Forms
@@ -65,6 +75,7 @@ try {
 
     $prompt = @"
 You are the manager of the Learning Factory software factory, running one pass on the owner's laptop in the worktree $Worktree. The owner approved hands-off operation in advance (docs/factory/DECISIONS.md D1, D7).
+This worktree is on the local branch 'factory' which follows origin/main: push state commits with 'git push origin HEAD:main' after 'git pull --rebase origin main'; feature work goes on f/<n>-<slug> branches as usual.
 Read CLAUDE.md, then load the project skill 'factory' and follow it exactly, starting from docs/factory/STATE.md. Take issues labelled needs:laptop first, then the normal queue.
 Decide yourself and record decisions in docs/factory/DECISIONS.md; put owner-only blockers in docs/factory/OWNER.md and move on. Commits, pushes and squash-merges of green, reviewed PRs are pre-approved; commit by explicit paths only; never add attribution or mention Claude, AI or agents in commits, PRs or comments.
 Stop after about $PassMinutes minutes of work or 3 merged PRs, and update docs/factory/STATE.md so the next pass resumes exactly where you stopped.
@@ -79,6 +90,8 @@ Stop after about $PassMinutes minutes of work or 3 merged PRs, and update docs/f
     Remove-Job $job -Force
     $tail = if (Test-Path $runLog) { (Get-Content $runLog -Tail 3) -join ' | ' } else { '(no output)' }
     Log "done. last lines: $tail"
+} catch {
+    Log "error: $($_.Exception.Message)"
 } finally {
     Remove-Item $Lock -Force -ErrorAction SilentlyContinue
 }
