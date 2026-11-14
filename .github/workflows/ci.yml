@@ -74,6 +74,32 @@ jobs:
           if [ "$rc" -ne 0 ] && [ "$rc" -ne 5 ]; then exit "$rc"; fi
           python3 ../../scripts/ci/junit_gate.py docker-acceptance.xml --allow-empty
 
+  image-term:
+    # Push only an image whose docker exam job passed.
+    needs: docker
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build lf-lab-term
+        run: docker build -t ghcr.io/shashkist/lf-lab-term:${{ github.sha }} -t ghcr.io/shashkist/lf-lab-term:latest labs/images/term
+      - name: Smoke test under production run flags
+        run: |
+          out=$(docker run --rm --cap-drop ALL --cap-add SETUID --cap-add SETGID --security-opt no-new-privileges --entrypoint su ghcr.io/shashkist/lf-lab-term:${{ github.sha }} - student -c 'id -un; man -w ls')
+          echo "$out"
+          echo "$out" | head -n1 | grep -qx student
+          echo "$out" | tail -n1 | grep -q '/usr/share/man/.*ls'
+      - name: Log in to ghcr.io
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Push lf-lab-term
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          docker push ghcr.io/shashkist/lf-lab-term:${{ github.sha }}
+          docker push ghcr.io/shashkist/lf-lab-term:latest
+
   exam-integrity:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
