@@ -37,9 +37,12 @@ if ($passes -ge $MaxPassesPerDay) { Log "skip: daily budget reached ($passes pas
 
 # Cheap pre-check: is there anything to do?
 try {
-    $work = gh issue list -R $Repo --state open --limit 200 --json labels `
-        --jq '[.[] | select([.labels[].name] | any(. == "status:ready" or . == "status:in-progress" or . == "status:in-review" or . == "type:incident" or . == "needs:laptop"))] | length'
-    $prs  = gh pr list -R $Repo --state open --json number --jq 'length'
+    # Filter in PowerShell: Windows PowerShell 5.1 strips the double quotes inside a jq
+    # expression passed to a native exe, which silently turned this check into "0".
+    $wanted = 'status:ready', 'status:in-progress', 'status:in-review', 'type:incident', 'needs:laptop'
+    $issues = gh issue list -R $Repo --state open --limit 200 --json labels | ConvertFrom-Json
+    $work = @($issues | Where-Object { @($_.labels.name | Where-Object { $wanted -contains $_ }).Count -gt 0 }).Count
+    $prs  = [int](gh pr list -R $Repo --state open --json number --jq length)   # no quotes, safe in PS 5.1
 } catch { Log "skip: gh failed ($($_.Exception.Message))"; exit 0 }
 if ([int]$work -eq 0 -and [int]$prs -eq 0) { Log 'idle: nothing ready, no open PRs'; exit 0 }
 
