@@ -2,7 +2,7 @@ name: Incident
 
 on:
   workflow_run:
-    workflows: ["CI", "Dashboard CI", "Factory dashboard", "Deploy", "Smoke"]
+    workflows: ["CI", "Dashboard CI", "Factory dashboard", "Deploy", "Smoke", "Server bootstrap"]
     types: [completed]
 
 # The Deploy and Smoke workflows must be named exactly `Deploy` and `Smoke`.

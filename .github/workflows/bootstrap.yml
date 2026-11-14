@@ -1,0 +1,77 @@
+name: Server bootstrap
+
+# Prepares the lab host (runsc, swap, lf-labs network, DOCKER-USER rules). It changes the shared
+# production server, so it is never scheduled: a manual dispatch, or a push to main that touches
+# labs/deploy/bootstrap/**. Both start as a dry run unless the dispatch input `apply` is true or
+# a line of the head commit message is exactly "[bootstrap apply]".
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Apply the changes (default: dry run, nothing is changed)"
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths:
+      - "labs/deploy/bootstrap/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: server-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run bootstrap.sh on the server
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_HOST_KEY: ${{ vars.SERVER_HOST_KEY }}
+          INPUT_APPLY: ${{ inputs.apply }}
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          if [ -z "$SSH_PRIVATE_KEY" ] || [ -z "$SERVER_HOST" ] || [ -z "$SERVER_USER" ]; then
+            echo "SSH_PRIVATE_KEY, SERVER_HOST or SERVER_USER not set in the production environment" >&2
+            exit 1
+          fi
+          if [ -z "$SERVER_HOST_KEY" ]; then
+            echo "repo variable SERVER_HOST_KEY is not set: refusing to trust an unknown host key" >&2
+            exit 1
+          fi
+          DRY_RUN=1
+          if [ "$INPUT_APPLY" = "true" ]; then DRY_RUN=0; fi
+          if printf '%s\n' "$HEAD_COMMIT_MESSAGE" | grep -qFx '[bootstrap apply]'; then DRY_RUN=0; fi
+          echo "mode: $([ "$DRY_RUN" = 1 ] && echo 'dry run' || echo 'apply')"
+
+          key="$RUNNER_TEMP/bootstrap_key"
+          umask 077
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$key"
+          chmod 600 "$key"
+          printf '%s %s\n' "$SERVER_HOST" "$SERVER_HOST_KEY" > "$RUNNER_TEMP/known_hosts"
+          ssh_opts="-i $key -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$RUNNER_TEMP/known_hosts"
+          # One TCP connection for all commands: the server refuses bursts of new SSH
+          # connections (incident #26).
+          ssh_opts="$ssh_opts -o ControlMaster=auto -o ControlPath=$RUNNER_TEMP/cm-%C -o ControlPersist=120"
+          dest=/root/lf-bootstrap
+          for attempt in 1 2 3; do
+            ssh $ssh_opts "$SERVER_USER@$SERVER_HOST" "mkdir -p $dest" && break
+            if [ "$attempt" = 3 ]; then echo "ssh failed 3 times" >&2; exit 1; fi
+            echo "ssh attempt $attempt failed; retrying in 20 s"
+            sleep 20
+          done
+          scp $ssh_opts labs/deploy/bootstrap/bootstrap.sh "$SERVER_USER@$SERVER_HOST:$dest/bootstrap.sh"
+          # The full output goes to the log; the script prints no secret.
+          ssh $ssh_opts "$SERVER_USER@$SERVER_HOST" \
+            "DRY_RUN=$DRY_RUN LF_BASELINE_URLS='https://n8n.shashkist.com https://pulsesign.shashkist.com https://jsoul.app' LF_BASELINE_TCP='127.0.0.1:18789' bash $dest/bootstrap.sh"
+      - name: Remove the SSH key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/bootstrap_key" "$RUNNER_TEMP/known_hosts"
