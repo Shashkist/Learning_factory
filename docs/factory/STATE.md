@@ -18,18 +18,17 @@ _Last updated: 2026-11-14, factory setup (initial session)._
 
 ## Waiting for the owner
 
-- **Connect GitHub to Claude in the cloud** (claude.ai → Code → connect GitHub with access to `Shashkist/Learning_factory`). The hourly routine can't be saved without it (HTTP 401 `github_token_missing`, 2026-11-14).
 - O1–O3 done (DNS `labs` and `factory`, deploy secrets, database role). O4 (OpenRouter) skipped by choice.
 
 ## Recently done
 
 - 2026-11-14 · Design approved and committed (`docs/superpowers/specs/2026-11-14-lab-platform-design.md`).
 - 2026-11-14 · Factory set up: rules, roles, memory files, labels, phase 1 issues #1–#16 (epic #17).
-- 2026-11-14 · Hourly cloud routine NOT created yet: it needs the owner's explicit go-ahead (D1). Until then the factory runs when a session is told "continue the factory".
+- 2026-11-14 · Cloud routine dropped for now (company Claude account only); the laptop runs the factory (D1 amended).
 
 ## Health
 
-- Laptop poller `LearningFactoryPoll` (Windows Task Scheduler) is active: at logon and every 30 min; idle unless issues carry `needs:laptop`. Log: `%LOCALAPPDATA%\learning-factory\poll.log`.
+- **Runtime: laptop only** (D1 amended). `LearningFactoryPoll` runs a manager pass at logon and every 30 min when there is work; max 10 passes/day; pause with `%LOCALAPPDATA%\learning-factory\PAUSE`. Logs: `poll.log` and `runs\*.log` in that folder.
 
 - `main`: no CI yet (issue: CI pipeline).
 - Deploy: not set up yet.

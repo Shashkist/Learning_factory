@@ -1,60 +1,81 @@
-# Learning Factory laptop poller (owner-approved, docs/factory/DECISIONS.md D7).
-# Runs from Windows Task Scheduler at logon and every 30 minutes.
-# Does nothing unless open issues carry the label needs:laptop; then it starts one
-# headless Claude Code factory pass, in the factory's own worktree, limited to those issues.
+# Learning Factory laptop runner (owner-approved, docs/factory/DECISIONS.md D1 + D7).
+# Windows Task Scheduler starts it at logon and every 30 minutes. It runs one headless
+# Claude Code manager pass when there is work, in the factory's own worktree.
+#
+# Pause:   New-Item "$env:LOCALAPPDATA\learning-factory\PAUSE"     (delete the file to resume)
+# Logs:    $env:LOCALAPPDATA\learning-factory\poll.log  and  ...\runs\<time>.log
 
 $ErrorActionPreference = 'Stop'
-$Repo      = 'Shashkist/Learning_factory'
-$Main      = 'C:\projects\Learning_factory'
-$Worktree  = 'C:\projects\Learning_factory-factory'
-$StateDir  = Join-Path $env:LOCALAPPDATA 'learning-factory'
-$Log       = Join-Path $StateDir 'poll.log'
-$Lock      = Join-Path $StateDir 'poll.lock'
-$Claude    = 'C:\nvm4w\nodejs\claude.ps1'
-$MaxMinutes = 60
+$Repo        = 'Shashkist/Learning_factory'
+$Main        = 'C:\projects\Learning_factory'
+$Worktree    = 'C:\projects\Learning_factory-factory'
+$StateDir    = Join-Path $env:LOCALAPPDATA 'learning-factory'
+$RunsDir     = Join-Path $StateDir 'runs'
+$Log         = Join-Path $StateDir 'poll.log'
+$Lock        = Join-Path $StateDir 'poll.lock'
+$Claude      = 'C:\nvm4w\nodejs\claude.ps1'
+$Model       = 'claude-opus-5-5'
+$PassMinutes = 90            # the manager stops itself after ~90 min or 3 merged PRs
+$MaxPassesPerDay = 10        # cost guard
 
-New-Item -ItemType Directory -Force $StateDir | Out-Null
+New-Item -ItemType Directory -Force $StateDir, $RunsDir | Out-Null
 function Log($m) { "$(Get-Date -Format s)  $m" | Add-Content -Encoding utf8 $Log }
 
-# One run at a time; a lock older than 2 hours is considered dead.
+if (Test-Path (Join-Path $StateDir 'PAUSE')) { Log 'paused (PAUSE file present)'; exit 0 }
+
+# One run at a time; a lock older than 3 hours is considered dead.
 if (Test-Path $Lock) {
-    if ((Get-Item $Lock).LastWriteTime -gt (Get-Date).AddHours(-2)) { Log 'skip: a run is in progress'; exit 0 }
+    if ((Get-Item $Lock).LastWriteTime -gt (Get-Date).AddHours(-3)) { Log 'skip: a pass is running'; exit 0 }
     Remove-Item $Lock -Force
 }
 
+# Daily budget.
+$today = Get-Date -Format 'yyyy-MM-dd'
+$countFile = Join-Path $StateDir "passes-$today.txt"
+$passes = if (Test-Path $countFile) { [int](Get-Content $countFile) } else { 0 }
+if ($passes -ge $MaxPassesPerDay) { Log "skip: daily budget reached ($passes passes)"; exit 0 }
+
+# Cheap pre-check: is there anything to do?
 try {
-    $issues = gh issue list -R $Repo --label 'needs:laptop' --state open --json number --jq '.[].number'
+    $work = gh issue list -R $Repo --state open --limit 200 --json labels `
+        --jq '[.[] | select([.labels[].name] | any(. == "status:ready" or . == "status:in-progress" or . == "status:in-review" or . == "type:incident" or . == "needs:laptop"))] | length'
+    $prs  = gh pr list -R $Repo --state open --json number --jq 'length'
 } catch { Log "skip: gh failed ($($_.Exception.Message))"; exit 0 }
-if (-not $issues) { Log 'idle: no needs:laptop issues'; exit 0 }
+if ([int]$work -eq 0 -and [int]$prs -eq 0) { Log 'idle: nothing ready, no open PRs'; exit 0 }
 
 New-Item -ItemType File -Force $Lock | Out-Null
 try {
-    $list = ($issues -split "`n" | Where-Object { $_ }) -join ', #'
-    Log "work: needs:laptop issues #$list"
+    Set-Content $countFile ($passes + 1)
+    Log "pass $($passes + 1)/$MaxPassesPerDay today: $work issue(s) with work, $prs open PR(s)"
 
     if (-not (Test-Path $Worktree)) { git -C $Main worktree add $Worktree main 2>&1 | Out-Null }
     git -C $Worktree fetch -q origin
     git -C $Worktree checkout -q main
     git -C $Worktree pull -q --ff-only
 
-    # Windows notification (best effort).
     try {
         Add-Type -AssemblyName System.Windows.Forms
         $n = New-Object System.Windows.Forms.NotifyIcon
         $n.Icon = [System.Drawing.SystemIcons]::Information; $n.Visible = $true
-        $n.ShowBalloonTip(8000, 'Learning Factory', "Laptop tasks started: #$list", 'Info')
+        $n.ShowBalloonTip(8000, 'Learning Factory', 'Factory pass started', 'Info')
     } catch {}
 
-    $prompt = "Load the project skill 'factory' and run one pass in LAPTOP MODE: work only on open issues labelled needs:laptop (#$list), in this worktree. Commit by explicit paths only. When an issue no longer needs the laptop, remove the needs:laptop label. Stop after $MaxMinutes minutes and update docs/factory/STATE.md."
+    $prompt = @"
+You are the manager of the Learning Factory software factory, running one pass on the owner's laptop in the worktree $Worktree. The owner approved hands-off operation in advance (docs/factory/DECISIONS.md D1, D7).
+Read CLAUDE.md, then load the project skill 'factory' and follow it exactly, starting from docs/factory/STATE.md. Take issues labelled needs:laptop first, then the normal queue.
+Decide yourself and record decisions in docs/factory/DECISIONS.md; put owner-only blockers in docs/factory/OWNER.md and move on. Commits, pushes and squash-merges of green, reviewed PRs are pre-approved; commit by explicit paths only; never add attribution or mention Claude, AI or agents in commits, PRs or comments.
+Stop after about $PassMinutes minutes of work or 3 merged PRs, and update docs/factory/STATE.md so the next pass resumes exactly where you stopped.
+"@
+    $runLog = Join-Path $RunsDir ("{0}.log" -f (Get-Date -Format 'yyyyMMdd-HHmm'))
     $job = Start-Job -ScriptBlock {
-        param($wt, $claude, $p)
+        param($wt, $claude, $model, $p, $out)
         Set-Location $wt
-        & $claude -p $p --permission-mode auto 2>&1
-    } -ArgumentList $Worktree, $Claude, $prompt
-    if (-not (Wait-Job $job -Timeout ($MaxMinutes * 60 + 300))) { Stop-Job $job; Log 'stopped: time limit reached' }
-    Receive-Job $job | Select-Object -Last 20 | ForEach-Object { Log "claude: $_" }
+        & $claude -p $p --model $model --permission-mode auto *>&1 | Out-File -Encoding utf8 $out
+    } -ArgumentList $Worktree, $Claude, $Model, $prompt, $runLog
+    if (-not (Wait-Job $job -Timeout (($PassMinutes + 20) * 60))) { Stop-Job $job; Log 'stopped: pass exceeded its time limit' }
     Remove-Job $job -Force
-    Log 'done'
+    $tail = if (Test-Path $runLog) { (Get-Content $runLog -Tail 3) -join ' | ' } else { '(no output)' }
+    Log "done. last lines: $tail"
 } finally {
     Remove-Item $Lock -Force -ErrorAction SilentlyContinue
 }
