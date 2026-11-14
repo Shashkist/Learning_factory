@@ -39,6 +39,7 @@ docs/           spec, factory docs, decisions
 - One issue = one branch `f/<issue>-<slug>` = one PR into `main`. Squash-merge when CI is green and the reviewer approved. Delete the branch.
 - Never push straight to `main`, except `docs/factory/*` state updates (journal commits), which go directly.
 - Before merging: `git log --oneline origin/main..HEAD`. Know exactly what you are shipping.
+- **The local checkout `C:\projects\Learning_factory` is shared with other sessions** (for example course work under `courses/`). Commit **by explicit path list only**, never `git add -A` or `git add .`. Read a file before overwriting it. A local factory run works in its own worktree: `git worktree add ../Learning_factory-factory main`.
 - Commit messages: conventional (`feat(manager): ...`, `fix(web): ...`), with the issue number (`#12`).
 
 ## Verification commands

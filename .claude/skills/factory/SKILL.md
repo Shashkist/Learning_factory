@@ -11,6 +11,8 @@ Pick a session name for claims: `lf-<short-random>` (or your ListAgents name).
 
 ## 0 · Orient (always, ~2 minutes)
 
+**Local run?** Work in the factory's own worktree, never in the shared checkout: `git worktree add ../Learning_factory-factory main` (once), then `cd ../Learning_factory-factory`. Commit by explicit paths only.
+
 ```bash
 git fetch -q && git checkout -q main && git pull -q --ff-only
 cat docs/factory/STATE.md
