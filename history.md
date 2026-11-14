@@ -2,6 +2,16 @@
 
 Short entries with insights and fun facts about building this with Claude Code, for the POC presentation.
 
+## 2026-11-15 · Fifth pass (#7, #3): two issues in parallel, and the CI runner as a stand-in server
+
+- **Two issues at once, one conductor.** The manager claimed #7 (lab sessions) and #3 (server bootstrap) together. Each got its own git worktree, exam writer, implementer and reviewer, and the agents ran side by side. 2 PRs merged in about 70 minutes, with 4 review rounds and 6 CI rounds between them.
+- **The exam found a real production bug on its first run.** The two lab containers started first took the manager's fixed address 172.31.240.2. A lab started while the manager restarts would do the same. Fix: one `--ip-range` flag, so labs only get addresses from .128 up.
+- **"Dangerous" code gets a rehearsal server.** The bootstrap edits the shared production server, where the owner's n8n, OpenClaw and client apps run. CI runs the real script with sudo on a throwaway GitHub runner: twice, with a foreign "sentinel" container whose start time must not change, a pre-seeded daemon.json key that must survive byte for byte, and a baseline that fails right after the first step, to prove the rollback. The first run on the real server was a dry run, and it printed exactly the plan.
+- **Reviewers found what the tests couldn't.** Installing the `runsc` package would have edited daemon.json and reloaded Docker *by itself*, outside every safety step. `apt` over SSH could have restarted the owner's services through needrestart. A student could fill the host disk through `/tmp`. Each finding became a test first, then a fix.
+- **Evidence beat assumptions about gVisor.** `sudo` failed in sudo labs. Three diagnostic CI runs showed it was not the capabilities, the mounts or the flags: a setuid-root copy of perl stays at uid 1001 under gVisor and becomes root under runc. Running those labs on runc would weaken the isolation the spec makes a condition for using the server, so the factory recorded the evidence (D26), filed #47, and did not quietly weaken the sandbox.
+- **Discipline costs PRs, not quality.** The per-commit exam gate allows test changes only before the code, so a fix to the exam after the code meant re-sequencing onto a new branch and a new PR. #7 went #41 → #43 → #48, and #3 went #42 → #45 → #46. Nothing was force-pushed, and every merged PR has its exam commits first.
+- **A Docker quirk worth knowing:** `systemctl reload docker` reloads runtimes only when the `runtimes` key is present in daemon.json. Deleting the key leaves the old runtime registered in memory, so rolling back means writing `"runtimes": {}`, reloading, and only then restoring the original bytes.
+
 ## 2026-11-14 · From an idea to a running factory in one evening
 
 - **Brainstorm first, then build.** The lab platform was designed in conversation: Ilia described the KodeKloud experience he wanted, Claude looked at a live KodeKloud lab in Chrome and reverse-engineered it from the network traffic (per-session host, `/check_config`, `/heart_beat`, ttyd for terminals, code-server for VS Code labs).

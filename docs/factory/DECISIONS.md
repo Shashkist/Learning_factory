@@ -269,3 +269,10 @@ in force · factory · 2026-11-15
 **Why not runc for sudo labs.** Spec §6 makes gVisor the condition for running labs on this server; weakening it for some labs is the owner's call, not the factory's.
 **Alternatives for #47.** A root helper inside the container that runs commands for `student` over a socket (a `sudo` shim); starting the sudo lab's terminal as root; a runsc flag or version that honours setuid, if one exists; runc for sudo labs with the owner's consent.
 **Revert.** Restore the two sudo tests once #47 provides a mechanism.
+
+## D27 · #3 merged after review round 2 with a blocking finding; no apply run until #50
+in force · factory · 2026-11-15
+
+**Decision.** PR #46 (#3) was merged after two review rounds although round 2 left one blocking finding: a rollback of the iptables step deletes the previous boot copy of the rules script, so a later failed apply would leave labs unisolated after the next reboot. Merging only runs a **dry run** on the server (verified by both reviews; run 43653076930 printed `BOOTSTRAP RESULT: dry run` and changed nothing). The finding matters only for an apply run, so every apply waits for #50, which also takes the round-2 findings that could hurt the first apply (runsc registered by a dockerd flag making daemon.json conflict at the next restart; a cancelled SSH session killing the script without rollback; unpinned runsc; daemon.json mode) and the exam scenarios the runner did not cover (seed without a `runtimes` key, the download path, rollback after the iptables step). #3 stays open (`status:blocked`) until the dry-run log is reviewed and recorded, #50 is closed, and the apply run plus an isolation smoke on the server pass.
+**Why.** FACTORY: two review rounds, then the manager decides and splits leftovers. The dry run is the first server step the owner asked for on #3, and its output is what the next review needs.
+**Revert.** Revert #46 (the workflow then disappears; nothing was applied on the server).

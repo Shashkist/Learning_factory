@@ -2,18 +2,20 @@
 
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
-_Last updated: 2026-11-15, laptop pass lf-m7k2 (in progress)._
+_Last updated: 2026-11-15 ~23:30 UTC, laptop pass lf-m7k2 (stopped at the 90-minute budget; 2 merged PRs: #48, #46)._
 
 ## Now
 
-- **#7** session lifecycle, branch `f/7-session-lifecycle`, claimed by lf-m7k2: exam being written (D24).
-- **#3** server bootstrap, branch `f/3-server-bootstrap`, claimed by lf-m7k2: exam being written (D25). First server run must be a dry run, reviewed and recorded on #3 before the apply run.
+- **Issue:** none claimed. No open feature branches or PRs.
+- **#3 is blocked, on purpose (D27):** code merged in #46, server **dry run** done (run 43653076930, `BOOTSTRAP RESULT: dry run`). Before any apply: (a) dispatch the reviewer on that dry-run log and record its verdict on #3; (b) ship **#50**; (c) apply (`workflow_dispatch` with `apply=true`), check the baseline evidence and an isolation smoke on the server, then close #3.
+- **Next session starts at:** Next 1.
 
 ## Next (in order)
 
-1. p1 foundations: #3 server bootstrap (read the D20 notes on the issue: `enable_icc=false` plus a manager→lab 7681 accept rule; touches the shared server, so only through `labs/deploy/` scripts), #7 session lifecycle (D20 run flags and tmpfs log on the issue; use `app.auth.current_student` and the `lab_sessions` table from 001), then #13 deploy (its criteria now include `LF_TRUSTED_PROXY`, `LF_LOGIN_IP_LIMIT=100`, `/api/health` database ok, and the owner's create-admin command), #8, #9, #11 (must use `app.auth.valid_id`), #10.
-2. #21 exam-integrity hardening (p2): leftovers of the reviews of #20, #23 and #27 (D10, D13, D17) are collected as comments on the issue.
-3. Keep at least 5 issues `status:ready` (planner).
+1. **#50** pre-apply bootstrap safety (p1), then the #3 apply run above. Shared server: only through `labs/deploy/` scripts.
+2. **#49** session lifecycle hardening (p1, review leftovers of #48: sweep vs `created` containers, stranded `starting` rows, janitor backoff, one exam fix).
+3. **#13** deploy (needs #3 applied: `lf-labs` + manager at `172.31.240.2`; see comments: pre-pull `lf-lab-term`, Docker socket, default route not via `lf-labs`, `LF_TRUSTED_PROXY`, `LF_LOGIN_IP_LIMIT=100`, create-admin command), then #8, #9 (exec rights comment), #11 (`app.auth.valid_id`), #10 (draft labs + start rate limit comment).
+4. p2: #47 sudo under gVisor (D26), #44 IPv6 isolation, #21 exam-integrity hardening, #15, #14. Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
 
@@ -22,6 +24,9 @@ _Last updated: 2026-11-15, laptop pass lf-m7k2 (in progress)._
 - O9 (security, owner's call): check what `lf_app` can call in `public` through `PUBLIC` (query in OWNER.md).
 
 ## Recently done
+
+- 2026-11-15 · #7 Session lifecycle shipped in #48 (after #41 and #43 were re-sequenced): Docker Engine API over the socket, capped tmpfs for every student-writable path, admission, janitor (heartbeat, time limit, access expiry, orphans, `lf.expires` sweep while the DB is down). Main CI 43652825241: 207 + 31 exam tests, no skips. Sudo under gVisor does not work (setuid not honoured, D26) → #47. Leftovers → #49.
+- 2026-11-15 · #3 Server bootstrap code shipped in #46 (after #42 and #45); CI ran the real script on a runner incl. the runtime step, swap and a rollback after a step. Server dry run passed. Apply blocked on #50 (D27). Follow-ups #44 (IPv6), #50.
 
 - 2026-11-14 · #6 Login shipped in #40: student (ID + class password) and admin login, server-side sessions (`auth_sessions`, migration 002), rate limits that hold under parallel bursts, argon2 behind a semaphore, `python -m app.cli create-admin`. Two review rounds + round-2 fixes (D23 amended twice). Main CI 43647224796: 142 acceptance tests against Postgres, no skips.
 - 2026-11-14 · #4 Database shipped in #34 (code + Postgres service in CI) and #38 (exam), per D19, with draft evidence PRs (#35–#37) running the exam on the code branch first. asyncpg + plain SQL migrations, `/api/health` degraded mode (D22, amended). Owner item O9: what `lf_app` still reaches through `PUBLIC`.
