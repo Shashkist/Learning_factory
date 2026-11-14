@@ -12,12 +12,14 @@ _Last updated: 2026-11-14, factory setup (initial session)._
 
 ## Next (in order)
 
-1. The highest-priority `status:ready` issue in phase 1 (see `gh issue list --label status:ready`).
+1. #1 Repo skeleton and CI (p0): everything depends on it.
+2. Then the p1 issues in dependency order; the dashboard (#18 → #19) early, so the owner can watch progress.
 2. Keep at least 5 issues `status:ready` (planner).
 
 ## Waiting for the owner
 
-See `OWNER.md`: O1 DNS, O2 deploy secrets, O3 database, O4 second opinion (optional). Issues that need these carry `status:needs-owner`. Everything else proceeds.
+- **Connect GitHub to Claude in the cloud** (claude.ai → Code → connect GitHub with access to `Shashkist/Learning_factory`). The hourly routine can't be saved without it (HTTP 401 `github_token_missing`, 2026-11-14).
+- O1–O3 done (DNS `labs` and `factory`, deploy secrets, database role). O4 (OpenRouter) skipped by choice.
 
 ## Recently done
 
@@ -26,6 +28,8 @@ See `OWNER.md`: O1 DNS, O2 deploy secrets, O3 database, O4 second opinion (optio
 - 2026-11-14 · Hourly cloud routine NOT created yet: it needs the owner's explicit go-ahead (D1). Until then the factory runs when a session is told "continue the factory".
 
 ## Health
+
+- Laptop poller `LearningFactoryPoll` (Windows Task Scheduler) is active: at logon and every 30 min; idle unless issues carry `needs:laptop`. Log: `%LOCALAPPDATA%\learning-factory\poll.log`.
 
 - `main`: no CI yet (issue: CI pipeline).
 - Deploy: not set up yet.
