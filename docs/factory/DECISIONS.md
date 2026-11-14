@@ -264,8 +264,8 @@ in force · factory · 2026-11-15
 ## D26 · Sudo labs cannot use setuid `sudo` under gVisor; the sudo grant is a follow-up
 in force · factory · 2026-11-15
 
-**Decision.** #7 ships without a working `sudo` in `sudo: true` labs. It still writes `/etc/sudoers.d/student` (0440) for those labs, adds `CHOWN`/`DAC_OVERRIDE`/`FOWNER` and leaves out `no-new-privileges`, and the exam checks exactly that. The two exam tests that ran `sudo` as `student` were replaced (exam-only commit, re-sequenced before the code). Making sudo labs work is issue #46.
+**Decision.** #7 ships without a working `sudo` in `sudo: true` labs. It still writes `/etc/sudoers.d/student` (0440) for those labs, adds `CHOWN`/`DAC_OVERRIDE`/`FOWNER` and leaves out `no-new-privileges`, and the exam checks exactly that. The two exam tests that ran `sudo` as `student` were replaced (exam-only commit, re-sequenced before the code). Making sudo labs work is issue #47.
 **Evidence (CI runs 43651139210, 43651444902, 43651681853, runsc 4.19.0-gvisor).** A setuid-root copy of perl run by uid 1001 stays at euid 1001 under runsc and gets euid 0 under runc. This holds on the rootfs overlay and on `/var`, with `NoNewPrivs: 0`, an empty `SecurityOpt`, a root mount without `nosuid`, and every capability variant tried (including Docker's default set). The same lab spec under runc runs `sudo -n id -u` → `0`.
 **Why not runc for sudo labs.** Spec §6 makes gVisor the condition for running labs on this server; weakening it for some labs is the owner's call, not the factory's.
-**Alternatives for #46.** A root helper inside the container that runs commands for `student` over a socket (a `sudo` shim); starting the sudo lab's terminal as root; a runsc flag or version that honours setuid, if one exists; runc for sudo labs with the owner's consent.
-**Revert.** Restore the two sudo tests once #46 provides a mechanism.
+**Alternatives for #47.** A root helper inside the container that runs commands for `student` over a socket (a `sudo` shim); starting the sudo lab's terminal as root; a runsc flag or version that honours setuid, if one exists; runc for sudo labs with the owner's consent.
+**Revert.** Restore the two sudo tests once #47 provides a mechanism.
