@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 import asyncpg
 from fastapi import FastAPI, Request
 
-from app import db
+from app import auth, db
 
 log = logging.getLogger("lab-manager")
 
@@ -80,6 +80,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Learning Factory lab manager", lifespan=lifespan)
+app.include_router(auth.router)
 
 
 @app.get("/healthz")
