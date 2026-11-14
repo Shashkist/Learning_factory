@@ -18,7 +18,7 @@ The factory never waits on these. It works around them and comes back when they 
   gh secret set LF_DATABASE_URL -R Shashkist/Learning_factory
   ```
 - [ ] **O4 · (optional, skipped for now) Second-opinion reviewer.** `gh secret set OPENROUTER_API_KEY -R Shashkist/Learning_factory`. Without it, the cross-company PR review is skipped and the PRs say so.
-- [ ] **O5 · (optional) Copy the labs nginx block** from `labs/deploy/nginx/labs.conf` into `EMEW-AI/Digital Ocean/default.conf`, so that repo's copy matches the server (see D3).
+- [x] **O5 · (optional) Copy the labs nginx block** (done 2026-11-14 for the placeholder blocks; repeat when the factory changes them) from `labs/deploy/nginx/labs.conf` into `EMEW-AI/Digital Ocean/default.conf`, so that repo's copy matches the server (see D3).
 
 ## Questions
 
