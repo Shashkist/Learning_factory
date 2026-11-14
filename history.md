@@ -17,3 +17,10 @@ Short entries with insights and fun facts about building this with Claude Code, 
 - **Knowing when to stop is a decision too.** After two rounds the manager merged and moved the remaining hardening to a follow-up issue (#21, D10), because everything else in the queue waits on #1.
 - **Numbers:** about 45 minutes from claim to green `main`, 10 commits squashed into one, 3 CI rounds (one failure: `uvx` was missing on the runner), and a real gVisor container started in CI in 6 s.
 - **Windows quirk:** `uv run mypy` fails to start its `.exe` shim on the laptop (Access denied), so the factory uses `uv run python -m mypy` locally. Linux CI is unaffected.
+
+## 2026-11-14 · Second issue (#18, dashboard): the reviewer read the bill
+
+- **A code review that found a money bug.** The reviewer checked the account's plan with `gh api` and worked out that the requested 15-minute dashboard cron alone (~2,880 billed minutes a month) is more than the free private-repo allowance (2,000). CI would have stopped around day 20 of every month. The manager cut the cadence to push-to-main plus every 3 hours (D12) and left "make the repo public" to the owner (O7).
+- **Live data beat the fixtures.** The reviewer ran the snapshot builder against the real repo and found two bugs the 30 green exam tests missed: the CI light showed a feature branch's run, and the current issue vanished from the page as soon as its PR opened (status `in-review`).
+- **Changing an exam honestly.** The exam pinned the old cron, and the build is not allowed to edit the exam. So the exam writer revised it, and the manager rebuilt the branch with both exam commits ahead of the code. Force-push was blocked by the permission guard, so the rebuilt branch went out as a new PR (#23) and #22 was closed as superseded.
+- **Guardrails worked both ways.** The auto-mode classifier also refused a local web server + headless screenshot step. The page was checked by file-level tests and review instead, and a real screenshot is still owed.
