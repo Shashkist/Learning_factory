@@ -2,7 +2,7 @@ name: Incident
 
 on:
   workflow_run:
-    workflows: ["CI", "Deploy", "Smoke"]
+    workflows: ["CI", "Dashboard CI", "Factory dashboard", "Deploy", "Smoke"]
     types: [completed]
 
 # The Deploy and Smoke workflows must be named exactly `Deploy` and `Smoke`.
@@ -13,7 +13,7 @@ jobs:
   incident:
     if: >-
       contains(fromJSON('["failure","timed_out","startup_failure"]'), github.event.workflow_run.conclusion) &&
-      (github.event.workflow_run.name != 'CI' ||
+      (!contains(fromJSON('["CI","Dashboard CI"]'), github.event.workflow_run.name) ||
         (github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.event == 'push'))
     runs-on: ubuntu-latest
     concurrency:

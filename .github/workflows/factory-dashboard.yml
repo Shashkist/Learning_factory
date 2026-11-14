@@ -1,0 +1,41 @@
+name: Factory dashboard
+
+on:
+  schedule:
+    - cron: "0 */3 * * *"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+  actions: read
+
+concurrency:
+  group: factory-dashboard
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build snapshot.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          mkdir -p site
+          python labs/factory-dashboard/build_snapshot.py --out site/snapshot.json --repo-root .
+      - name: Copy the static page
+        run: cp labs/factory-dashboard/index.html labs/factory-dashboard/app.js labs/factory-dashboard/styles.css site/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: factory-dashboard
+          path: site/
+          retention-days: 7

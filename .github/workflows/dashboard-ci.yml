@@ -1,0 +1,37 @@
+name: Dashboard CI
+
+on:
+  pull_request:
+    paths:
+      - "labs/factory-dashboard/**"
+      - ".github/workflows/dashboard-ci.yml"
+      - ".github/workflows/factory-dashboard.yml"
+      - "scripts/ci/junit_gate.py"
+  push:
+    branches: [main]
+    paths:
+      - "labs/factory-dashboard/**"
+      - ".github/workflows/dashboard-ci.yml"
+      - ".github/workflows/factory-dashboard.yml"
+      - "scripts/ci/junit_gate.py"
+
+permissions:
+  contents: read
+
+jobs:
+  dashboard:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: labs/factory-dashboard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync
+      - run: uv run ruff check .
+      - run: uv run mypy build_snapshot.py
+      - run: uv run pytest -q
+      - name: Acceptance exam must run fully (no skips)
+        run: |
+          uv run pytest tests/acceptance -q --confcutdir=tests -o addopts="" --junitxml=acceptance.xml
+          python3 ../../scripts/ci/junit_gate.py acceptance.xml
