@@ -9,3 +9,7 @@ node_modules/
 # Claude Code
 .claude/worktrees/
 .claude/settings.local.json
+
+# test reports written by local pytest plugins
+output.json
+pytest_html_report.html
