@@ -1,3 +1,4 @@
+/* Poppins is not shipped (no third-party requests, D14); the system font stack is used. */
 /* Layer 1: palette (raw values, never used directly by components) */
 :root {
   --teal-50: #e6f7f5;
@@ -58,7 +59,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 400 15px/1.5 "Poppins", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font: 400 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 .top {
   display: flex; justify-content: space-between; align-items: center; gap: 12px;

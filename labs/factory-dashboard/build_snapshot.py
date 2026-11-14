@@ -232,7 +232,9 @@ class Source:
         return cast(list[dict[str, Any]], (data or {}).get("comments", []))
 
 
-def build(source: Source, repo_root: Path, now: datetime) -> dict[str, Any]:
+def build(
+    source: Source, repo_root: Path, now: datetime, public: bool = False
+) -> dict[str, Any]:
     issues = source.issues()
     claim = None
     for status in ("in-progress", "in-review"):
@@ -243,7 +245,7 @@ def build(source: Source, repo_root: Path, now: datetime) -> dict[str, Any]:
             break
     factory = repo_root / "docs" / "factory"
     state = read_text(factory / "STATE.md")
-    return {
+    snap: dict[str, Any] = {
         "generated_at": now.isoformat(),
         "issues": count_issues(issues),
         "queue": queue(issues),
@@ -260,6 +262,9 @@ def build(source: Source, repo_root: Path, now: datetime) -> dict[str, Any]:
         "owner_open": parse_owner_open(read_text(factory / "OWNER.md")),
         "throughput": throughput(issues, now),
     }
+    if public:
+        del snap["state"]  # STATE.md free text is not rendered, so it is not published
+    return snap
 
 
 def main() -> None:
@@ -268,10 +273,11 @@ def main() -> None:
     ap.add_argument("--fixtures")
     ap.add_argument("--repo-root", default=".")
     ap.add_argument("--now")
+    ap.add_argument("--public", action="store_true", help="omit the STATE.md text")
     args = ap.parse_args()
     now = parse_time(args.now) if args.now else datetime.now(UTC)
     source = Source(Path(args.fixtures) if args.fixtures else None)
-    snap = build(source, Path(args.repo_root), now)
+    snap = build(source, Path(args.repo_root), now, args.public)
     Path(args.out).write_text(
         json.dumps(snap, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )

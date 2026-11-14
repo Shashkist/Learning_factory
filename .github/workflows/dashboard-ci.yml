@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "labs/factory-dashboard/**"
+      - "labs/deploy/nginx/**"
       - ".github/workflows/dashboard-ci.yml"
       - ".github/workflows/factory-dashboard.yml"
       - "scripts/ci/junit_gate.py"
@@ -11,6 +12,7 @@ on:
     branches: [main]
     paths:
       - "labs/factory-dashboard/**"
+      - "labs/deploy/nginx/**"
       - ".github/workflows/dashboard-ci.yml"
       - ".github/workflows/factory-dashboard.yml"
       - "scripts/ci/junit_gate.py"
