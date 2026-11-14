@@ -232,6 +232,7 @@ in force · factory · 2026-11-15
 **Why.** The Engine API over the socket is one small dependency the manager already uses for tests (httpx) and works for the later "lab host" over TLS (spec §5). A runtime protocol lets the session logic be tested without Docker, where the database lives, and the Docker part where Docker lives.
 **Alternatives.** `aiodocker` (pulls in aiohttp), the `docker` SDK (sync, needs a thread pool), the docker CLI in the image (+50 MB). A writable-layer quota for the home cap (needs xfs with pquota; the server's disk is ext4).
 **Revert.** Swap `DockerRuntime` for another implementation behind the same protocol.
+**Amended during the build.** Root in a lab has no `CAP_CHOWN` (`CapDrop ALL` + `SETUID`/`SETGID` only), so the entrypoint cannot `chown` the home. Instead `student` has a fixed uid/gid 1001 in `lf-lab-term`, the home tmpfs is mounted with `uid=1001,gid=1001,mode=0755`, and the entrypoint copies `/etc/skel` into an empty home as `student`. A failed container start answers 502 `start_failed` and leaves no session row. Admission runs before a forced end, so a refusal never kills the student's open lab. Known gap, accepted: two students starting at the same instant can exceed a per-kind cap by one (the memory reserve still applies to each).
 
 ## D25 · Server bootstrap for #3: one script with steps, tested on the CI runner
 in force · factory · 2026-11-15
