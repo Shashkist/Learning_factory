@@ -28,6 +28,17 @@ The factory never waits on these. It works around them and comes back when they 
   The scheduled task inherits user environment variables. Without this, passes fail after that date (the watchdog alerts "no progress").
 - [ ] **O7 · (optional) GitHub Actions minutes.** The repo is private on the free plan: 2,000 Actions minutes a month for CI, deploys, smoke tests and the dashboard. The factory keeps the dashboard to push-to-main plus every 3 hours (D12), but a busy month of CI may still reach the limit, and then jobs stop until the month ends. Options: make the repo public (`gh repo edit Shashkist/Learning_factory --visibility public --accept-visibility-change-consequences`; check that nothing private is in it first, e.g. `courses/`), or set a spending limit in GitHub → Settings → Billing. Tell any session "O7: public" and the dashboard goes back to every 15 minutes.
 
+- [ ] **O8 · Move the server deploy secrets into the `production` environment** (issue #25, D15). Only workflow runs on `main` can then read the root SSH key. After the factory has created the environment (it will note that on #25), run:
+  ```bash
+  gh secret set SSH_PRIVATE_KEY --env production -R Shashkist/Learning_factory < path/to/deploy_key
+  gh secret set SERVER_HOST     --env production -R Shashkist/Learning_factory
+  gh secret set SERVER_USER     --env production -R Shashkist/Learning_factory
+  gh secret delete SSH_PRIVATE_KEY -R Shashkist/Learning_factory
+  gh secret delete SERVER_HOST     -R Shashkist/Learning_factory
+  gh secret delete SERVER_USER     -R Shashkist/Learning_factory
+  ```
+  Do the deletes only after #25 is merged (the workflows then use `environment: production`); until then nothing changes.
+
 ## Questions
 
 _None yet._ When the factory meets something only Ilia can answer, it lands here with the issue link and the assumption it made meanwhile.
