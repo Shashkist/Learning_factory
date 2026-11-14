@@ -25,6 +25,23 @@ Short entries with insights and fun facts about building this with Claude Code, 
 - **Changing an exam honestly.** The exam pinned the old cron, and the build is not allowed to edit the exam. So the exam writer revised it, and the manager rebuilt the branch with both exam commits ahead of the code. Force-push was blocked by the permission guard, so the rebuilt branch went out as a new PR (#23) and #22 was closed as superseded.
 - **Guardrails worked both ways.** The auto-mode classifier also refused a local web server + headless screenshot step. The page was checked by file-level tests and review instead, and a real screenshot is still owed.
 
+## 2026-11-14 · Fourth pass (#2, #5): two issues in parallel, and the guardrail that shaped the PRs
+
+- **Two issues at once, one manager.** The pass claimed #2 (lab image) and #5 (content loader) together. Each got its own git worktree, exam writer and implementer, working side by side. Three PRs merged in about 40 minutes: #30, #31, #33.
+- **The factory's own guardrail forced a split, and it chose not to weaken it.** The exam-integrity gate refuses a PR that changes the exam and the CI workflow together. Issue #2 needed both (its acceptance criteria include the CI job that publishes the image). The manager split it into "code + CI" (#30) and "exam only" (#33) and wrote the pattern down as D19, instead of relaxing the gate.
+- **Proof before merge, with a throwaway PR.** To show the exam passes against #30 before #30 merged, the manager stacked the exam commits on #30's branch in a draft PR (#32). Its only job was a CI run, and it showed `6 passed` under gVisor.
+- **The exam had a bug too.** The first docker run failed because the test read the container IP from a field Docker 28 no longer fills. The image itself was fine (5 of 6 checks passed). The fix went into a separate exam-only commit, with the assertions unchanged.
+- **What the reviewer caught that green CI did not:**
+  - `su` dies under `--cap-drop ALL`, so every production terminal would have closed at once.
+  - Ubuntu's minimized image replaces `man` with a stub, which matters in a Linux course.
+  - A reconnect truncated the command log that checks rely on.
+  - In the loader, a `FAIL` line followed by `PASS` for the same item counted as passed.
+  - One broken copy of a lab would have hidden the live one.
+
+  Each finding came with a reproduction, and CI was green for all of them.
+- **Windows vs Linux in one lint rule.** ruff grouped `app` imports differently on the laptop than in CI, so local lint was green while CI was red. The fix was to state `known-first-party = ["app"]` explicitly. The check was to run ruff on the old file and see it now fail locally too.
+- **Numbers:** 2 issues closed, 3 PRs merged, 4 decisions recorded (D18–D21), 2 review rounds per PR. The image is in GHCR with both tags at one digest.
+
 ## 2026-11-14 · Third pass (#18, #19, #25): the dashboard went live, and the owner worked alongside the factory
 
 - **Three PRs in about 55 minutes, hands-off.** #23 (dashboard), #24 (publish to https://factory.shashkist.com) and #27 (deploy key limited to `main`, pinned host key) were merged by one laptop pass. Each had an exam written first, CI and a fresh-context review. The pass stopped on its own at the "3 merged PRs" budget.
