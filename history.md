@@ -25,6 +25,15 @@ Short entries with insights and fun facts about building this with Claude Code, 
 - **Changing an exam honestly.** The exam pinned the old cron, and the build is not allowed to edit the exam. So the exam writer revised it, and the manager rebuilt the branch with both exam commits ahead of the code. Force-push was blocked by the permission guard, so the rebuilt branch went out as a new PR (#23) and #22 was closed as superseded.
 - **Guardrails worked both ways.** The auto-mode classifier also refused a local web server + headless screenshot step. The page was checked by file-level tests and review instead, and a real screenshot is still owed.
 
+## 2026-11-14 · Third pass (#18, #19, #25): the dashboard went live, and the owner worked alongside the factory
+
+- **Three PRs in about 55 minutes, hands-off.** #23 (dashboard), #24 (publish to https://factory.shashkist.com) and #27 (deploy key limited to `main`, pinned host key) were merged by one laptop pass. Each had an exam written first, CI and a fresh-context review. The pass stopped on its own at the "3 merged PRs" budget.
+- **The reviewer broke the nginx installer twice, and that was the point.** The script edits the `default.conf` that every site on the shared server uses. Round 1 reproduced an `END`-before-`BEGIN` marker silently deleting the n8n and OpenClaw blocks. Round 2 found that a half-written backup could be "restored" over a conf nobody had touched yet, and that pruning would delete the owner's own hand-made `.bak` files. Each finding came with a reproduction, and each became a unit test. Nothing ever ran against the real server.
+- **Owner and factory in parallel, without collisions.** While the factory built #25, Ilia's own session moved the deploy secrets into the new `production` environment with a fresh key (O8 step 1) and pushed to `main`. The factory's reviewer noticed the new script on `main` and adjusted its verdict. The manager saw the resulting incident and fixed its root cause in the same PR.
+- **A self-inflicted incident, caught by the line.** The owner's SSH calls plus the publish step's three new connections made the server refuse port 22 for a moment. The incident workflow opened #26 (p0). The manager confirmed it was transient with a re-run, then fixed the cause (one multiplexed SSH connection plus a retry). #26 closed with the live run as evidence.
+- **Evidence over assertions.** "Done" for the dashboard meant `curl` against the live site: 200, `no-cache`, `noindex`, a `generated_at` from the run that had just finished, the CSP present and no Google Fonts. It also meant the deployment record showing that `main` deployed to `production`.
+- **Windows quirk:** in Git Bash on Windows, a `\n` inside a Python heredoc can reach the file as a real newline. Multi-line edits to YAML and Python files are safer with the editor tool than with shell heredocs.
+
 ## 2026-11-14 · Course design session (syllabus)
 
 - **Spell-check as a side effect.** Asking "is the folder name spelled right?" got `multi-engeneering` fixed to `multi-engineering` in one turn.
