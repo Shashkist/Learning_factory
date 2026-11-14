@@ -1,13 +1,17 @@
 import asyncio
 import contextlib
 import logging
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import asyncpg
 from fastapi import FastAPI, Request
 
-from app import auth, db
+from app import auth, db, janitor, sessions
+from app.content import load_labs
+from app.runtime import DockerRuntime
 
 log = logging.getLogger("lab-manager")
 
@@ -45,6 +49,13 @@ async def _try_start_db(app: FastAPI, dsn: str) -> bool:
     return True
 
 
+def _load_content(app: FastAPI) -> None:
+    root = Path(os.environ.get("LF_CONTENT_DIR") or Path(__file__).resolve().parents[2] / "content")
+    result = load_labs(root)
+    app.state.labs = result.labs
+    log.info("labs loaded: %d valid, %d with errors", len(result.labs), len(result.errors))
+
+
 async def _retry_db(app: FastAPI, dsn: str) -> None:
     delay = _BACKOFF_START
     while True:
@@ -62,6 +73,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         log.addHandler(logging.StreamHandler())
     app.state.pool = None
     app.state.db_state = "not_configured"
+    app.state.runtime = DockerRuntime()
+    _load_content(app)
+    janitor_task = asyncio.create_task(janitor.loop(app))
     task: asyncio.Task[None] | None = None
     dsn = db.database_url_from_env()
     if dsn is None:
@@ -71,16 +85,23 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
+        janitor_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await janitor_task
         if task is not None:
             task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await task
         if app.state.pool is not None:
-            await app.state.pool.close()
+            try:
+                await app.state.pool.close()
+            except Exception as exc:  # shutdown must finish; the class only, never the message
+                log.warning("closing the database pool failed: %s", type(exc).__name__)
 
 
 app = FastAPI(title="Learning Factory lab manager", lifespan=lifespan)
 app.include_router(auth.router)
+app.include_router(sessions.router)
 
 
 @app.get("/healthz")

@@ -24,7 +24,7 @@ RUN rm -f /etc/dpkg/dpkg.cfg.d/excludes \
       "https://github.com/tsl0922/ttyd/releases/download/${TTYD_VERSION}/ttyd.x86_64" \
  && echo "${TTYD_SHA256}  /usr/local/bin/ttyd" | sha256sum -c - \
  && chmod 0755 /usr/local/bin/ttyd \
- && useradd --create-home --home-dir /home/student --shell /bin/bash student \
+ && useradd --uid 1001 --create-home --home-dir /home/student --shell /bin/bash student \
  && mkdir -p /var/log/lf \
  && chown root:root /var/log/lf \
  && chmod 0700 /var/log/lf
