@@ -33,6 +33,7 @@ Short entries with insights and fun facts about building this with Claude Code, 
 - **Bringing in an outside chat.** A long design discussion from a chat app was pasted into the CLI. Claude checked it against the original syllabus and found the gap (300h in the original vs 250h in the draft). Answer: 250h with the teacher plus 50h of self-practice labs.
 - **A PDF from scratch, no new installs.** A hand-written RTL HTML page was printed to PDF with headless Edge, and PyMuPDF stamped the original logo at the same coordinates as in the source PDF. Same look as the original, 7 pages.
 - **Lesson learned: shared checkouts.** Two sessions working in one folder means one session's `git add` can pick up the other's files. Keep separate areas (`courses/` for course work, `docs/factory/` for the factory) or use worktrees.
+- **AI proposes, the human edits.** Ilia's final syllabus kept the AI-first spine (AI from day one, a checkpoint without AI in every lesson, Loop Engineering → Software Factory), but cut about a third of Claude's additions (ITSM lesson, Observability, Game Day, AI-mode badges) to stay close to what the partner college expects. Claude then saved the final version to memory with an explicit "these were dropped, don't bring them back as decided" note, and sent the new lesson numbering to the lab-platform session, so the labs follow the final course and not the draft.
 
 ## 2026-11-14 · Factory setup notes (owner session)
 
