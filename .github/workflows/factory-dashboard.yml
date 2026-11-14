@@ -39,26 +39,51 @@ jobs:
           name: factory-dashboard
           path: site/
           retention-days: 7
+
+  publish:
+    # Only main can deploy to the production environment (branch policy), and only main runs this job.
+    needs: snapshot
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: factory-dashboard
+          path: site/
       - name: Publish to factory.shashkist.com
-        if: github.ref == 'refs/heads/main'
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_HOST_KEY: ${{ vars.SERVER_HOST_KEY }}
         run: |
           if [ -z "$SSH_PRIVATE_KEY" ] || [ -z "$SERVER_HOST" ] || [ -z "$SERVER_USER" ]; then
             echo "publish skipped: SSH_PRIVATE_KEY, SERVER_HOST or SERVER_USER not set"
             exit 0
           fi
+          if [ -z "$SERVER_HOST_KEY" ]; then
+            echo "repo variable SERVER_HOST_KEY is not set: refusing to trust an unknown host key" >&2
+            exit 1
+          fi
           key="$RUNNER_TEMP/publish_key"
           umask 077
           printf '%s\n' "$SSH_PRIVATE_KEY" > "$key"
           chmod 600 "$key"
-          mkdir -p ~/.ssh
-          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts 2>/dev/null
-          ssh_opts="-i $key -o IdentitiesOnly=yes -o BatchMode=yes"
+          printf '%s %s\n' "$SERVER_HOST" "$SERVER_HOST_KEY" > "$RUNNER_TEMP/known_hosts"
+          ssh_opts="-i $key -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$RUNNER_TEMP/known_hosts"
+          # One TCP connection for all three commands: the server refuses bursts of new SSH
+          # connections (incident #26).
+          ssh_opts="$ssh_opts -o ControlMaster=auto -o ControlPath=$RUNNER_TEMP/cm-%C -o ControlPersist=60"
           dest=/root/static/factory
-          ssh $ssh_opts "$SERVER_USER@$SERVER_HOST" "mkdir -p $dest/.incoming"
+          for attempt in 1 2 3; do
+            ssh $ssh_opts "$SERVER_USER@$SERVER_HOST" "mkdir -p $dest/.incoming" && break
+            if [ "$attempt" = 3 ]; then echo "ssh failed 3 times" >&2; exit 1; fi
+            echo "ssh attempt $attempt failed; retrying in 20 s"
+            sleep 20
+          done
           scp $ssh_opts site/index.html site/app.js site/styles.css site/theme.js site/snapshot.json \
             "$SERVER_USER@$SERVER_HOST:$dest/.incoming/"
           ssh $ssh_opts "$SERVER_USER@$SERVER_HOST" \
@@ -66,4 +91,4 @@ jobs:
           echo "published to $dest"
       - name: Remove the publish key
         if: always()
-        run: rm -f "$RUNNER_TEMP/publish_key"
+        run: rm -f "$RUNNER_TEMP/publish_key" "$RUNNER_TEMP/known_hosts"
