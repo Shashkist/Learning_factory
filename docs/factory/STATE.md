@@ -22,7 +22,8 @@ See `OWNER.md`: O1 DNS, O2 deploy secrets, O3 database, O4 second opinion (optio
 ## Recently done
 
 - 2026-11-14 · Design approved and committed (`docs/superpowers/specs/2026-11-14-lab-platform-design.md`).
-- 2026-11-14 · Factory set up: rules, roles, memory files, labels, phase 1 issues, hourly routine.
+- 2026-11-14 · Factory set up: rules, roles, memory files, labels, phase 1 issues #1–#16 (epic #17).
+- 2026-11-14 · Hourly cloud routine NOT created yet: it needs the owner's explicit go-ahead (D1). Until then the factory runs when a session is told "continue the factory".
 
 ## Health
 
