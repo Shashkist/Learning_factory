@@ -2,12 +2,12 @@
 
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
-_Last updated: 2026-11-14 ~22:20 UTC, laptop pass lf-q4d9 (stopped at 3 merged PRs: #34, #38, #40)._
+_Last updated: 2026-11-15, laptop pass lf-m7k2 (in progress)._
 
 ## Now
 
-- **Issue:** none claimed. No open feature branches.
-- **Next session starts at:** Next 1 below (pick the highest `status:ready` p1 whose dependencies are closed).
+- **#7** session lifecycle, branch `f/7-session-lifecycle`, claimed by lf-m7k2: exam being written (D24).
+- **#3** server bootstrap, branch `f/3-server-bootstrap`, claimed by lf-m7k2: exam being written (D25). First server run must be a dry run, reviewed and recorded on #3 before the apply run.
 
 ## Next (in order)
 
