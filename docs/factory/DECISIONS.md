@@ -198,3 +198,19 @@ in force · factory · 2026-11-14
 - *Data integrity in 001.* One `task_results` row per (session, task); one `lab_runs` row per session; at most one `first_completion` per (student, lab).
 - *Tests.* Database tests (unit and exam) refuse any `LF_TEST_DATABASE_URL` that is not localhost: they drop the schema.
 - *Limits.* Migrations run in a transaction through the transaction pooler, so a migration can never use `CREATE INDEX CONCURRENTLY`.
+
+## D23 · Login for #6: server-side sessions, in-process rate limits, API shape
+in force · factory · 2026-11-14
+
+**Decision.**
+- **ID hash:** `app.auth.id_hash(raw_id, secret) -> str` = lowercase hex of HMAC-SHA256(`LF_ID_SECRET`, normalized id); normalization removes all whitespace, then leading zeros. An id that is empty after normalization never matches. `LF_ID_SECRET` absent → login endpoints answer 503 `login not configured` (degraded, like the database).
+- **Passwords:** argon2id via `argon2-cffi` (`PasswordHasher` defaults) for cohort and admin passwords.
+- **Sessions:** server-side. Migration `002_auth_sessions.sql` adds `learning_factory.auth_sessions` (token_hash = SHA-256 of a 32-byte random token, kind `student`|`admin`, subject = student `id_hash` or admin username, created_at, expires_at). Cookie `lf_session` = the token; `HttpOnly; Secure; SameSite=Lax; Path=/`; lifetime 12 h. Logout deletes the row. A disabled or expired student is refused at login and on every authenticated request.
+- **API:** `POST /api/auth/login` `{"id", "password"}` (student) and `POST /api/auth/admin/login` `{"username", "password"}` → 200 `{"kind", "name"}` + cookie. Unknown id or wrong password → 401 `{"detail": "invalid_credentials"}` (same answer for both). Right password but disabled → 403 `{"detail": "account_disabled"}`, access ended → 403 `{"detail": "access_expired"}`. `GET /api/auth/me` → 200 `{"kind", "name"}` or 401. `POST /api/auth/logout` → 204.
+- **Access date:** valid while today (server date, UTC) ≤ `coalesce(student.access_until, cohort.access_until)`.
+- **Rate limit:** in-process sliding window: 10 failed logins per 15 min per client IP and, separately, per id hash (admin: per username). Over the limit → 429 `{"detail": "too_many_attempts"}` before the password is checked, also for a correct password. Client IP = the socket peer; behind nginx, the manager trusts `X-Forwarded-For` only from the proxy it is configured with (`LF_TRUSTED_PROXY`, unset = trust none). One manager process, so memory is enough; a restart resets the counters (accepted).
+- **First admin:** `python -m app.cli create-admin <username>` reads the password from stdin (no echo, never an argument), idempotent per username (`--reset` to change a password). OWNER.md gets the exact command once #13 deploys the manager.
+- **Logs:** the raw id is never logged; log lines name the id hash's first 8 hex characters at most.
+**Why.** Server-side sessions can be revoked (disable a student, end access) without a signing key to rotate; the spec's single manager container makes in-memory rate limits sufficient. KodeKloud-style labs need nothing more.
+**Alternatives.** Signed stateless cookies (no revocation without a deny list); rate limits in Postgres (more writes on every failure).
+**Revert.** Replace `app.auth` internals; the API shape stays.
