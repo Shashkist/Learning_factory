@@ -13,3 +13,9 @@ node_modules/
 # test reports written by local pytest plugins
 output.json
 pytest_html_report.html
+
+# build output
+dist/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
