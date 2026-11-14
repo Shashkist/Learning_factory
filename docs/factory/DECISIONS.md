@@ -259,3 +259,13 @@ in force · factory · 2026-11-15
 - *The network is checked, not trusted:* `--ipv6=false`; an existing `lf-labs` must have the bridge name `br-lf-labs`, ICC off, IPv6 off, and the right subnet and ip-range, or the run fails. Full IPv6 isolation (ip6tables) is a follow-up.
 - *Swap* needs 4 GB plus the 10 GB disk reserve free (`LF_SWAP_MIN_FREE_GB`, default 14). The runsc check container is named `lf-runsc-check`. `HUP`/`INT`/`TERM` roll back like an error. The workflow applies only when a commit message line is exactly `[bootstrap apply]`.
 - *The exam exercises the risky steps on the runner:* it removes the runner's `runsc` registration so the runtime step really runs, turns swap off around the run, and fails the baseline after the first step to prove the rollback restores `daemon.json` byte for byte. It also checks that a lab cannot reach the internet.
+- *Reload quirk:* dockerd reloads runtimes only when the `runtimes` key is present in `daemon.json`. Restoring a backup without that key would leave `runsc` registered in memory, so the rollback first writes the backup plus `"runtimes": {}`, reloads, then restores the exact bytes and reloads again. The exam seeds `"runtimes": {}` for the same reason (harness fix, before the code).
+
+## D26 · Sudo labs cannot use setuid `sudo` under gVisor; the sudo grant is a follow-up
+in force · factory · 2026-11-15
+
+**Decision.** #7 ships without a working `sudo` in `sudo: true` labs. It still writes `/etc/sudoers.d/student` (0440) for those labs, adds `CHOWN`/`DAC_OVERRIDE`/`FOWNER` and leaves out `no-new-privileges`, and the exam checks exactly that. The two exam tests that ran `sudo` as `student` were replaced (exam-only commit, re-sequenced before the code). Making sudo labs work is issue #46.
+**Evidence (CI runs 43651139210, 43651444902, 43651681853, runsc 4.19.0-gvisor).** A setuid-root copy of perl run by uid 1001 stays at euid 1001 under runsc and gets euid 0 under runc. This holds on the rootfs overlay and on `/var`, with `NoNewPrivs: 0`, an empty `SecurityOpt`, a root mount without `nosuid`, and every capability variant tried (including Docker's default set). The same lab spec under runc runs `sudo -n id -u` → `0`.
+**Why not runc for sudo labs.** Spec §6 makes gVisor the condition for running labs on this server; weakening it for some labs is the owner's call, not the factory's.
+**Alternatives for #46.** A root helper inside the container that runs commands for `student` over a socket (a `sudo` shim); starting the sudo lab's terminal as root; a runsc flag or version that honours setuid, if one exists; runc for sudo labs with the owner's consent.
+**Revert.** Restore the two sudo tests once #46 provides a mechanism.
