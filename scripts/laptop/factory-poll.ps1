@@ -29,6 +29,25 @@ if (Test-Path $Lock) {
     Remove-Item $Lock -Force
 }
 
+# One-time owner notification when the observability page goes live (owner request, 2026-11-14).
+$DashFlag = Join-Path $StateDir 'dashboard-notified'
+if (-not (Test-Path $DashFlag)) {
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $r = Invoke-WebRequest -UseBasicParsing -TimeoutSec 15 'https://factory.shashkist.com/snapshot.json'
+        if ($r.StatusCode -eq 200 -and $r.Content.Length -gt 50) {
+            New-Item -ItemType File -Force $DashFlag | Out-Null
+            Log 'dashboard is live: owner notified'
+            Add-Type -AssemblyName System.Windows.Forms
+            $n = New-Object System.Windows.Forms.NotifyIcon
+            $n.Icon = [System.Drawing.SystemIcons]::Information; $n.Visible = $true
+            Register-ObjectEvent $n BalloonTipClicked -Action { Start-Process 'https://factory.shashkist.com' } | Out-Null
+            $n.ShowBalloonTip(30000, 'Learning Factory', 'The factory dashboard is live: factory.shashkist.com (click to open)', 'Info')
+            Start-Sleep -Seconds 30; $n.Dispose()
+        }
+    } catch { }   # not live yet
+}
+
 # Daily budget.
 $today = Get-Date -Format 'yyyy-MM-dd'
 $countFile = Join-Path $StateDir "passes-$today.txt"
