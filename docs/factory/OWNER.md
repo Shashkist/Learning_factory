@@ -26,6 +26,7 @@ The factory never waits on these. It works around them and comes back when they 
   [Environment]::SetEnvironmentVariable('CLAUDE_CODE_OAUTH_TOKEN', '<paste token>', 'User')
   ```
   The scheduled task inherits user environment variables. Without this, passes fail after that date (the watchdog alerts "no progress").
+- [ ] **O7 · (optional) GitHub Actions minutes.** The repo is private on the free plan: 2,000 Actions minutes a month for CI, deploys, smoke tests and the dashboard. The factory keeps the dashboard to push-to-main plus every 3 hours (D12), but a busy month of CI may still reach the limit, and then jobs stop until the month ends. Options: make the repo public (`gh repo edit Shashkist/Learning_factory --visibility public --accept-visibility-change-consequences`; check that nothing private is in it first, e.g. `courses/`), or set a spending limit in GitHub → Settings → Billing. Tell any session "O7: public" and the dashboard goes back to every 15 minutes.
 
 ## Questions
 
