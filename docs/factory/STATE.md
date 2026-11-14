@@ -6,7 +6,7 @@ _Last updated: 2026-11-15 ~23:30 UTC, laptop pass lf-m7k2 (stopped at the 90-min
 
 ## Now
 
-- **Issue:** none claimed. No open feature branches or PRs.
+- **Issue:** #50 claimed by laptop pass lf-q4r8 on `f/50-bootstrap-safety` (exam → code).
 - **#3 is blocked, on purpose (D27):** code merged in #46, server **dry run** done (run 43653076930, `BOOTSTRAP RESULT: dry run`). Before any apply: (a) dispatch the reviewer on that dry-run log and record its verdict on #3; (b) ship **#50**; (c) apply (`workflow_dispatch` with `apply=true`), check the baseline evidence and an isolation smoke on the server, then close #3.
 - **Next session starts at:** Next 1.
 
