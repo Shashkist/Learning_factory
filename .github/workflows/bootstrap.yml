@@ -61,17 +61,46 @@ jobs:
           # One TCP connection for all commands: the server refuses bursts of new SSH
           # connections (incident #26).
           ssh_opts="$ssh_opts -o ControlMaster=auto -o ControlPath=$RUNNER_TEMP/cm-%C -o ControlPersist=120"
-          dest=/root/lf-bootstrap
+          # Every run has its own directory (script, log, exit code): a run still alive on the
+          # server never has its script, log or exit-code file replaced by a later run.
+          dest=/root/lf-bootstrap/run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT
           for attempt in 1 2 3; do
             ssh $ssh_opts "$SERVER_USER@$SERVER_HOST" "mkdir -p $dest" && break
             if [ "$attempt" = 3 ]; then echo "ssh failed 3 times" >&2; exit 1; fi
             echo "ssh attempt $attempt failed; retrying in 20 s"
             sleep 20
           done
+          # A bootstrap still running on the server (a cancelled job leaves it running) holds this
+          # lock. Stop before copying or launching anything.
+          lock_st=0
+          ssh $ssh_opts "$SERVER_USER@$SERVER_HOST" "flock -n /run/lf-bootstrap.lock true" || lock_st=$?
+          if [ "$lock_st" != 0 ]; then
+            if [ "$lock_st" = 255 ]; then echo "ssh failed while checking the bootstrap lock" >&2; else echo "a bootstrap is still running on the server (lock /run/lf-bootstrap.lock is held); nothing was copied or started" >&2; fi
+            exit 1
+          fi
           scp $ssh_opts labs/deploy/bootstrap/bootstrap.sh "$SERVER_USER@$SERVER_HOST:$dest/bootstrap.sh"
-          # The full output goes to the log; the script prints no secret.
-          ssh $ssh_opts "$SERVER_USER@$SERVER_HOST" \
-            "DRY_RUN=$DRY_RUN LF_BASELINE_URLS='https://n8n.shashkist.com https://pulsesign.shashkist.com https://jsoul.app' LF_BASELINE_TCP='127.0.0.1:18789' bash $dest/bootstrap.sh"
+          # The script runs detached on the server (its own session, immune to HUP): a dropped SSH
+          # session or a cancelled workflow must never cut a run (or its rollback) short. Its output
+          # goes to a log, its exit code to a file. The script prints no secret.
+          launch="setsid nohup bash -c 'DRY_RUN=$DRY_RUN LF_BASELINE_URLS=\"https://n8n.shashkist.com https://pulsesign.shashkist.com https://jsoul.app\" LF_BASELINE_TCP=127.0.0.1:18789 bash $dest/bootstrap.sh > $dest/bootstrap.log 2>&1; echo \$? > $dest/bootstrap.rc' > /dev/null 2>&1 < /dev/null &"
+          ssh $ssh_opts "$SERVER_USER@$SERVER_HOST" "$launch"
+          # Follow the log until the exit-code file appears (at most 45 minutes). If the SSH session
+          # drops, the script keeps running: reattach, which replays the log from its start.
+          follow="tail -F -n +1 $dest/bootstrap.log & t=\$!; end=\$((\$(date +%s)+2700)); while [ ! -f $dest/bootstrap.rc ]; do if [ \$(date +%s) -gt \$end ]; then echo 'no result after 45 minutes' >&2; kill \$t; exit 1; fi; sleep 3; done; sleep 2; kill \$t; exit 0"
+          for attempt in 1 2 3 4 5 6; do
+            st=0
+            ssh $ssh_opts "$SERVER_USER@$SERVER_HOST" "$follow" || st=$?
+            if [ "$st" != 255 ]; then break; fi
+            echo "lost the SSH connection to the log (attempt $attempt); the script keeps running on the server; reattaching in 20 s"
+            sleep 20
+          done
+          # The job fails when the script failed: read its exit code back.
+          rc="$(ssh $ssh_opts "$SERVER_USER@$SERVER_HOST" "cat $dest/bootstrap.rc 2>/dev/null" || true)"
+          echo "bootstrap.sh exit code: ${rc:-unknown}"
+          if [ "$rc" != 0 ]; then
+            echo "the bootstrap did not finish with exit code 0 (BOOTSTRAP RESULT in the log above)" >&2
+            exit 1
+          fi
       - name: Remove the SSH key
         if: always()
         run: rm -f "$RUNNER_TEMP/bootstrap_key" "$RUNNER_TEMP/known_hosts"

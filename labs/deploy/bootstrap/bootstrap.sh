@@ -17,9 +17,20 @@
 # The last stdout line is "BOOTSTRAP RESULT: dry run|changed|no changes".
 set -Eeuo pipefail
 
+# One bootstrap at a time on the server, dry runs included, taken before anything else. The kernel
+# drops the lock when this process dies; commands started through run() do not inherit it.
+if [ "${1:-}" != "--rules-only" ]; then
+  exec 9>/run/lf-bootstrap.lock
+  flock -n 9 || { echo 'another bootstrap is running'; echo 'BOOTSTRAP RESULT: failed'; exit 1; }
+fi
+
 DRY_RUN="${DRY_RUN:-0}"
 LF_BASELINE_URLS="${LF_BASELINE_URLS:-}"
 LF_BASELINE_TCP="${LF_BASELINE_TCP:-}"
+
+# Pinned runsc release (bump both lines together; the hash is the published runsc.sha512).
+RUNSC_RELEASE=20260817.0
+RUNSC_SHA512=84936438d583ec976800f464e75a83e1515f0890b451b9b4db219c4472b54ca9b106a6772ee683f1e64cce2128871d7637b14d800591f8451b8137f6c39fb2ef
 
 DAEMON_JSON=/etc/docker/daemon.json
 NET=lf-labs
@@ -56,13 +67,13 @@ iptables() { command iptables -w 10 "$@"; }
 run() {
   printf '+ %s\n' "$*"
   if dry; then return 0; fi
-  "$@"
+  "$@" 9>&-
 }
 # Same for a shell snippet (pipes, redirects).
 runsh() {
   printf '+ %s\n' "$1"
   if dry; then return 0; fi
-  bash -c "$1"
+  bash -c "$1" 9>&-
 }
 
 # ------------------------------------------------------------------ baseline
@@ -113,8 +124,17 @@ report() {
   log "== $1"
   log "-- free memory"; free -m || true
   log "-- free disk"; df -h / || true
-  log "-- $DAEMON_JSON"; if [ -f "$DAEMON_JSON" ]; then cat "$DAEMON_JSON"; else log "(no file)"; fi
+  log "-- $DAEMON_JSON (key names only)"
+  if [ ! -f "$DAEMON_JSON" ]; then log "(no file)"
+  elif command -v jq >/dev/null 2>&1; then jq -r 'keys | join(" ")' "$DAEMON_JSON" || log "(not valid JSON)"
+  else log "(jq is not installed: key names not shown)"; fi
+  if [ -f "$DAEMON_JSON" ] && jq -e '.runtimes' "$DAEMON_JSON" >/dev/null 2>&1; then
+    log "runtimes: $(jq -c '.runtimes | with_entries(.value |= (.path // ""))' "$DAEMON_JSON" 2>/dev/null)"
+  fi
+  log "-- reloadable keys a docker reload would apply from the file (besides runsc)"; report_reload_extras
   log "-- runsc version"; { runsc --version 2>/dev/null | head -1; } || log "runsc not installed"
+  log "-- live docker runtimes (docker info)"; log "$(runtimes_json)"
+  log "-- live dockerd command line"; dockerd_cmdline || log "(dockerd process not found)"
   if runsc_in_file && ! runsc_overlay_ok; then
     log "WARNING: runtimes.runsc in $DAEMON_JSON has no runtimeArgs $RUNSC_OVERLAY: lab root filesystem writes are not capped by the memory limit (existing entry left untouched)"
   fi
@@ -145,51 +165,202 @@ runsc_overlay_ok() {
   fi
 }
 
-runsc_loaded() {
+runtimes_json() { docker info --format '{{json .Runtimes}}' 2>/dev/null || true; }
+
+# Exact runtime name in the live runtimes (a key, not a substring of a path or another name).
+runtime_has() {
   local info
-  info="$(docker info --format '{{json .Runtimes}}' 2>/dev/null || true)"
-  [[ "$info" == *runsc* ]]
+  info="$(runtimes_json)"
+  if command -v jq >/dev/null 2>&1; then
+    jq -e --arg n "$1" 'has($n)' <<<"$info" >/dev/null 2>&1
+  else
+    [[ "$info" == *"\"$1\":"* ]]
+  fi
+}
+
+runsc_loaded() { runtime_has runsc; }
+
+# The runsc docker has loaded carries the overlay arg (what `docker info` shows, not the file).
+runsc_loaded_overlay() {
+  local info
+  info="$(runtimes_json)"
+  if command -v jq >/dev/null 2>&1; then
+    jq -e --arg a "$RUNSC_OVERLAY" '(.runsc.runtimeArgs // []) | any(. == $a)' <<<"$info" >/dev/null 2>&1
+  else
+    [[ "$info" == *'"runsc"'* && "$info" == *"$RUNSC_OVERLAY"* ]]
+  fi
+}
+
+dockerd_pid() { pgrep -xo dockerd 2>/dev/null || true; }
+
+# Flags whose values are harmless to print; every other flag value is redacted (the output goes
+# to a public Actions log).
+SAFE_DOCKERD_FLAGS=" -H --containerd --add-runtime --config-file --data-root "
+
+# The live dockerd command line (from /proc/<pid>/cmdline) with values redacted.
+dockerd_cmdline() {
+  local pid a name i n out=() args=()
+  pid="$(dockerd_pid)"
+  [ -n "$pid" ] && [ -r "/proc/$pid/cmdline" ] || return 1
+  mapfile -d '' -t args < "/proc/$pid/cmdline" || true
+  n=${#args[@]}
+  for ((i = 0; i < n; i++)); do
+    a=${args[i]}
+    name=${a%%=*}
+    if [[ "$a" == -* && "$SAFE_DOCKERD_FLAGS" != *" $name "* ]]; then
+      out+=("$name=<redacted>")
+      if [[ "$a" != *=* && $((i + 1)) -lt $n && "${args[i+1]}" != -* ]]; then i=$((i + 1)); fi
+    else
+      out+=("$a")
+    fi
+  done
+  echo "${out[*]}"
+}
+
+# runsc is loaded but not from daemon.json (a dockerd flag). daemon.json stays untouched: the same
+# runtime name there would stop dockerd at its next restart, and a flag cannot carry runtime args.
+# Satisfied when the loaded runsc already has the overlay arg, otherwise the owner has to act.
+runsc_flag_registered_check() {
+  if runsc_loaded_overlay; then
+    log "runsc is registered outside $DAEMON_JSON (dockerd flag) and already has $RUNSC_OVERLAY: nothing to do"
+    return 0
+  fi
+  err "runsc is loaded but not from $DAEMON_JSON (a dockerd flag such as --add-runtime), and it has no $RUNSC_OVERLAY."
+  err "Not editing $DAEMON_JSON: the same runtime name there would stop dockerd at its next restart."
+  err "The owner has to remove the flag or move runsc into $DAEMON_JSON; that needs a docker restart, which this script never does."
+  err "live docker runtimes: $(runtimes_json)"
+  err "live dockerd command line: $(dockerd_cmdline || echo unknown)"
+  log "BOOTSTRAP RESULT: failed"
+  exit 1
 }
 
 need_runtime() {
-  runsc_in_file || return 0
-  runsc_loaded || return 0
-  return 1
+  if runsc_in_file; then
+    runsc_loaded && return 1
+    return 0
+  fi
+  if runsc_loaded; then
+    runsc_flag_registered_check
+    return 1
+  fi
+  return 0
+}
+
+# Validate a daemon.json candidate the way dockerd will read it: with the live dockerd flags
+# (a flag and the same key in the file make dockerd refuse to start). No pipeline: under pipefail
+# a probe that exits early would kill the run.
+validate_daemon_json() {
+  local file=$1 pid a skip=0 help args=() keep=()
+  help="$(dockerd --help 2>&1 || true)"
+  if [[ "$help" != *--validate* ]]; then
+    log "dockerd does not support --validate: skipping the config validation"
+    return 0
+  fi
+  pid="$(dockerd_pid)"
+  if [ -n "$pid" ] && [ -r "/proc/$pid/cmdline" ]; then
+    mapfile -d '' -t args < "/proc/$pid/cmdline" || true
+    for a in "${args[@]:1}"; do
+      if [ "$skip" = 1 ]; then skip=0; continue; fi
+      case "$a" in
+        --config-file) skip=1 ;;
+        --config-file=*) ;;
+        *) keep+=("$a") ;;
+      esac
+    done
+  fi
+  printf '+ dockerd <the live flags, %s of them> --validate --config-file %s\n' "${#keep[@]}" "$file"
+  dockerd ${keep[@]+"${keep[@]}"} --validate --config-file "$file"
+}
+
+# Keys of daemon.json that dockerd applies on a reload. A reload applies the whole file, so
+# runsc in the file but not loaded is only reloaded when none of these (and no other runtime that
+# is not loaded) would change with it. The running values are not observable: any is a "differs".
+RELOADABLE_KEYS='["debug","labels","live-restore","max-concurrent-downloads","max-concurrent-uploads","max-download-attempts","shutdown-timeout","default-runtime","allow-nondistributable-artifacts","insecure-registries","registry-mirrors","authorization-plugins","features","node-generic-resources","network-diagnostic-port","metrics-addr","cdi-spec-dirs","default-network-opts","proxies"]'
+
+# Prints what a reload would change besides runsc, one item per line.
+reload_extras() {
+  local k name
+  for k in $(jq -r --argjson r "$RELOADABLE_KEYS" 'keys[] | select(. as $k | $r | index($k))' "$DAEMON_JSON"); do
+    echo "key $k"
+  done
+  for name in $(jq -r '(.runtimes // {}) | del(.runsc) | keys[]' "$DAEMON_JSON"); do
+    runtime_has "$name" || echo "runtime $name (not loaded)"
+  done
+}
+
+# For the report: what a docker reload would apply from the file besides runsc.
+report_reload_extras() {
+  local extras
+  if [ ! -f "$DAEMON_JSON" ]; then log "(no file)"; return 0; fi
+  if ! command -v jq >/dev/null 2>&1; then log "(jq is not installed: cannot list them)"; return 0; fi
+  extras="$(reload_extras)" || extras="(could not read the file)"
+  log "${extras:-(none)}"
 }
 
 strip_runsc='del(.runtimes.runsc) | if .runtimes == {} then del(.runtimes) else . end'
 
-RUNSC_URL=https://storage.googleapis.com/gvisor/releases/release/latest/x86_64
+RUNSC_URL="https://storage.googleapis.com/gvisor/releases/release/$RUNSC_RELEASE/x86_64"
 RUNSC_DEST=/usr/local/bin/runsc
 RUNSC_INSTALLED=0
-RUNSC_WAS_LOADED=0
+RELOAD_EXISTING=0
 DAEMON_TMP=""
 
 apt_get() {
-  run env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l NEEDRESTART_SUSPEND=1 apt-get "$@"
+  run env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l NEEDRESTART_SUSPEND=1 apt-get -o DPkg::Lock::Timeout=120 "$@"
 }
 
 # Never through apt: the runsc package's postinst edits daemon.json and reloads docker by itself.
+# The pinned release is checked against RUNSC_SHA512, installed under a temp name next to its
+# destination and moved into place (atomic).
 install_runsc() {
-  local dir
-  log "runsc binary not found: installing the release binary to $RUNSC_DEST (sha512 checked)"
+  local dir actual
+  log "runsc binary not found: installing release $RUNSC_RELEASE to $RUNSC_DEST (sha512 checked)"
   if dry; then
-    printf '+ download %s/runsc and runsc.sha512, sha512sum -c, install -m 0755 to %s\n' "$RUNSC_URL" "$RUNSC_DEST"
+    printf '+ download %s/runsc, check its sha512 against the pinned value, write %s.lf-new, mv it to %s\n' "$RUNSC_URL" "$RUNSC_DEST" "$RUNSC_DEST"
     return 0
   fi
   dir="$(mktemp -d)"
-  ( cd "$dir" \
-    && curl -fsSL -o runsc "$RUNSC_URL/runsc" \
-    && curl -fsSL -o runsc.sha512 "$RUNSC_URL/runsc.sha512" \
-    && sha512sum -c runsc.sha512 ) || { rm -rf "$dir"; err "runsc download or checksum failed"; return 1; }
-  install -m 0755 "$dir/runsc" "$RUNSC_DEST"
+  curl -fsSL --retry 3 -o "$dir/runsc" "$RUNSC_URL/runsc" || { rm -rf "$dir"; err "runsc download failed"; return 1; }
+  actual="$(sha512sum "$dir/runsc")"
+  if [ "${actual%% *}" != "$RUNSC_SHA512" ]; then
+    rm -rf "$dir"
+    err "runsc sha512 does not match the pinned release $RUNSC_RELEASE"
+    return 1
+  fi
+  if ! { install -m 0755 "$dir/runsc" "$RUNSC_DEST.lf-new" && mv -f "$RUNSC_DEST.lf-new" "$RUNSC_DEST"; }; then
+    rm -rf "$dir"; rm -f "$RUNSC_DEST.lf-new"
+    err "installing runsc failed"
+    return 1
+  fi
   RUNSC_INSTALLED=1
   rm -rf "$dir"
 }
 
+# runsc is in daemon.json but docker has not loaded it. A reload applies the whole file, so refuse
+# (changing nothing) unless runsc is the only difference and the file already carries the overlay arg.
+check_existing_runsc() {
+  local extras
+  if ! runsc_overlay_ok; then
+    err "runsc is in $DAEMON_JSON without runtimeArgs $RUNSC_OVERLAY: not editing the file, nothing was changed. Add the arg by hand, then re-run."
+    return 1
+  fi
+  command -v jq >/dev/null 2>&1 || apt_get install -y jq
+  if ! command -v jq >/dev/null 2>&1; then
+    log "jq is NOT installed on this host: a real run installs it with apt first, so the check for other changes is skipped in this dry run"
+    return 0
+  fi
+  extras="$(reload_extras)"
+  if [ -n "$extras" ]; then
+    err "runsc is in $DAEMON_JSON but not loaded, and a reload would apply more than runsc (the running values are not known):"
+    err "$extras"
+    err "Nothing was changed. Check the file, run 'systemctl reload docker' yourself if it is right, then re-run."
+    return 1
+  fi
+}
+
 apply_runtime() {
   local runsc_bin new orig i
-  if runsc_loaded; then RUNSC_WAS_LOADED=1; fi
+  if runsc_in_file; then check_existing_runsc; fi
   if [ -f "$DAEMON_JSON" ]; then
     DAEMON_BACKUP="$DAEMON_JSON.lf-bak.$STAMP"
     run cp -p "$DAEMON_JSON" "$DAEMON_BACKUP"
@@ -197,7 +368,9 @@ apply_runtime() {
   if command -v runsc >/dev/null 2>&1; then runsc_bin="$(command -v runsc)"; else install_runsc; runsc_bin=$RUNSC_DEST; fi
 
   if runsc_in_file; then
-    log "runsc is already in $DAEMON_JSON; only reloading docker"
+    log "runsc is already in $DAEMON_JSON and nothing else would change: validating, then only reloading docker"
+    validate_daemon_json "$DAEMON_JSON"
+    RELOAD_EXISTING=1
     run systemctl reload docker
   elif dry && ! command -v jq >/dev/null 2>&1; then
     log "jq is NOT installed on this host: a real run installs it with apt first; the daemon.json diff cannot be shown in this dry run"
@@ -218,12 +391,15 @@ apply_runtime() {
       printf '+ write temp file in /etc/docker, dockerd --validate, mv to %s\n' "$DAEMON_JSON"
     else
       DAEMON_TMP="$(mktemp /etc/docker/daemon.json.lf-new.XXXXXX)"
-      printf '%s\n' "$new" > "$DAEMON_TMP"
-      if dockerd --help 2>&1 | grep -q -- '--validate'; then
-        dockerd --validate --config-file "$DAEMON_TMP"
+      # mktemp makes a 0600 file: give it the mode and owner of the file it replaces.
+      if [ -f "$DAEMON_JSON" ]; then
+        chmod --reference="$DAEMON_JSON" "$DAEMON_TMP"
+        chown --reference="$DAEMON_JSON" "$DAEMON_TMP"
       else
-        log "dockerd does not support --validate: skipping the config validation"
+        chmod 0644 "$DAEMON_TMP"
       fi
+      printf '%s\n' "$new" > "$DAEMON_TMP"
+      validate_daemon_json "$DAEMON_TMP"
       DAEMON_WRITTEN=1
       mv "$DAEMON_TMP" "$DAEMON_JSON"
       DAEMON_TMP=""
@@ -235,12 +411,14 @@ apply_runtime() {
       if runsc_loaded; then break; fi
       sleep 1
     done
-    runsc_loaded
+    if ! runsc_loaded; then err "docker does not list runsc after the reload"; return 1; fi
+    if ! runsc_loaded_overlay; then err "docker lists runsc without $RUNSC_OVERLAY after the reload: $(runtimes_json)"; return 1; fi
   fi
   run docker run --rm --name lf-runsc-check --runtime=runsc hello-world
 }
 
 # Replace daemon.json atomically with the bytes of file $1 (a temp file in /etc/docker, then mv).
+# cp -p keeps the mode and owner of the source.
 put_daemon_json() {
   local tmp
   tmp="$(mktemp /etc/docker/daemon.json.lf-restore.XXXXXX)" && cp -p "$1" "$tmp" && mv "$tmp" "$DAEMON_JSON"
@@ -260,14 +438,16 @@ rollback_runtime() {
   local stage
   if [ -n "$DAEMON_TMP" ]; then rm -f "$DAEMON_TMP" || true; fi
   docker rm -f lf-runsc-check >/dev/null 2>&1 || true
-  if [ "$DAEMON_WRITTEN" = 1 ]; then
+  if [ "$DAEMON_WRITTEN" = 1 ] || [ "$RELOAD_EXISTING" = 1 ]; then
     err "rolling back daemon.json"
     # Docker drops a runtime on reload only when the file still has a "runtimes" key. When the
-    # original has none, first reload a copy with "runtimes": {}, then restore the exact bytes.
-    if [ "$RUNSC_WAS_LOADED" = 0 ] && command -v jq >/dev/null 2>&1         && { [ -z "$DAEMON_BACKUP" ] || ! jq -e 'has("runtimes")' "$DAEMON_BACKUP" >/dev/null 2>&1; }; then
+    # original has none, or when runsc was in the original file, first reload a copy without
+    # runsc (keeping an empty "runtimes"), then restore the exact bytes.
+    if command -v jq >/dev/null 2>&1 \
+        && { [ "$RELOAD_EXISTING" = 1 ] || [ -z "$DAEMON_BACKUP" ] || ! jq -e 'has("runtimes")' "$DAEMON_BACKUP" >/dev/null 2>&1; }; then
       stage="$(mktemp /etc/docker/daemon.json.lf-stage.XXXXXX)" || stage=""
       if [ -n "$stage" ]; then
-        if [ -n "$DAEMON_BACKUP" ]; then jq '.runtimes = {}' "$DAEMON_BACKUP" > "$stage"; else echo '{"runtimes": {}}' > "$stage"; fi
+        if [ -n "$DAEMON_BACKUP" ]; then jq '.runtimes = ((.runtimes // {}) | del(.runsc))' "$DAEMON_BACKUP" > "$stage"; else echo '{"runtimes": {}}' > "$stage"; fi
         if put_daemon_json "$stage"; then
           systemctl reload docker || true
           wait_runsc_gone || true
@@ -280,10 +460,12 @@ rollback_runtime() {
     else
       rm -f "$DAEMON_JSON" || true
     fi
-    systemctl reload docker || true
-    if [ "$RUNSC_WAS_LOADED" = 0 ]; then wait_runsc_gone || true; fi
+    # The original file lists runsc when this run only reloaded it: a reload now would load it again.
+    if [ "$RELOAD_EXISTING" = 0 ]; then systemctl reload docker || true; fi
+    wait_runsc_gone || true
   fi
   if [ "$RUNSC_INSTALLED" = 1 ]; then rm -f "$RUNSC_DEST" || true; fi
+  rm -f "$RUNSC_DEST.lf-new" || true
 }
 
 # ------------------------------------------------------------------ step: swap
@@ -380,7 +562,9 @@ INS_CHAIN=()
 CHAIN_CREATED=0
 JUMP_ADDED=0
 SBIN_INSTALLED=0
+SBIN_PREV=0
 UNIT_WRITTEN=0
+UNIT_PREV=0
 UNIT_ENABLED=0
 
 INPUT_JUMP=(-i "$BRIDGE" -m comment --comment "$TAG" -j "$CHAIN")
@@ -460,25 +644,51 @@ apply_rules() {
   fi
 }
 
+# An earlier boot copy or unit is kept as <file>.lf-prev while this step runs: a rollback puts it
+# back, a success deletes it. A leftover .lf-prev means an earlier run died half way: stop.
 apply_iptables() {
+  local f
+  for f in "$SBIN_COPY.lf-prev" "$UNIT_PATH.lf-prev"; do
+    if [ -e "$f" ]; then err "$f exists: an earlier run did not finish. Move it back over the original (or delete it if the original is right), then re-run."; return 1; fi
+  done
+  if ! sbin_current; then
+    if [ -f "$SBIN_COPY" ]; then run cp -p "$SBIN_COPY" "$SBIN_COPY.lf-prev"; SBIN_PREV=1; fi
+    SBIN_INSTALLED=1
+    run install -m 0755 "$SCRIPT_PATH" "$SBIN_COPY.lf-new"
+    run mv -f "$SBIN_COPY.lf-new" "$SBIN_COPY"
+  fi
   apply_rules
-  if ! sbin_current; then run install -m 0755 "$SCRIPT_PATH" "$SBIN_COPY"; SBIN_INSTALLED=1; fi
   if ! unit_current; then
+    if [ -f "$UNIT_PATH" ]; then run cp -p "$UNIT_PATH" "$UNIT_PATH.lf-prev"; UNIT_PREV=1; fi
     printf '+ write %s\n' "$UNIT_PATH"
-    if ! dry; then unit_text > "$UNIT_PATH"; fi
     UNIT_WRITTEN=1
+    if ! dry; then
+      unit_text > "$UNIT_PATH.lf-new" || return 1
+      mv -f "$UNIT_PATH.lf-new" "$UNIT_PATH" || return 1
+    fi
     run systemctl daemon-reload
   fi
   if ! systemctl is-enabled "$UNIT" >/dev/null 2>&1; then UNIT_ENABLED=1; fi
   run systemctl enable "$UNIT"
 }
 
+cleanup_iptables() { rm -f "$SBIN_COPY.lf-prev" "$UNIT_PATH.lf-prev"; }
+
 rollback_iptables() {
   local rule a
   err "rolling back iptables (only what this run added)"
   if [ "$UNIT_ENABLED" = 1 ]; then systemctl disable "$UNIT" 2>/dev/null || true; fi
-  if [ "$UNIT_WRITTEN" = 1 ]; then rm -f "$UNIT_PATH" || true; fi
-  if [ "$SBIN_INSTALLED" = 1 ]; then rm -f "$SBIN_COPY" || true; fi
+  rm -f "$SBIN_COPY.lf-new" "$UNIT_PATH.lf-new" || true
+  if [ "$UNIT_PREV" = 1 ]; then
+    mv -f "$UNIT_PATH.lf-prev" "$UNIT_PATH" || true
+  elif [ "$UNIT_WRITTEN" = 1 ]; then
+    rm -f "$UNIT_PATH" || true
+  fi
+  if [ "$SBIN_PREV" = 1 ]; then
+    mv -f "$SBIN_COPY.lf-prev" "$SBIN_COPY" || true
+  elif [ "$SBIN_INSTALLED" = 1 ]; then
+    rm -f "$SBIN_COPY" || true
+  fi
   if [ "$UNIT_WRITTEN" = 1 ]; then systemctl daemon-reload || true; fi
   if [ "$JUMP_ADDED" = 1 ]; then iptables -D INPUT "${INPUT_JUMP[@]}" || true; fi
   for rule in "${INS_CHAIN[@]}"; do
@@ -494,9 +704,17 @@ rollback_iptables() {
 
 # ------------------------------------------------------------------ driver
 
+# A rollback must finish: ignore HUP/INT/TERM/PIPE (a dropped SSH session, a cancelled workflow,
+# a closed log pipe) for the rest of the run, and do not stop on a failing restore command.
+begin_rollback() {
+  trap '' HUP INT TERM PIPE
+  trap - ERR
+  set +e
+}
+
 on_err() {
   local rc=$1 cmd=$2
-  trap - ERR HUP INT TERM
+  begin_rollback
   err "failed (exit $rc): $cmd"
   if [ -n "$CURRENT" ] && ! dry; then
     err "step '$CURRENT' failed; rolling it back"
@@ -519,13 +737,14 @@ do_step() {
   CURRENT=$n
   "apply_$n"
   if ! dry && ! baseline_ok; then
+    begin_rollback
     err "baseline differs after step '$n'; rolling it back"
-    trap - ERR HUP INT TERM
     "rollback_$n" || true
     if baseline_ok; then err "baseline restored"; fi
     log "BOOTSTRAP RESULT: failed"
     exit 1
   fi
+  if ! dry && declare -F "cleanup_$n" >/dev/null; then "cleanup_$n"; fi
   CURRENT=""
   CHANGED=1
 }
