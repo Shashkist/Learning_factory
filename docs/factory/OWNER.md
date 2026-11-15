@@ -34,6 +34,13 @@ The factory never waits on these. It works around them and comes back when they 
   ```
   Do the deletes only after #25 is merged (the workflows then use `environment: production`); until then nothing changes.
 
+- [ ] **O10 · Move `LF_DATABASE_URL` into the `production` environment** (from the review of #63, same reason as O8: a repo-level secret is readable by a workflow on any branch). The only workflow that uses it (`db-check.yml`, #61) already runs in `production`; #13's deploy will too. Set it from the same place you set it for O3, then delete the repo-level copy:
+  ```bash
+  gh secret set LF_DATABASE_URL --env production -R Shashkist/Learning_factory   # paste the value when prompted
+  gh secret delete LF_DATABASE_URL -R Shashkist/Learning_factory
+  ```
+  Until then nothing breaks. The factory verifies by behaviour (the next `DB check` run still connects), never by reading the value.
+
 - [x] **O9 · What `lf_app` can reach through `PUBLIC`** — **handed to the manager by the owner (2026-11-15): issue #61.** The original note and query are kept below for the manager.
   The role sees tables only in `learning_factory`, but like every role it inherits `PUBLIC`'s rights: it can call functions in schema `public` and read the catalog. A `SECURITY DEFINER` function in `public` would run with its owner's rights. Check:
   ```sql
