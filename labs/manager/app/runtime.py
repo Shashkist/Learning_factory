@@ -15,6 +15,8 @@ from app.content import Lab
 MB = 1024 * 1024
 DEFAULT_DOCKER_HOST = "unix:///var/run/docker.sock"
 _TIMEOUT = 60.0
+MAX_OUTPUT = 256 * 1024  # the exam reassembles 200 KiB, so not the 64 KiB asked for
+TRUNCATED = b"\n[output truncated]\n"
 
 
 EXEC_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
@@ -116,7 +118,7 @@ class DockerRuntime:
     def __init__(self) -> None:
         host = os.environ.get("LF_DOCKER_HOST") or DEFAULT_DOCKER_HOST
         self._tcp = host.removeprefix("tcp://") if host.startswith("tcp://") else None
-        self._socket = host.removeprefix("unix://")
+        self._socket = "" if self._tcp else host.removeprefix("unix://")
 
     async def _open(self) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
         if self._tcp is not None:
@@ -143,17 +145,33 @@ class DockerRuntime:
             writer.write(script.encode())
             await writer.drain()
             writer.write_eof()
+            truncated = False
             while True:
                 try:
                     header = await reader.readexactly(8)
                 except asyncio.IncompleteReadError:
-                    return
-                size = struct.unpack(">xxxxI", header)[0]
-                try:
-                    out += await reader.readexactly(size)
-                except asyncio.IncompleteReadError as exc:
-                    out += exc.partial
-                    return
+                    break
+                left = struct.unpack(">xxxxI", header)[0]
+                while left:
+                    try:
+                        chunk = await reader.readexactly(min(left, 65536))
+                    except asyncio.IncompleteReadError as exc:
+                        chunk, left = exc.partial, 0
+                        eof = True
+                    else:
+                        left -= len(chunk)
+                        eof = False
+                    room = MAX_OUTPUT - len(out)
+                    if len(chunk) > room:  # keep the first 64 KiB, drain the rest
+                        truncated = True
+                    out += chunk[: max(room, 0)]
+                    if eof:
+                        left = -1
+                        break
+                if left < 0:
+                    break
+            if truncated:
+                out += TRUNCATED
         finally:
             writer.close()
             with contextlib.suppress(Exception):
@@ -172,16 +190,21 @@ class DockerRuntime:
             "Env": [f"PATH={EXEC_PATH}", "HOME=/root"],
             "Cmd": exec_command(script),
         }
+        out = bytearray()
+        try:
+            return await asyncio.wait_for(self._run_exec(name, script, create, out), timeout)
+        except TimeoutError:
+            return ExecResult(None, out.decode("utf-8", "replace"), True)
+
+    async def _run_exec(
+        self, name: str, script: str, create: dict[str, Any], out: bytearray
+    ) -> ExecResult:
         async with self._client() as c:
             resp = await c.post(f"/containers/{name}/exec", json=create)
             if resp.status_code != 201:
                 raise RuntimeError(f"docker exec create failed: {resp.status_code}")
             exec_id = str(resp.json()["Id"])
-            out = bytearray()
-            try:
-                await asyncio.wait_for(self._stream_exec(exec_id, script, out), timeout)
-            except TimeoutError:
-                return ExecResult(None, out.decode("utf-8", "replace"), True)
+            await self._stream_exec(exec_id, script, out)
             for _ in range(50):  # the exit code lands just after the stream closes
                 info = (await c.get(f"/exec/{exec_id}/json")).json()
                 if not info.get("Running") and info.get("ExitCode") is not None:

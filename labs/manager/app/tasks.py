@@ -4,6 +4,7 @@ Showing a hands-on task runs its `setup.sh` as root in the session's container (
 anything is recorded; Next/Skip/Previous/Restart all show a target the same way and never reset
 the machine (spec section 5). Check results, attempts and completion are #88 and #89.
 Nothing sent to a student carries check/setup/solution text or a quiz `correct` field."""
+import asyncio
 import logging
 import os
 import re
@@ -16,11 +17,12 @@ from app import db
 from app.auth import Principal, current_student, db_guard
 from app.content import LANGS, Lab, Task
 from app.runtime import container_name
-from app.term_proxy import authorize
 
 log = logging.getLogger("lab-manager")
 T = db.SCHEMA
-DEFAULT_SETUP_TIMEOUT_S = 300.0
+DEFAULT_SETUP_TIMEOUT_S = 50.0  # below nginx's default proxy_read_timeout (60 s)
+_EXECS = asyncio.Semaphore(max(1, int(os.environ.get("LF_MAX_EXECS", "8") or 8)))
+_LOCKS: dict[uuid.UUID, asyncio.Lock] = {}  # one manager process (D23): setups per session
 
 router = APIRouter(prefix="/api/sessions/{session}/tasks")
 
@@ -93,25 +95,51 @@ class _Ctx:
 async def _ctx(
     session: str, request: Request, p: Annotated[Principal, Depends(current_student)]
 ) -> _Ctx:
-    sid = await authorize(request, session)  # 401, 404, 403, 410
+    try:
+        sid = uuid.UUID(session)
+    except ValueError:
+        raise HTTPException(404, "no_session") from None
     with db_guard():
         row = await request.app.state.pool.fetchrow(
-            f"select lab_id, current_task from {T}.lab_sessions where id = $1", sid
+            f"select student, status, lab_id, current_task from {T}.lab_sessions where id = $1",
+            sid,
         )
-    lab = request.app.state.labs.get(row["lab_id"]) if row else None
+    if row is None:
+        raise HTTPException(404, "no_session")
+    if row["student"] != p.subject:
+        raise HTTPException(403, "not_your_session")
+    if row["status"] == "ended":
+        raise HTTPException(410, "session_ended")
+    if row["status"] != "running":
+        raise HTTPException(409, "session_starting")
+    lab = request.app.state.labs.get(row["lab_id"])
     if lab is None:
         raise HTTPException(404, "unknown_lab")
     return _Ctx(request, sid, p.subject, lab, row["current_task"])
 
 
 async def _show(ctx: _Ctx, task: Task) -> dict[str, Any]:
+    """Serialised per session: a second show while one runs gets 409 and runs nothing."""
+    lock = _LOCKS.setdefault(ctx.sid, asyncio.Lock())
+    if lock.locked():
+        raise HTTPException(409, "setup_running")
+    try:
+        async with lock:
+            return await _do_show(ctx, task)
+    finally:
+        if not lock.locked() and _LOCKS.get(ctx.sid) is lock:
+            del _LOCKS[ctx.sid]
+
+
+async def _do_show(ctx: _Ctx, task: Task) -> dict[str, Any]:
     """Run the setup (hands-on), then record shown_at (first time only) and the current task."""
     if task.kind == "hands-on":
         script = (ctx.lab.path / "tasks" / task.id / "setup.sh").read_bytes().decode("utf-8")
         try:
-            res = await ctx.request.app.state.runtime.exec_script(
-                container_name(ctx.sid), script, setup_timeout()
-            )
+            async with _EXECS:
+                res = await ctx.request.app.state.runtime.exec_script(
+                    container_name(ctx.sid), script, setup_timeout()
+                )
         except Exception as exc:
             log.error("setup of %s in session %s failed (%s)", task.id, ctx.sid, type(exc).__name__)
             raise HTTPException(
