@@ -2,19 +2,19 @@
 
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
-_Last updated: 2026-11-15 ~07:50 UTC, laptop pass lf-ce139 (running, started 07:32 UTC). Previous pass lf-m7k2 stopped at 3 merged PRs (#58, #57, #60)._
+_Last updated: 2026-11-15 ~08:00 UTC, laptop pass lf-ce139 (running, started 07:32 UTC). Previous pass lf-m7k2 stopped at 3 merged PRs (#58, #57, #60)._
 
 ## Now
 
-- **Pass lf-ce139:** #3 step (d) claimed, branch `f/3-smoke-diag`, PR #62 (`liveness.sh` diagnostic: sh vs tini vs sleep as PID 1, execs with/without busybox `timeout`, lf-labs vs bridge; isolation smoke now runs labs with `--init` like `lf-lab-term`). Next: CI + review, merge, dispatch `check=liveness` then `check=isolation`.
-- **#3 is applied on the server, isolation not yet proven.** Apply run 43688303191: `BOOTSTRAP RESULT: changed` (runsc 20260817.0 via daemon.json + reload, 4 GB swap, `lf-labs`, DOCKER-USER + LF-LABS-INPUT, boot unit), baseline ok after every step, foreign containers untouched. Steps (a)–(c) done and recorded on #3. **Step (d) open:** the isolation smoke (`Server smoke` workflow, `labs/deploy/smoke/isolation.sh`, D30) twice ended with dead lab containers: on `lf-labs`, labs exit (`exit=0 oom=false`) right after a `docker exec` or an accepted connection; the same container on docker0 survives. No lab ever connected anywhere, but that is not proof. Plan in the last #3 comment: more diagnostics (logs, `.State.Error`, PID 1 `sleep` + `exec -d httpd`), then compare runsc 20260817.0 (server) with the apt build (CI). **If labs die on the server, that blocks #13.** Claim released; branch none.
-- **#51 PR #59 open** (exam 42f635e, code 84290b7; CI green). Review round 1: changes requested (workers on the line matched to agent cards, skip re-render when unchanged, no overlapping polls, frozen elapsed for finished agents, role icons, skip counts as done). Round-1 fixes pushed as 1ab9d2e (worktree `../lf-wt-51`; exam 58/58 locally); "skip counts as done" not applied because the exam defines done/total as `done` only (exam wins). `test_install_block.py::test_failed_backup_copy_leaves_the_live_conf_untouched` fails on Windows only, on main too (ubuntu CI green). Next: CI, reviewer round 2 (last), merge, then the nginx `live.json` block reaches the server only through the installer (`install-block.sh factory`, run by #13's deploy or by hand), so check headers after that. Claim released.
-- **Next session starts at:** Next 1.
+- **Pass lf-ce139 (started 07:32 UTC, running).** Claims: #3 (`f/3-smoke-diag`), #8 (`f/8-term-proxy`, worktree `../lf-wt-8`), #61 (`f/61-db-check`, worktree `../lf-wt-61`).
+- **#3 step (d):** #62's first commit (038ee8e: `liveness.sh`, `--init` in the isolation smoke) reached `main` by accident (a state commit made in the shared worktree while that branch was checked out, then `push HEAD:main`); GitHub marked #62 merged. Review fixes in **PR #65** (round 2 approved). Next: merge #65, dispatch `Server smoke` `check=liveness`, then `check=isolation`; record on #3. If labs die even under tini, that blocks #13.
+- **#8 terminal proxy:** exam 2069923 pushed (35 tests + 8 docker; seam `LF_TERM_UPSTREAM`; dev dep `websockets`). Implementer building in `../lf-wt-8`.
+- **#61:** PR #63 (dispatch-only `DB check` workflow, catalog queries as `lf_app`). Review round 1: request changes (read-only via `begin transaction read only` instead of PGOPTIONS through the pooler, `via_public`, event triggers, sslmode). Then run it and write the D-entry (generic title, no function names in titles: the dashboard publishes titles).
+- **Next session starts at:** whatever of the above is still open (check claims), then Next 1.
 
 ## Next (in order)
 
 1. **#3 step (d)** as above (Shared server: only through `labs/deploy/` scripts; never restart Docker). Then close #3.
-2. **#59 (#51)**: round-2 review, merge, verify the page on factory.shashkist.com.
 3. **#13** deploy (needs #3 isolation proven; contract D30: container `lf-manager`, concurrency group `server-lab-host`; see #13 comments), then #8, #9, #11, #10. #61 (O9, owner delegated) is a manager decision.
 4. p2: #54 (now also: no-daemon.json scenario, subnet-overlap scenario, `/etc/docker` rollback), #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
@@ -26,6 +26,7 @@ _Last updated: 2026-11-15 ~07:50 UTC, laptop pass lf-ce139 (running, started 07:
 
 ## Recently done
 
+- 2026-11-15 · #51 Live dashboard view shipped in #59 (round 2 approved; publish run 43691834038; page and `/live.json` schema 1 verified live). The `/live.json` nginx block (`Cache-Control: no-cache`) needs `install-block.sh factory` (noted on #13). Leftovers → #64.
 - 2026-11-15 · #3 apply: dry-run review recorded (approve), pre-apply fixes in #58 (`/etc/docker`, subnet preflight, positive baseline lines), isolation smoke in #57 (2 review rounds) and #60 (liveness + diagnostics). Apply run 43688303191 changed the server with every baseline check green. D30.
 - 2026-11-15 · #49 Session lifecycle hardening shipped in #53 (review approved in round 1): the janitor reads rows, then containers, then rows again; `created` counts as running; `LF_START_DEADLINE_S` (180 s); DB-down backoff and log dedupe; capped `/dev/shm` and a `/var/mail` tmpfs. In the PR run, 22 DB and 6 docker exam tests ran, none skipped. Main CI 43659088406 green. D24 amended. Leftovers → #55.
 - 2026-11-15 · #50 Bootstrap safety shipped in #52 (2 review rounds): `.lf-prev` boot copies, flag-registered runsc fails safe (D29), pinned runsc + sha512, signal-proof rollback, a detached workflow run with a per-run directory and a server-side `flock`. Server dry run 43659490082 ok. Leftovers → #54, #56.
