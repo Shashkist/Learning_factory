@@ -7,7 +7,8 @@
 #        LF_DEPLOY_ROOT     default /root/learning-factory
 #        LF_DOCKER          docker binary, default `docker`
 #        LF_HEALTH_TIMEOUT  seconds to wait for the manager and the live checks, default 90
-# Stdin: lines NAME=value for LF_DATABASE_URL, GHCR_USER, GHCR_TOKEN (any may be absent or empty).
+# Stdin: lines NAME=value for LF_DATABASE_URL, GHCR_USER, GHCR_TOKEN and the Google admin sign-in
+#        values LF_GOOGLE_CLIENT_ID, LF_GOOGLE_CLIENT_SECRET, LF_ADMIN_EMAILS (any may be absent or empty).
 #        Secrets travel here only: never in argv, never printed, never `set -x`, and
 #        the stack is never rendered with the full-config subcommand (it prints env_file values).
 # Never restarts Docker or touches containers that are not lf-*; shared nginx config changes go
@@ -34,6 +35,7 @@ die() { printf 'deploy: %s\n' "$*" >&2; exit 1; }
 
 # ---- stdin: NAME=value lines
 db_url=""; ghcr_user=""; ghcr_token=""
+g_id=""; g_secret=""; g_emails=""
 if [ ! -t 0 ]; then
   while IFS= read -r line || [ -n "$line" ]; do
     line=${line%$'\r'}
@@ -41,6 +43,9 @@ if [ ! -t 0 ]; then
       LF_DATABASE_URL=*) db_url=${line#*=} ;;
       GHCR_USER=*) ghcr_user=${line#*=} ;;
       GHCR_TOKEN=*) ghcr_token=${line#*=} ;;
+      LF_GOOGLE_CLIENT_ID=*) g_id=${line#*=} ;;
+      LF_GOOGLE_CLIENT_SECRET=*) g_secret=${line#*=} ;;
+      LF_ADMIN_EMAILS=*) g_emails=${line#*=} ;;
     esac
   done
 fi
@@ -79,6 +84,14 @@ if [ -n "$db_url" ]; then
   case "$db_url" in *"'"*) die "LF_DATABASE_URL contains a single quote" ;; esac
   set_env LF_DATABASE_URL "$db_url"
 fi
+# Google admin sign-in (D39): present values are written (a quote would break .env); a missing one
+# only logs a line, and the manager then starts with Google sign-in "not configured".
+for pair in "LF_GOOGLE_CLIENT_ID:$g_id" "LF_GOOGLE_CLIENT_SECRET:$g_secret" "LF_ADMIN_EMAILS:$g_emails"; do
+  gname=${pair%%:*}; gval=${pair#*:}
+  case "$gval" in *"'"*) die "$gname contains a single quote" ;; esac
+  [ -z "$gval" ] || set_env "$gname" "$gval"
+  grep -q "^$gname=." "$envf" || say "skip: $gname is missing (Google admin sign-in stays off)"
+done
 if ! grep -q '^LF_DATABASE_URL=.' "$envf"; then
   # Absence is a supported state: say what is missing and change nothing (the owner installs it).
   say "deploy skipped: LF_DATABASE_URL is missing (production environment secret, OWNER.md O3)"
