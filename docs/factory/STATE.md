@@ -2,11 +2,11 @@
 
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
-_Last updated: 2026-11-15 ~00:50 UTC, laptop pass lf-q4r8 (stopped at the 90-minute budget; 2 merged PRs: #53, #52)._
+_Last updated: 2026-11-15 ~01:00 UTC, laptop pass lf-m7k2 (running)._
 
 ## Now
 
-- **Issue:** none claimed. No open feature PRs.
+- **Pass lf-m7k2 (started 00:56 UTC):** #3 claimed (step (a): reviewer reading dry-run log 43659490082). #51 claimed on `f/51-live-view` (exam being written).
 - **#3 is unblocked (`status:ready`), but still apply-gated:** #50 shipped (#52). The new server dry run of the merged script (run 43659490082) printed `BOOTSTRAP RESULT: dry run`: no daemon.json, runsc not installed (pinned 20260817.0 planned), dockerd `-H fd:// --containerd=...`, lock pre-check ok. Remaining for #3, in order:
   - (a) a fresh-context reviewer reads that dry-run log, and its verdict is recorded on #3;
   - (b) the apply run (`gh workflow run bootstrap.yml -f apply=true`);
