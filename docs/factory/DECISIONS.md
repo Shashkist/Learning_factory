@@ -424,7 +424,7 @@ in force · factory · 2026-11-15
 **Revert.** Not needed; #85 adds the watcher. Its requirements: `contents: read`; coverage only by a run that really deploys main's head (a dispatch, or `deployed=true` output); dispatch only after a green push CI for the head; re-dispatch only when the cancelled run's `deploy` job never started and the run was not itself a re-dispatch; `pipefail` and positive checks; an `if: failure()` step that opens an incident.
 
 ## D41 · While Actions minutes are used up, the factory works locally and merges nothing
-in force · factory · 2026-11-15
+ended · factory · 2026-11-15 (CI runs again after D43; main CI 43754524341 green)
 
 **Decision.** From 2026-11-15 15:31 UTC GitHub refuses every job (incident #96, owner item O16). Until a job runs again, a pass (1) starts no runs on purpose (they are refused anyway), (2) does work that needs no CI: exams, code, local unit tests, lint, types, review rounds on open PRs, content checked by the local validator, (3) pushes branches and opens PRs, but merges nothing and deploys nothing. STATE.md lists those PRs as "waiting for CI". The first pass after O16 is ticked re-runs the last main CI, then takes the open PRs in order, one CI at a time.
 **Why.** Rule 5 and FACTORY.md: no merge without green CI; the Postgres and gVisor exams run only in CI, so a local green is not enough. Local work keeps the queue moving at no minute cost.
@@ -458,3 +458,19 @@ Issues were moved in number order, and closed placeholders took the numbers of t
 **Why.** Passes spend much of their time waiting. The owner wants parallel pipelines, and the live page now shows one lane per issue.
 **Alternatives.** Strictly one issue at a time: simpler, but slower. More than 3 at once: too many rebases and too much review load for one manager.
 **Revert.** Delete the "Work in parallel" paragraph in `.claude/skills/factory/SKILL.md`.
+
+## D45 · #9 task scripts run as root with the session container's capabilities only; scripts drop to `student` themselves
+in force · factory · 2026-11-15
+
+**Decision.** The task runner (#9) runs `setup.sh` and `check.sh` with a Docker Engine API exec as `root`, `Privileged: false`, no extra capabilities (the Engine API has no per-exec capability add; `Privileged` is forbidden). The script is streamed on stdin to its shebang interpreter with `-s` and is never written into the container. Root there holds only `SETUID`/`SETGID` (D20, D24), so it cannot read or write student-private files. A script that touches the student's home runs that part as the student itself (`su student -s /bin/sh -c '...'`), which is what #12's Linux 1 scripts and exam already do. Working directory `/`, environment empty apart from `PATH` and `HOME=/root`.
+**Why.** It keeps the container's capability set unchanged (ttyd is root inside it, so widening it widens the attack surface), needs nothing the API does not have, and matches the content contract already proven under gVisor in #12's docker exam.
+**Alternatives.** Add `CHOWN`/`DAC_OVERRIDE`/`FOWNER` to every lab container (wider root for ttyd); run every script as `student` (setup could not prepare root-owned files such as `/etc` exercises); `Privileged` exec (breaks the isolation guardrail).
+**Revert.** Add a per-lab `script_user` field or container capabilities, and change the runner's exec user.
+
+## D46 · #98 (CI minute budget) drops to p2; PR #103 closed, the branch kept
+in force · factory · 2026-11-15
+
+**Decision.** With the repository public (D43), GitHub-hosted minutes cost nothing, so #98's goal (spend fewer minutes) no longer protects merges or deploys. #98 goes from p1 to p2 and back to `status:ready`. PR #103 is closed without merging: round 1 found three blockers (exam and CI change in one PR, `**.md` making lab content "docs-only", non-ASCII paths), and fixing them needs the D19 re-sequence anyway (code + CI PR, then the exam PR). The branch `f/98-ci-minutes` and the review findings (first comment on PR #103) stay as the starting point. Cancelling superseded PR runs is still worth doing for speed, and is the first slice to take when #98 comes up again.
+**Why.** The risky part of #98 is that a wrong "docs-only" rule silently skips a Deploy (finding 2). Taking that risk now buys only wall-clock time; p1 work (#12, #9, #88, #89, #10, #11) moves the platform forward.
+**Alternatives.** Re-sequence and finish #98 now (one or two more review rounds on the deploy path); drop the issue (loses the measured findings).
+**Revert.** Relabel #98 p1 if the repository goes private again or GitHub limits public-repo minutes.

@@ -190,3 +190,17 @@ Three GitHub details mattered:
 - **Edit history.** It is public, so the original text of the two edited issues had to be deleted, not just edited.
 
 The root cause was one line of local git config. It is now the noreply address.
+
+## A "flaky" test that was a 2-second race (2026-11-15)
+The first CI run after going public was green on `main`, but the Google sign-in PR failed one terminal-proxy test with `410 != 200`. A re-run passed, and the PR was merged. Then `main` failed the same test. One flake you can wave away; the same flake twice on different commits is a bug.
+
+The cause took three files to find. The janitor starts before the database pool exists, so its first pass fails and backs off for **2 seconds**. The next pass is the first one with a database, and it asks the runtime for running containers. The test's fake runtime always answered "none". The janitor did its job and ended every live session as an orphan. Whichever test straddled the 2-second mark got `410 Gone`. Google sign-in only shifted the timing.
+
+The fix was in the test harness, not the product: the fake now lists the labs it "started", the way Docker does. A new test runs one janitor pass directly and checks that the session survives, so the race can't hide again.
+Tip: when a re-run turns a red test green, write down which test failed and on which commit. The second time it fails, you have a pattern instead of an anecdote.
+
+## An invisible character caught by "name what you expect, then look" (2026-11-15)
+After Google sign-in went live, the closing check was a plain `curl` of the sign-in redirect. The expected result was a 303 to accounts.google.com with the right callback. It was there, but the `client_id` began with `%EF%BB%BF`, a UTF-8 byte-order mark that Windows PowerShell adds when it saves text. Google would have refused the client on the owner's first sign-in. Python's `str.strip()` does not remove U+FEFF.
+
+The fix (#110) was an exam, then a 10-line helper. On the way, the tooling did the same thing twice: a shell heredoc and a file write each turned the `﻿` escape into the real invisible byte. Both times, `od -c` showed what the editor could not.
+Tip: a check that reads the real output (the redirect URL, not a status code) finds bugs that every unit test passes.

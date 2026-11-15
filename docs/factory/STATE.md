@@ -2,32 +2,33 @@
 
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
-_Last updated: 2026-11-15 ~19:05 UTC, laptop pass lf-m7k2 (16:55–~19:00 UTC)._
+_Last updated: 2026-11-15 ~21:40 UTC, laptop pass lf-q4n8 (~19:58–~21:40 UTC)._
 
 ## Now
 
-- **Repository moved (D43, owner, 2026-11-15 ~20:00 UTC):** `Shashkist/Learning_factory` is now a NEW, public repository with a rewritten history (the old one is the private `Learning_factory-archive`). Issue numbers are unchanged (#1–#101; old PR numbers are closed placeholder issues). **Open PRs got new numbers: old #95 → #102 (#92), old #100 → #103 (#98), old #101 → #104 (#12)**; the old review comments are copied onto the new PRs as the first comment. Actions minutes are free (O7/O16 resolved): CI runs again; incident #96 can be closed after the first green main CI. Commit author is the owner's noreply address (local git config); never commit course material, client or employer names, or personal e-mail addresses.
-- **Batch state commits** (each push to main still runs full CI until #100 merges): one per loop step.
-- **Production is live:** `lf-manager:727928c` at https://labs.shashkist.com (unchanged since CI stopped).
+- **#9 task engine slice 1, PR #113** (claim lf-q4n8, worktree `C:\projects\lf-9`, branch `f/9-task-engine`): exam 4929956 (114 tests: runner 25, runner docker 13, task API 76; contract in the module docstrings; D45), code c35ba75 (~310 lines; migration 004 `current_task`). CI started at the end of the pass. **Next: read PR #113's CI.** The 76 DB tests and 13 docker tests never ran before; red → implementer with the exact failure (max 5 rounds). Watch: 401/403/410 ordering in the task routes, the hijacked exec on real Docker (101 upgrade, half-close), timeout leaves the process running. Green → fresh reviewer round 1.
+- **Production:** #92 (Google admin sign-in) live; #12 (Linux 1, `status: draft`) and #110 (byte-order mark stripped from the Google settings, 1ac6cbb) merged. At the start of the next pass: check the newest Deploy printed `deployed <tag>`, and that `curl -s -o /dev/null -w '%{redirect_url}' https://labs.shashkist.com/auth/google/start` shows a `client_id` without `%EF%BB%BF`; then add the evidence comment to #110 and #12 (both auto-closed by their PRs; set `status:done`).
+- **Repository is public (D43):** minutes are free; CI runs on every push. The owner also pushes to main (live view, D44 up to 3 issues in flight): always `git pull --rebase` before a state commit and never use `--autostash` (the stash is shared with other sessions).
 - **Known gap (D40):** a cancelled Deploy is not noticed; fix in #85.
-- **Next session starts at:** Next 1 (CI runs again).
+- **Next session starts at:** the two checks in Now, then Next 1.
 
 ## Next (in order)
 
-1. **When CI runs again** (O16 ticked or 2026-12-01): re-run main CI (`gh run rerun` on the newest main CI run); then **PR #103** (#98, was #100) CI → merge → check that the next docs-only push to main starts no CI and that a code push deploys; then **PR #95** (#92, approved in round 2, D39) CI (the 40 Postgres exam tests run only there) → merge → live check: `/api/auth/admin/methods` says `google: true`, `/auth/google/start` redirects to accounts.google.com with the configured redirect URI; the owner does the first real sign-in. Then the #12 PR. One CI at a time. Close #96 with the first green main run.
-2. **#98 / PR #103 (was #100): round 1 requested changes (findings are a comment on PR #103 (carried over): 3 blockers).** Do this before other local work: re-sequence per D19 on a new branch from main: exam PR first (revise `test_issue_98_ci_minutes.py`: root-only `*.md`, nothing under `labs/**` docs-only, non-ASCII path case, run the deploy tag logic), then the code PR (quotePath/-z, `BASE...HEAD`, `--first-parent`, FACTORY.md wording), each passing `scripts/ci/exam_integrity.py`. Close PR #100 as superseded. Then review round 2 (the last; then decide, D-entry). Claim #98 held by lf-m7k2 (worktree `C:\projects\lf-98`).
-3. **#12 Linux 1 / PR #104** (was #101) (claim lf-m7k2, worktree `C:\projects\lf-12`): exam 7031b43 + content 493a963 (39 non-docker exam tests pass, exam-integrity ok; D42: `team` group in the `term` image, `chgrp` task). Next: fresh `reviewer` round 1 (no CI needed to review). The 36 docker tests run only in CI: risk list in the PR (tasks 07 and 09 unproven on Windows). Owner item O17 (read and publish) is in the PR's OWNER.md, not on main yet.
-4. Local-only work while CI is down: **#99** (Google sign-in follow-ups; exam change first), **#9** task engine slice 1 (D37), then **#88**, **#89**; **#11** teacher UI, **#10** student UI.
-5. **#85** deploy follow-ups (p2; overlaps #98's docs-only deploy fix: re-read after #100 merges), **#94**, **#93**; p2 list: #81, #76, #67, #69, #64, #68, #54, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
+1. **#9 / PR #113**: CI, review (max 2 rounds), merge, deploy, live check of the task API with the smoke student. Then **#88** (check results, attempts, quiz grading), **#89** (completion, active time, fast flag), **#10** student UI, **#11** teacher UI.
+2. **#99** Google sign-in follow-ups (now with the two #112 review nits: full-callback BOM test; log the count of dropped allow-list entries, never the addresses). Exam change first.
+3. **#106** Linux 1 exam wrong-answer cases (exam-only PR).
+4. **#98** (p2 now, D46): first slice = cancel superseded PR runs; branch `f/98-ci-minutes` + PR #103's round 1 findings are the starting point.
+5. **#85** deploy follow-ups, **#94**, **#93**; p2 list: #81, #76, #67, #69, #64, #68, #54, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
 
-- **O16 (new, blocks every merge and deploy):** Actions minutes used up; spending limit, public repo, or wait for 2026-12-01 (incident #96).
-- O1–O3 done (DNS `labs` and `factory`, deploy secrets, database role). O4 (OpenRouter) skipped by choice.
-- O6 closed: no token; the owner signs in again when the runner alerts (sign-in ends 2026-11-20..23). O8 done (deploy secrets only in the `production` environment).
-- O9 decided by the manager: D31 (#61). **O10 open:** move `LF_DATABASE_URL` into the `production` environment. **New: O11** (create the first admin), **O12** (back up `/root/learning-factory/.env`), **O13** (re-deploy after recreating nginx-proxy3); **O5 reopened** (copy the real `labs` block to the EMEW-AI repo).
+- **O18 (new, optional since #110):** the `production` environment values `LF_GOOGLE_CLIENT_ID` (and probably `LF_GOOGLE_CLIENT_SECRET`) start with a byte-order mark. The manager strips it on read now, so nothing is broken. Re-save both without it when convenient (type or paste the value in the GitHub web form). Then do the **first real Google sign-in**.
+- **O17:** read Linux 1 (en + he) and publish it (`status: published`).
+- O16/O7 resolved by D43 (public repository). O10 open (move `LF_DATABASE_URL` into `production`), O12 (back up `.env`), O13 (re-deploy after recreating nginx-proxy3), O5 reopened.
 
 ## Recently done
+
+- 2026-11-15 · Pass lf-q4n8: **4 PRs merged.** #92 Google admin sign-in (#102; live: `google: true`, 303 to Google with the right callback); #105 harness race in the proxy exam (#108: the janitor's first DB pass ~2 s after startup ended every live session because the fake runtime listed no containers; incident #107 closed); #12 Linux 1 (#104; round 1: 5 should-fix, round 2 approved; leftovers #106); #110 byte-order mark in the Google settings, found by the live check of #92 (#112). #98 dropped to p2 and PR #103 closed (D46). D45 (task scripts as root, no extra capabilities). #9 exam + code, PR #113 opened.
 
 - 2026-11-15 · Pass lf-m7k2 (no merges, CI down #96): found the cause of the red line (Actions minutes, O16, D41); measured where the minutes go and built #98 (PR #100: exam + code, local 21/21); finished #95 round-1 fixes (5ed0a30), round 2 approved, nits → #99; #12 exam + content (PR #101, D42); PR #100 round 1 requested changes.
 
