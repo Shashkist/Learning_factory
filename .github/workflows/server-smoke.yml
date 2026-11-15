@@ -6,7 +6,8 @@ name: Server smoke
 # check=liveness runs labs/deploy/smoke/liveness.sh: a diagnostic of lab containers that exit after
 # a docker exec (throw-away lf-smoke-live-* containers, read-only otherwise).
 # check=terminal opens a real terminal through https://labs.shashkist.com as a synthetic smoke
-# student (issue #86, D36). It runs by hand, after every successful Deploy on main, and nightly.
+# student (issue #86, D36). It runs by hand, nightly, and as a job of every Deploy run that really
+# deployed (workflow_call from deploy.yml, issue #90, D38).
 # The class password of the smoke student is generated per run and never stored.
 
 on:
@@ -17,33 +18,58 @@ on:
         type: choice
         options: [isolation, liveness, terminal]
         default: isolation
-  workflow_run:
-    workflows: [Deploy]
-    types: [completed]
+  workflow_call:
+    inputs:
+      from_deploy:
+        description: "Called by the Deploy run, which already holds the host lock"
+        type: boolean
+        default: false
   schedule:
     - cron: "30 3 * * *"
 
 permissions:
   contents: read
 
-# Shared with bootstrap.yml and the deploy workflow (#13): a smoke never runs during an apply or a
-# deploy, and never holds the manager address while one starts it.
-concurrency:
-  group: server-lab-host
-  cancel-in-progress: false
-
 jobs:
+  # A scheduled or manual smoke must not queue behind a Deploy: GitHub keeps one pending run per
+  # concurrency group, so a queued smoke could cancel a pending Deploy. No concurrency here.
+  gate:
+    if: ${{ !inputs.from_deploy }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    outputs:
+      deploy_busy: ${{ steps.check.outputs.deploy_busy }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Look for a Deploy run that is queued, waiting or running
+        id: check
+        run: |
+          busy=$(gh run list --workflow deploy.yml --limit 30 --json status --jq '[.[] | select(.status == "queued" or .status == "waiting" or .status == "in_progress" or .status == "requested" or .status == "pending")] | length')
+          if [ "${busy:-0}" != 0 ]; then
+            echo "Smoke skipped: a Deploy run is queued, waiting or in progress"
+            echo "deploy_busy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy_busy=false" >> "$GITHUB_OUTPUT"
+          fi
   smoke:
-    # workflow_run: only a successful Deploy on main. Manual dispatch and schedule always run.
+    needs: gate
+    # A called run (from Deploy) skips the gate; scheduled and manual runs need a quiet Deploy.
     if: >-
-      github.event_name != 'workflow_run' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.head_branch == 'main')
+      ${{ !cancelled() && (inputs.from_deploy ||
+      (needs.gate.result == 'success' && needs.gate.outputs.deploy_busy != 'true')) }}
+    # Shared with bootstrap.yml and deploy.yml (D30). A called run already runs under the Deploy
+    # run's lock and must not wait for it, so it gets a group of its own.
+    concurrency:
+      group: ${{ inputs.from_deploy && format('server-smoke-called-{0}', github.run_id) || 'server-lab-host' }}
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 15
     env:
-      # events without inputs (workflow_run, schedule) run the terminal check
+      # events without inputs (workflow_call, schedule) run the terminal check
       CHECK: ${{ inputs.check || 'terminal' }}
     steps:
       - uses: actions/checkout@v4

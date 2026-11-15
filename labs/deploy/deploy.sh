@@ -217,3 +217,5 @@ wait_for "no-cache on https://$factory_host/live.json" check_live_json || die "l
 
 printf '%s\n' "$tag" > "$root/deployed-tag"
 say "deployed lf-manager:$tag; all checks passed"
+# Machine-readable proof of a real apply (the workflow runs the smoke only when it sees this line).
+printf 'deployed %s\n' "$tag"

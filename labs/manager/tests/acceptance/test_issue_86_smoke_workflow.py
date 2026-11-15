@@ -4,9 +4,11 @@
 
 Shape the exam expects (D36):
   * `workflow_dispatch` input `check` gains `terminal` (default stays `isolation`); the workflow
-    also runs on `workflow_run` of `Deploy` (completed; only when it succeeded, on main) and on
-    `schedule` 03:30 UTC. Those two events run the terminal check.
-  * environment `production`, concurrency group `server-lab-host` without cancel.
+    also runs on `schedule` 03:30 UTC. Events without inputs run the terminal check.
+    D38 (#90) moved the post-deploy run into the Deploy workflow (`workflow_call`, see
+    test_issue_90_smoke_in_deploy.py); the `workflow_run` trigger of Deploy is gone.
+  * environment `production`, concurrency group `server-lab-host` without cancel (D38: on the
+    `smoke` job, not on the workflow).
   * a per-run class password is generated with `openssl rand -hex 24` into a shell variable and
     only ever reaches `smoke-student` on stdin (through `docker exec -i lf-manager ...` over ssh)
     and the client through its environment: never on a command line, never echoed.
@@ -41,9 +43,10 @@ def _on(wf: dict) -> dict:
 
 
 def _job(wf: dict) -> dict:
+    # D38: the workflow has a small gate job before the smoke; the checks live in job `smoke`
     jobs = wf.get("jobs") or {}
-    assert jobs, "no jobs"
-    return next(iter(jobs.values()))
+    assert "smoke" in jobs, "server-smoke.yml needs a job named `smoke`"
+    return jobs["smoke"]
 
 
 def _steps(wf: dict) -> list[dict]:
@@ -77,40 +80,24 @@ def test_terminal_is_a_manual_option_and_the_default_stays_isolation():
     assert check.get("default") == "isolation"
 
 
-def test_it_runs_after_a_finished_deploy_workflow():
+def test_it_no_longer_runs_from_a_workflow_run_trigger():
+    # D38: the post-deploy smoke is a job of the Deploy run (workflow_call), so a separate
+    # workflow_run trigger is gone: it ran after skipped deploys and queued behind the deploy lock
     on = _on(_wf())
-    wr = on.get("workflow_run")
-    assert isinstance(wr, dict), "no workflow_run trigger"
-    assert wr.get("workflows") == ["Deploy"]
-    assert "completed" in (wr.get("types") or [])
-    assert DEPLOY.is_file()
-    assert re.search(r"^name:\s*Deploy\s*$", DEPLOY.read_text(encoding="utf-8"), re.M), (
-        "deploy.yml must be named `Deploy` for the workflow_run trigger to match"
-    )
+    assert "workflow_run" not in on, "the workflow_run trigger must be removed (D38)"
+    assert "workflow_call" in on and "workflow_dispatch" in on and "schedule" in on
 
 
-def test_a_deploy_run_that_failed_or_is_not_on_main_does_not_start_the_smoke():
-    wf = _wf()
-    wr = _on(wf)["workflow_run"]
-    guard = " ".join(
-        str(x)
-        for x in (
-            _job(wf).get("if", ""),
-            *[s.get("if", "") for s in _steps(wf)],
-        )
-    )
-    on_main = wr.get("branches") == ["main"] or "head_branch == 'main'" in guard
-    assert on_main, "the workflow_run smoke must be limited to main"
-    assert "workflow_run.conclusion == 'success'" in guard.replace('"', "'"), (
-        "only a successful Deploy may start the smoke"
-    )
+def test_a_deploy_that_did_not_deploy_does_not_start_the_smoke():
+    # the guard moved to the caller: the smoke job of deploy.yml runs only when the deploy
+    # really deployed
+    import yaml
 
-
-def test_a_manual_dispatch_is_not_blocked_by_the_workflow_run_guard():
-    guard = str(_job(_wf()).get("if", ""))
-    assert "workflow_dispatch" in guard or "event_name" in guard, (
-        "the job guard must let manual dispatch and schedule through"
-    )
+    deploy = yaml.safe_load(DEPLOY.read_text(encoding="utf-8"))
+    smoke = (deploy.get("jobs") or {}).get("smoke") or {}
+    assert smoke.get("needs") == "deploy" or smoke.get("needs") == ["deploy"]
+    assert "deployed" in str(smoke.get("if", ""))
+    assert re.search(r"^name:\s*Deploy\s*$", DEPLOY.read_text(encoding="utf-8"), re.M)
 
 
 def test_it_runs_nightly_at_0330_utc():
@@ -148,11 +135,13 @@ def test_production_environment_and_the_shared_host_lock_are_kept():
     assert job.get("environment") == "production" or (job.get("environment") or {}).get(
         "name"
     ) == "production"
-    conc = job.get("concurrency") or wf.get("concurrency")
+    # D38: the lock is on the smoke job (not the workflow) and only applies when not called
+    assert not wf.get("concurrency"), "the workflow-level concurrency moved to the smoke job (D38)"
+    conc = job.get("concurrency")
     if isinstance(conc, str):
         conc = {"group": conc}
-    assert conc and conc.get("group") == "server-lab-host"
-    assert conc.get("cancel-in-progress") in (False, None)
+    assert conc and "server-lab-host" in str(conc.get("group"))
+    assert conc.get("cancel-in-progress") in (False, None, "false")
 
 
 def test_the_token_can_only_read_contents():

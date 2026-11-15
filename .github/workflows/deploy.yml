@@ -37,6 +37,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 20
+    outputs:
+      deployed: ${{ steps.deploy.outputs.deployed }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -62,6 +64,7 @@ jobs:
             echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
       - name: Deploy to the server
+        id: deploy
         if: steps.gate.outputs.ready == 'true'
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -107,11 +110,32 @@ jobs:
           scp $ssh_opts labs/deploy/deploy.sh labs/deploy/compose.yml "$server:$dir/"
           scp $ssh_opts labs/deploy/nginx/labs.conf labs/deploy/nginx/factory.conf labs/deploy/nginx/install-block.sh "$server:$dir/nginx/"
           # Secrets go on stdin only; the script reads NAME=value lines.
+          # pipefail: the tee below must not hide a failed deploy.sh exit status.
+          set -o pipefail
           st=0
           { printf 'GHCR_USER=%s\n' "$GHCR_USER"; printf 'GHCR_TOKEN=%s\n' "$GHCR_TOKEN"; \
             if [ -n "$LF_DATABASE_URL" ]; then printf 'LF_DATABASE_URL=%s\n' "$LF_DATABASE_URL"; fi; } \
-            | ssh $ssh_opts "$server" "LF_MANAGER_TAG=$tag timeout 900 bash $dir/deploy.sh" || st=$?
-          exit "$st"
+            | ssh $ssh_opts "$server" "LF_MANAGER_TAG=$tag timeout 900 bash $dir/deploy.sh" \
+            | tee "$RUNNER_TEMP/deploy.out" || st=$?
+          [ "$st" = 0 ] || exit "$st"
+          # deploy.sh exits 0 when it skips (e.g. no database URL); only its final line proves an apply.
+          if grep -qx "deployed $tag" "$RUNNER_TEMP/deploy.out"; then
+            echo "deployed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy.sh deployed nothing; the smoke is skipped"
+          fi
       - name: Remove the SSH key
         if: always()
         run: rm -f "$RUNNER_TEMP/deploy_key" "$RUNNER_TEMP/known_hosts"
+
+  # Post-deploy smoke (#90, D38): only after a deploy that really deployed, under this run's lock.
+  smoke:
+    needs: deploy
+    if: needs.deploy.outputs.deployed == 'true'
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/server-smoke.yml
+    secrets: inherit
+    with:
+      from_deploy: true
