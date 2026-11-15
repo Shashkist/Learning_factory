@@ -1,0 +1,36 @@
+# The lf-manager service. The deploy workflow copies this file to the server and runs
+#   docker compose -f compose.yml up -d
+# with LF_MANAGER_TAG, LF_NGINX_NETWORK and LF_TRUSTED_PROXY set in the environment and secrets
+# in /root/learning-factory/.env (installed by the owner, never by an agent).
+name: learning-factory
+
+services:
+  lf-manager:
+    container_name: lf-manager
+    image: ghcr.io/shashkist/lf-manager:${LF_MANAGER_TAG:-latest}
+    restart: unless-stopped
+    env_file: /root/learning-factory/.env
+    environment:
+      LF_LOGIN_IP_LIMIT: "100"
+      LF_TRUSTED_PROXY: ${LF_TRUSTED_PROXY:?LF_TRUSTED_PROXY must be set}
+      LF_LAB_NETWORK: lf-labs
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    mem_limit: 512m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      nginx:
+        gw_priority: 100
+      lf-labs:
+        ipv4_address: 172.31.240.2
+
+networks:
+  nginx:
+    name: ${LF_NGINX_NETWORK:?LF_NGINX_NETWORK must be set}
+    external: true
+  lf-labs:
+    external: true

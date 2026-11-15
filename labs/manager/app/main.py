@@ -7,7 +7,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import asyncpg
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse
 
 from app import auth, db, janitor, sessions, term_proxy
 from app.content import load_labs
@@ -99,7 +100,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 log.warning("closing the database pool failed: %s", type(exc).__name__)
 
 
-app = FastAPI(title="Learning Factory lab manager", lifespan=lifespan)
+_DOCS = os.environ.get("LF_API_DOCS") == "1"
+app = FastAPI(
+    title="Learning Factory lab manager",
+    lifespan=lifespan,
+    docs_url="/docs" if _DOCS else None,
+    redoc_url="/redoc" if _DOCS else None,
+    openapi_url="/openapi.json" if _DOCS else None,
+)
 app.include_router(auth.router)
 app.include_router(sessions.router)
 app.include_router(term_proxy.router)
@@ -121,3 +129,37 @@ async def api_health(request: Request) -> dict[str, str]:
         except Exception:
             state = "unavailable"
     return {"status": "ok" if state == "ok" else "degraded", "database": state}
+
+
+def _mount_web(web_dir: str | None) -> None:
+    """Serve the built UI (SPA fallback). Registered last, so API routes always win."""
+    root = Path(web_dir).resolve() if web_dir else None
+    if root is None or not (root / "index.html").is_file():
+        logging.getLogger("lab-manager").warning(
+            "LF_WEB_DIR is not set or has no index.html: serving the API only"
+        )
+        return
+    index = root / "index.html"
+
+    def page() -> FileResponse:
+        return FileResponse(index, headers={"Cache-Control": "no-cache"})
+
+    @app.api_route("/{path:path}", methods=["GET", "HEAD"], include_in_schema=False)
+    def web(path: str) -> FileResponse:
+        if path.split("/", 1)[0] in ("api", "s", "healthz"):
+            raise HTTPException(status_code=404)
+        if not path:
+            return page()
+        try:
+            target = (root / path).resolve()
+            if target.is_relative_to(root) and target.is_file():
+                return FileResponse(target)
+        except (ValueError, OSError):
+            raise HTTPException(status_code=404) from None
+        # A missing asset must fail as 404 (stale bundle after a deploy), not come back as HTML.
+        if path.startswith("assets/") or "." in path.rsplit("/", 1)[-1]:
+            raise HTTPException(status_code=404)
+        return page()
+
+
+_mount_web(os.environ.get("LF_WEB_DIR"))
