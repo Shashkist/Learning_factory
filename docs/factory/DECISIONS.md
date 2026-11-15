@@ -347,6 +347,7 @@ in force · factory · 2026-11-15
 **Why.** The deploy uses exactly the image CI tested and pushed; a secret only travels on stdin; every shared-config change goes through the validated installer (rule 1).
 **Alternatives.** Deploy in the CI workflow itself (mixes PR and production permissions); `:latest` (out-of-order runs could change what runs); build on the server (D5).
 **Revert.** Disable `deploy.yml`; `docker compose -p learning-factory down` on the server and reinstall the placeholder `labs` block.
+**Amended (review of #83).** A `workflow_run` deploys only a green CI for a **push** in this repository, and only when its sha is still the head of main (an older run never rolls production back). A manual sha must already be on main. The GHCR login uses a throw-away `DOCKER_CONFIG`, never root's shared one. With no `LF_DATABASE_URL` anywhere, the script says so and exits 0 before changing anything. It refuses to guess when `nginx-proxy3` is on more than one user network. Container checks (healthz, default route, migrations line) roll back; the live checks through nginx only fail the run (revisit in #85). Live since run 43712703642.
 
 ## D35
 **Decision (owner session, 2026-11-15).** Factory guardrails are enforced by a hook, not only by instructions. `scripts/factory_guard.py` runs as the first PreToolUse hook of every factory run (`scripts/laptop/factory-hooks.json`) and blocks, with exit code 2 and a reason the agent sees:

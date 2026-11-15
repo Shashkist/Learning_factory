@@ -2,25 +2,29 @@
 
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
-_Last updated: 2026-11-15 ~10:55 UTC, laptop pass lf-b3e19 (started 10:40 UTC)._
+_Last updated: 2026-11-15 ~12:25 UTC, laptop pass lf-b3e19 (10:40-12:25 UTC; stopped at the time limit: #80 and #83 merged, #13 deployed live)._
 
 ## Now
 
-- **Pass lf-b3e19 running.** #80 merged (63ec85a); #72 closes when main CI is green.
-- **#13 deploy** claimed by lf-b3e19 on `f/13-deploy` (D34): exam first, then implementation.
+- **Pass lf-b3e19 stopped.** No claims held, no open branches.
+- **Production is live:** `lf-manager:2b33cf3` at https://labs.shashkist.com (healthz ok, database ok). Every green CI on main now deploys its own sha (Deploy workflow, D34), including state-only commits (#85 will skip those).
+- **Next session starts at:** Next 1.
 
 ## Next (in order)
 
-1. **#13** deploy (in progress, D34) (the image and compose file exist now). Read every #13 comment first: never run `docker compose config` on the server (it prints `env_file` values); export `LF_TRUSTED_PROXY` and `LF_NGINX_NETWORK` for every compose command; deploy `LF_MANAGER_TAG=<sha>`; check Docker >= 28 and Compose >= 2.33.1 (`gw_priority`) and `ip route` in `lf-manager`; `LF_TERM_UPSTREAM` must be unset; live smoke opens a real terminal through the Docker DNS path; `install-block.sh factory` for `/live.json`; pre-pull `lf-lab-term`; D31 migration watch item. Then #9, #11, #10 (#12 content can run in parallel).
-2. p2: #81 (manager image follow-ups), #76 (terminal proxy hardening), #67, #69, #64, #68, #54, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
+1. **#86** live terminal smoke through the production path (p1; needed before #10 ships). Then **#9** task engine, **#11** teacher UI, **#10** student UI (#12 content can run in parallel).
+2. **#85** deploy follow-ups (p2, includes the two round-2 notes in its comments: skip the migrations-line check when the container was not recreated; move the stale-sha skip into the job `if`).
+3. p2: #81, #76, #67, #69, #64, #68, #54, #55, #56, #47, #44, #21, #15, #14 (the shared certificate already covers labs, D11; check what #14 still needs). Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
 
 - O1–O3 done (DNS `labs` and `factory`, deploy secrets, database role). O4 (OpenRouter) skipped by choice.
 - O6 closed: no token; the owner signs in again when the runner alerts (sign-in ends 2026-11-20..23). O8 done (deploy secrets only in the `production` environment).
-- O9 decided by the manager: D31 (#61). **O10 open:** move `LF_DATABASE_URL` into the `production` environment.
+- O9 decided by the manager: D31 (#61). **O10 open:** move `LF_DATABASE_URL` into the `production` environment. **New: O11** (create the first admin), **O12** (back up `/root/learning-factory/.env`), **O13** (re-deploy after recreating nginx-proxy3); **O5 reopened** (copy the real `labs` block to the EMEW-AI repo).
 
 ## Recently done
+
+- 2026-11-15 · #13 Deploy shipped in #83 (exam, code, review round 1 fixes: main-only shas, private registry login, skip without DB URL; round 2 approved). Deploy run 43712703642: `lf-manager:2b33cf3` live, migrations 001-003 applied against Supabase, `labs` + `factory` nginx blocks installed (`nginx -t` ok). Verified from outside: healthz, `/api/health` database ok, UI with noindex, `/live.json` no-cache. Follow-ups #85, #86. #72 closed after #80 (main CI 43706527875).
 
 - 2026-11-15 · #72 (slice 1 of #13, D32) shipped in #75 (image + compose, 2 review rounds) and #78 (CI `image-manager` job: build, smoke, `compose config --quiet`, push on main; serving fixes). The first push of the new GHCR package was denied at the manifest (incident #82, closed): a re-run of the failed job pushed it. Exam follow-up #80 waits for merge. Leftovers → #81.
 
@@ -58,5 +62,5 @@ _Last updated: 2026-11-15 ~10:55 UTC, laptop pass lf-b3e19 (started 10:40 UTC)._
 - **Pattern:** an issue whose acceptance needs a `ci.yml` change ships as two PRs (D19). To prove the exam before the code PR merges, stack the exam commits in a draft PR based on the code branch (as #32 did).
 - **Actions minutes:** private repo on the free plan (2,000 min/month). Dashboard cadence cut to push + every 3 h (D12); owner option O7.
 - Local runs: `uv run mypy` / `uv run pytest` `.exe` shims fail on this laptop (Access denied); use `uv run python -m ...`. Force-push is blocked by the permission classifier: re-sequence onto a new branch + new PR instead.
-- Deploy: not set up yet (#13). Dashboard publish works from the `production` environment (run 43639502324); the server refuses bursts of new SSH connections, so reuse one connection (ControlMaster) in deploy scripts.
+- Deploy: `.github/workflows/deploy.yml` after every green main CI (D34); server files in `/root/learning-factory/` (`.env` mode 600, `deployed-tag`). Server: Docker 28.2.1, Compose 2.36.2, nginx network `my_network`. Dashboard publish works from the `production` environment (run 43639502324); the server refuses bursts of new SSH connections, so reuse one connection (ControlMaster) in deploy scripts.
 - Server: 4 vCPU / 7.8 GB / ~3.6 GB free / 92 GB disk free (2026-11-14).
