@@ -411,7 +411,8 @@ in force · factory · 2026-11-15
 - **UI:** at `/admin` the web app asks `/api/auth/me` and `/api/auth/admin/methods`: signed in → "Signed in as admin" + log out; else one "Sign in with Google" link to `/auth/google/start`, or the text "Google sign-in is not configured".
 **Why.** The owner wants Google-only admin access (issue #92). Server-side flow state keeps the replay and cookie-injection cases simple to reason about; the transport seam lets the exam run a full fake Google without network.
 **Alternatives.** A signed cookie holding the flow state (survives restarts, but replay needs a used-state store anyway); authlib (heavier); skipping the signature check because the token comes straight from Google over TLS (allowed by OIDC, but cheap to do).
-**Revert.** Unset `LF_GOOGLE_CLIENT_ID`: password admin login works again and the Google routes answer 503.
+**Revert.** Remove `LF_GOOGLE_CLIENT_ID` from the server `.env` (an owner step: `deploy.sh` keeps a value when none is sent, so deleting the secret alone changes nothing): password admin login works again and the Google routes answer 503. To revoke an address, set the allow-list to the remaining addresses (a non-empty value replaces the old one).
+**Amended (review of #95).** The access log strips query strings (the callback's `code` and `state` would otherwise land in `docker logs`); `/auth/google/start` is rate-limited per IP (`LF_GOOGLE_START_LIMIT`, default 30), so anonymous requests cannot evict the owner's pending flow; non-ASCII emails are refused; admin usernames may not contain `:`. The allow-list is read as `secrets.LF_ADMIN_EMAILS || vars.LF_ADMIN_EMAILS`: GitHub prints a step's `env:` values in the log, and only secret values are masked, so the owner moves it to a secret (OWNER.md O15).
 
 ## D40 · #90 ships without "a cancelled Deploy is noticed"; that criterion moves to #85
 in force · factory · 2026-11-15
