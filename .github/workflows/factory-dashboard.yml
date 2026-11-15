@@ -5,6 +5,10 @@ on:
     - cron: "0 */3 * * *"
   push:
     branches: [main]
+    paths:
+      - "docs/factory/**"
+      - "labs/factory-dashboard/**"
+      - ".github/workflows/factory-dashboard.yml"
   workflow_dispatch:
 
 permissions:

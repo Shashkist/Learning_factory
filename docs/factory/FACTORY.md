@@ -66,6 +66,17 @@ The factory turns the spec into a running lab platform at `labs.shashkist.com` w
 - **NEVER** deploy anything that makes a lab container reach the host, other containers, or the open internet (spec §6).
 - **Cost guard:** a run stops starting new issues after ~90 minutes of work or 3 merged PRs, whichever comes first.
 
+## Actions minute budget
+
+The free private plan gives 2,000 Actions minutes a month. In November about 1,860 were used in two days (#98, incident #96). Where they went: CI on push to main 886, CI on pull requests 681, dashboard on push 215, everything else about 80. The `docker` job alone cost 681.
+
+What a PR costs now: `manager` plus `web` plus `exam-integrity`, roughly 8 to 10 minutes. A PR that touches `labs/images`, `labs/manager`, `labs/deploy`, `labs/content` or `.github/workflows` also runs `docker` and the image jobs (about 15 more). A docs-only push to main costs nothing; a code push costs the full run.
+
+Rules:
+- **Batch state commits:** one `docs/factory/*` state commit per loop step, not one per sub-step. Each one that reaches the dashboard filter still costs a run.
+- Docs-only paths are listed in `scripts/ci/docs-only-paths.txt`; `ci.yml` `paths-ignore` must match it.
+- Do not re-run CI to see if it passes. Read the failure first.
+
 ## Decisions without the owner
 
 The manager decides. Order of evidence: the spec → `DECISIONS.md` → how KodeKloud does it (observed behaviour is in spec §2) → other lab platforms → the simplest thing that keeps the guardrails. Every decision gets a D-number, the options considered, why, and **how to revert it**. Ilia reads `DECISIONS.md` when he wants and reverts by writing "revert D12" in an issue or a session.

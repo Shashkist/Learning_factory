@@ -74,10 +74,14 @@ jobs:
           LF_DATABASE_URL: ${{ secrets.LF_DATABASE_URL }}
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG_SOURCE: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
+          TAG_SOURCE: ${{ github.event.workflow_run.head_sha || inputs.sha }}
           EVENT_NAME: ${{ github.event_name }}
         run: |
           tag="$TAG_SOURCE"
+          if [ -z "$tag" ]; then
+            # Manual run without a sha: the newest commit that changed code (docs-only commits have no image).
+            tag="$(bash scripts/ci/latest_code_commit.sh "$GITHUB_SHA")"
+          fi
           case "$tag" in
             *[!0-9a-f]*|"") echo "not a commit sha: refusing to deploy" >&2; exit 1 ;;
           esac
@@ -87,11 +91,16 @@ jobs:
           if [ "$tag" != "$GITHUB_SHA" ]; then
             if [ "$EVENT_NAME" = workflow_run ]; then
               # An older or re-run CI must never roll production back; the newer commit's run deploys.
-              echo "Deploy skipped: $tag is no longer the head of main ($GITHUB_SHA)"
-              exit 0
+              # Docs-only commits after the tag start no CI, so they never deploy: deploy the tag then.
+              if ! bash scripts/ci/docs_only.sh "$tag" "$GITHUB_SHA"; then
+                echo "Deploy skipped: $tag is no longer the head of main ($GITHUB_SHA)"
+                exit 0
+              fi
+              echo "Only docs changed after $tag: deploying it"
+            else
+              # A manual sha must be a commit that is already on main (reviewed and merged code only).
+              git merge-base --is-ancestor "$tag" "$GITHUB_SHA"               || { echo "$tag is not on main: refusing to deploy" >&2; exit 1; }
             fi
-            # A manual sha must be a commit that is already on main (reviewed and merged code only).
-            git merge-base --is-ancestor "$tag" "$GITHUB_SHA"               || { echo "$tag is not on main: refusing to deploy" >&2; exit 1; }
           fi
           key="$RUNNER_TEMP/deploy_key"
           umask 077

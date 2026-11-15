@@ -1,0 +1,6 @@
+# Paths that never need CI or a deploy. One GitHub glob per line.
+# ci.yml on.push.paths-ignore must list exactly these; docs_only.sh reads this file.
+docs/**
+courses/**
+**.md
+.claude/**
