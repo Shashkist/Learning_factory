@@ -154,6 +154,32 @@ a:hover { text-decoration: underline; }
 }
 .live-spark svg { width: 100%; height: 24px; display: block; }
 .live-spark rect { fill: var(--spark); }
+.lanes { display: grid; gap: 10px; margin-bottom: 16px; }
+.lane-manager { font-size: .9375rem; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.lane-manager .live-dot[data-state="busy"] { background: var(--ok); animation: live-pulse 1.2s ease-in-out infinite; }
+.lane-manager .live-dot[data-state="thinking"] { background: var(--accent); }
+.lane-manager .live-dot[data-state="waiting"] { background: var(--warn); }
+.lane { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+.lane[data-running="1"] { border-color: var(--brand); }
+.lane-head { margin-bottom: 8px; overflow-wrap: anywhere; }
+.lane-bar { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.lane-st { font: inherit; font-size: .8125rem; padding: 6px 4px; border-radius: 8px; border: 1px solid var(--border);
+  background: transparent; color: var(--text-muted); cursor: pointer; text-align: center; }
+.lane-st[data-mark="done"] { background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--text); }
+.lane-st[data-mark="active"] { border-color: var(--ok); color: var(--text); font-weight: 600; animation: lane-glow 1.6s ease-in-out infinite; }
+.lane-st[data-mark="waiting"] { border-color: var(--warn); color: var(--text); }
+.lane-st[data-mark="failed"] { border-color: var(--bad); color: var(--bad); }
+.lane-st[aria-expanded="true"] { outline: 2px solid var(--brand); }
+.lane-count { font-size: .6875rem; opacity: .7; }
+@keyframes lane-glow { 0%, 100% { box-shadow: 0 0 0 0 transparent; } 50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 35%, transparent); } }
+.lane-agent { font-size: .8125rem; margin-top: 6px; overflow-wrap: anywhere; }
+.lane-agent[data-state="busy"] .live-dot { background: var(--ok); animation: live-pulse 1.2s ease-in-out infinite; }
+.lane-agent[data-state="thinking"] .live-dot { background: var(--accent); }
+.lane-detail { margin-top: 10px; padding: 8px 10px; border-radius: 8px; background: color-mix(in srgb, var(--border) 35%, transparent);
+  font-size: .8125rem; display: grid; gap: 4px; }
+.lane-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.lane-step-detail { color: var(--text-muted); margin-left: 20px; overflow-wrap: anywhere; }
+@media (max-width: 640px) { .lane-bar { gap: 3px; } .lane-st { font-size: .6875rem; padding: 5px 2px; } }
 .crew { margin-top: 14px; display: grid; gap: 8px; }
 .crew-heading { font-size: .9375rem; }
 .crew-card { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: .875rem; overflow-wrap: anywhere; }
