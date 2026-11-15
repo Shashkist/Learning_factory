@@ -90,7 +90,7 @@ check_url() {
   local url=$1 code="" attempt
   for attempt in 1 2; do
     code="$(curl -s -o /dev/null -m 20 -w '%{http_code}' "$url" 2>/dev/null || true)"
-    case "$code" in 2??|3??) return 0 ;; esac
+    case "$code" in 2??|3??) log "baseline ok: $url answered $code"; return 0 ;; esac
     sleep 3
   done
   err "baseline check failed: $url answered '${code:-none}'"
@@ -99,7 +99,10 @@ check_url() {
 
 check_tcp() {
   local hp=$1
-  if timeout 5 bash -c 'exec 3<>"/dev/tcp/$0/$1"' "${hp%:*}" "${hp##*:}" 2>/dev/null; then return 0; fi
+  if timeout 5 bash -c 'exec 3<>"/dev/tcp/$0/$1"' "${hp%:*}" "${hp##*:}" 2>/dev/null; then
+    log "baseline ok: tcp $hp accepts connections"
+    return 0
+  fi
   err "baseline check failed: tcp $hp does not accept connections"
   return 1
 }
@@ -114,6 +117,8 @@ baseline_ok() {
     err "baseline check failed: containers differ from the baseline"
     err "--- before"; err "$BASE_STATE"; err "--- now"; err "$now"
     ok=1
+  else
+    log "baseline ok: $(printf '%s' "$now" | grep -c . || true) foreign containers, names, states and start times unchanged"
   fi
   return "$ok"
 }
@@ -388,8 +393,11 @@ apply_runtime() {
     log "planned $DAEMON_JSON diff (jq -S, before -> after):"
     diff -u <(printf '%s' "$orig" | jq -S .) <(printf '%s' "$new" | jq -S .) || true
     if dry; then
+      [ -d /etc/docker ] || printf '+ mkdir -p -m 0755 /etc/docker\n'
       printf '+ write temp file in /etc/docker, dockerd --validate, mv to %s\n' "$DAEMON_JSON"
     else
+      # A host that never had a daemon.json may not have /etc/docker at all.
+      mkdir -p -m 0755 /etc/docker
       DAEMON_TMP="$(mktemp /etc/docker/daemon.json.lf-new.XXXXXX)"
       # mktemp makes a 0600 file: give it the mode and owner of the file it replaces.
       if [ -f "$DAEMON_JSON" ]; then
@@ -519,6 +527,50 @@ need_network() {
     exit 1
   fi
   return 1
+}
+
+ip2int() { local a b c d; IFS=. read -r a b c d <<<"$1"; echo $(( (a << 24) | (b << 16) | (c << 8) | d )); }
+
+# 0 when CIDR $1 and CIDR $2 overlap (a bare address counts as /32).
+cidr_overlap() {
+  local n1=${1%/*} l1=${1#*/} n2=${2%/*} l2=${2#*/} s1 e1 s2 e2
+  [ "$l1" = "$1" ] && l1=32
+  [ "$l2" = "$2" ] && l2=32
+  s1=$(( $(ip2int "$n1") & ((0xFFFFFFFF << (32 - l1)) & 0xFFFFFFFF) )); e1=$(( s1 + (1 << (32 - l1)) - 1 ))
+  s2=$(( $(ip2int "$n2") & ((0xFFFFFFFF << (32 - l2)) & 0xFFFFFFFF) )); e2=$(( s2 + (1 << (32 - l2)) - 1 ))
+  [ "$s1" -le "$e2" ] && [ "$s2" -le "$e1" ]
+}
+
+# Before any step: when lf-labs still has to be created, its subnet must not overlap another
+# Docker network or a host route. Otherwise the run would stop at the network step with the
+# earlier steps already applied.
+preflight_subnet() {
+  local id sub dst ids routes clash=0
+  # An existing lf-labs is checked here too: a wrong one stops the run before any change
+  # (need_network exits), a correct one needs no subnet check.
+  need_network || return 0
+  # Read both lists first: a failing command must stop the run, not compare nothing.
+  ids="$(docker network ls -q)" || { err "preflight: docker network ls failed; nothing was changed"; log "BOOTSTRAP RESULT: failed"; exit 1; }
+  routes="$(ip -4 route show)" || { err "preflight: ip route failed; nothing was changed"; log "BOOTSTRAP RESULT: failed"; exit 1; }
+  for id in $ids; do
+    for sub in $(docker network inspect -f '{{range .IPAM.Config}}{{.Subnet}} {{end}}' "$id" 2>/dev/null); do
+      case "$sub" in *:*) continue ;; esac
+      if cidr_overlap "$SUBNET" "$sub"; then
+        err "subnet $SUBNET overlaps docker network $(docker network inspect -f '{{.Name}}' "$id") ($sub)"
+        clash=1
+      fi
+    done
+  done
+  for dst in $(printf '%s\n' "$routes" | awk '{print $1}'); do
+    case "$dst" in [0-9]*) ;; *) continue ;; esac
+    if cidr_overlap "$SUBNET" "$dst"; then err "subnet $SUBNET overlaps host route $dst"; clash=1; fi
+  done
+  if [ "$clash" = 1 ]; then
+    err "nothing was changed"
+    log "BOOTSTRAP RESULT: failed"
+    exit 1
+  fi
+  log "preflight ok: $SUBNET overlaps no docker network and no host route"
 }
 
 apply_network() {
@@ -769,6 +821,7 @@ if ! baseline_ok; then
   exit 1
 fi
 if dry; then log "DRY RUN: nothing below is executed"; fi
+preflight_subnet
 
 report "before"
 do_step runtime
