@@ -180,7 +180,13 @@ a:hover { text-decoration: underline; }
 .lane-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .lane-step-detail { color: var(--text-muted); margin-left: 20px; overflow-wrap: anywhere; }
 @media (max-width: 640px) { .lane-bar { gap: 3px; } .lane-st { font-size: .6875rem; padding: 5px 2px; } }
-.crew { margin-top: 14px; display: grid; gap: 8px; }
+.lane-now { font-size: .8125rem; margin-top: 6px; overflow-wrap: anywhere; }
+.lane-done { font-size: .8125rem; color: var(--text-muted); padding: 6px 2px; overflow-wrap: anywhere; }
+.lane-done b { color: var(--ok); }
+.fold { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 8px; }
+.fold > summary { cursor: pointer; font-weight: 600; font-size: .9375rem; padding: 4px 0; }
+.fold > summary:hover { color: var(--brand); }
+.crew { margin-top: 6px; display: grid; gap: 8px; }
 .crew-heading { font-size: .9375rem; }
 .crew-card { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: .875rem; overflow-wrap: anywhere; }
 .crew-kids { margin: 8px 0 0 6px; padding-left: 10px; border-left: 2px solid var(--border); display: grid; gap: 6px; }
