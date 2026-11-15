@@ -10,7 +10,7 @@ import asyncpg
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 
-from app import auth, db, google_auth, janitor, sessions, term_proxy
+from app import auth, db, google_auth, janitor, sessions, tasks, term_proxy
 from app.content import load_labs
 from app.runtime import DockerRuntime
 
@@ -112,6 +112,7 @@ app = FastAPI(
 app.include_router(auth.router)
 app.include_router(google_auth.router)
 app.include_router(sessions.router)
+app.include_router(tasks.router)
 app.include_router(term_proxy.router)
 
 
