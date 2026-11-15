@@ -27,8 +27,11 @@ GATEWAY=172.31.240.1
 MANAGER_IP=172.31.240.2
 PORT=7681
 P=lf-smoke
-# --rm plus a bounded life: even a smoke killed without its trap leaves nothing behind for long.
-RUN_OPTS=(--rm --runtime runsc --memory 64m --pids-limit 64)
+# A bounded life: even a smoke killed without its trap leaves nothing running for long (the next
+# run removes the stopped containers by name). No --rm: a container that dies mid-run must stay
+# inspectable (exit code, OOMKilled). The production lab limits (256 MB, 256 pids, D20): under runsc
+# the sandbox's own memory and threads, and every exec, count against them.
+RUN_OPTS=(--runtime runsc --memory 256m --pids-limit 256)
 LIFE_S=600
 
 FAILED=0
@@ -59,20 +62,27 @@ c_tcp() {
   # nc's own exit code is printed inside the container, so a failing docker exec (container
   # gone, daemon error) can never be read as "no connection".
   local out
-  out="$(docker exec "$1" sh -c 'timeout 8 nc -z -w 3 "$0" "$1" </dev/null >/dev/null 2>&1; echo "nc=$?"' "$2" "$3" 2>/dev/null)" || true
+  out="$(docker exec "$1" sh -c 'timeout 8 nc -z -w 3 "$0" "$1" </dev/null >/dev/null 2>&1; echo "nc=$?"' "$2" "$3" 2>&1)" || true
+  PROBE_OUT="$(printf '%s' "$out" | tr '\n' ' ' | cut -c1-200)"
   case "$out" in nc=*) rc=${out#nc=} ;; *) return 2 ;; esac
   case "$rc" in 0) return 0 ;; 1) return 1 ;; *) return 2 ;; esac
 }
 # Expect no connection: PASS only on a clean refusal/timeout of nc itself.
+# The source must be running before the probe, and the target must still answer from the host
+# after it: a container that died in between can never turn into a "blocked".
 expect_blocked() { # container ip port label
   local rc=0
+  if ! running "$1"; then fail "$4: source container not running ($(state_of "$1"))"; return; fi
   c_tcp "$1" "$2" "$3" || rc=$?
   case "$rc" in
     0) fail "$4: connected" ;;
-    1) pass "$4: blocked" ;;
-    *) fail "$4: probe error (exit $rc), cannot tell" ;;
+    1) if h_tcp "$2" "$3"; then pass "$4: blocked"
+       else fail "$4: target stopped answering from the host, cannot tell"; fi ;;
+    *) fail "$4: probe error (exit $rc), cannot tell; output: ${PROBE_OUT:-none}; source: $(state_of "$1")" ;;
   esac
 }
+running() { [ "$(docker inspect -f '{{.State.Running}}' "$1" 2>/dev/null)" = true ]; }
+state_of() { docker inspect -f 'status={{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}}' "$1" 2>/dev/null || echo 'no such container'; }
 # HTTP GET from inside a container: 0 = got an answer.
 c_http() { docker exec "$1" timeout 6 wget -q -T 4 -O /dev/null "$2" >/dev/null 2>&1; }
 # TCP connect from the host: 0 = connected.
@@ -132,10 +142,13 @@ done
 
 # Tool control: the in-container TCP probe must be able to succeed at all, or every "cannot"
 # below would pass for the wrong reason.
-if c_tcp "$P-a" 127.0.0.1 "$PORT" && ! c_tcp "$P-a" 127.0.0.1 1; then
+open_rc=0; closed_rc=0
+c_tcp "$P-a" 127.0.0.1 "$PORT" || open_rc=$?
+c_tcp "$P-a" 127.0.0.1 1 || closed_rc=$?
+if [ "$open_rc" = 0 ] && [ "$closed_rc" = 1 ]; then
   pass "control: the in-container TCP probe tells an open port from a closed one"
 else
-  fail "control: the in-container TCP probe does not tell open (127.0.0.1:$PORT) from closed (127.0.0.1:1)"
+  fail "control: the in-container TCP probe does not tell open (127.0.0.1:$PORT, rc $open_rc) from closed (127.0.0.1:1, rc $closed_rc); output: ${PROBE_OUT:-none}; lab a: $(state_of "$P-a")"
   log "SMOKE RESULT: failed"; exit 1
 fi
 
@@ -163,7 +176,7 @@ tested=0
 for ip in "$GATEWAY" "$DOCKER0_IP" "$PUBLIC_IP"; do
   [ -n "$ip" ] || continue
   for port in $HOST_PORTS; do
-    h_tcp "$ip" "$port" || continue
+    if ! h_tcp "$ip" "$port"; then skip "host $ip:$port does not answer from the host itself; not a target"; continue; fi
     tested=$((tested + 1))
     expect_blocked "$P-a" "$ip" "$port" "lab -> host $ip:$port"
   done
@@ -186,6 +199,10 @@ for hp in 1.1.1.1:443 8.8.8.8:443 1.1.1.1:80; do
 done
 if [ "$tested" = 0 ]; then fail "control: the host reaches none of the internet targets; nothing tested"; fi
 
+if [ "$FAILED" = 1 ]; then
+  log "-- smoke containers at the end"
+  for n in mgr a b other; do log "$P-$n: $(state_of "$P-$n")"; done
+fi
 cleanup
 NOW="$(container_state)"
 if [ "$NOW" = "$BASE" ]; then
