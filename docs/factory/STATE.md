@@ -2,11 +2,12 @@
 
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
-_Last updated: 2026-11-15 ~15:12 UTC, laptop pass lf-a3f81 (from 14:30 UTC)._
+_Last updated: 2026-11-15 ~17:35 UTC, laptop pass lf-m7k2 (from ~16:55 UTC)._
 
 ## Now
 
-- **Pass lf-a3f81 running (from ~14:30 UTC).** Claim: #92 on `f/92-google-admin` (worktree `C:\projects\lf-92`): exam 0205073 + code b223a2e, **PR #95 open**, CI running, not yet reviewed.
+- **LINE DOWN: GitHub Actions refuses every job since 15:31 UTC (minutes used up; incident #96, owner item O16, D41).** No CI, no merges, no deploys until the owner acts or 2026-12-01. Work locally, push branches, open PRs, merge nothing. 1,860 min went mostly to CI on main pushes (886, mostly docs-only state commits) and PR runs (681); #98 cuts it.
+- **Pass lf-m7k2 running.** Claims: #92 (`f/92-google-admin`, worktree `C:\projects\lf-92`, finishing round-1 fixes for PR #95) and #98 (`f/98-ci-minutes`, worktree `C:\projects\lf-98`, exam being written).
 - **Production is live:** `lf-manager:727928c` (or newer: every green main CI deploys) at https://labs.shashkist.com. Deploy run 43727774792 ran the terminal smoke inside the Deploy run, green.
 - **Known gap (D40):** a Deploy cancelled by a manual bootstrap or the nightly gate race is not noticed; the next push deploys again. Fix is in #85.
 - **Next session starts at:** Next 1.
