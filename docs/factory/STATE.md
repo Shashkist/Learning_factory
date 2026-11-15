@@ -2,19 +2,17 @@
 
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
-_Last updated: 2026-11-15 ~10:25 UTC, laptop pass lf-a7d42 (08:56-10:25 UTC; stopped at 3 merged PRs: #74, #75, #78)._
+_Last updated: 2026-11-15 ~10:55 UTC, laptop pass lf-b3e19 (started 10:40 UTC)._
 
 ## Now
 
-- **Pass lf-a7d42 stopped.** No claims held.
-- **#72: PR #80 is green and ready to merge** (exam-only follow-up, commit f0de6b2 = exam writer's d9c1c93; reviewed with #78 and approved; it ran green against the same code on #79, acceptance 320, and on #80 itself, run 43703111098). Merge it (squash), check main CI, close #72 with: #75 + #78 + #80, main run 43703069098 (image pushed: `ghcr.io/shashkist/lf-manager:latest` and `:ff98ba1...`).
-- **Next session starts at:** Next 1.
+- **Pass lf-b3e19 running.** #80 merged (63ec85a); #72 closes when main CI is green.
+- **#13 deploy** claimed by lf-b3e19 on `f/13-deploy` (D34): exam first, then implementation.
 
 ## Next (in order)
 
-1. **#80**: merge, close #72 (see Now).
-2. **#13** deploy (the image and compose file exist now). Read every #13 comment first: never run `docker compose config` on the server (it prints `env_file` values); export `LF_TRUSTED_PROXY` and `LF_NGINX_NETWORK` for every compose command; deploy `LF_MANAGER_TAG=<sha>`; check Docker >= 28 and Compose >= 2.33.1 (`gw_priority`) and `ip route` in `lf-manager`; `LF_TERM_UPSTREAM` must be unset; live smoke opens a real terminal through the Docker DNS path; `install-block.sh factory` for `/live.json`; pre-pull `lf-lab-term`; D31 migration watch item. Then #9, #11, #10 (#12 content can run in parallel).
-3. p2: #81 (manager image follow-ups), #76 (terminal proxy hardening), #67, #69, #64, #68, #54, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
+1. **#13** deploy (in progress, D34) (the image and compose file exist now). Read every #13 comment first: never run `docker compose config` on the server (it prints `env_file` values); export `LF_TRUSTED_PROXY` and `LF_NGINX_NETWORK` for every compose command; deploy `LF_MANAGER_TAG=<sha>`; check Docker >= 28 and Compose >= 2.33.1 (`gw_priority`) and `ip route` in `lf-manager`; `LF_TERM_UPSTREAM` must be unset; live smoke opens a real terminal through the Docker DNS path; `install-block.sh factory` for `/live.json`; pre-pull `lf-lab-term`; D31 migration watch item. Then #9, #11, #10 (#12 content can run in parallel).
+2. p2: #81 (manager image follow-ups), #76 (terminal proxy hardening), #67, #69, #64, #68, #54, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
 
