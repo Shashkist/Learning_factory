@@ -247,12 +247,21 @@ def _clean(value: str) -> str:
     return value.strip().lstrip(_BOM).strip()
 
 
+_logged_dropped: dict[str, str] = {}
+
+
 def google_config() -> GoogleConfig | None:
     """Configured means client id, client secret and a non-empty admin allow-list are all set."""
     cid = _clean(os.environ.get("LF_GOOGLE_CLIENT_ID", ""))
     secret = _clean(os.environ.get("LF_GOOGLE_CLIENT_SECRET", ""))
-    entries = (_clean(e) for e in _clean(os.environ.get("LF_ADMIN_EMAILS", "")).split(","))
-    emails = frozenset(e.lower() for e in entries if e and e.isascii())
+    raw = _clean(os.environ.get("LF_ADMIN_EMAILS", ""))
+    entries = [e for e in (_clean(e) for e in raw.split(",")) if e]
+    emails = frozenset(e.lower() for e in entries if e.isascii())
+    dropped = len(entries) - sum(1 for e in entries if e.isascii())
+    digest = hashlib.sha256(raw.encode()).hexdigest()
+    if dropped and _logged_dropped.get("digest") != digest:
+        _logged_dropped["digest"] = digest
+        log.warning("LF_ADMIN_EMAILS: %d entries with non-ASCII characters were ignored", dropped)
     if not (cid and secret and emails):
         return None
     redirect = _clean(os.environ.get("LF_GOOGLE_REDIRECT_URI", ""))
@@ -351,6 +360,8 @@ async def current_principal(request: HTTPConnection) -> Principal:
                 if google_config() is None:
                     raise HTTPException(401, "not_authenticated")
                 return Principal("admin", "admin", row["subject"])
+            if not password_login_allowed():  # a password session made earlier stops at once
+                raise HTTPException(401, "not_authenticated")
             exists = await pool.fetchval(
                 f"select 1 from {T}.admins where username = $1", row["subject"]
             )
