@@ -298,19 +298,34 @@ def assert_ws_refused(client, session_id: str, status: int, headers: dict | None
 
 
 class FakeRuntime:
-    """Starts nothing; `lab-<uuid>` names only. Methods are async like DockerRuntime's."""
+    """Starts nothing; `lab-<uuid>` names only. Methods are async like DockerRuntime's.
+
+    It lists the containers it "started" as running, like Docker would. The janitor's first
+    pass with a database runs about 2 s after startup (its pass before the pool exists fails
+    and backs off); with an empty listing it ended every live session as an orphan, so a test
+    whose session spanned that moment got 410 (#105).
+    """
 
     def __init__(self) -> None:
         self.removed: list[str] = []
+        self.started: dict[str, dict] = {}
 
     async def start(self, spec):
-        return str(spec["name"])
+        name = str(spec["name"])
+        self.started[name] = dict(spec.get("Labels") or {})
+        return name
 
     async def remove(self, name):
         self.removed.append(name)
+        self.started.pop(name, None)
 
     async def list_lab_containers(self):
-        return []
+        from app.runtime import ContainerInfo
+
+        return [
+            ContainerInfo(name, True, labels.get("lf.session", ""), labels)
+            for name, labels in self.started.items()
+        ]
 
 
 def _admin_dsn() -> str:
@@ -668,6 +683,15 @@ def test_the_owner_keeps_access_after_another_student_was_refused(env, upstream)
     client, sid, _ = env.owner_with_session()
     intruder, _ = env.student()
     assert intruder.get(f"/s/{sid}/term/").status_code == 403
+    assert client.get(f"/s/{sid}/term/").status_code == 200
+
+
+def test_a_janitor_pass_keeps_a_live_session_whose_lab_is_running(env, upstream):
+    """#105: the harness itself must not let the janitor end live sessions mid-test."""
+    from app import janitor
+
+    client, sid, _ = env.owner_with_session()
+    assert env.client.portal.call(janitor.run_once, env.app) is True
     assert client.get(f"/s/{sid}/term/").status_code == 200
 
 
