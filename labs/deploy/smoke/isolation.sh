@@ -29,11 +29,10 @@ PORT=7681
 P=lf-smoke
 # A bounded life: even a smoke killed without its trap leaves nothing running for long (the next
 # run removes the stopped containers by name). No --rm: a container that dies mid-run must stay
-# inspectable (exit code, OOMKilled). The production lab limits (256 MB, 256 pids, D20): under runsc
-# the sandbox's own memory and threads, and every exec, count against them. --init: an init (tini)
-# is PID 1, as in lf-lab-term; with `sh` as PID 1 the labs exited right after a `docker exec` on the
-# server (runs 43688429887, 43689843571; labs/deploy/smoke/liveness.sh tells the causes apart).
-RUN_OPTS=(--runtime runsc --init --memory 256m --pids-limit 256)
+# inspectable (exit code, OOMKilled). The lab limits of D20 (256 MB with no extra swap, 256 pids,
+# 0.5 CPU): under runsc the sandbox's own memory and threads, and every exec, count against them.
+# --init: labs run under an init (tini), as lf-lab-term does in production (D30).
+RUN_OPTS=(--runtime runsc --init --memory 256m --memory-swap 256m --pids-limit 256 --cpus 0.5)
 LIFE_S=600
 
 FAILED=0
@@ -205,7 +204,9 @@ if [ "$FAILED" = 1 ]; then
   log "-- smoke containers at the end"
   for n in mgr a b other; do
     log "$P-$n: $(state_of "$P-$n") $(docker inspect -f 'error="{{.State.Error}}" started={{.State.StartedAt}} finished={{.State.FinishedAt}}' "$P-$n" 2>/dev/null)"
-    running "$P-$n" || docker logs --tail 20 "$P-$n" 2>&1 | sed 's/^/    log: /'
+    if docker inspect "$P-$n" >/dev/null 2>&1 && ! running "$P-$n"; then
+      docker logs --tail 20 "$P-$n" 2>&1 | sed 's/^/    log: /'
+    fi
   done
 fi
 cleanup
