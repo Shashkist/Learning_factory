@@ -1,6 +1,6 @@
 """Factory guard: a PreToolUse hook that blocks a few actions outright in factory runs.
 
-Owner infrastructure (D34). Loaded only through scripts/laptop/factory-hooks.json, which the laptop runner
+Owner infrastructure (D35). Loaded only through scripts/laptop/factory-hooks.json, which the laptop runner
 passes to factory passes; it is referenced from the MAIN checkout, not the factory's worktree, so a pass
 cannot change its own guard. Exit code 2 blocks the tool call and shows the reason to the agent.
 
@@ -48,23 +48,23 @@ def check(payload: dict) -> str | None:
     if tool in ("Edit", "Write", "MultiEdit", "NotebookEdit"):
         path = _norm(str(inp.get("file_path") or inp.get("notebook_path") or ""))
         if any(p in path for p in PROTECTED):
-            return "the factory guard, its hooks and the laptop runner are owner infrastructure (D34); open an issue instead"
+            return "the factory guard, its hooks and the laptop runner are owner infrastructure (D35); open an issue instead"
         return None
     if tool not in ("Bash", "PowerShell"):
         return None
     cmd = _norm(str(inp.get("command") or ""))
     if REMOTE_TOOLS.search(cmd) and SERVER.search(cmd):
-        return ("no direct access to the owner's server (D34): change it through the deploy/bootstrap "
+        return ("no direct access to the owner's server (D35): change it through the deploy/bootstrap "
                 "workflows in the production environment")
     if SECRETS.search(cmd) or (SECRETS_API.search(cmd) and WRITE_METHOD.search(cmd)):
-        return "secrets and variables are installed by the owner only (CLAUDE.md, D34): add an OWNER.md item"
+        return "secrets and variables are installed by the owner only (CLAUDE.md, D35): add an OWNER.md item"
     if REPO_ADMIN.search(cmd):
-        return "repository settings are the owner's (D34): add an OWNER.md item"
+        return "repository settings are the owner's (D35): add an OWNER.md item"
     for m in PUSH.finditer(cmd):
         if FORCE.search(m.group(1)):
-            return "no force push without a lease (D34): use --force-with-lease on your own f/ branch"
+            return "no force push without a lease (D35): use --force-with-lease on your own f/ branch"
     if any(p in cmd for p in PROTECTED) and WRITE_VERBS.search(cmd):
-        return "the factory guard, its hooks and the laptop runner are owner infrastructure (D34); open an issue instead"
+        return "the factory guard, its hooks and the laptop runner are owner infrastructure (D35); open an issue instead"
     return None
 
 

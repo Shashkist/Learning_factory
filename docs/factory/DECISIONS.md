@@ -347,3 +347,15 @@ in force · factory · 2026-11-15
 **Why.** The deploy uses exactly the image CI tested and pushed; a secret only travels on stdin; every shared-config change goes through the validated installer (rule 1).
 **Alternatives.** Deploy in the CI workflow itself (mixes PR and production permissions); `:latest` (out-of-order runs could change what runs); build on the server (D5).
 **Revert.** Disable `deploy.yml`; `docker compose -p learning-factory down` on the server and reinstall the placeholder `labs` block.
+
+## D35
+**Decision (owner session, 2026-11-15).** Factory guardrails are enforced by a hook, not only by instructions. `scripts/factory_guard.py` runs as the first PreToolUse hook of every factory run (`scripts/laptop/factory-hooks.json`) and blocks, with exit code 2 and a reason the agent sees:
+1. ssh/scp/sftp/rsync to the owner's server (server changes go through the `production` workflows);
+2. `gh secret|variable set|delete` and writes to the secrets API (secrets are the owner's);
+3. `gh repo delete|edit|archive|rename`;
+4. `git push --force`/`-f`/`+ref` without a lease (`--force-with-lease` is allowed);
+5. edits to the guard, its tests, the hooks file and the laptop runner (Edit/Write, and shell writes that name them).
+The hook is referenced from the **main checkout** (`C:/projects/Learning_factory/scripts/factory_guard.py`), not `${CLAUDE_PROJECT_DIR}`, so a pass cannot change its own guard. The live-view hooks now end in `|| true`: a missing `factory_progress.py` made Python exit 2, which Claude Code treats as "block".
+**Why.** Advice from a peer factory ("safety by prompt or substring blocklist is not safety; enforce it in code or hooks"). The factory never SSH-ed to the server (checked in the transcripts), but nothing but instructions stopped it. Verified: 57 unit tests, plus headless runs with the hooks: the server SSH and a `gh secret set` were blocked (the secret does not exist), `echo` ran.
+**Limits.** A pattern check stops mistakes and drift, not an adversary; the hard boundaries stay GitHub environment protection, the forced-command live-view key and owner-only secrets.
+**Changing it.** Need something blocked? Open an issue labelled `needs:owner`; the owner session changes the guard. **Revert:** remove the first PreToolUse entry from `factory-hooks.json`.
