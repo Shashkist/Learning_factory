@@ -239,18 +239,23 @@ class GoogleConfig:
     redirect_uri: str
 
 
+_BOM = "\ufeff"
+
+
+def _clean(value: str) -> str:
+    """Whitespace and a byte-order mark removed (PowerShell 5.1 often saves values with one)."""
+    return value.strip().lstrip(_BOM).strip()
+
+
 def google_config() -> GoogleConfig | None:
     """Configured means client id, client secret and a non-empty admin allow-list are all set."""
-    cid = os.environ.get("LF_GOOGLE_CLIENT_ID", "").strip()
-    secret = os.environ.get("LF_GOOGLE_CLIENT_SECRET", "").strip()
-    emails = frozenset(
-        e.strip().lower()
-        for e in os.environ.get("LF_ADMIN_EMAILS", "").split(",")
-        if e.strip() and e.isascii()
-    )
+    cid = _clean(os.environ.get("LF_GOOGLE_CLIENT_ID", ""))
+    secret = _clean(os.environ.get("LF_GOOGLE_CLIENT_SECRET", ""))
+    entries = (_clean(e) for e in _clean(os.environ.get("LF_ADMIN_EMAILS", "")).split(","))
+    emails = frozenset(e.lower() for e in entries if e and e.isascii())
     if not (cid and secret and emails):
         return None
-    redirect = os.environ.get("LF_GOOGLE_REDIRECT_URI", "").strip()
+    redirect = _clean(os.environ.get("LF_GOOGLE_REDIRECT_URI", ""))
     return GoogleConfig(
         cid, secret, emails, redirect or "https://labs.shashkist.com/auth/google/callback"
     )
