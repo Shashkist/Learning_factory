@@ -2,15 +2,17 @@
 
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
-_Last updated: 2026-11-15 ~21:40 UTC, laptop pass lf-q4n8 (~19:58–~21:40 UTC)._
+_Last updated: 2026-11-15 ~22:40 UTC, laptop pass lf-r7p3 (from ~21:57 UTC)._
 
 ## Now
 
-- **#9 task engine slice 1, PR #113** (claim lf-q4n8, worktree `C:\projects\lf-9`, branch `f/9-task-engine`): exam 4929956 (114 tests: runner 25, runner docker 13, task API 76; contract in the module docstrings; D45), code c35ba75 (~310 lines; migration 004 `current_task`). CI started at the end of the pass. **Next: read PR #113's CI.** The 76 DB tests and 13 docker tests never ran before; red → implementer with the exact failure (max 5 rounds). Watch: 401/403/410 ordering in the task routes, the hijacked exec on real Docker (101 upgrade, half-close), timeout leaves the process running. Green → fresh reviewer round 1.
-- **Production:** #92 (Google admin sign-in) live; #12 (Linux 1, `status: draft`) and #110 (byte-order mark stripped from the Google settings, 1ac6cbb) merged. At the start of the next pass: check the newest Deploy printed `deployed <tag>`, and that `curl -s -o /dev/null -w '%{redirect_url}' https://labs.shashkist.com/auth/google/start` shows a `client_id` without `%EF%BB%BF`; then add the evidence comment to #110 and #12 (both auto-closed by their PRs; set `status:done`).
-- **Repository is public (D43):** minutes are free; CI runs on every push. The owner also pushes to main (live view, D44 up to 3 issues in flight): always `git pull --rebase` before a state commit and never use `--autostash` (the stash is shared with other sessions).
+Pass lf-r7p3 in progress, 3 issues in flight (D44):
+- **#9 task engine slice 1, PR #114** (re-sequenced from #113, D47; worktree `C:\projects\lf-9`, branch `f/9-task-engine-2`): CI green (run 43767453539, 814 + 164 tests). Review round 1: changes requested (comment on #114); fixes for findings 1, 3, 4, 5, 8 being built; 2 and 7 moved to #117. Next: push fixes, CI, review round 2.
+- **#106 Linux 1 wrong-answer exam, PR #116** (re-sequenced from #115; worktree `C:\projects\lf-106`): CI green (75 near-miss cases), plus the 07-chmod check fix (D48). Reviewer round 1 running.
+- **#99 Google sign-in follow-ups** (worktree `C:\projects\lf-99`, branch `f/99-google-followups`): exam 8a88c5b committed (not pushed), implementer building.
+- #110 and #12 verified live and closed with evidence (Deploy 43765164837, `lf-manager:122bfa6`; no BOM in the Google redirect).
+- **Repository is public (D43).** The owner also pushes to main: always `git pull --rebase` before a state commit, never `--autostash`.
 - **Known gap (D40):** a cancelled Deploy is not noticed; fix in #85.
-- **Next session starts at:** the two checks in Now, then Next 1.
 
 ## Next (in order)
 
