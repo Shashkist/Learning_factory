@@ -2,30 +2,30 @@
 
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
-_Last updated: 2026-11-15 ~08:00 UTC, laptop pass lf-ce139 (running, started 07:32 UTC). Previous pass lf-m7k2 stopped at 3 merged PRs (#58, #57, #60)._
+_Last updated: 2026-11-15 ~08:40 UTC, laptop pass lf-ce139 (stopped at 3 merged PRs: #59, #65, #63)._
 
 ## Now
 
-- **Pass lf-ce139 (started 07:32 UTC, running).** Claims: #3 (`f/3-smoke-diag`), #8 (`f/8-term-proxy`, worktree `../lf-wt-8`), #61 (`f/61-db-check`, worktree `../lf-wt-61`).
-- **#3 step (d):** #62's first commit (038ee8e: `liveness.sh`, `--init` in the isolation smoke) reached `main` by accident (a state commit made in the shared worktree while that branch was checked out, then `push HEAD:main`); GitHub marked #62 merged. Review fixes in **PR #65** (round 2 approved). Next: merge #65, dispatch `Server smoke` `check=liveness`, then `check=isolation`; record on #3. If labs die even under tini, that blocks #13.
-- **#8 terminal proxy:** exam 2069923 pushed (35 tests + 8 docker; seam `LF_TERM_UPSTREAM`; dev dep `websockets`). Implementer building in `../lf-wt-8`.
-- **#61:** PR #63 (dispatch-only `DB check` workflow, catalog queries as `lf_app`). Review round 1: request changes (read-only via `begin transaction read only` instead of PGOPTIONS through the pooler, `via_public`, event triggers, sslmode). Then run it and write the D-entry (generic title, no function names in titles: the dashboard publishes titles).
-- **Next session starts at:** whatever of the above is still open (check claims), then Next 1.
+- **Pass lf-ce139 stopped (3 merged PRs: #59, #65, #63; 07:32–08:40 UTC).** No claims held.
+- **#8 terminal proxy: PR #70** (branch `f/8-term-proxy-2`; it replaces #66, re-sequenced because that exam commit also touched `pyproject.toml`). The exam is byte-identical to 2069923. Review round 1 (on #66) is fixed. CI: exam-integrity, manager (all DB exam tests) and web are green. **docker is red in the `typed` fixture only:** the proxy relayed 2 frames to ttyd and 9 back, but no `hi` line appeared. Suspects: input typed before `su - student` is ready, or `su` failing under gVisor (D26). Plan in the last #8 comment. If the exam must wait for a prompt, that is an exam change: a new re-sequenced branch with the exam commit first (D9). After green: reviewer round 2 (last), merge.
+- **Next session starts at:** Next 1.
 
 ## Next (in order)
 
-1. **#3 step (d)** as above (Shared server: only through `labs/deploy/` scripts; never restart Docker). Then close #3.
-3. **#13** deploy (needs #3 isolation proven; contract D30: container `lf-manager`, concurrency group `server-lab-host`; see #13 comments), then #8, #9, #11, #10. #61 (O9, owner delegated) is a manager decision.
-4. p2: #54 (now also: no-daemon.json scenario, subnet-overlap scenario, `/etc/docker` rollback), #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
+1. **#70 (#8)**: diagnose the docker `echo hi` failure (see #8), fix, round-2 review, merge.
+2. **#13** deploy. #3 is done: isolation is proven on the server, and lf-lab-term (tini) is not affected by the busybox finding. See the #13 comments for: `install-block.sh factory` for `/live.json`, the D31 migration watch item, D30 container name `lf-manager` + concurrency group `server-lab-host`, pre-pull `lf-lab-term`, `LF_TRUSTED_PROXY`, create-admin. Then #9, #11, #10 (#12 content can run in parallel).
+3. p2: #67 (remove liveness.sh), #69 (WS Origin check), #64 (live view leftovers), #54, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
 
 - O1–O3 done (DNS `labs` and `factory`, deploy secrets, database role). O4 (OpenRouter) skipped by choice.
 - O6 closed: no token; the owner signs in again when the runner alerts (sign-in ends 2026-11-20..23). O8 done (deploy secrets only in the `production` environment).
-- O9 handed to the manager: issue #61 (decide, owner delegated 2026-11-15).
+- O9 decided by the manager: D31 (#61). **O10 open:** move `LF_DATABASE_URL` into the `production` environment.
 
 ## Recently done
 
+- 2026-11-15 · #61 decided (D31): the read-only `DB check` (#63, run 43693809513, as `lf_app`) found **no SECURITY DEFINER function** it can execute; 2 invoker functions in `public`; Supabase event triggers fire on our DDL (watch item on #13). Nothing revoked. O10 for the owner.
+- 2026-11-15 · #3 closed: the liveness diagnostic (run 43692619852) traced the dying smoke labs to busybox `timeout` + `sh` as PID 1 (also under runc); the isolation smoke with `--init` (run 43693581363) passed every check. Shipped via #62 (reached main early by accident) and #65.
 - 2026-11-15 · #51 Live dashboard view shipped in #59 (round 2 approved; publish run 43691834038; page and `/live.json` schema 1 verified live). The `/live.json` nginx block (`Cache-Control: no-cache`) needs `install-block.sh factory` (noted on #13). Leftovers → #64.
 - 2026-11-15 · #3 apply: dry-run review recorded (approve), pre-apply fixes in #58 (`/etc/docker`, subnet preflight, positive baseline lines), isolation smoke in #57 (2 review rounds) and #60 (liveness + diagnostics). Apply run 43688303191 changed the server with every baseline check green. D30.
 - 2026-11-15 · #49 Session lifecycle hardening shipped in #53 (review approved in round 1): the janitor reads rows, then containers, then rows again; `created` counts as running; `LF_START_DEADLINE_S` (180 s); DB-down backoff and log dedupe; capped `/dev/shm` and a `/var/mail` tmpfs. In the PR run, 22 DB and 6 docker exam tests ran, none skipped. Main CI 43659088406 green. D24 amended. Leftovers → #55.
