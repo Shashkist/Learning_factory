@@ -474,3 +474,11 @@ in force · factory · 2026-11-15
 **Why.** The risky part of #98 is that a wrong "docs-only" rule silently skips a Deploy (finding 2). Taking that risk now buys only wall-clock time; p1 work (#12, #9, #88, #89, #10, #11) moves the platform forward.
 **Alternatives.** Re-sequence and finish #98 now (one or two more review rounds on the deploy path); drop the issue (loses the measured findings).
 **Revert.** Relabel #98 p1 if the repository goes private again or GitHub limits public-repo minutes.
+
+## D47 · #9 exam fixes after the first CI run: own student-id range, the container's own env is allowed
+in force · factory · 2026-11-15
+
+**Decision.** PR #113's first CI run had one failure in each exam, both in the exam, not the code. (1) The task API exam took student ids from `700000000 + n`, the range the login exam (#6) locks out on purpose; the login limiter is in-process, so the lockout carried over in the same pytest run (429 `too_many_attempts`). The #9 exam now uses `790000000 + n`. (2) The docker exam allowed only shell variables in the exec's environment, but a Docker exec always inherits the container's own `Env` (`LF_BASE_PATH`, `LF_SUDO`, set at create by `container_spec`), while the unit exam fixes the exec's `Env` and `Cmd` exactly. The allow-list now adds those two container variables; nothing from the manager process can appear. The manager made the two-line exam fix itself and re-sequenced the branch (exam, exam fix, code) as `f/9-task-engine-2`; PR #113 is closed.
+**Why.** "Clean environment" in D45 means no manager settings or secrets reach a script; the container's own variables are already visible to the student's shell. Wrapping the command in `env -i` would contradict the exam's exact `Cmd` contract for no safety gain.
+**Alternatives.** `env -i` around the interpreter (changes the `Cmd` contract); creating lab containers without `LF_BASE_PATH` (ttyd needs it); resetting the limiter between test modules (a test-only seam in production code).
+**Revert.** Wrap the exec `Cmd` in `env -i PATH=... HOME=/root` and restore the stricter allow-list.
