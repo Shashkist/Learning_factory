@@ -6,7 +6,7 @@ _Last updated: 2026-11-15 ~23:45 UTC, laptop pass lf-r7p3 (~21:57 to ~23:45 UTC)
 
 ## Now
 
-- **Nothing in flight.** Pass lf-r7p3 merged 3 PRs (#120, #118, #114) and released every claim. Worktree `C:\projects\lf-9` (branch `f/9-task-engine-2`, merged) can be removed.
+- **Nothing in flight.** Pass lf-r7p3 merged 3 PRs (#120, #118, #114) and released every claim. All pass worktrees removed.
 - **Production:** Deploy 43776057035 printed `deployed lf-manager:92e32ea` (task engine slice 1, migration 004 applied; terminal smoke green). #99 live (callback through the no-access-log location answers the app's 403; methods `google: true, password: false`). #106 in the image; Linux 1 still draft (O17).
 - **Task API live check is shallow:** from outside only the routes are proven (unauthenticated `GET /api/sessions/<uuid>/tasks` → 401). A real show/next with the smoke student needs the smoke job to drive the task API: add that to #88's slice (it needs a lab with a setup in the smoke cohort).
 - **Lesson (D49):** a state commit pushed to `main` while a merge's Deploy is pending makes that Deploy skip ("no longer the head of main"); the next commit's Deploy carries the code. Push state after the Deploy, or accept the shift.
