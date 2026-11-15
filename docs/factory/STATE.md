@@ -13,6 +13,7 @@ _Last updated: 2026-11-15 ~14:10 UTC, laptop pass lf-c7d42 (12:36-14:10 UTC; sto
 
 ## Next (in order)
 
+0. **Owner priority (2026-11-15): #92 admin sign-in with Google** right after PR #91 merges, before #9/#88/#89: without it nobody can use the admin side of the live site. Secrets and the allow-list are already in the `production` environment; the redirect URI is O14 (test against a fake Google). Also new: #93 (p2, replaces O13).
 1. **PR #91** (#90): CI result → `reviewer` (fresh) → merge → check that the **Deploy run itself** shows the `smoke` job green after a real deploy, and that a Deploy that skips a stale sha runs no smoke. Close #90 with that evidence. The #13 exam file hangs on Windows Git Bash (`test_database_url_from_stdin_is_written_and_kept_when_stdin_is_empty`); CI on Linux is the judge.
 2. **#9** task engine slice 1 (D37: runner, task API, setup and navigation), then **#88** (check, quiz), **#89** (completion, fast flag); **#11** teacher UI (note on #11: `lf-smoke` cohort reserved and hidden), **#10** student UI (#12 content can run in parallel).
 3. **#85** deploy follow-ups (p2, includes the two round-2 notes in its comments: skip the migrations-line check when the container was not recreated; move the stale-sha skip into the job `if`).
