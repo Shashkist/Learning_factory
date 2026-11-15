@@ -175,3 +175,18 @@ The lab app itself stays blocked. Its exam needs Linux and gVisor, which a Windo
 After the minutes ran out, the manager pass did not just file an owner ticket. It pulled 737 workflow runs from the API, re-billed every job the way GitHub does (rounded up per job), and found the surprise: **the factory's own bookkeeping was the biggest cost**. 886 of ~1,860 minutes were full CI runs (gVisor docker job included) started by docs-only state commits to `main`. The fix became issue #98, which got the same treatment as any feature: exam first (21 tests, including a throwaway git repo that proves "code commit, then a docs commit, still deploys the code"), then code, then a fresh-context review. All of it was done with zero CI minutes, and it waits to be merged first once CI is back.
 Tip: when an autonomous loop hits a budget wall, ask it to measure before it asks for more budget. The owner's O16 now says what a factory day costs (~900 min, ~$5) and what the fix saves.
 
+
+## Going public without leaking (2026-11-15)
+Out of Actions minutes, the owner chose to make the repository public. A pre-flight scan found three things that would have gone public with it:
+- the owner's work e-mail as the git author on 179 commits;
+- a client's course PDFs;
+- employer mentions in two issues.
+
+A history rewrite alone would not have fixed it. GitHub keeps every PR's head (`refs/pull/N/head`) forever, and no force-push can touch it, so the old repository could never be clean. The fix was a new repository built from a `git filter-repo` rewrite (mailmap, `--invert-paths courses`, message and text replacements). The old one was renamed to an archive.
+
+Three GitHub details mattered:
+- **Issue transfers.** Issues can only be transferred from a private repository to another private one, so the new repository went public last.
+- **Issue numbers.** Walking #1–#101 in order (transfer an issue, or create a closed placeholder for an old PR number) kept every `#n` reference in docs and commits valid.
+- **Edit history.** It is public, so the original text of the two edited issues had to be deleted, not just edited.
+
+The root cause was one line of local git config. It is now the noreply address.
