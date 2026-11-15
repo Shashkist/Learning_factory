@@ -164,7 +164,10 @@ def test_the_exec_has_root_with_a_clean_environment_in_the_root_directory(runtim
     assert lines[:2] == ["/", "/root"], res.output
     names = set(lines[2:])
     assert {"PATH", "HOME"} <= names
-    assert names <= {"PATH", "HOME", "PWD", "SHLVL", "_", "OLDPWD", "TERM", "HOSTNAME"}, names
+    # An exec always inherits the container's own Env (set at create by `container_spec`:
+    # LF_BASE_PATH, LF_SUDO); the exec adds only PATH and HOME. Nothing from the manager.
+    shell = {"PATH", "HOME", "PWD", "SHLVL", "_", "OLDPWD", "TERM", "HOSTNAME"}
+    assert names <= shell | {"LF_BASE_PATH", "LF_SUDO"}, names
 
 
 def test_exit_code_and_both_output_streams_come_back(runtime, call, box):

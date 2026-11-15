@@ -304,7 +304,9 @@ class Env:
         """Seed a fake student and log in; returns (client, id hash)."""
         from argon2 import PasswordHasher
 
-        raw = str(700000000 + next(_n))
+        # Own id range: the login exam (#6) locks ids from 700000000 up, and the limiter is
+        # in-process, so a shared range would inherit its lockouts in the same pytest run.
+        raw = str(790000000 + next(_n))
         pw = PasswordHasher().hash(COHORT_PASSWORD)
 
         async def seed(conn):
