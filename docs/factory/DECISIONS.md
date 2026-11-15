@@ -421,3 +421,11 @@ in force · factory · 2026-11-15
 **Why.** The smoke inside the Deploy run removes the frequent cause (an automatic smoke queued after every Deploy). The remaining cases (a manual bootstrap dispatch, the nightly gate race) are rare and visible in the Actions list; the next push to main deploys again. A correct watcher needs the conditions above, worth its own reviewed change.
 **Alternatives.** A third review round on the re-dispatch job (over the round limit, FACTORY.md); an incident on every cancelled Deploy (noisy: a newer pending Deploy cancels an older one by design).
 **Revert.** Not needed; #85 adds the watcher. Its requirements: `contents: read`; coverage only by a run that really deploys main's head (a dispatch, or `deployed=true` output); dispatch only after a green push CI for the head; re-dispatch only when the cancelled run's `deploy` job never started and the run was not itself a re-dispatch; `pipefail` and positive checks; an `if: failure()` step that opens an incident.
+
+## D41 · While Actions minutes are used up, the factory works locally and merges nothing
+in force · factory · 2026-11-15
+
+**Decision.** From 2026-11-15 15:31 UTC GitHub refuses every job (incident #96, owner item O16). Until a job runs again, a pass (1) starts no runs on purpose (they are refused anyway), (2) does work that needs no CI: exams, code, local unit tests, lint, types, review rounds on open PRs, content checked by the local validator, (3) pushes branches and opens PRs, but merges nothing and deploys nothing. STATE.md lists those PRs as "waiting for CI". The first pass after O16 is ticked re-runs the last main CI, then takes the open PRs in order, one CI at a time.
+**Why.** Rule 5 and FACTORY.md: no merge without green CI; the Postgres and gVisor exams run only in CI, so a local green is not enough. Local work keeps the queue moving at no minute cost.
+**Alternatives.** Stop the factory until the owner acts (wastes the passes); merge on local evidence only (breaks rule 5; the Postgres and gVisor exams would not have run).
+**Revert.** Delete this entry once O16 is ticked and main CI is green again. Minute use (cheaper CI triggers, path filters, dashboard cadence) is worth its own issue then.
