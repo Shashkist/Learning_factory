@@ -190,7 +190,7 @@ function load() {
       if (!r.ok) throw new Error("HTTP " + r.status);
       return r.json();
     })
-    .then(render)
+    .then(function (d) { snapPrs = d && d.prs ? d.prs : null; render(d); })
     .catch(function (e) {
       if (!lastGenerated) {
         document.getElementById("updated").textContent =
@@ -295,6 +295,167 @@ function workerCard(w) {
   return card;
 }
 
+// ---- Lanes: one pipeline per task in flight, click a station for its sub-steps and agents. ----
+var snapPrs = null;
+var laneOpen = Object.create(null);   // issue -> station the viewer expanded (kept across polls)
+var LANE_MARK = { done: "✓", active: "●", failed: "✗", waiting: "⏸", pending: "" };
+
+function issueOf(text) {
+  var m = /#(\d+)/.exec(S(text));
+  return m ? Number(m[1]) : null;
+}
+
+function prFor(issue) {
+  if (!snapPrs) return null;
+  var all = arr(snapPrs.open).map(function (p) { return { p: p, open: true }; })
+    .concat(arr(snapPrs.merged).map(function (p) { return { p: p, open: false }; }));
+  var tag = "(#" + issue + ")";
+  for (var i = 0; i < all.length; i++) {
+    if (S(all[i].p.title).indexOf(tag) >= 0) return all[i];
+  }
+  return null;
+}
+
+function crewNodes(crew) {
+  var out = [];
+  (function walk(list) { arr(list).forEach(function (n) { out.push(n); walk(n.children); }); })(crew);
+  return out;
+}
+
+function dur(a, b) {
+  var t0 = Date.parse(a), t1 = b ? Date.parse(b) : Date.now();
+  if (isNaN(t0) || isNaN(t1)) return "";
+  var s = Math.max(0, Math.round((t1 - t0) / 1000));
+  return s < 90 ? s + " s" : s < 5400 ? Math.round(s / 60) + " min" : (s / 3600).toFixed(1) + " h";
+}
+
+function laneData(d) {
+  var lanes = Object.create(null);
+  arr(d.issues).forEach(function (i) {
+    if (Number(i.issue) > 0) lanes[i.issue] = { issue: Number(i.issue), title: S(i.title), station: S(i.station), steps: [], agents: [], crew: [] };
+  });
+  arr(d.agents).forEach(function (a) {
+    var l = lanes[a.issue];
+    if (!l) return;
+    l.agents.push(a);
+    arr(a.substeps).forEach(function (s) { l.steps.push({ s: s, a: a }); });
+  });
+  crewNodes(arr(d.crew).slice(0, 1)).forEach(function (n) {   // the current pass only: older passes' agents confuse the lane
+    var i = issueOf(n.title);
+    if (i !== null && lanes[i]) lanes[i].crew.push(n);
+  });
+  return Object.keys(lanes).map(function (k) {
+    var l = lanes[k];
+    l.last = l.steps.reduce(function (m, x) { return S(x.s.at) > m ? S(x.s.at) : m; }, "");
+    l.running = l.agents.some(function (a) { return a.state === "running"; }) ||
+      l.crew.some(function (n) { return n.state === "busy" || n.state === "thinking"; });
+    var cur = LIVE_STATIONS.indexOf(l.station);
+    l.shipped = l.station === "ship" &&
+      l.steps.some(function (x) { return x.s.station === "ship" && x.s.status === "done"; }) &&
+      !l.steps.some(function (x) { return x.s.station === "ship" && (x.s.status === "start" || x.s.status === "wait"); }) &&
+      !l.crew.some(function (n) { return n.state === "busy" || n.state === "thinking"; });
+    if (l.shipped) l.running = false;
+    l.marks = LIVE_STATIONS.map(function (st, idx) {
+      var here = l.steps.filter(function (x) { return x.s.station === st; });
+      var latest = here.reduce(function (m, x) { return !m || S(x.s.at) >= S(m.s.at) ? x : m; }, null);
+      if (latest && latest.s.status === "fail" && idx >= cur) return "failed";
+      if (idx < cur || (l.shipped && idx === cur)) return "done";
+      if (idx === cur) return l.running ? "active" : "waiting";
+      return "pending";
+    });
+    return l;
+  }).sort(function (a, b) {
+    return (Number(b.running) - Number(a.running)) || (Number(a.shipped) - Number(b.shipped)) || (S(b.last) > S(a.last) ? 1 : -1);
+  });
+}
+
+function agentLine(n) {
+  var row = lel("div", null, "lane-agent", { "data-state": S(n.state) });
+  row.appendChild(el("span", null, "live-dot"));
+  row.appendChild(el("b", " " + (LIVE_ROLE_ICONS[n.type] || LIVE_ROLE_ICONS.agent) + " " + S(n.type)));
+  var what = n.tool ? S(n.tool) + (n.label ? " · " + S(n.label) : "") : (CREW_STATES[n.state] || S(n.state));
+  row.appendChild(el("span", " " + what, n.tool ? "" : "muted"));
+  if (n.last) row.appendChild(el("span", " · " + ago(n.last), "muted"));
+  return row;
+}
+
+function laneDetail(l, st) {
+  var box = lel("div", null, "lane-detail", { "data-lane-detail": st });
+  box.appendChild(el("b", st.charAt(0).toUpperCase() + st.slice(1) + ": sub-steps"));
+  var steps = l.steps.filter(function (x) { return x.s.station === st; })
+    .sort(function (a, b) { return S(a.s.started) < S(b.s.started) ? -1 : 1; });
+  if (!steps.length) box.appendChild(el("div", "No sub-steps recorded for this station.", "muted"));
+  var ul = el("ul", null, "lane-steps");
+  steps.forEach(function (x) {
+    var open = x.s.status === "start" || x.s.status === "wait";
+    var li = lel("li", null, "", { "data-status": S(x.s.status) });
+    li.appendChild(el("span", (LIVE_ICONS[x.s.status] || "") + " "));
+    li.appendChild(el("b", S(x.s.substep)));
+    li.appendChild(el("span", " · " + joined([(LIVE_ROLE_ICONS[x.a.role] || "") + " " + S(x.a.role),
+      clock(x.s.started), open ? "running " + dur(x.s.started) : dur(x.s.started, x.s.at)]), "muted"));
+    if (x.s.detail) li.appendChild(el("div", S(x.s.detail), "lane-step-detail"));
+    ul.appendChild(li);
+  });
+  box.appendChild(ul);
+  var roles = { plan: ["manager", "researcher", "planner"], exam: ["exam-writer"], build: ["implementer"],
+    check: ["reviewer", "implementer"], ship: ["manager"] }[st] || [];
+  var who = l.crew.filter(function (n) { return roles.indexOf(S(n.type)) >= 0; });
+  if (who.length) {
+    box.appendChild(el("b", "Agents on this station"));
+    who.forEach(function (n) { box.appendChild(agentLine(n)); });
+  }
+  return box;
+}
+
+function renderLanes(d, rerender) {
+  var lanes = laneData(d);
+  var sec = el("div", null, "lanes");
+  var root = arr(d.crew)[0];
+  var mgr = el("div", null, "lane-manager");
+  mgr.appendChild(el("b", "🧭 Manager "));
+  if (root) {
+    mgr.appendChild(lel("span", null, "live-dot", { "data-state": S(root.state) }));
+    mgr.appendChild(el("span", " " + (CREW_STATES[root.state] || S(root.state)) +
+      (root.tool ? " · now: " + S(root.tool) + (root.label ? " “" + S(root.label) + "”" : "") : "")));
+  } else {
+    mgr.appendChild(el("span", runnerText(d.runner || {}), "muted"));
+  }
+  sec.appendChild(mgr);
+  var nRun = lanes.filter(function (l) { return l.running; }).length;
+  sec.appendChild(el("div", joined([lanes.length + " task" + (lanes.length === 1 ? "" : "s") + " in this pass",
+    nRun + " running in parallel", "click a station to see its sub-steps"]), "muted"));
+  lanes.forEach(function (l) {
+    var lane = lel("div", null, "lane", { "data-lane": String(l.issue), "data-running": l.running ? "1" : "0" });
+    var head = el("div", null, "lane-head");
+    head.appendChild(el("b", "#" + l.issue + " " + l.title));
+    var pr = prFor(l.issue);
+    head.appendChild(el("span", " " + joined([pr ? "PR #" + S(pr.p.number) + (pr.open ? "" : " merged") : "",
+      l.shipped ? "shipped" : l.running ? "working" : "waiting", l.last ? "last step " + ago(l.last) : ""]), "muted"));
+    lane.appendChild(head);
+    var bar = el("div", null, "lane-bar");
+    LIVE_STATIONS.forEach(function (st, idx) {
+      var mark = l.marks[idx];
+      var b = lel("button", null, "lane-st", { type: "button", "data-mark": mark, "data-st": st,
+        "aria-expanded": laneOpen[l.issue] === st ? "true" : "false" });
+      b.appendChild(el("span", LANE_MARK[mark] ? LANE_MARK[mark] + " " : ""));
+      b.appendChild(el("span", st.charAt(0).toUpperCase() + st.slice(1)));
+      var n = l.steps.filter(function (x) { return x.s.station === st; }).length;
+      if (n) b.appendChild(el("span", " " + n, "lane-count"));
+      b.addEventListener("click", function () {
+        laneOpen[l.issue] = laneOpen[l.issue] === st ? null : st;
+        rerender();
+      });
+      bar.appendChild(b);
+    });
+    lane.appendChild(bar);
+    l.crew.filter(function (n) { return n.state === "busy" || n.state === "thinking"; })
+      .forEach(function (n) { lane.appendChild(agentLine(n)); });
+    if (laneOpen[l.issue]) lane.appendChild(laneDetail(l, laneOpen[l.issue]));
+    sec.appendChild(lane);
+  });
+  return sec;
+}
+
 // ---- Crew: every agent and subagent from the transcripts (scripts/factory_crew.py), nested by parent.
 var CREW_STATES = { busy: "working", thinking: "thinking", waiting: "waiting on its agents", idle: "idle", finished: "finished" };
 
@@ -349,6 +510,9 @@ function renderLive(d) {
   var titles = Object.create(null);
   var box = el("div", null, "live-box");
   box.appendChild(el("div", runnerText(d.runner || {}), "live-runner"));
+
+  box.appendChild(renderLanes(d, function () { renderLive(d); }));
+  box.appendChild(el("b", "All stations", "crew-heading"));
 
   var line = el("div", null, "live-line");
   var at = {};
