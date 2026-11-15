@@ -2,19 +2,18 @@
 
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
-_Last updated: 2026-11-15 ~09:15 UTC, laptop pass lf-a7d42 (started 08:56 UTC)._
+_Last updated: 2026-11-15 ~09:50 UTC, laptop pass lf-a7d42 (started 08:56 UTC; 1 PR merged: #74)._
 
 ## Now
 
-- **Pass lf-a7d42 running.** Claims: #8, #72.
-- **#8 terminal proxy: PR #73** (branch `f/8-term-proxy-3`, replaces #70). Cause of the docker failure found (D33): under runsc, input typed before the student's shell is up is dropped. The exam fixture now waits for the prompt (its own exam commit before the code, D9). Waiting for CI, then reviewer round 2 (last), merge.
-- **#72 manager image + compose file** (slice 1 of #13, D32): exam on `f/72-manager-image` (dbaf1a7); implementer working. CI build/push of the image is a second PR (D19).
+- **Pass lf-a7d42 running.** Claim: #72.
+- **#72 manager image + compose file** (slice 1 of #13, D32): PR #75, round-1 review fixes in faae37e, CI green; review round 2 running. After merge: the follow-up PR for #72 (D19): `ci.yml` job `image-manager` (needs docker; build, run `/healthz`, push `:sha`/`:latest` on main) and `docker compose config --quiet` with a placeholder `.env`; plus an exam commit asserting `gw_priority` on the nginx network (round-1 finding 6). That PR closes #72.
 
 ## Next (in order)
 
-1. **#70 (#8)**: diagnose the docker `echo hi` failure (see #8), fix, round-2 review, merge.
-2. **#13** deploy. #3 is done: isolation is proven on the server, and lf-lab-term (tini) is not affected by the busybox finding. See the #13 comments for: `install-block.sh factory` for `/live.json`, the D31 migration watch item, D30 container name `lf-manager` + concurrency group `server-lab-host`, pre-pull `lf-lab-term`, `LF_TRUSTED_PROXY`, create-admin. Then #9, #11, #10 (#12 content can run in parallel).
-3. p2: #67 (remove liveness.sh), #69 (WS Origin check), #64 (live view leftovers), #54, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
+1. **#72**: finish (see Now).
+2. **#13** deploy (needs #72; read the #13 comments from the reviews of #74 and #75: never run `compose config` on the server, check Docker ≥ 28 / Compose ≥ 2.33.1 for `gw_priority`, `LF_TERM_UPSTREAM` unset, live terminal smoke through the DNS path). #3 is done: isolation is proven on the server, and lf-lab-term (tini) is not affected by the busybox finding. See the #13 comments for: `install-block.sh factory` for `/live.json`, the D31 migration watch item, D30 container name `lf-manager` + concurrency group `server-lab-host`, pre-pull `lf-lab-term`, `LF_TRUSTED_PROXY`, create-admin. Then #9, #11, #10 (#12 content can run in parallel).
+3. p2: #76 (terminal proxy hardening), #67 (remove liveness.sh), #69 (WS Origin check), #64 (live view leftovers), #54, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
 
@@ -23,6 +22,8 @@ _Last updated: 2026-11-15 ~09:15 UTC, laptop pass lf-a7d42 (started 08:56 UTC)._
 - O9 decided by the manager: D31 (#61). **O10 open:** move `LF_DATABASE_URL` into the `production` environment.
 
 ## Recently done
+
+- 2026-11-15 · #8 Terminal proxy shipped in #74 (re-sequenced from #66/#70/#73; review round 2 approved). Main CI 43699419037 green, docker exam under runsc with no skips. The docker failure was the exam typing before the student's shell was up (dropped under runsc) and a `hi` pattern that missed bash's bracketed-paste reset (D33). Live terminal smoke → #13. Leftovers → #76.
 
 - 2026-11-15 · #61 decided (D31): the read-only `DB check` (#63, run 43693809513, as `lf_app`) found **no SECURITY DEFINER function** it can execute; 2 invoker functions in `public`; Supabase event triggers fire on our DDL (watch item on #13). Nothing revoked. O10 for the owner.
 - 2026-11-15 · #3 closed: the liveness diagnostic (run 43692619852) traced the dying smoke labs to busybox `timeout` + `sh` as PID 1 (also under runc); the isolation smoke with `--init` (run 43693581363) passed every check. Shipped via #62 (reached main early by accident) and #65.
