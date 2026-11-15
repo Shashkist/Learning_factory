@@ -132,3 +132,8 @@ Short entries with insights and fun facts about building this with Claude Code, 
 - **`sudo -E` is not a given.** On the GitHub runner, `sudo -E` prints "preserving the entire environment is not supported" and carries on without it, so compose saw no variables. Passing them on the `sudo` line (`sudo VAR="$VAR" docker ...`) works.
 - **A brand-new registry package can refuse its first push.** On main, every layer of the new `lf-manager` image uploaded, then GHCR denied the manifest; the package had been created and linked to the repo seconds before. Re-running just the failed job fixed it. The incident workflow opened #82 within a minute, and it was closed with that evidence.
 - **Pass numbers:** 3 PRs merged (#74, #75, #78) in about 90 minutes, 5 reviewer rounds across 3 PRs, 2 follow-up issues filed from non-blocking findings, 1 incident opened and closed.
+
+## Guardrails moved from prompt to hook (2026-11-15)
+- A peer session's lesson from another factory: "safety by prompt isn't safety". The factory's rules (no direct server SSH, owner-only secrets, no force push) were only instructions. The transcripts showed it never broke them, but nothing stopped it.
+- Now a PreToolUse hook, `factory_guard.py`, blocks those actions in factory runs. It is loaded from the main checkout, so a pass can't edit its own guard. Proof by behaviour: a real headless Claude run tried an SSH and a `gh secret set`. Both were blocked, the agent didn't look for another way in, and the secret doesn't exist.
+- A trap found while testing: a hook whose script is missing makes Python exit 2, and exit 2 means "block". One missing file would have stopped every tool call. Observability hooks must fail open (`|| true`); guard hooks must fail closed.
