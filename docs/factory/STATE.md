@@ -2,21 +2,20 @@
 
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
-_Last updated: 2026-11-15 ~14:10 UTC, laptop pass lf-c7d42 (12:36-14:10 UTC; stopped at the time limit: #87 merged and proven live, PR #91 open)._
+_Last updated: 2026-11-15 ~15:12 UTC, laptop pass lf-a3f81 (from 14:30 UTC)._
 
 ## Now
 
-- **Pass lf-a3f81 running (from ~14:30 UTC).** Claims: #90 (PR #91, CI green, reviewer round 1 running) and #92 (D39; exam being written on `f/92-google-admin`, worktree `C:\projects\lf-92`).
-- **Production is live:** `lf-manager:d3e69a2` (or newer: every green main CI deploys) at https://labs.shashkist.com. **Live terminal smoke green** (run 43719981589: login, lab `hello`, `echo hi` → `hi`, container gone, smoke student disabled).
-- **Known risk until #91 merges:** every Deploy queues a `Server smoke` run that can cancel a pending Deploy (D30 group) or go red after a stale-sha skip (seen: run 43719795462, a false red). If production is behind main, dispatch Deploy on main.
+- **Pass lf-a3f81 running (from ~14:30 UTC).** Claim: #92 on `f/92-google-admin` (worktree `C:\projects\lf-92`): exam 0205073 + code b223a2e, **PR #95 open**, CI running, not yet reviewed.
+- **Production is live:** `lf-manager:727928c` (or newer: every green main CI deploys) at https://labs.shashkist.com. Deploy run 43727774792 ran the terminal smoke inside the Deploy run, green.
+- **Known gap (D40):** a Deploy cancelled by a manual bootstrap or the nightly gate race is not noticed; the next push deploys again. Fix is in #85.
 - **Next session starts at:** Next 1.
 
 ## Next (in order)
 
-0. **Owner priority (2026-11-15): #92 admin sign-in with Google** right after PR #91 merges, before #9/#88/#89: without it nobody can use the admin side of the live site. Secrets and the allow-list are already in the `production` environment; the redirect URI is O14 (test against a fake Google). Also new: #93 (p2, replaces O13).
-1. **PR #91** (#90): CI result → `reviewer` (fresh) → merge → check that the **Deploy run itself** shows the `smoke` job green after a real deploy, and that a Deploy that skips a stale sha runs no smoke. Close #90 with that evidence. The #13 exam file hangs on Windows Git Bash (`test_database_url_from_stdin_is_written_and_kept_when_stdin_is_empty`); CI on Linux is the judge.
+1. **PR #95** (#92, D39): CI (the 40 Postgres exam tests run only there) → `reviewer` (fresh) → merge → live check: `/api/auth/admin/methods` says `google: true` (proves the three values reached `.env`), `/auth/google/start` answers a redirect to accounts.google.com with the configured redirect URI. A real sign-in waits on O14. Close #92.
 2. **#9** task engine slice 1 (D37: runner, task API, setup and navigation), then **#88** (check, quiz), **#89** (completion, fast flag); **#11** teacher UI (note on #11: `lf-smoke` cohort reserved and hidden), **#10** student UI (#12 content can run in parallel).
-3. **#85** deploy follow-ups (p2, includes the two round-2 notes in its comments: skip the migrations-line check when the container was not recreated; move the stale-sha skip into the job `if`).
+3. **#85** deploy follow-ups (p2; now also owns "a cancelled Deploy is noticed", requirements in its comments, D40), **#94** smoke exam/secrets follow-ups, **#93** trusted proxy.
 4. p2: #81, #76, #67, #69, #64, #68, #54, #55, #56, #47, #44, #21, #15, #14 (the shared certificate already covers labs, D11; check what #14 still needs). Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
@@ -26,6 +25,8 @@ _Last updated: 2026-11-15 ~14:10 UTC, laptop pass lf-c7d42 (12:36-14:10 UTC; sto
 - O9 decided by the manager: D31 (#61). **O10 open:** move `LF_DATABASE_URL` into the `production` environment. **New: O11** (create the first admin), **O12** (back up `/root/learning-factory/.env`), **O13** (re-deploy after recreating nginx-proxy3); **O5 reopened** (copy the real `labs` block to the EMEW-AI repo).
 
 ## Recently done
+
+- 2026-11-15 · #90 shipped in #91 (2 review rounds, D38 amended, D40): the terminal smoke runs as a job inside the Deploy run, only after `deploy.sh` printed `deployed <tag>`; nightly/manual runs check for a pending Deploy first. Live: Deploy run 43727774792 (smoke job green), stale-sha Deploy 43727169484 ran no smoke. An automatic re-dispatch of cancelled Deploys was removed in round 2 and moved to #85. Follow-ups #94.
 
 - 2026-11-15 · #86 Live terminal smoke shipped in #87 (exam first, 2 review rounds, D36): `app.cli smoke-student` (synthetic `lf-smoke` cohort, per-run password on stdin), `labs/deploy/smoke/terminal.py` (runner → https://labs.shashkist.com → nginx → Docker DNS `lab-<uuid>` → ttyd), `server-smoke.yml` `terminal` check after Deploy and nightly. Live run 43719981589 green on `lf-manager:d3e69a2`. Review leftovers → #90 (PR #91), note on #11. #9 sliced into #9/#88/#89 (D37).
 
