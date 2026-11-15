@@ -1,7 +1,8 @@
 #!/bin/sh
 su student -s /bin/sh -c '
+set -e
 umask 022
-cd /home/student || exit 1
+cd /home/student
 rm -rf scripts secret.txt
 mkdir scripts
 printf "#!/bin/sh\necho hello\n" > scripts/hello.sh

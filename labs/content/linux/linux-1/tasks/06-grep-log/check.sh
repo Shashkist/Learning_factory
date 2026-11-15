@@ -18,8 +18,16 @@ else
   rc=1
 fi
 
+got=$(mktemp) || exit 1
+trap 'rm -f "$exp" "$got"' EXIT
+if [ -f "$out" ] && ! su student -s /bin/sh -c 'cat /home/student/errors.txt' </dev/null > "$got" 2>/dev/null; then
+  echo "FAIL 2 the file ~/errors.txt cannot be read; check its permissions with ls -l"
+  echo "FAIL 3 the file ~/errors.txt cannot be read; check its permissions with ls -l"
+  exit 1
+fi
+
 missing=4
-[ -f "$out" ] && missing=$(grep -Fxv -f "$out" "$exp" 2>/dev/null | wc -l | tr -d ' ')
+[ -f "$out" ] && missing=$(grep -Fxv -f "$got" "$exp" 2>/dev/null | wc -l | tr -d ' ')
 if [ "$missing" -eq 0 ]; then
   echo "PASS 2"
 else
@@ -28,7 +36,7 @@ else
 fi
 
 extra=1
-[ -s "$out" ] && extra=$(grep -Fxv -f "$exp" "$out" 2>/dev/null | wc -l | tr -d ' ')
+[ -s "$got" ] && extra=$(grep -Fxv -f "$exp" "$got" 2>/dev/null | wc -l | tr -d ' ')
 if [ "$extra" -eq 0 ]; then
   echo "PASS 3"
 else

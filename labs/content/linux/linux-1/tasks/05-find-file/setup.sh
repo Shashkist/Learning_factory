@@ -1,7 +1,8 @@
 #!/bin/sh
 su student -s /bin/sh -c '
+set -e
 umask 022
-cd /home/student || exit 1
+cd /home/student
 rm -rf archive found.txt
 mkdir -p archive/2022/winter archive/2023/spring/misc archive/2023/summer archive/old/docs
 echo "flour, eggs, milk" > archive/2023/spring/misc/secret-recipe.txt

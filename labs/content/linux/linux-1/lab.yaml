@@ -41,8 +41,8 @@ tasks:
     checklist:
       - en: The file ~/notes/todo.txt exists
         he: "הקובץ ‎~/notes/todo.txt‎ קיים"
-      - en: The file contains the word linux
-        he: "הקובץ מכיל את המילה ‎linux‎"
+      - en: The first line contains the word linux
+        he: "השורה הראשונה מכילה את המילה ‎linux‎"
       - en: The file has at least two lines
         he: הקובץ כולל לפחות שתי שורות
   - id: 04-copy-move
@@ -83,7 +83,7 @@ tasks:
     kind: quiz
     question:
       en: "`ls -l` shows the permissions -rwxr-x--- for a file. What can the group do with it?"
-      he: "הפקודה ls -l מציגה לקובץ את ההרשאות -rwxr-x---. מה הקבוצה יכולה לעשות איתו?"
+      he: "הפקודה ‎ls -l‎ מציגה לקובץ את ההרשאות ‎-rwxr-x---‎. מה הקבוצה יכולה לעשות איתו?"
     options:
       - en: Read it and run it, but not change it
         he: לקרוא אותו ולהריץ אותו, אבל לא לשנות אותו
@@ -107,8 +107,8 @@ tasks:
       en: Which sentence about chown, the command that changes the owner of a file, is true?
       he: איזה משפט על chown, הפקודה שמשנה את הבעלים של קובץ, נכון?
     options:
-      - en: It changes who is allowed to read the file
-        he: היא משנה מי רשאי לקרוא את הקובץ
+      - en: It renames the file
+        he: היא משנה את שם הקובץ
       - en: Every user can give their own files to someone else
         he: כל משתמש יכול למסור את הקבצים שלו למישהו אחר
       - en: Only root can change the owner; a normal user can only change the group of their own file

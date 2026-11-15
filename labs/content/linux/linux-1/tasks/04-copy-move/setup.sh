@@ -1,7 +1,8 @@
 #!/bin/sh
 su student -s /bin/sh -c '
+set -e
 umask 022
-cd /home/student || exit 1
+cd /home/student
 rm -rf inbox backup pictures
 mkdir inbox backup pictures
 echo "Quarterly report draft" > inbox/report.txt

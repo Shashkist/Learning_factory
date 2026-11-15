@@ -1,4 +1,5 @@
 #!/bin/sh
+# Root cannot bypass file permissions here, so the student's file is read as student.
 f=/home/student/notes/todo.txt
 rc=0
 
@@ -9,15 +10,30 @@ else
   rc=1
 fi
 
-if [ -f "$f" ] && grep -qi linux "$f" 2>/dev/null; then
+first=""
+lines=0
+readable=0
+if [ -f "$f" ]; then
+  if first=$(su student -s /bin/sh -c 'head -n 1 /home/student/notes/todo.txt' </dev/null 2>/dev/null); then
+    readable=1
+    lines=$(su student -s /bin/sh -c 'grep -c "" /home/student/notes/todo.txt' </dev/null 2>/dev/null)
+  fi
+fi
+
+if [ -f "$f" ] && [ "$readable" -eq 0 ]; then
+  echo "FAIL 2 the file ~/notes/todo.txt cannot be read; check its permissions with ls -l"
+  echo "FAIL 3 the file ~/notes/todo.txt cannot be read; check its permissions with ls -l"
+  exit 1
+fi
+
+if printf '%s
+' "$first" | grep -qi linux; then
   echo "PASS 2"
 else
-  echo "FAIL 2 the file does not contain the word linux; look at what you wrote into it with cat"
+  echo "FAIL 2 the first line does not contain the word linux; look at the file with cat, and remember that > replaces what was there"
   rc=1
 fi
 
-lines=0
-[ -f "$f" ] && lines=$(grep -c '' "$f" 2>/dev/null)
 if [ "${lines:-0}" -ge 2 ]; then
   echo "PASS 3"
 else
