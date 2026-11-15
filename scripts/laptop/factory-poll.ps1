@@ -152,6 +152,9 @@ Stop after about $PassMinutes minutes of work or 3 merged PRs, and update docs/f
         param($wt, $claude, $model, $p, $out, $progressFile, $hooks)
         Set-Location $wt
         $env:LF_PROGRESS_FILE = $progressFile        # hooks record only when this is set
+        # Headless claude stops background subagents 10 min after the manager's last turn; pass 9 lost an
+        # implementer mid-fix that way. Wait for them: the awake-time limit below still bounds the pass.
+        $env:CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS = '0'
         $extra = if (Test-Path $hooks) { @('--settings', $hooks) } else { @() }
         & $claude -p $p --model $model --permission-mode auto @extra *>&1 | Out-File -Encoding utf8 $out
     } -ArgumentList $Worktree, $Claude, $Model, $prompt, $runLog, $env:LF_PROGRESS_FILE, $HooksFile

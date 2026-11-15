@@ -13,6 +13,7 @@ _Last updated: 2026-11-15 ~15:12 UTC, laptop pass lf-a3f81 (from 14:30 UTC)._
 
 ## Next (in order)
 
+- **Recovered work (owner session, 2026-11-15 15:40 UTC):** pass 9's subagent "Fix PR #95 review round 1" was stopped by headless Claude's 10-minute background-task ceiling (the runner now disables it). Its round-1 fixes are **uncommitted in `C:/projects/lf-92`** (branch `f/92-google-admin`, 7 files: deploy.yml, auth.py, cli.py, google_auth.py, main.py, test_google_auth.py, Admin.test.tsx). Review that diff against the round-1 findings, finish it, then push for round 2; do not start the fixes over. O15 is done (allow-list is now a secret).
 1. **PR #95** (#92, D39): CI (the 40 Postgres exam tests run only there) → `reviewer` (fresh) → merge → live check: `/api/auth/admin/methods` says `google: true` (proves the three values reached `.env`), `/auth/google/start` answers a redirect to accounts.google.com with the configured redirect URI. A real sign-in waits on O14. Close #92.
 2. **#9** task engine slice 1 (D37: runner, task API, setup and navigation), then **#88** (check, quiz), **#89** (completion, fast flag); **#11** teacher UI (note on #11: `lf-smoke` cohort reserved and hidden), **#10** student UI (#12 content can run in parallel).
 3. **#85** deploy follow-ups (p2; now also owns "a cancelled Deploy is noticed", requirements in its comments, D40), **#94** smoke exam/secrets follow-ups, **#93** trusted proxy.
