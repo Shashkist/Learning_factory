@@ -372,3 +372,10 @@ in force · factory · 2026-11-15
 **Why.** The deploy's live checks stop at `/healthz`; only a real terminal through nginx proves the Docker DNS name, the `Host` header and the WebSocket upgrade (D34 follow-up). A per-run password avoids a stored secret the owner would have to install.
 **Alternatives.** Run the client on the server (skips the public TLS + nginx path from outside); an admin API to create students (does not exist yet, #11); a stored smoke password secret (owner work, rule 2).
 **Revert.** Remove the `terminal` option and the `workflow_run`/`schedule` triggers; running `smoke-student --disable` leaves the cohort harmless.
+**Amended (review of #87).** The lab id is `hello` (directory `labs/content/sample/hello`). The client retries the WebSocket upgrade on 502/503/504 until its timeout (ttyd may not listen yet right after the lab starts). setup-python and a hash-pinned `pip install --require-hashes` (`labs/deploy/smoke/requirements.txt`) run **before** the server key exists on the runner; the password is generated, masked, sent on stdin and given to the client in one step (no `GITHUB_ENV`). The cohort name `lf-smoke` is reserved (noted on #11). **Known risk, #90:** the shared group `server-lab-host` keeps one pending run, so a queued smoke can cancel a pending Deploy; until #90, the next push to main re-deploys.
+
+## D37 · #9 task engine is split into three slices
+in force · factory · 2026-11-15
+
+**Decision.** #9 (task engine) was larger than one ~400-line PR. #9 is now slice 1: the `docker exec` script runner (streamed on stdin, timeout, under gVisor), the task API, setup on show and Next/Skip/Previous/Restart/Continue-from-N per spec §5, `shown_at`. #88 is slice 2: `check.sh` results (20 s timeout, PASS/FAIL parsing, checklist with hints), attempts, `passed_at`, quiz grading without leaking answers. #89 is slice 3: lab completion, `lab_runs` first vs repeat, `active_seconds`, the fast flag rules of §8. Each depends on the previous one. #10 (student UI) needs #9 and #88; #11 (teacher UI) shows #89's values.
+**Why.** One reviewable PR per slice, each with its own exam (D19 pattern). **Revert.** Merge the issues back.
