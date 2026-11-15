@@ -68,3 +68,4 @@ _None yet._ When the factory meets something only Ilia can answer, it lands here
   2. **Make the repo public** (Actions become free; check `courses/` and the docs for anything private first). This is O7's option; the command is in O7.
   3. **Wait** for the reset on 2026-12-01 (16 days without merges or deploys).
   Then tick this box (or tell any session "done: O16"); the next pass re-runs main CI first.
+- [ ] **O17 · Read Linux 1 (en + he) and publish it** — #12. The lab is in `labs/content/linux/linux-1/` with `status: draft` (students do not see it). Please read the ten tasks in English and Hebrew (wording, difficulty, whether the Hebrew sounds natural). When you are happy, set `status: published` in its `lab.yaml` (or tell any session "publish linux-1") and tick this box. The ownership part uses `chgrp` and a quiz instead of `sudo chown` (D42).
