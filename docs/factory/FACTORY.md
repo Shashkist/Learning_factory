@@ -70,7 +70,7 @@ The factory turns the spec into a running lab platform at `labs.shashkist.com` w
 
 The free private plan gives 2,000 Actions minutes a month. In November about 1,860 were used in two days (#98, incident #96). Where they went: CI on push to main 886, CI on pull requests 681, dashboard on push 215, everything else about 80. The `docker` job alone cost 681.
 
-What a PR costs now: `manager` plus `web` plus `exam-integrity`, roughly 8 to 10 minutes. A PR that touches `labs/images`, `labs/manager`, `labs/deploy`, `labs/content` or `.github/workflows` also runs `docker` and the image jobs (about 15 more). A docs-only push to main costs nothing; a code push costs the full run.
+What a PR run costs now (GitHub bills each job rounded up to a whole minute; November averages): `changes`, `manager` (~2), `web` and `exam-integrity`, about 5 minutes. A PR that touches `labs/images`, `labs/manager`, `labs/deploy`, `labs/content` or `.github/workflows` also runs `docker` (~3–4) and the image jobs, about 5–8 more. Every push to the PR is another run (an older run of the same PR is cancelled). A docs-only push to main costs nothing; a code push costs the full run.
 
 Rules:
 - **Batch state commits:** one `docs/factory/*` state commit per loop step, not one per sub-step. Each one that reaches the dashboard filter still costs a run.
