@@ -37,6 +37,26 @@ HTTP_TIMEOUT = 10.0
 router = APIRouter()
 
 
+class _StripQuery(logging.Filter):
+    """uvicorn's access log prints the request path with its query string: drop the query so the
+    OAuth code and state never reach the container logs."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        args = record.args
+        if isinstance(args, tuple) and len(args) >= 3 and isinstance(args[2], str):
+            record.args = (*args[:2], args[2].partition("?")[0], *args[3:])
+        return True
+
+
+def install_log_filter() -> None:
+    access = logging.getLogger("uvicorn.access")
+    if not any(isinstance(f, _StripQuery) for f in access.filters):
+        access.addFilter(_StripQuery())
+
+
+install_log_filter()  # uvicorn configures its loggers before importing the app; filters survive
+
+
 @dataclass
 class _Flow:
     nonce: str
@@ -68,13 +88,17 @@ def methods() -> dict[str, bool]:
 
 
 @router.get("/auth/google/start")
-def start() -> Any:
+async def start(request: Request) -> Any:
     cfg = auth.google_config()
     if cfg is None:
         return _page(503, "Google sign-in is not configured")
+    if not auth.limiter.hit(
+        (f"gstart:{auth.client_ip(request)}", auth._env_limit("LF_GOOGLE_START_LIMIT", 30))
+    ):
+        raise HTTPException(429, "too_many_attempts")
     now = time.monotonic()
     for key in [k for k, f in _flows.items() if f.expires <= now]:
-        del _flows[key]
+        _flows.pop(key, None)
     while len(_flows) >= MAX_FLOWS:
         _flows.popitem(last=False)
     state, nonce = secrets.token_urlsafe(24), secrets.token_urlsafe(24)
@@ -177,7 +201,11 @@ async def callback(request: Request) -> Any:
     if claims.get("email_verified") is not True:
         return _deny("email not verified")
     email, sub = claims.get("email"), claims.get("sub")
-    if not isinstance(email, str) or email.strip().lower() not in cfg.emails:
+    if (
+        not isinstance(email, str)
+        or not email.isascii()
+        or email.strip().lower() not in cfg.emails
+    ):
         return _deny("address not on the allow-list")
     if not isinstance(sub, str) or not sub:
         return _deny("no subject")

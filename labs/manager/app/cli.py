@@ -116,8 +116,8 @@ def main(argv: list[str] | None = None) -> int:
         print("LF_DATABASE_URL is not set", file=sys.stderr)
         return 1
     name = args.username
-    if not name or len(name) > auth.MAX_USERNAME_LEN or not name.isprintable():
-        print("username must be 1-64 printable characters", file=sys.stderr)
+    if not name or len(name) > auth.MAX_USERNAME_LEN or not name.isprintable() or ":" in name:
+        print("username must be 1-64 printable characters, no colon", file=sys.stderr)
         return 1
     password = _read_password()
     if len(password) < 8:

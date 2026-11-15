@@ -193,11 +193,11 @@ class RateLimiter:
                     self._drop(k)
 
 
-def _env_limit(name: str) -> int:
+def _env_limit(name: str, default: int = MAX_FAILURES) -> int:
     try:
-        return max(1, int(os.environ.get(name, MAX_FAILURES)))
+        return max(1, int(os.environ.get(name, default)))
     except ValueError:
-        return MAX_FAILURES
+        return default
 
 
 limiter = RateLimiter()
@@ -244,7 +244,9 @@ def google_config() -> GoogleConfig | None:
     cid = os.environ.get("LF_GOOGLE_CLIENT_ID", "").strip()
     secret = os.environ.get("LF_GOOGLE_CLIENT_SECRET", "").strip()
     emails = frozenset(
-        e.strip().lower() for e in os.environ.get("LF_ADMIN_EMAILS", "").split(",") if e.strip()
+        e.strip().lower()
+        for e in os.environ.get("LF_ADMIN_EMAILS", "").split(",")
+        if e.strip() and e.isascii()
     )
     if not (cid and secret and emails):
         return None
@@ -430,7 +432,7 @@ async def admin_login(body: AdminLogin, request: Request, response: Response) ->
         raise HTTPException(403, "password_login_disabled")
     pool = _pool(request)
     name = body.username
-    valid = bool(name) and len(name) <= MAX_USERNAME_LEN and name.isprintable()
+    valid = bool(name) and len(name) <= MAX_USERNAME_LEN and name.isprintable() and ":" not in name
     keys = (
         (f"ip:{client_ip(request)}", _env_limit("LF_LOGIN_IP_LIMIT")),
         (f"admin:{name}" if valid else "", _env_limit("LF_LOGIN_ID_LIMIT")),

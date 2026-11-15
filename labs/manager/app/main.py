@@ -70,6 +70,7 @@ async def _retry_db(app: FastAPI, dsn: str) -> None:
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Only the manager's own logger: never turn on INFO for every library.
     log.setLevel(logging.INFO)
+    google_auth.install_log_filter()
     if not log.handlers and not logging.getLogger().handlers:
         log.addHandler(logging.StreamHandler())
     app.state.pool = None

@@ -108,7 +108,10 @@ def test_nonce_mismatch_is_refused_even_with_a_valid_token(
     assert r.status_code == 403
 
 
-def test_pending_flows_are_capped_oldest_first(configured: None) -> None:
+def test_pending_flows_are_capped_oldest_first(
+    configured: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LF_GOOGLE_START_LIMIT", "100000")
     google_auth._flows.clear()
     with _client() as c:
         first = httpx.URL(c.get("/auth/google/start", follow_redirects=False).headers["location"])
@@ -158,3 +161,141 @@ def test_methods_matrix(
     for k, v in env.items():
         monkeypatch.setenv(k, v)
     assert (auth.google_config() is not None, auth.password_login_allowed()) == expected
+
+
+def test_access_log_drops_the_query_string() -> None:
+    import logging
+
+    google_auth.install_log_filter()
+    google_auth.install_log_filter()
+    access = logging.getLogger("uvicorn.access")
+    assert sum(isinstance(f, google_auth._StripQuery) for f in access.filters) == 1
+    rec = logging.LogRecord(
+        "uvicorn.access", logging.INFO, "", 0, '%s - "%s %s HTTP/%s" %d',
+        ("1.2.3.4:5", "GET", "/auth/google/callback?code=SECRETCODE&state=SECRETSTATE", "1.1", 303),
+        None,
+    )  # fmt: skip
+    assert access.filter(rec)
+    text = rec.getMessage()
+    assert "SECRETCODE" not in text and "SECRETSTATE" not in text
+    assert "/auth/google/callback" in text and "303" in text
+
+
+def test_start_is_async(configured: None) -> None:
+    import inspect
+
+    assert inspect.iscoroutinefunction(google_auth.start)
+
+
+def test_start_is_rate_limited_per_ip(configured: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LF_GOOGLE_START_LIMIT", "3")
+    auth.limiter._events.pop("gstart:10.93.0.1", None)
+    with _client() as c:
+        codes = [c.get("/auth/google/start", follow_redirects=False).status_code for _ in range(5)]
+    auth.limiter._events.pop("gstart:10.93.0.1", None)
+    assert codes == [303, 303, 303, 429, 429]
+
+
+def _fail_case(caplog: pytest.LogCaptureFixture, handler: Any) -> None:
+    from app.main import app
+
+    app.state.google_transport = httpx.MockTransport(handler)
+    google_auth._jwks.update(keys={}, at=0.0)
+    caplog.set_level("INFO", logger="lab-manager")
+    try:
+        with _client() as c:
+            r = _sign_in(c)
+    finally:
+        app.state.google_transport = None
+    assert r.status_code == 403
+    assert "lf_session" not in r.headers.get("set-cookie", "")
+    text = caplog.text
+    for secret in ("code=c", EMAIL, "unit-sub", "eyJ", "unit-secret"):
+        assert secret not in text
+    assert "google sign-in refused" in text
+
+
+def test_token_call_timeout_is_refused(
+    configured: None, caplog: pytest.LogCaptureFixture
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectTimeout("slow", request=request)
+
+    _fail_case(caplog, handler)
+    assert "ConnectTimeout" in caplog.text
+
+
+def _rs256_token(kid: str | None) -> str:
+    import jwt
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    return jwt.encode(
+        {"sub": "unit-sub"}, key, algorithm="RS256", headers={"kid": kid} if kid else None
+    )
+
+
+@pytest.mark.parametrize("case", ["jwks500", "nokid", "unknownkid"])
+def test_id_token_key_failures_are_refused(
+    case: str, configured: None, caplog: pytest.LogCaptureFixture
+) -> None:
+    token = _rs256_token(None if case == "nokid" else "kid-1")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/token"):
+            return httpx.Response(200, json={"id_token": token})
+        if case == "jwks500":
+            return httpx.Response(500)
+        return httpx.Response(200, json={"keys": [{"kid": "other", "kty": "RSA"}]})
+
+    _fail_case(caplog, handler)
+
+
+def test_non_ascii_email_is_refused_before_the_allow_list(
+    configured: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # U+212A (Kelvin sign) lowercases to "k"
+    monkeypatch.setenv("LF_ADMIN_EMAILS", "kim@example.test")
+    claims: dict[str, Any] = {"iss": "accounts.google.com", "sub": "s", "email_verified": True,
+                              "email": "Kim@example.test", "nonce": "?"}  # fmt: skip
+    _fake_google(monkeypatch, claims)
+    with _client() as c:
+        from app.main import app
+
+        r0 = c.get("/auth/google/start", follow_redirects=False)
+        q = httpx.URL(r0.headers["location"]).params
+        google_auth._flows[q["state"]].nonce = "?"
+        r = c.get(
+            f"/auth/google/callback?code=c&state={q['state']}",
+            headers={"cookie": f"lf_oauth={r0.cookies['lf_oauth']}"},
+            follow_redirects=False,
+        )
+        app.state.google_transport = None
+    assert r.status_code == 403
+
+
+def test_non_ascii_admin_emails_are_ignored_in_config(
+    configured: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LF_ADMIN_EMAILS", "Kim@example.test, ok@example.test")
+    cfg = auth.google_config()
+    assert cfg is not None and cfg.emails == frozenset({"ok@example.test"})
+
+
+def test_colon_is_refused_in_admin_usernames(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app import cli
+
+    monkeypatch.setenv("LF_DATABASE_URL", "postgresql://x@127.0.0.1/none")
+    assert cli.main(["create-admin", "google:abc"]) == 1
+    monkeypatch.delenv("LF_DATABASE_URL")
+    monkeypatch.delenv("LF_ADMIN_EMAILS", raising=False)
+    monkeypatch.delenv("LF_GOOGLE_CLIENT_ID", raising=False)
+    with _client() as c:
+        from app.main import app
+
+        app.state.pool = FakePool()
+        try:
+            r = c.post("/api/auth/admin/login", json={"username": "google:abc", "password": "pw"})
+        finally:
+            app.state.pool = None
+    assert r.status_code == 401

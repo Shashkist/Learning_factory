@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-type State = "loading" | "admin" | "google" | "none";
+type State = "loading" | "admin" | "google" | "none" | "error";
 
 async function getJson(url: string): Promise<{ ok: boolean; body: Record<string, unknown> }> {
   try {
@@ -19,6 +19,7 @@ export default function Admin() {
       const me = await getJson("/api/auth/me");
       if (me.ok && me.body.kind === "admin") return setState("admin");
       const methods = await getJson("/api/auth/admin/methods");
+      if (!methods.ok) return setState("error");
       setState(methods.body.google === true ? "google" : "none");
     })();
   }, []);
@@ -37,5 +38,6 @@ export default function Admin() {
       </div>
     );
   if (state === "google") return <a href="/auth/google/start">Sign in with Google</a>;
+  if (state === "error") return <p>Could not load sign-in options</p>;
   return <p>Google sign-in is not configured</p>;
 }

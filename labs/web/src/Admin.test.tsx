@@ -30,3 +30,19 @@ test("a visitor is told when Google is not configured", async () => {
   render(<Admin />);
   expect(await screen.findByText("Google sign-in is not configured")).toBeTruthy();
 });
+
+test("a failed methods request says the options could not be loaded", async () => {
+  answer({ "/api/auth/admin/methods": { ok: false } });
+  render(<Admin />);
+  expect(await screen.findByText("Could not load sign-in options")).toBeTruthy();
+  expect(screen.queryByText("Google sign-in is not configured")).toBeNull();
+});
+
+test("a network error on methods says the options could not be loaded", async () => {
+  globalThis.fetch = vi.fn(async (url: RequestInfo | URL) => {
+    if (String(url) === "/api/auth/me") return { ok: false } as Response;
+    throw new Error("offline");
+  }) as typeof fetch;
+  render(<Admin />);
+  expect(await screen.findByText("Could not load sign-in options")).toBeTruthy();
+});
