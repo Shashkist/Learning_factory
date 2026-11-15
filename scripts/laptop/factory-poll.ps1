@@ -98,10 +98,22 @@ try {
     # Filter in PowerShell: Windows PowerShell 5.1 strips the double quotes inside a jq
     # expression passed to a native exe, which silently turned this check into "0".
     $wanted = 'status:ready', 'status:in-progress', 'status:in-review', 'type:incident', 'needs:laptop'
-    $issues = gh issue list -R $Repo --state open --limit 200 --json labels | ConvertFrom-Json
+    # Right after the laptop wakes the network is often not up yet, and a failed gh call returns empty
+    # output, which used to read as "nothing to do" (2026-11-15 16:45 UTC, with PR #95 open). Check the
+    # exit code and retry for up to ~2 minutes before giving up for this tick.
+    $ok = $false
+    for ($try = 1; $try -le 5 -and -not $ok; $try++) {
+        $raw = gh issue list -R $Repo --state open --limit 200 --json labels
+        $e1 = $LASTEXITCODE
+        $prsRaw = gh pr list -R $Repo --state open --json number --jq length   # no quotes, safe in PS 5.1
+        $e2 = $LASTEXITCODE
+        if ($e1 -eq 0 -and $e2 -eq 0 -and $raw -and "$prsRaw" -match '^\s*\d+\s*$') { $ok = $true } else { Start-Sleep -Seconds 30 }
+    }
+    if (-not $ok) { throw "gh did not answer after 5 tries (network not up yet?)" }
+    $issues = $raw | ConvertFrom-Json
     $work = @($issues | Where-Object { @($_.labels.name | Where-Object { $wanted -contains $_ }).Count -gt 0 }).Count
-    $prs  = [int](gh pr list -R $Repo --state open --json number --jq length)   # no quotes, safe in PS 5.1
-} catch { Log "skip: gh failed ($($_.Exception.Message))"; exit 0 }
+    $prs  = [int]"$prsRaw".Trim()
+} catch { Log "skip: gh failed ($($_.Exception.Message))"; Publish-Live; exit 0 }
 if ([int]$work -eq 0 -and [int]$prs -eq 0) { Log 'idle: nothing ready, no open PRs'; Publish-Live 'idle' 'nothing ready'; exit 0 }
 
 New-Item -ItemType File -Force $Lock | Out-Null
