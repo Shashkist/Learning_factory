@@ -451,3 +451,10 @@ Issues were moved in number order, and closed placeholders took the numbers of t
 **Alternatives.** A paid Actions budget, which keeps the repo private but costs money at this pace. A self-hosted runner, which is unsafe on a public repository: fork PRs would run on it. Making the old repository public, which would leak data through its PR refs.
 **Revert.** Make the repository private again (`gh repo edit --visibility private`). The archive repository holds the original history.
 **Rules from now on.** No course material, client names, employer material or personal e-mail addresses in the repository, issues or PRs. Fork PRs never get secrets: deploys run only in the `production` environment limited to `main`.
+
+## D44 · Up to 3 independent issues in flight at once
+
+**Decision (owner, 2026-11-15).** The manager keeps up to 3 issues in progress at once. It claims the next independent issue while another one waits on CI, review or a background agent. Independent means no dependency between the issues and no overlapping code area. Each issue gets its own claim, branch and worktree. Merges stay serial (rebase, green CI, merge). Rule text: the factory skill, step 3.
+**Why.** Passes spend much of their time waiting. The owner wants parallel pipelines, and the live page now shows one lane per issue.
+**Alternatives.** Strictly one issue at a time: simpler, but slower. More than 3 at once: too many rebases and too much review load for one manager.
+**Revert.** Delete the "Work in parallel" paragraph in `.claude/skills/factory/SKILL.md`.

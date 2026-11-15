@@ -62,6 +62,13 @@ git checkout -b f/<n>-<slug>
 
 Update `STATE.md` → **Now** and commit it straight to `main` (`chore(factory): state`).
 
+**Work in parallel (owner, D44): up to 3 issues in flight.** Whenever one issue is waiting (CI, a reviewer, an agent running in the background), claim the next independent one instead of idling.
+- **Independent** means no `Depends on` between them and no overlap in the code they will change. For example, content under `labs/content/**`, the manager under `labs/manager/**` and CI under `.github/**` can run side by side; two issues in `labs/manager/app/auth.py` cannot.
+- Each issue gets its own claim, branch and worktree (`C:\projects\lf-<n>`).
+- Pass `--issue <n>` on every progress step, so each task shows as its own lane on the live page.
+- Merges stay one at a time: rebase onto the new `main`, then wait for green CI again.
+- Stop starting new issues once ~75 of the ~90 minutes are used; finish or park what is in flight.
+
 ## 4 · Decide, don't wait
 
 For every open question: the spec says → `DECISIONS.md` says → research (dispatch the `researcher` agent: KodeKloud first, then Killercoda, iximiuz Labs, Instruqt) → choose the simplest option that keeps the guardrails. Write a D-entry (decision or assumption, why, alternatives, how to revert). **Take the next D-number only right after `git pull --rebase origin main`**: other sessions write here too. If a rebase shows two entries with your number, renumber yours. Only owner-only blockers (a secret, DNS, money, the owner's other services) go to `OWNER.md` and the issue gets `status:needs-owner`. Then **go back to step 3** with another issue.
