@@ -2,7 +2,7 @@
 
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
-_Last updated: 2026-11-15 ~18:50 UTC, laptop pass lf-m7k2 (16:55–~19:00 UTC)._
+_Last updated: 2026-11-15 ~19:05 UTC, laptop pass lf-m7k2 (16:55–~19:00 UTC)._
 
 ## Now
 
@@ -16,7 +16,7 @@ _Last updated: 2026-11-15 ~18:50 UTC, laptop pass lf-m7k2 (16:55–~19:00 UTC)._
 
 1. **When CI runs again** (O16 ticked or 2026-12-01): re-run main CI (`gh run rerun` on the newest main CI run); then **PR #100** (#98) CI → merge → check that the next docs-only push to main starts no CI and that a code push deploys; then **PR #95** (#92, approved in round 2, D39) CI (the 40 Postgres exam tests run only there) → merge → live check: `/api/auth/admin/methods` says `google: true`, `/auth/google/start` redirects to accounts.google.com with the configured redirect URI; the owner does the first real sign-in. Then the #12 PR. One CI at a time. Close #96 with the first green main run.
 2. **#98 / PR #100: round 1 requested changes (findings are a comment on PR #100: 3 blockers).** Do this before other local work: re-sequence per D19 on a new branch from main: exam PR first (revise `test_issue_98_ci_minutes.py`: root-only `*.md`, nothing under `labs/**` docs-only, non-ASCII path case, run the deploy tag logic), then the code PR (quotePath/-z, `BASE...HEAD`, `--first-parent`, FACTORY.md wording), each passing `scripts/ci/exam_integrity.py`. Close PR #100 as superseded. Then review round 2 (the last; then decide, D-entry). Claim #98 held by lf-m7k2 (worktree `C:\projects\lf-98`).
-3. **#12 Linux 1 content** (claim lf-m7k2, branch `f/12-linux-1`, worktree `C:\projects\lf-12`): exam 7031b43 (39 non-docker + 36 docker tests; D42: chgrp task, image gets a supplementary group). The implementer was running at the end of the pass: check `git -C C:/projects/lf-12 log --oneline -3` and `git status`; committed → push, open PR, reviewer; uncommitted → review the diff against the exam and finish it (do not start over). Docker tests run only in CI.
+3. **#12 Linux 1 / PR #101** (claim lf-m7k2, worktree `C:\projects\lf-12`): exam 7031b43 + content 493a963 (39 non-docker exam tests pass, exam-integrity ok; D42: `team` group in the `term` image, `chgrp` task). Next: fresh `reviewer` round 1 (no CI needed to review). The 36 docker tests run only in CI: risk list in the PR (tasks 07 and 09 unproven on Windows). Owner item O17 (read and publish) is in the PR's OWNER.md, not on main yet.
 4. Local-only work while CI is down: **#99** (Google sign-in follow-ups; exam change first), **#9** task engine slice 1 (D37), then **#88**, **#89**; **#11** teacher UI, **#10** student UI.
 5. **#85** deploy follow-ups (p2; overlaps #98's docs-only deploy fix: re-read after #100 merges), **#94**, **#93**; p2 list: #81, #76, #67, #69, #64, #68, #54, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
@@ -29,7 +29,7 @@ _Last updated: 2026-11-15 ~18:50 UTC, laptop pass lf-m7k2 (16:55–~19:00 UTC)._
 
 ## Recently done
 
-- 2026-11-15 · Pass lf-m7k2 (no merges, CI down #96): found the cause of the red line (Actions minutes, O16, D41); measured where the minutes go and built #98 (PR #100: exam + code, local 21/21); finished #95 round-1 fixes (5ed0a30), round 2 approved, nits → #99; #12 exam (D42).
+- 2026-11-15 · Pass lf-m7k2 (no merges, CI down #96): found the cause of the red line (Actions minutes, O16, D41); measured where the minutes go and built #98 (PR #100: exam + code, local 21/21); finished #95 round-1 fixes (5ed0a30), round 2 approved, nits → #99; #12 exam + content (PR #101, D42); PR #100 round 1 requested changes.
 
 - 2026-11-15 · #90 shipped in #91 (2 review rounds, D38 amended, D40): the terminal smoke runs as a job inside the Deploy run, only after `deploy.sh` printed `deployed <tag>`; nightly/manual runs check for a pending Deploy first. Live: Deploy run 43727774792 (smoke job green), stale-sha Deploy 43727169484 ran no smoke. An automatic re-dispatch of cancelled Deploys was removed in round 2 and moved to #85. Follow-ups #94.
 
