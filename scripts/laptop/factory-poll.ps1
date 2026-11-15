@@ -16,7 +16,7 @@ $Lock        = Join-Path $StateDir 'poll.lock'
 $Claude      = 'C:\nvm4w\nodejs\claude.ps1'
 $Model       = 'claude-opus-5-5'
 $PassMinutes = 90            # the manager stops itself after ~90 min or 3 merged PRs
-$MaxPassesPerDay = 10        # cost guard
+$MaxPassesPerDay = 0         # cost guard; 0 = unlimited (owner, 2026-11-15: unlimited for now). Claude plan limits still apply
 $ProgressKey = Join-Path $StateDir 'progress_key'   # forced-command key: can only write live.json
 $ServerHost  = 'root@207.154.193.238'
 $env:LF_PROGRESS_FILE = Join-Path $StateDir 'progress.jsonl'
@@ -87,7 +87,7 @@ if (-not (Test-Path $DashFlag)) {
 $today = Get-Date -Format 'yyyy-MM-dd'
 $countFile = Join-Path $StateDir "passes-$today.txt"
 $passes = if (Test-Path $countFile) { [int](Get-Content $countFile) } else { 0 }
-if ($passes -ge $MaxPassesPerDay) {
+if ($MaxPassesPerDay -gt 0 -and $passes -ge $MaxPassesPerDay) {
     Log "skip: daily budget reached ($passes passes)"
     Publish-Live 'budget' "daily budget of $MaxPassesPerDay passes used"
     Notify 'Learning Factory: daily budget used' "All $MaxPassesPerDay passes for today are used; the factory resumes tomorrow. Raise MaxPassesPerDay in factory-poll.ps1 to allow more." 'budget'
@@ -127,7 +127,8 @@ try {
 } catch { Log "keep-awake unavailable: $($_.Exception.Message)" }
 try {
     Set-Content $countFile ($passes + 1)
-    Log "pass $($passes + 1)/$MaxPassesPerDay today: $work issue(s) with work, $prs open PR(s)"
+    $of = if ($MaxPassesPerDay -gt 0) { "/$MaxPassesPerDay" } else { "" }
+    Log "pass $($passes + 1)$of today: $work issue(s) with work, $prs open PR(s)"
 
     # The factory's worktree lives on its own local branch 'factory' that follows origin/main
     # (main itself is checked out in the shared checkout and cannot be checked out twice).
@@ -158,7 +159,8 @@ Read CLAUDE.md, then load the project skill 'factory' and follow it exactly, sta
 Decide yourself and record decisions in docs/factory/DECISIONS.md; put owner-only blockers in docs/factory/OWNER.md and move on. Commits, pushes and squash-merges of green, reviewed PRs are pre-approved; commit by explicit paths only; never add attribution or mention Claude, AI or agents in commits, PRs or comments.
 Stop after about $PassMinutes minutes of work or 3 merged PRs, and update docs/factory/STATE.md so the next pass resumes exactly where you stopped.
 "@
-    & python $Progress pass-start --pass-no ($passes + 1) --budget $MaxPassesPerDay 2>$null | Out-Null
+    $budgetArg = if ($MaxPassesPerDay -gt 0) { @('--budget', $MaxPassesPerDay) } else { @() }   # unlimited: the page shows just 'pass N'
+    & python $Progress pass-start --pass-no ($passes + 1) @budgetArg 2>$null | Out-Null
     Publish-Live
     $runLog = Join-Path $RunsDir ("{0}.log" -f (Get-Date -Format 'yyyyMMdd-HHmm'))
     $job = Start-Job -ScriptBlock {
