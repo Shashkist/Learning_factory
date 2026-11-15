@@ -447,6 +447,11 @@ def test_list_lab_containers_ignores_a_lab_named_container_without_the_lf_label(
     request.addfinalizer(
         lambda: subprocess.run(["docker", "rm", "-f", "-v", name], capture_output=True, timeout=120)
     )
-    docker("run", "-d", "--name", name, "--entrypoint", "sleep", image, "60")
+    # lf=0 plus a session label: the name and `lf.session` match a lab container, so only the
+    # `lf=1` filter can keep it out of the listing.
+    docker(
+        "run", "-d", "--name", name, "--label", "lf=0", "--label", f"lf.session={uuid.uuid4()}",
+        "--entrypoint", "sleep", image, "60",
+    )
     names = [_field(i, "name", 0) for i in call(runtime.list_lab_containers)]
     assert name not in names, "a container without lf=1 is not ours and must never be swept"

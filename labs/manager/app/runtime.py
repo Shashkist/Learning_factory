@@ -48,6 +48,7 @@ def container_spec(lab: Lab, session_id: str) -> dict[str, Any]:
             "CapDrop": ["ALL"],
             "CapAdd": caps,
             "SecurityOpt": [] if lab.sudo else ["no-new-privileges"],
+            "ShmSize": 64 * MB,
             "LogConfig": {"Type": "none"},
             "Tmpfs": {
                 "/var/log/lf": "size=16m,mode=0700",
@@ -55,6 +56,8 @@ def container_spec(lab: Lab, session_id: str) -> dict[str, Any]:
                 "/tmp": "size=64m,mode=1777,exec",
                 "/var/tmp": "size=32m,mode=1777",
                 "/run/lock": "size=1m,mode=1777",
+                # hides the mail spool `useradd -m` leaves owned by student on the root fs
+                "/var/mail": "size=1m,mode=0755",
             },
         },
     }
@@ -130,6 +133,7 @@ class DockerRuntime:
             # the name filter matches substrings; only our own labelled containers count
             if not name.startswith("lab-") or not labels.get("lf.session"):
                 continue
-            running = item.get("State") == "running"
+            # created/restarting/paused are alive for our purposes; only exited/dead are stopped
+            running = item.get("State") not in ("exited", "dead")
             found.append(ContainerInfo(name, running, labels["lf.session"], labels))
         return found

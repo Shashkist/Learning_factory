@@ -46,15 +46,29 @@ async def _remove(runtime: Any, name: str) -> None:
 
 
 async def _sweep_containers(pool: Any, runtime: Any) -> None:
-    live_sql = f"select id, container, status from {T}.lab_sessions where {LIVE}"
-    before = await pool.fetch(live_sql)
+    live_sql = (
+        f"select id, container, status, "
+        f"started_at < now() - make_interval(secs => $1) as stale from {T}.lab_sessions "
+        f"where {LIVE}"
+    )
+    deadline = admission.env_num("LF_START_DEADLINE_S", 180)
+    before = await pool.fetch(live_sql, deadline)
     containers = await runtime.list_lab_containers()
-    status = {str(r["id"]): r["status"] for r in await pool.fetch(live_sql)}  # after listing
+    after = await pool.fetch(live_sql, deadline)  # a row can flip while the listing runs
+    status = {str(r["id"]): r["status"] for r in after}
+    starting = {str(r["id"]) for r in (*before, *after) if r["status"] == "starting"}
+    # A start that never finished (crash between create and the row update, DB error): end it.
+    stale = {str(r["id"]) for r in after if r["status"] == "starting" and r["stale"]}
+    for sid in stale:
+        if await end_session(pool, runtime, sid, "orphan"):
+            log.info("janitor ended session %s (orphan, start deadline)", sid)
     present = set()
     for info in containers:
         name, running, session = info[0], info[1], info[2]
+        if session in stale:
+            continue  # end_session removed it
         # A starting session owns its container (the start path cleans up after itself).
-        if session in status and (running or status[session] == "starting"):
+        if session in starting or (session in status and running):
             present.add(name)
             continue
         await _remove(runtime, name)
@@ -72,16 +86,24 @@ async def _sweep_expired(runtime: Any) -> None:
             await _remove(runtime, info[0])
 
 
+_failing: dict[str, str] = {}  # step name -> the error already logged for it
+
+
 async def _step(name: str, coro: Any) -> bool:
     try:
         await coro
+        _failing.pop(name, None)
         return True
     except Exception as exc:
-        log.error("janitor step %s failed (%s)", name, type(exc).__name__)
+        msg = "janitor step %s failed (%s)" % (name, type(exc).__name__)  # noqa: UP031
+        # an outage is logged once, not on every pass; a different error is logged again
+        log.log(logging.DEBUG if _failing.get(name) == msg else logging.ERROR, msg)
+        _failing[name] = msg
         return False
 
 
-async def run_once(app: Any) -> None:
+async def run_once(app: Any) -> bool:
+    """One pass; True when the database-backed sweep worked."""
     pool = app.state.pool
     runtime = app.state.runtime
     try:
@@ -95,16 +117,26 @@ async def run_once(app: Any) -> None:
         ok = await _step("sweep", _sweep_containers(pool, runtime))
     if not ok:
         await _step("sweep_expired", _sweep_expired(runtime))
+    return ok
 
 
 async def loop(app: Any) -> None:
-    """Sweep on startup, then every LF_JANITOR_INTERVAL_S seconds, until cancelled."""
+    """Sweep on startup, then every LF_JANITOR_INTERVAL_S seconds, until cancelled.
+
+    While the database is unusable the retry delay starts at 2 s and doubles up to the interval.
+    """
+    _failing.clear()
+    backoff = 2.0
     while True:
+        healthy = False
         try:
-            await run_once(app)
+            healthy = await run_once(app)
         except Exception as exc:
             log.error("janitor pass failed (%s)", type(exc).__name__)
-        if app.state.pool is None:  # database not up yet: the first full sweep waits for it
-            await asyncio.sleep(2.0)
+        interval = max(1.0, admission.env_num("LF_JANITOR_INTERVAL_S", 60))
+        if healthy:
+            backoff = 2.0
+            await asyncio.sleep(interval)
         else:
-            await asyncio.sleep(max(1.0, admission.env_num("LF_JANITOR_INTERVAL_S", 60)))
+            await asyncio.sleep(min(backoff, interval))
+            backoff *= 2
