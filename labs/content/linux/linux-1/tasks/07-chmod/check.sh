@@ -13,10 +13,11 @@ mode() {
   o=${m#??}
 }
 
-if [ -f "$h/scripts/hello.sh" ] && mode "$h/scripts/hello.sh" && [ $((u % 2)) -eq 1 ]; then
+# A shell script runs only when its owner has x and r (the shell reads the file): u is 5 or 7.
+if [ -f "$h/scripts/hello.sh" ] && mode "$h/scripts/hello.sh" && [ $((u % 2)) -eq 1 ] && [ "$u" -ge 4 ]; then
   echo "PASS 1"
 else
-  echo "FAIL 1 the owner cannot run ~/scripts/hello.sh yet; the x permission is missing"
+  echo "FAIL 1 the owner cannot run ~/scripts/hello.sh yet; the x permission is missing (a script needs r as well)"
   rc=1
 fi
 
