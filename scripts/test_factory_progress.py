@@ -182,3 +182,40 @@ def test_publish_backs_off_after_a_failed_push(monkeypatch, tmp_path):
     with pytest.raises(fp.subprocess.TimeoutExpired):
         fp.cmd_publish(ns)
     assert len(calls) == 2
+
+
+def test_publish_force_pushes_the_final_state_inside_the_gap(monkeypatch, tmp_path):
+    calls, clock = [], [1000.0]
+    monkeypatch.setattr(fp.subprocess, "run", lambda *a, **k: calls.append(1))
+    monkeypatch.setattr(fp.time, "time", lambda: clock[0])
+    ns = type("A", (), {"key": str(tmp_path / "k"), "host": "h", "force": False, "min_age": None})
+    fp.main(["pass-start"])
+    assert fp.cmd_publish(ns) is True
+    fp.main(["pass-end"])
+    clock[0] += 3
+    assert fp.cmd_publish(ns) is False      # the normal gap would drop the pass-end
+    ns.force = True
+    assert fp.cmd_publish(ns) is True       # the runner's final push is forced
+    assert len(calls) == 2
+
+
+def test_publish_min_age_is_a_heartbeat_between_passes(monkeypatch, tmp_path):
+    calls, clock = [], [1000.0]
+    monkeypatch.setattr(fp.subprocess, "run", lambda *a, **k: calls.append(1))
+    monkeypatch.setattr(fp.time, "time", lambda: clock[0])
+    ns = type("A", (), {"key": str(tmp_path / "k"), "host": "h", "force": False, "min_age": 50.0})
+    fp.main(["pass-end"])
+    assert fp.cmd_publish(ns) is True
+    clock[0] += 30
+    assert fp.cmd_publish(ns) is False      # pushed 30 s ago (by a pass or a heartbeat): nothing to do
+    clock[0] += 25
+    assert fp.cmd_publish(ns) is True       # 55 s: unchanged content, still pushed so the page stays "online"
+    assert len(calls) == 2
+
+
+def test_publish_cli_accepts_force_and_min_age(monkeypatch, tmp_path):
+    seen = []
+    monkeypatch.setattr(fp, "cmd_publish", lambda a: seen.append((a.force, a.min_age)))
+    fp.main(["publish", "--key", "k", "--host", "h", "--force"])
+    fp.main(["publish", "--key", "k", "--host", "h", "--min-age", "50"])
+    assert seen == [(True, None), (False, 50.0)]

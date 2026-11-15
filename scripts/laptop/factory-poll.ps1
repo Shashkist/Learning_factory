@@ -22,11 +22,12 @@ $ServerHost  = 'root@207.154.193.238'
 $env:LF_PROGRESS_FILE = Join-Path $StateDir 'progress.jsonl'
 $HooksFile   = Join-Path $Main 'scripts/laptop/factory-hooks.json'   # live-view hooks, factory runs only (D28)
 $Progress    = if (Test-Path (Join-Path $Worktree 'scripts/factory_progress.py')) { Join-Path $Worktree 'scripts/factory_progress.py' } else { Join-Path $Main 'scripts/factory_progress.py' }
-function Publish-Live([string]$state = '', [string]$note = '') {
+function Publish-Live([string]$state = '', [string]$note = '', [switch]$Force) {
     # Best effort: never let the live view break the factory.
     try {
         if ($state) { & python $Progress runner-state --state $state --note $note 2>$null | Out-Null }
-        if (Test-Path $ProgressKey) { & python $Progress publish --key $ProgressKey --host $ServerHost 2>$null | Out-Null }
+        $extra = @(); if ($Force) { $extra = @('--force') }   # final state of a pass: never dropped by the 15 s gap
+        if (Test-Path $ProgressKey) { & python $Progress publish --key $ProgressKey --host $ServerHost @extra 2>$null | Out-Null }
     } catch {}
 }
 
@@ -173,7 +174,7 @@ Stop after about $PassMinutes minutes of work or 3 merged PRs, and update docs/f
     $tail = if (Test-Path $runLog) { (Get-Content $runLog -Tail 3) -join ' | ' } else { '(no output)' }
     Log "$result. last lines: $tail"
     & python $Progress pass-end --result $result 2>$null | Out-Null
-    Publish-Live
+    Publish-Live -Force
     if ((Test-Path $runLog) -and ((Get-Item $runLog).Length -eq 0)) {
         Notify 'Learning Factory: pass produced no output' "The last pass wrote nothing. Is Claude Code logged in? See $runLog" 'empty'
     }

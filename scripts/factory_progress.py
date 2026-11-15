@@ -276,7 +276,9 @@ def content_hash(live: dict) -> str:
 
 def cmd_publish(a: argparse.Namespace) -> bool:
     """Push live.json when its content changed (at most every MIN_GAP_S), or every HEARTBEAT_S as a
-    liveness signal; after a failure wait BACKOFF_S. State file: '<hash> <time>' or 'fail <time>'."""
+    liveness signal; after a failure wait BACKOFF_S. State file: '<hash> <time>' or 'fail <time>'.
+    --force pushes now (the final state of a pass must not be dropped by the gap); --min-age N is the
+    between-passes heartbeat: push iff the last push is at least N s old, whatever the content."""
     live = render(read_events())
     state = Path(a.key + ".last")
     h = content_hash(live)
@@ -284,10 +286,15 @@ def cmd_publish(a: argparse.Namespace) -> bool:
     try:
         last_h, last_t = state.read_text().split()
         age = now - float(last_t)
-        if last_h == "fail" and age < BACKOFF_S:
+        force, min_age = getattr(a, "force", False), getattr(a, "min_age", None)
+        if last_h == "fail" and age < BACKOFF_S and not force:
             return False
-        if last_h != "fail" and (age < MIN_GAP_S or (last_h == h and age < HEARTBEAT_S)):
-            return False
+        if last_h != "fail" and not force:
+            if min_age is not None:
+                if age < min_age:
+                    return False
+            elif age < MIN_GAP_S or (last_h == h and age < HEARTBEAT_S):
+                return False
     except (OSError, ValueError):
         pass
     data = json.dumps(live, ensure_ascii=False).encode("utf-8")
@@ -325,6 +332,8 @@ def main(argv: list[str] | None = None) -> int:
     pb = sub.add_parser("publish")
     pb.add_argument("--key", required=True)
     pb.add_argument("--host", required=True)
+    pb.add_argument("--force", action="store_true")
+    pb.add_argument("--min-age", type=float)
     try:
         a = p.parse_args(argv)
         if a.cmd == "add":
