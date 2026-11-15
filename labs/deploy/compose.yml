@@ -1,7 +1,10 @@
-# The lf-manager service. The deploy workflow copies this file to the server and runs
-#   docker compose -f compose.yml up -d
-# with LF_MANAGER_TAG, LF_NGINX_NETWORK and LF_TRUSTED_PROXY set in the environment and secrets
-# in /root/learning-factory/.env (installed by the owner, never by an agent).
+# The lf-manager service. .github/workflows/deploy.yml copies this file to the server, and
+# labs/deploy/deploy.sh runs
+#   docker compose -p learning-factory -f compose.yml up -d
+# with LF_MANAGER_TAG (a commit sha), LF_NGINX_NETWORK and LF_TRUSTED_PROXY exported. deploy.sh
+# also writes /root/learning-factory/.env (mode 600): LF_ID_SECRET is generated once on the
+# server, LF_DATABASE_URL comes from the production environment secret on ssh stdin. No agent
+# ever prints or reads those values.
 name: learning-factory
 
 services:

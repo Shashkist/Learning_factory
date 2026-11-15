@@ -18,7 +18,7 @@ The factory never waits on these. It works around them and comes back when they 
   gh secret set LF_DATABASE_URL -R Shashkist/Learning_factory
   ```
 - [ ] **O4 · (optional, skipped for now) Second-opinion reviewer.** `gh secret set OPENROUTER_API_KEY -R Shashkist/Learning_factory`. Without it, the cross-company PR review is skipped and the PRs say so.
-- [x] **O5 · (optional) Copy the labs nginx block** (done 2026-11-14 for the placeholder blocks; repeat when the factory changes them) from `labs/deploy/nginx/labs.conf` into `EMEW-AI/Digital Ocean/default.conf`, so that repo's copy matches the server (see D3).
+- [ ] **O5 · (optional) Copy the labs nginx block** (done 2026-11-14 for the placeholder blocks; **reopened 2026-11-15: #13 replaces the `labs` placeholder with the real block**; repeat when the factory changes them) from `labs/deploy/nginx/labs.conf` into `EMEW-AI/Digital Ocean/default.conf`, so that repo's copy matches the server (see D3).
 
 - [x] **O6 · Claude Code sign-in for the laptop runner** — **owner decision 2026-11-15: no long-lived token; the owner signs in again (`claude auth login`) when asked.** The current sign-in ends between 2026-11-20 and 2026-11-23. When a pass fails because the sign-in has expired, the runner shows a Windows alert "Learning Factory: sign in again" and the factory waits until then.
 - [ ] **O7 · (optional) GitHub Actions minutes.** The repo is private on the free plan: 2,000 Actions minutes a month for CI, deploys, smoke tests and the dashboard. The factory keeps the dashboard to push-to-main plus every 3 hours (D12), but a busy month of CI may still reach the limit, and then jobs stop until the month ends. Options: make the repo public (`gh repo edit Shashkist/Learning_factory --visibility public --accept-visibility-change-consequences`; check that nothing private is in it first, e.g. `courses/`), or set a spending limit in GitHub → Settings → Billing. Tell any session "O7: public" and the dashboard goes back to every 15 minutes.
@@ -40,6 +40,14 @@ The factory never waits on these. It works around them and comes back when they 
   gh secret delete LF_DATABASE_URL -R Shashkist/Learning_factory
   ```
   Until then nothing breaks. The factory verifies by behaviour (the next `DB check` run still connects), never by reading the value.
+
+- [ ] **O11 · Create the first admin, once, after the first successful deploy (#13).** The password is read from stdin and never appears on a command line or in a log. On the server (`ssh root@207.154.193.238`):
+  ```bash
+  docker exec -i lf-manager python -m app.cli create-admin <username>
+  ```
+  Type the password when prompted (or pipe it: `printf '%s\n' "$PW" | docker exec -i lf-manager python -m app.cli create-admin <username>`). To change it later add `--reset`. The deploy needs the production environment to hold `SSH_PRIVATE_KEY`, `SERVER_HOST`, `SERVER_USER`, `LF_DATABASE_URL` (O10) and the variable `SERVER_HOST_KEY`; without them it prints which are missing and does nothing.
+- [ ] **O12 · Back up `/root/learning-factory/.env` once (#13).** The first deploy generates `LF_ID_SECRET` there; every student ID hash depends on it, so losing the file locks every student out. Copy it somewhere private (e.g. `scp root@207.154.193.238:/root/learning-factory/.env ~/lf-env.backup`, mode 600). The factory never reads it.
+- [ ] **O13 · After recreating `nginx-proxy3`, re-run the Deploy workflow** (Actions → Deploy → Run workflow on `main`). The manager trusts nginx's address on the shared network as read at deploy time; a recreated nginx with a new address would make every client share one login rate-limit bucket until the next deploy.
 
 - [x] **O9 · What `lf_app` can reach through `PUBLIC`** — **handed to the manager by the owner (2026-11-15): issue #61.** The original note and query are kept below for the manager.
   The role sees tables only in `learning_factory`, but like every role it inherits `PUBLIC`'s rights: it can call functions in schema `public` and read the catalog. A `SECURITY DEFINER` function in `public` would run with its owner's rights. Check:

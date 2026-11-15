@@ -1,0 +1,117 @@
+name: Deploy
+
+# Deploys the lf-manager image that CI pushed for a commit on main to the shared server (#13, D34).
+# Runs after CI succeeded on main, or by hand with a commit sha (default: the branch head).
+# The server side is labs/deploy/deploy.sh. Secrets travel only on the ssh stdin, never in a
+# command line, never in a run script (values come through `env:`).
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Commit sha to deploy (its lf-manager image must exist). Empty: the head of the chosen branch."
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  packages: read
+
+# Shared with bootstrap.yml and server-smoke.yml (D30): nothing else touches the host meanwhile.
+concurrency:
+  group: server-lab-host
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # workflow_run: only a green CI for a push to main in this repository (never a PR run, never a fork).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
+          fetch-depth: 0
+      - name: Check the server access values
+        id: gate
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_HOST_KEY: ${{ vars.SERVER_HOST_KEY }}
+        run: |
+          missing=""
+          [ -n "$SSH_PRIVATE_KEY" ] || missing="$missing SSH_PRIVATE_KEY"
+          [ -n "$SERVER_HOST" ] || missing="$missing SERVER_HOST"
+          [ -n "$SERVER_USER" ] || missing="$missing SERVER_USER"
+          [ -n "$SERVER_HOST_KEY" ] || missing="$missing SERVER_HOST_KEY"
+          if [ -n "$missing" ]; then
+            echo "Deploy skipped, missing in the production environment:$missing"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Deploy to the server
+        if: steps.gate.outputs.ready == 'true'
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_HOST_KEY: ${{ vars.SERVER_HOST_KEY }}
+          LF_DATABASE_URL: ${{ secrets.LF_DATABASE_URL }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_SOURCE: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          tag="$TAG_SOURCE"
+          case "$tag" in
+            *[!0-9a-f]*|"") echo "not a commit sha: refusing to deploy" >&2; exit 1 ;;
+          esac
+          [ "${#tag}" = 40 ] || { echo "not a full commit sha: refusing to deploy" >&2; exit 1; }
+          # GITHUB_SHA is the head of main here (workflow_run: main's head when the event fired;
+          # dispatch: the head of the dispatched ref, which the production environment limits to main).
+          if [ "$tag" != "$GITHUB_SHA" ]; then
+            if [ "$EVENT_NAME" = workflow_run ]; then
+              # An older or re-run CI must never roll production back; the newer commit's run deploys.
+              echo "Deploy skipped: $tag is no longer the head of main ($GITHUB_SHA)"
+              exit 0
+            fi
+            # A manual sha must be a commit that is already on main (reviewed and merged code only).
+            git merge-base --is-ancestor "$tag" "$GITHUB_SHA"               || { echo "$tag is not on main: refusing to deploy" >&2; exit 1; }
+          fi
+          key="$RUNNER_TEMP/deploy_key"
+          umask 077
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$key"
+          printf '%s %s\n' "$SERVER_HOST" "$SERVER_HOST_KEY" > "$RUNNER_TEMP/known_hosts"
+          ssh_opts="-i $key -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$RUNNER_TEMP/known_hosts"
+          # One TCP connection for all commands (the server refuses bursts, incident #26).
+          ssh_opts="$ssh_opts -o ControlMaster=auto -o ControlPath=$RUNNER_TEMP/cm-%C -o ControlPersist=120"
+          server="$SERVER_USER@$SERVER_HOST"
+          dir=/root/learning-factory
+          for attempt in 1 2 3; do
+            ssh -n $ssh_opts "$server" "mkdir -p $dir/nginx" && break
+            if [ "$attempt" = 3 ]; then echo "ssh failed 3 times" >&2; exit 1; fi
+            sleep 20
+          done
+          scp $ssh_opts labs/deploy/deploy.sh labs/deploy/compose.yml "$server:$dir/"
+          scp $ssh_opts labs/deploy/nginx/labs.conf labs/deploy/nginx/factory.conf labs/deploy/nginx/install-block.sh "$server:$dir/nginx/"
+          # Secrets go on stdin only; the script reads NAME=value lines.
+          st=0
+          { printf 'GHCR_USER=%s\n' "$GHCR_USER"; printf 'GHCR_TOKEN=%s\n' "$GHCR_TOKEN"; \
+            if [ -n "$LF_DATABASE_URL" ]; then printf 'LF_DATABASE_URL=%s\n' "$LF_DATABASE_URL"; fi; } \
+            | ssh $ssh_opts "$server" "LF_MANAGER_TAG=$tag timeout 900 bash $dir/deploy.sh" || st=$?
+          exit "$st"
+      - name: Remove the SSH key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/deploy_key" "$RUNNER_TEMP/known_hosts"
