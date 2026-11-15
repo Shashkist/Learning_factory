@@ -108,7 +108,10 @@ def test_exec_output_is_capped_and_the_stream_still_drains():
 
     async def conn(r, w):
         await r.readuntil(b"\r\n\r\n")
-        w.write(b"HTTP/1.1 200 OK\r\n\r\n" + frames)
+        w.write(b"HTTP/1.1 200 OK\r\n\r\n")
+        await w.drain()
+        await r.read()  # the script, until the client closes its write side
+        w.write(frames)
         await w.drain()
         w.close()
 
