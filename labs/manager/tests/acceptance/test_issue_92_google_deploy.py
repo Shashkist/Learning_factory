@@ -14,7 +14,7 @@ Interface (D39):
   line per value that is still missing afterwards (the line names the variable, contains the word
   "skip", never a value) and carries on: a missing Google value is not a failed or skipped deploy;
 - deploy.yml: `LF_GOOGLE_CLIENT_ID` and `LF_GOOGLE_CLIENT_SECRET` from `secrets.*`,
-  `LF_ADMIN_EMAILS` from `vars.*`, in the deploy step's `env:`, sent on the ssh stdin.
+  `LF_ADMIN_EMAILS` from `secrets.*` only (#99: no `vars.*` fallback), in the deploy step's `env:`, sent on the ssh stdin.
 """
 import re
 
@@ -155,11 +155,12 @@ def _deploy_step() -> dict:
     pytest.fail("no step runs deploy.sh")
 
 
-def test_workflow_reads_secrets_for_the_id_and_secret_and_a_variable_for_the_allow_list():
+def test_workflow_reads_secrets_for_the_id_the_secret_and_the_allow_list():
     env = _deploy_step().get("env") or {}
     assert "secrets.LF_GOOGLE_CLIENT_ID" in str(env.get("LF_GOOGLE_CLIENT_ID")), env
     assert "secrets.LF_GOOGLE_CLIENT_SECRET" in str(env.get("LF_GOOGLE_CLIENT_SECRET")), env
-    assert "vars.LF_ADMIN_EMAILS" in str(env.get("LF_ADMIN_EMAILS")), env
+    assert "secrets.LF_ADMIN_EMAILS" in str(env.get("LF_ADMIN_EMAILS")), env
+    assert "vars." not in str(env.get("LF_ADMIN_EMAILS")), env  # #99: secrets only
 
 
 def test_workflow_still_keeps_expressions_out_of_run_scripts():
