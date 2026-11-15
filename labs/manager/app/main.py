@@ -9,7 +9,7 @@ from pathlib import Path
 import asyncpg
 from fastapi import FastAPI, Request
 
-from app import auth, db, janitor, sessions
+from app import auth, db, janitor, sessions, term_proxy
 from app.content import load_labs
 from app.runtime import DockerRuntime
 
@@ -102,6 +102,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="Learning Factory lab manager", lifespan=lifespan)
 app.include_router(auth.router)
 app.include_router(sessions.router)
+app.include_router(term_proxy.router)
 
 
 @app.get("/healthz")

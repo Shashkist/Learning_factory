@@ -23,6 +23,7 @@ from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
+from starlette.requests import HTTPConnection
 
 from app import db
 
@@ -213,7 +214,7 @@ def _group_ip(ip: str) -> str:
     return ip
 
 
-def client_ip(request: Request) -> str:
+def client_ip(request: HTTPConnection) -> str:
     """The socket peer; X-Forwarded-For (last hop) only when the peer is LF_TRUSTED_PROXY.
 
     IPv6 addresses are grouped by /64."""
@@ -245,7 +246,7 @@ def db_guard() -> Iterator[None]:
         raise HTTPException(503, "database unavailable") from None
 
 
-def _pool(request: Request) -> Any:
+def _pool(request: HTTPConnection) -> Any:
     pool = getattr(request.app.state, "pool", None)
     if pool is None:
         raise HTTPException(503, "database unavailable")
@@ -293,7 +294,7 @@ class Principal:
     subject: str  # student id_hash or admin username
 
 
-async def current_principal(request: Request) -> Principal:
+async def current_principal(request: HTTPConnection) -> Principal:
     """The logged-in student or admin; disabled/expired are re-checked on every call."""
     token = request.cookies.get(COOKIE)
     if not token:
