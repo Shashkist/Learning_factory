@@ -132,7 +132,7 @@ in force · factory · 2026-11-14
 ## D16 · Labs follow the final lesson plan; no AI-mode badges
 in force · **owner (course approved)** · 2026-11-14
 
-**Decision.** The course is final: `courses/multi-engineering/lesson-plan.md` (the PDFs in that folder are authoritative). 63 lessons in modules 0–6 (M0 1–4, M1 5–12, M2 13–22, M3 23–38, M4 39–48, M5 49–56, M6 57–63). Every lab carries `module` and `lesson` in `lab.yaml` (issue #5); Linux 1 is lesson 5 (#12). The course method is "understand with AI, then do with AI, then a 10–15 minute checkpoint without AI, plus a short no-AI practical exam at the end of each module". The 🟢🟡🔴 AI-mode badges are **not** a course rule and are not built. Self-practice is 50 h, split per module 2/6/10/14/8/6/4. That is a guide for how many labs each module needs (the planner uses it when slicing content issues).
+**Decision.** The course is final: `courses/multi-engineering/lesson-plan.md` (the PDFs in that folder are authoritative; since D43 the folder is kept outside the public repository, on the laptop at `C:\projects\lf-private\courses`). 63 lessons in modules 0–6 (M0 1–4, M1 5–12, M2 13–22, M3 23–38, M4 39–48, M5 49–56, M6 57–63). Every lab carries `module` and `lesson` in `lab.yaml` (issue #5); Linux 1 is lesson 5 (#12). The course method is "understand with AI, then do with AI, then a 10–15 minute checkpoint without AI, plus a short no-AI practical exam at the end of each module". The 🟢🟡🔴 AI-mode badges are **not** a course rule and are not built. Self-practice is 50 h, split per module 2/6/10/14/8/6/4. That is a guide for how many labs each module needs (the planner uses it when slicing content issues).
 **Revert.** Remove the fields from the lab format.
 
 ## D17 · #25 shipped; incident #26 fixed in the same PR
@@ -438,3 +438,16 @@ in force · factory · 2026-11-15
 **Why.** A task that cannot pass under the production runtime would block the whole lab. Ownership is still taught; only the root-only step waits.
 **Alternatives.** Wait for #47 (blocks #12); run the lab under runc (breaks the isolation guardrail); drop ownership (spec lists it).
 **Revert.** Replace the chgrp task with `sudo chown` once #47 is done and the image has sudo working.
+
+## D43 · The repository is public; history rewritten; course material kept outside it
+
+**Decision (owner, 2026-11-15).** `Shashkist/Learning_factory` is public, so GitHub-hosted Actions minutes are free (ends O7/O16, incident #96). The earlier private repository was renamed `Learning_factory-archive` and stays private: it keeps the old pull requests. The public repository was created from a rewritten history:
+- **Commit authors:** every author and committer is the owner's GitHub noreply address. The work e-mail is gone, along with the `Co-authored-by` trailers that carried it.
+- **Course material:** `courses/` was removed from all history and is now in `.gitignore`. The laptop copy is `C:\projects\lf-private\courses`.
+- **Wording:** mentions of the course partner and of the owner's employer were reworded.
+
+Issues were moved in number order, and closed placeholders took the numbers of the old pull requests, so every `#n` reference in docs, decisions and commit messages still points at the same item. Open PRs (#95, #100, #101) were re-opened under new numbers. The commit author for this repository is set to the noreply address in its local git config.
+**Why.** Free CI at the factory's pace (~900 min/day) without exposing private data. GitHub keeps every PR's head forever and a force-push cannot change it, so only a new repository is clean.
+**Alternatives.** A paid Actions budget, which keeps the repo private but costs money at this pace. A self-hosted runner, which is unsafe on a public repository: fork PRs would run on it. Making the old repository public, which would leak data through its PR refs.
+**Revert.** Make the repository private again (`gh repo edit --visibility private`). The archive repository holds the original history.
+**Rules from now on.** No course material, client names, employer material or personal e-mail addresses in the repository, issues or PRs. Fork PRs never get secrets: deploys run only in the `production` environment limited to `main`.

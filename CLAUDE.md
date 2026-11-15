@@ -19,7 +19,7 @@ labs/web/       React + Vite UI (student app, teacher dashboard), en/he
 labs/images/    lab container images (lf-lab-term, lf-lab-code)
 labs/content/   lab definitions (lab.yaml + tasks), one folder per lab
 labs/deploy/    compose file, nginx include, server bootstrap scripts
-courses/        course material (not built by the factory unless an issue says so)
+courses/        NOT in git (ignored, D43): course material lives outside the public repo. On the laptop: C:\projects\lf-private\courses (lesson plan: multi-engineering/lesson-plan.md)
 docs/           spec, factory docs, decisions
 ```
 
@@ -39,7 +39,7 @@ docs/           spec, factory docs, decisions
 - One issue = one branch `f/<issue>-<slug>` = one PR into `main`. Squash-merge when CI is green and the reviewer approved. Delete the branch.
 - Never push straight to `main`, except `docs/factory/*` state updates (journal commits), which go directly.
 - Before merging: `git log --oneline origin/main..HEAD`. Know exactly what you are shipping.
-- **The local checkout `C:\projects\Learning_factory` is shared with other sessions** (for example course work under `courses/`). Commit **by explicit path list only**, never `git add -A` or `git add .`. Read a file before overwriting it. A local factory run works in its own worktree `../Learning_factory-factory` on the local branch `factory` (following `origin/main`).
+- **The local checkout `C:\projects\Learning_factory` is shared with other sessions** (for example course work under the ignored `courses/` folder). Commit **by explicit path list only**, never `git add -A` or `git add .`. Read a file before overwriting it. A local factory run works in its own worktree `../Learning_factory-factory` on the local branch `factory` (following `origin/main`).
 - Commit messages: conventional (`feat(manager): ...`, `fix(web): ...`), with the issue number (`#12`).
 
 ## Verification commands
