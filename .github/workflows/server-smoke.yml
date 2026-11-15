@@ -1,10 +1,13 @@
 name: Server smoke
 
-# Read-only checks against the shared production server. Manual dispatch only.
+# Checks against the shared production server.
 # check=isolation runs labs/deploy/smoke/isolation.sh: throw-away lf-smoke-* containers on the
 # lab network prove that labs reach nothing but the manager's 7681 path (issue #3).
 # check=liveness runs labs/deploy/smoke/liveness.sh: a diagnostic of lab containers that exit after
 # a docker exec (throw-away lf-smoke-live-* containers, read-only otherwise).
+# check=terminal opens a real terminal through https://labs.shashkist.com as a synthetic smoke
+# student (issue #86, D36). It runs by hand, after every successful Deploy on main, and nightly.
+# The class password of the smoke student is generated per run and never stored.
 
 on:
   workflow_dispatch:
@@ -12,8 +15,13 @@ on:
       check:
         description: "Which smoke to run"
         type: choice
-        options: [isolation, liveness]
+        options: [isolation, liveness, terminal]
         default: isolation
+  workflow_run:
+    workflows: [Deploy]
+    types: [completed]
+  schedule:
+    - cron: "30 3 * * *"
 
 permissions:
   contents: read
@@ -26,42 +34,116 @@ concurrency:
 
 jobs:
   smoke:
+    # workflow_run: only a successful Deploy on main. Manual dispatch and schedule always run.
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 15
+    env:
+      # events without inputs (workflow_run, schedule) run the terminal check
+      CHECK: ${{ inputs.check || 'terminal' }}
     steps:
       - uses: actions/checkout@v4
-      - name: Run the smoke on the server
+      # Outside code (setup-python, pip) runs before the server key exists on the runner.
+      - uses: actions/setup-python@v5
+        if: env.CHECK == 'terminal'
+        with:
+          python-version: "3.12"
+      - name: Install the client dependency (hash-pinned)
+        if: env.CHECK == 'terminal'
+        run: python -m pip install --quiet --require-hashes --only-binary=":all:" -r labs/deploy/smoke/requirements.txt
+      - name: Configure SSH to the server
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
           SERVER_HOST_KEY: ${{ vars.SERVER_HOST_KEY }}
-          CHECK: ${{ inputs.check }}
         run: |
           if [ -z "$SSH_PRIVATE_KEY" ] || [ -z "$SERVER_HOST" ] || [ -z "$SERVER_USER" ] || [ -z "$SERVER_HOST_KEY" ]; then
             echo "deploy secrets or SERVER_HOST_KEY missing in the production environment" >&2
             exit 1
           fi
-          case "$CHECK" in isolation) script=labs/deploy/smoke/isolation.sh ;; liveness) script=labs/deploy/smoke/liveness.sh ;; *) echo "unknown check" >&2; exit 1 ;; esac
           key="$RUNNER_TEMP/smoke_key"
           umask 077
           printf '%s\n' "$SSH_PRIVATE_KEY" > "$key"
           printf '%s %s\n' "$SERVER_HOST" "$SERVER_HOST_KEY" > "$RUNNER_TEMP/known_hosts"
-          ssh_opts="-i $key -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$RUNNER_TEMP/known_hosts"
-          # One TCP connection for all commands (the server refuses bursts, incident #26).
-          ssh_opts="$ssh_opts -o ControlMaster=auto -o ControlPath=$RUNNER_TEMP/cm-%C -o ControlPersist=120"
-          dest=/root/lf-smoke/run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT
+          # One TCP connection for all commands of all steps (the server refuses bursts, incident #26).
+          {
+            echo "Host smoke"
+            echo "  HostName $SERVER_HOST"
+            echo "  User $SERVER_USER"
+            echo "  IdentityFile $key"
+            echo "  IdentitiesOnly yes"
+            echo "  BatchMode yes"
+            echo "  StrictHostKeyChecking yes"
+            echo "  UserKnownHostsFile $RUNNER_TEMP/known_hosts"
+            echo "  ControlMaster auto"
+            echo "  ControlPath $RUNNER_TEMP/cm-%C"
+            echo "  ControlPersist 600"
+          } > "$RUNNER_TEMP/ssh_config"
           for attempt in 1 2 3; do
-            ssh $ssh_opts "$SERVER_USER@$SERVER_HOST" "mkdir -p $dest" && break
+            ssh -F "$RUNNER_TEMP/ssh_config" smoke true && break
             if [ "$attempt" = 3 ]; then echo "ssh failed 3 times" >&2; exit 1; fi
             sleep 20
           done
-          scp $ssh_opts "$script" "$SERVER_USER@$SERVER_HOST:$dest/smoke.sh"
+      - name: Run the smoke on the server
+        if: env.CHECK != 'terminal'
+        run: |
+          case "$CHECK" in isolation) script=labs/deploy/smoke/isolation.sh ;; liveness) script=labs/deploy/smoke/liveness.sh ;; *) echo "unknown check" >&2; exit 1 ;; esac
+          cfg="$RUNNER_TEMP/ssh_config"
+          dest=/root/lf-smoke/run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT
+          ssh -F "$cfg" smoke "mkdir -p $dest"
+          scp -F "$cfg" "$script" "smoke:$dest/smoke.sh"
           st=0
-          ssh $ssh_opts "$SERVER_USER@$SERVER_HOST" "timeout 600 bash $dest/smoke.sh" || st=$?
-          ssh $ssh_opts "$SERVER_USER@$SERVER_HOST" "rm -rf $dest" || true
+          ssh -F "$cfg" smoke "timeout 600 bash $dest/smoke.sh" || st=$?
+          ssh -F "$cfg" smoke "rm -rf $dest" || true
           exit "$st"
+      - name: Enable the smoke student and open a terminal through the production path
+        id: client
+        if: env.CHECK == 'terminal'
+        run: |
+          # The per-run class password lives only in this step's shell: masked, sent on stdin to
+          # the manager, and given to the client in its own environment. Never stored.
+          class_pw=$(openssl rand -hex 24)
+          echo "::add-mask::$class_pw"
+          ssh -F "$RUNNER_TEMP/ssh_config" smoke "docker exec -i lf-manager python -m app.cli smoke-student" <<< "$class_pw"
+          set +e
+          sid=$(SMOKE_ID=990000000000000000000000000001 SMOKE_PASSWORD="$class_pw" python labs/deploy/smoke/terminal.py)
+          st=$?
+          set -e
+          case "$sid" in *[!0-9a-f-]*) sid="" ;; esac
+          echo "sid=$sid" >> "$GITHUB_OUTPUT"
+          if [ "$st" = 0 ] && [ -z "$sid" ]; then
+            echo "the client reported success but gave no session id" >&2
+            exit 1
+          fi
+          exit "$st"
+      - name: Check that the lab container is gone
+        if: always() && env.CHECK == 'terminal' && steps.client.outputs.sid != ''
+        env:
+          SESSION_ID: ${{ steps.client.outputs.sid }}
+        run: |
+          for i in $(seq 1 30); do
+            left=$(ssh -F "$RUNNER_TEMP/ssh_config" smoke "docker ps -aq --filter name=lab-$SESSION_ID")
+            if [ -z "$left" ]; then
+              echo "container lab-$SESSION_ID is gone"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "container lab-$SESSION_ID still exists after 30 s" >&2
+          exit 1
+      - name: Disable the smoke student
+        if: always() && env.CHECK == 'terminal'
+        run: |
+          if [ ! -f "$RUNNER_TEMP/ssh_config" ]; then
+            echo "ssh was never configured; nothing to disable"
+            exit 0
+          fi
+          ssh -F "$RUNNER_TEMP/ssh_config" smoke "docker exec lf-manager python -m app.cli smoke-student --disable" < /dev/null
       - name: Remove the SSH key
         if: always()
-        run: rm -f "$RUNNER_TEMP/smoke_key" "$RUNNER_TEMP/known_hosts"
+        run: rm -f "$RUNNER_TEMP/smoke_key" "$RUNNER_TEMP/known_hosts" "$RUNNER_TEMP/ssh_config"

@@ -1,0 +1,4 @@
+# The only dependency of terminal.py (#86). Installed with --require-hashes --only-binary :all:
+# on the ubuntu runner with Python 3.12 (x86_64). Hash from labs/manager/uv.lock (websockets 17.4,
+# cp312 manylinux x86_64 wheel); update both together.
+websockets==17.4 --hash=sha256:9ae1429ee9e52b139167ed0169757806a27ed7307e942e8c62037a9184e9843b
