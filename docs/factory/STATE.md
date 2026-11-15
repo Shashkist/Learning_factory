@@ -6,7 +6,7 @@ _Last updated: 2026-11-15 ~00:50 UTC, laptop pass lf-q4r8 (stopped at the 90-min
 
 ## Now
 
-- **Issue:** none claimed. No open feature PRs. (Leftover local branches `f/49-lifecycle-hardening`, `f/49-impl`, `f/50-bootstrap-safety` sit in agent worktrees under `C:\projects\Learning_factory\.claude\worktrees\`; they are merged, so delete them.)
+- **Issue:** none claimed. No open feature PRs.
 - **#3 is unblocked (`status:ready`), but still apply-gated:** #50 shipped (#52). The new server dry run of the merged script (run 43659490082) printed `BOOTSTRAP RESULT: dry run`: no daemon.json, runsc not installed (pinned 20260817.0 planned), dockerd `-H fd:// --containerd=...`, lock pre-check ok. Remaining for #3, in order:
   - (a) a fresh-context reviewer reads that dry-run log, and its verdict is recorded on #3;
   - (b) the apply run (`gh workflow run bootstrap.yml -f apply=true`);
