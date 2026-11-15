@@ -25,6 +25,8 @@ RUN rm -f /etc/dpkg/dpkg.cfg.d/excludes \
  && echo "${TTYD_SHA256}  /usr/local/bin/ttyd" | sha256sum -c - \
  && chmod 0755 /usr/local/bin/ttyd \
  && useradd --uid 1001 --create-home --home-dir /home/student --shell /bin/bash student \
+ && groupadd team \
+ && usermod -aG team student \
  && mkdir -p /var/log/lf \
  && chown root:root /var/log/lf \
  && chmod 0700 /var/log/lf

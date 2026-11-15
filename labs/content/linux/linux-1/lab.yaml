@@ -1,0 +1,116 @@
+id: linux-1
+title:
+  en: "Linux 1: navigation, files, permissions"
+  he: "לינוקס 1: ניווט, קבצים והרשאות"
+description:
+  en: Find your way around the file system, create, copy and find files, read a log, and learn who may do what with a file.
+  he: מתמצאים במערכת הקבצים, יוצרים, מעתיקים ומחפשים קבצים, קוראים קובץ לוג, ולומדים מי רשאי לעשות מה בכל קובץ.
+image: term
+time_limit_min: 45
+internet: false
+allow_domains: []
+sudo: false
+status: draft
+module: 1
+lesson: 5
+tasks:
+  - id: 01-pwd-ls
+    kind: quiz
+    question:
+      en: You opened a terminal and want to see the names of the files in the folder you are in. Which command do you type?
+      he: פתחתם טרמינל ורוצים לראות את שמות הקבצים בתיקייה שאתם נמצאים בה. איזו פקודה מקלידים?
+    options:
+      - en: pwd
+        he: pwd
+      - en: ls
+        he: ls
+      - en: cd
+        he: cd
+    correct: 1
+  - id: 02-directory-tree
+    kind: hands-on
+    checklist:
+      - en: The folder ~/projects/website exists
+        he: "התיקייה ‎~/projects/website‎ קיימת"
+      - en: The folder ~/projects/website/css exists
+        he: "התיקייה ‎~/projects/website/css‎ קיימת"
+      - en: The folder ~/projects/website/images exists
+        he: "התיקייה ‎~/projects/website/images‎ קיימת"
+  - id: 03-create-file
+    kind: hands-on
+    checklist:
+      - en: The file ~/notes/todo.txt exists
+        he: "הקובץ ‎~/notes/todo.txt‎ קיים"
+      - en: The first line contains the word linux
+        he: "השורה הראשונה מכילה את המילה ‎linux‎"
+      - en: The file has at least two lines
+        he: הקובץ כולל לפחות שתי שורות
+  - id: 04-copy-move
+    kind: hands-on
+    checklist:
+      - en: A copy of report.txt is in ~/backup
+        he: "עותק של ‎report.txt‎ נמצא בתיקייה ‎~/backup‎"
+      - en: The original report.txt is still in ~/inbox
+        he: "הקובץ המקורי ‎report.txt‎ עדיין בתיקייה ‎~/inbox‎"
+      - en: photo.txt was moved from ~/inbox to ~/pictures
+        he: "הקובץ ‎photo.txt‎ הועבר מ-‎~/inbox‎ אל ‎~/pictures‎"
+  - id: 05-find-file
+    kind: hands-on
+    checklist:
+      - en: The file ~/found.txt exists
+        he: "הקובץ ‎~/found.txt‎ קיים"
+      - en: found.txt holds the full path of secret-recipe.txt
+        he: "הקובץ ‎found.txt‎ מכיל את הנתיב המלא של ‎secret-recipe.txt‎"
+  - id: 06-grep-log
+    kind: hands-on
+    checklist:
+      - en: The file ~/errors.txt exists
+        he: "הקובץ ‎~/errors.txt‎ קיים"
+      - en: errors.txt has every ERROR line of the log
+        he: "הקובץ ‎errors.txt‎ מכיל את כל שורות ה-‎ERROR‎ של הלוג"
+      - en: errors.txt has only ERROR lines
+        he: "הקובץ ‎errors.txt‎ מכיל רק שורות ‎ERROR‎"
+  - id: 07-chmod
+    kind: hands-on
+    checklist:
+      - en: The owner can run ~/scripts/hello.sh
+        he: "הבעלים יכול להריץ את ‎~/scripts/hello.sh‎"
+      - en: Nobody except the owner can touch ~/secret.txt
+        he: "אף אחד חוץ מהבעלים לא יכול לגעת ב-‎~/secret.txt‎"
+      - en: The owner can still read and write ~/secret.txt
+        he: "הבעלים עדיין יכול לקרוא ולכתוב ב-‎~/secret.txt‎"
+  - id: 08-rwx-quiz
+    kind: quiz
+    question:
+      en: "`ls -l` shows the permissions -rwxr-x--- for a file. What can the group do with it?"
+      he: "הפקודה ‎ls -l‎ מציגה לקובץ את ההרשאות ‎-rwxr-x---‎. מה הקבוצה יכולה לעשות איתו?"
+    options:
+      - en: Read it and run it, but not change it
+        he: לקרוא אותו ולהריץ אותו, אבל לא לשנות אותו
+      - en: Read it, change it and run it
+        he: לקרוא אותו, לשנות אותו ולהריץ אותו
+      - en: Nothing at all
+        he: כלום
+    correct: 0
+  - id: 09-chgrp
+    kind: hands-on
+    checklist:
+      - en: The file ~/team-notes.txt exists
+        he: "הקובץ ‎~/team-notes.txt‎ קיים"
+      - en: The group of team-notes.txt is team
+        he: "הקבוצה של ‎team-notes.txt‎ היא ‎team‎"
+      - en: The owner of team-notes.txt is still student
+        he: "הבעלים של ‎team-notes.txt‎ הוא עדיין ‎student‎"
+  - id: 10-chown-quiz
+    kind: quiz
+    question:
+      en: Which sentence about chown, the command that changes the owner of a file, is true?
+      he: איזה משפט על chown, הפקודה שמשנה את הבעלים של קובץ, נכון?
+    options:
+      - en: It renames the file
+        he: היא משנה את שם הקובץ
+      - en: Every user can give their own files to someone else
+        he: כל משתמש יכול למסור את הקבצים שלו למישהו אחר
+      - en: Only root can change the owner; a normal user can only change the group of their own file
+        he: רק root יכול לשנות בעלים; משתמש רגיל יכול לשנות רק את הקבוצה של קובץ שלו
+    correct: 2
