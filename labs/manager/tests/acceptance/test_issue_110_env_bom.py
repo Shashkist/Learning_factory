@@ -14,7 +14,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
-BOM = "﻿"
+BOM = "\ufeff"  # U+FEFF, kept as an escape so it stays visible
 CLIENT_ID = "fake-client-110.example.test"
 CLIENT_SECRET = "fake-client-" + "secret-110"  # throwaway, never a real secret
 REDIRECT = "https://labs.example.test/auth/google/callback"
