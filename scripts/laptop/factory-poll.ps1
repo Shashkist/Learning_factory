@@ -56,6 +56,12 @@ if (Test-Path $Lock) {
     Remove-Item $Lock -Force
 }
 
+# A manager that outlived its runner (Stop-Job does not kill claude.exe) may still be working in the
+# worktree: never start a second one next to it.
+function Get-ManagerProcs { @(Get-CimInstance Win32_Process -Filter "Name='claude.exe'" | Where-Object { $_.CommandLine -like '*manager of the Learning Factory*' }) }
+$alive = Get-ManagerProcs
+if ($alive.Count -gt 0) { Log "skip: a manager is still running (pid $($alive.ProcessId -join ','))"; Publish-Live; exit 0 }
+
 # One-time owner notification when the observability page goes live (owner request, 2026-11-14).
 $DashFlag = Join-Path $StateDir 'dashboard-notified'
 if (-not (Test-Path $DashFlag)) {
@@ -142,10 +148,18 @@ Stop after about $PassMinutes minutes of work or 3 merged PRs, and update docs/f
         & $claude -p $p --model $model --permission-mode auto @extra *>&1 | Out-File -Encoding utf8 $out
     } -ArgumentList $Worktree, $Claude, $Model, $prompt, $runLog, $env:LF_PROGRESS_FILE, $HooksFile
     $result = 'done'
-    $deadline = (Get-Date).AddMinutes($PassMinutes + 20)
-    while ($job.State -eq 'Running' -and (Get-Date) -lt $deadline) { Publish-Live; Start-Sleep -Seconds 5 }   # publish skips unchanged content
+    # The limit counts awake time only: a gap of more than a minute between two ticks means the laptop
+    # slept, and that time is not charged to the pass (a night of sleep used to "time out" a working pass).
+    $limit = [TimeSpan]::FromMinutes($PassMinutes + 20); $awake = [TimeSpan]::Zero; $tick = Get-Date
+    while ($job.State -eq 'Running' -and $awake -lt $limit) {
+        Publish-Live; Start-Sleep -Seconds 5                                      # publish skips unchanged content
+        $now = Get-Date; $gap = $now - $tick; $tick = $now
+        if ($gap.TotalSeconds -lt 60) { $awake += $gap }
+    }
     if ($job.State -eq 'Running') {
-        Stop-Job $job; $result = 'timeout'; Log 'stopped: pass exceeded its time limit'
+        Stop-Job $job
+        foreach ($p in Get-ManagerProcs) { & taskkill.exe /PID $p.ProcessId /T /F 2>$null | Out-Null }   # Stop-Job leaves claude.exe running
+        $result = 'timeout'; Log 'stopped: pass exceeded its time limit'
         Notify 'Learning Factory: pass timed out' "A pass ran longer than $($PassMinutes + 20) min and was stopped. See $runLog" 'timeout'
     }
     Remove-Job $job -Force
