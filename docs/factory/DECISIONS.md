@@ -429,4 +429,12 @@ in force · factory · 2026-11-15
 **Decision.** From 2026-11-15 15:31 UTC GitHub refuses every job (incident #96, owner item O16). Until a job runs again, a pass (1) starts no runs on purpose (they are refused anyway), (2) does work that needs no CI: exams, code, local unit tests, lint, types, review rounds on open PRs, content checked by the local validator, (3) pushes branches and opens PRs, but merges nothing and deploys nothing. STATE.md lists those PRs as "waiting for CI". The first pass after O16 is ticked re-runs the last main CI, then takes the open PRs in order, one CI at a time.
 **Why.** Rule 5 and FACTORY.md: no merge without green CI; the Postgres and gVisor exams run only in CI, so a local green is not enough. Local work keeps the queue moving at no minute cost.
 **Alternatives.** Stop the factory until the owner acts (wastes the passes); merge on local evidence only (breaks rule 5; the Postgres and gVisor exams would not have run).
-**Revert.** Delete this entry once O16 is ticked and main CI is green again. Minute use (cheaper CI triggers, path filters, dashboard cadence) is worth its own issue then.
+**Revert.** Delete this entry once O16 is ticked and main CI is green again. Minute use (cheaper CI triggers, path filters, dashboard cadence) is worth its own issue then (#98).
+
+## D42 · #12 Linux 1: the ownership task needs no sudo until #47 ships
+in force · factory · 2026-11-15
+
+**Decision.** Sudo does not work under gVisor (D26, #47), so #12's "change ownership (sudo task)" becomes two tasks without root: a hands-on task where the student reads ownership with `ls -l` and changes the **group** of their own file to a group they belong to (`chgrp`, allowed without root when the user is a member; the setup creates the group membership in the image or picks the student's primary group plus one supplementary group that `lf-lab-term` already has), and a quiz on what `chown` would need (root) and what `ls -l` columns mean. The lab stays `sudo: false`. When #47 ships, a later content issue may add a real `sudo chown` task.
+**Why.** A task that cannot pass under the production runtime would block the whole lab. Ownership is still taught; only the root-only step waits.
+**Alternatives.** Wait for #47 (blocks #12); run the lab under runc (breaks the isolation guardrail); drop ownership (spec lists it).
+**Revert.** Replace the chgrp task with `sudo chown` once #47 is done and the image has sudo working.
