@@ -6,7 +6,7 @@ _Last updated: 2026-11-15 ~14:10 UTC, laptop pass lf-c7d42 (12:36-14:10 UTC; sto
 
 ## Now
 
-- **Pass lf-c7d42 stopped.** No claims held. **Open: PR #91** (#90, D38) on `f/90-smoke-in-deploy`: exam 2b4f1a0 + code f132977, pushed, CI started at 14:08; **not yet reviewed**.
+- **Pass lf-a3f81 running (from ~14:30 UTC).** Claims: #90 (PR #91, CI green, reviewer round 1 running) and #92 (D39; exam being written on `f/92-google-admin`, worktree `C:\projects\lf-92`).
 - **Production is live:** `lf-manager:d3e69a2` (or newer: every green main CI deploys) at https://labs.shashkist.com. **Live terminal smoke green** (run 43719981589: login, lab `hello`, `echo hi` → `hi`, container gone, smoke student disabled).
 - **Known risk until #91 merges:** every Deploy queues a `Server smoke` run that can cancel a pending Deploy (D30 group) or go red after a stale-sha skip (seen: run 43719795462, a false red). If production is behind main, dispatch Deploy on main.
 - **Next session starts at:** Next 1.
