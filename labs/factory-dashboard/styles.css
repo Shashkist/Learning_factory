@@ -117,3 +117,42 @@ a:hover { text-decoration: underline; }
 
 #spark svg { width: 100%; height: 64px; display: block; }
 #spark rect { fill: var(--spark); }
+
+/* Live section */
+[hidden] { display: none !important; }
+.live-offline { color: var(--bad); font-weight: 600; margin: 0 0 8px; }
+.live-runner { font-weight: 600; color: var(--brand); margin-bottom: 10px; }
+.live-line {
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; align-items: start;
+}
+@media (max-width: 720px) {
+  .live-line { grid-template-columns: 1fr; }
+}
+.live-station {
+  display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 8px;
+  border: 1px solid var(--border); border-radius: 10px; overflow-wrap: anywhere;
+}
+.live-issue { font-size: .875rem; color: var(--text-muted); }
+.live-agent {
+  background: var(--brand-soft); border: 1px solid var(--brand); border-radius: 8px; padding: 8px;
+  font-size: .875rem;
+}
+.live-agent[data-state="done"], .live-agent[data-state="ended"] { opacity: .55; }
+.live-agent[data-state="failed"], .live-agent[data-state="stopped"] { border-color: var(--bad); }
+.live-steps { list-style: none; margin: 6px 0 0; padding: 0; }
+.live-workers { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.live-worker {
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px; min-width: 140px; font-size: .875rem;
+}
+.live-worker[data-state="finished"] { opacity: .55; }
+.live-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--border); }
+.live-worker[data-state="busy"] .live-dot { background: var(--ok); animation: live-pulse 1.2s ease-in-out infinite; }
+.live-worker[data-state="waiting"] .live-dot { background: var(--warn); }
+.live-worker[data-state="thinking"] .live-dot { background: var(--accent); }
+@keyframes live-pulse {
+  50% { opacity: .3; }
+}
+.live-spark svg { width: 100%; height: 24px; display: block; }
+.live-spark rect { fill: var(--spark); }
+.live-log { margin-top: 12px; font-size: .8125rem; max-height: 320px; overflow-y: auto; }
+.live-row { padding: 3px 0; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
