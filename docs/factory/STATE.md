@@ -2,31 +2,34 @@
 
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
-_Last updated: 2026-11-15 ~17:35 UTC, laptop pass lf-m7k2 (from ~16:55 UTC)._
+_Last updated: 2026-11-15 ~18:50 UTC, laptop pass lf-m7k2 (16:55–~19:00 UTC)._
 
 ## Now
 
-- **LINE DOWN: GitHub Actions refuses every job since 15:31 UTC (minutes used up; incident #96, owner item O16, D41).** No CI, no merges, no deploys until the owner acts or 2026-12-01. Work locally, push branches, open PRs, merge nothing. 1,860 min went mostly to CI on main pushes (886, mostly docs-only state commits) and PR runs (681); #98 cuts it.
-- **Pass lf-m7k2 running.** Claims: #92 (`f/92-google-admin`, worktree `C:\projects\lf-92`, finishing round-1 fixes for PR #95) and #98 (`f/98-ci-minutes`, worktree `C:\projects\lf-98`, exam being written).
-- **Production is live:** `lf-manager:727928c` (or newer: every green main CI deploys) at https://labs.shashkist.com. Deploy run 43727774792 ran the terminal smoke inside the Deploy run, green.
-- **Known gap (D40):** a Deploy cancelled by a manual bootstrap or the nightly gate race is not noticed; the next push deploys again. Fix is in #85.
-- **Next session starts at:** Next 1.
+- **LINE DOWN: GitHub Actions refuses every job since 15:31 UTC (minutes used up; incident #96, owner item O16, D41).** No CI, no merges, no deploys until the owner ticks O16 or 2026-12-01. Work locally, push branches, open PRs, merge nothing. 1,860 min went mostly to CI on main pushes (886, mostly docs-only state commits) and PR runs (681); **#98 (PR #100) cuts it: merge it first when CI is back.**
+- **Batch state commits** (each push to main still runs full CI until #100 merges): one per loop step.
+- **Production is live:** `lf-manager:727928c` at https://labs.shashkist.com (unchanged since CI stopped).
+- **Known gap (D40):** a cancelled Deploy is not noticed; fix in #85.
+- **Next session starts at:** check O16. Not ticked → Next 3 (local work). Ticked → Next 1.
 
 ## Next (in order)
 
-- **Recovered work (owner session, 2026-11-15 15:40 UTC):** pass 9's subagent "Fix PR #95 review round 1" was stopped by headless Claude's 10-minute background-task ceiling (the runner now disables it). Its round-1 fixes are **uncommitted in `C:/projects/lf-92`** (branch `f/92-google-admin`, 7 files: deploy.yml, auth.py, cli.py, google_auth.py, main.py, test_google_auth.py, Admin.test.tsx). Review that diff against the round-1 findings, finish it, then push for round 2; do not start the fixes over. O15 is done (allow-list is now a secret).
-1. **PR #95** (#92, D39): CI (the 40 Postgres exam tests run only there) → `reviewer` (fresh) → merge → live check: `/api/auth/admin/methods` says `google: true` (proves the three values reached `.env`), `/auth/google/start` answers a redirect to accounts.google.com with the configured redirect URI. A real sign-in waits on O14. Close #92.
-2. **#9** task engine slice 1 (D37: runner, task API, setup and navigation), then **#88** (check, quiz), **#89** (completion, fast flag); **#11** teacher UI (note on #11: `lf-smoke` cohort reserved and hidden), **#10** student UI (#12 content can run in parallel).
-3. **#85** deploy follow-ups (p2; now also owns "a cancelled Deploy is noticed", requirements in its comments, D40), **#94** smoke exam/secrets follow-ups, **#93** trusted proxy.
-4. p2: #81, #76, #67, #69, #64, #68, #54, #55, #56, #47, #44, #21, #15, #14 (the shared certificate already covers labs, D11; check what #14 still needs). Keep at least 5 issues `status:ready`.
+1. **When CI runs again** (O16 ticked or 2026-12-01): re-run main CI (`gh run rerun` on the newest main CI run); then **PR #100** (#98) CI → merge → check that the next docs-only push to main starts no CI and that a code push deploys; then **PR #95** (#92, approved in round 2, D39) CI (the 40 Postgres exam tests run only there) → merge → live check: `/api/auth/admin/methods` says `google: true`, `/auth/google/start` redirects to accounts.google.com with the configured redirect URI; the owner does the first real sign-in. Then the #12 PR. One CI at a time. Close #96 with the first green main run.
+2. **PR #100 review:** round 1 was running at the end of pass lf-m7k2 (reviewer resumed after a stall). If no verdict is recorded on PR #100, dispatch a fresh `reviewer` (round 1). Claim #98 held by lf-m7k2 (worktree `C:\projects\lf-98`).
+3. **#12 Linux 1 content** (claim lf-m7k2, branch `f/12-linux-1`, worktree `C:\projects\lf-12`): exam 7031b43 (39 non-docker + 36 docker tests; D42: chgrp task, image gets a supplementary group). The implementer was running at the end of the pass: check `git -C C:/projects/lf-12 log --oneline -3` and `git status`; committed → push, open PR, reviewer; uncommitted → review the diff against the exam and finish it (do not start over). Docker tests run only in CI.
+4. Local-only work while CI is down: **#99** (Google sign-in follow-ups; exam change first), **#9** task engine slice 1 (D37), then **#88**, **#89**; **#11** teacher UI, **#10** student UI.
+5. **#85** deploy follow-ups (p2; overlaps #98's docs-only deploy fix: re-read after #100 merges), **#94**, **#93**; p2 list: #81, #76, #67, #69, #64, #68, #54, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
 
+- **O16 (new, blocks every merge and deploy):** Actions minutes used up; spending limit, public repo, or wait for 2026-12-01 (incident #96).
 - O1–O3 done (DNS `labs` and `factory`, deploy secrets, database role). O4 (OpenRouter) skipped by choice.
 - O6 closed: no token; the owner signs in again when the runner alerts (sign-in ends 2026-11-20..23). O8 done (deploy secrets only in the `production` environment).
 - O9 decided by the manager: D31 (#61). **O10 open:** move `LF_DATABASE_URL` into the `production` environment. **New: O11** (create the first admin), **O12** (back up `/root/learning-factory/.env`), **O13** (re-deploy after recreating nginx-proxy3); **O5 reopened** (copy the real `labs` block to the EMEW-AI repo).
 
 ## Recently done
+
+- 2026-11-15 · Pass lf-m7k2 (no merges, CI down #96): found the cause of the red line (Actions minutes, O16, D41); measured where the minutes go and built #98 (PR #100: exam + code, local 21/21); finished #95 round-1 fixes (5ed0a30), round 2 approved, nits → #99; #12 exam (D42).
 
 - 2026-11-15 · #90 shipped in #91 (2 review rounds, D38 amended, D40): the terminal smoke runs as a job inside the Deploy run, only after `deploy.sh` printed `deployed <tag>`; nightly/manual runs check for a pending Deploy first. Live: Deploy run 43727774792 (smoke job green), stale-sha Deploy 43727169484 ran no smoke. An automatic re-dispatch of cancelled Deploys was removed in round 2 and moved to #85. Follow-ups #94.
 

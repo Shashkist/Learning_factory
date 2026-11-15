@@ -170,3 +170,8 @@ The free 2,000 Actions minutes ran out mid-afternoon, and GitHub refused every j
 4. Stream the five files over one SSH connection with `tar | ssh`, then do the same `mv` from `.incoming` that the workflow does.
 
 The lab app itself stays blocked. Its exam needs Linux and gVisor, which a Windows laptop can't stand in for.
+
+## The factory audits its own bill (2026-11-15)
+After the minutes ran out, the manager pass did not just file an owner ticket. It pulled 737 workflow runs from the API, re-billed every job the way GitHub does (rounded up per job), and found the surprise: **the factory's own bookkeeping was the biggest cost**. 886 of ~1,860 minutes were full CI runs (gVisor docker job included) started by docs-only state commits to `main`. The fix became issue #98, which got the same treatment as any feature: exam first (21 tests, including a throwaway git repo that proves "code commit, then a docs commit, still deploys the code"), then code, then a fresh-context review. All of it was done with zero CI minutes, and it waits to be merged first once CI is back.
+Tip: when an autonomous loop hits a budget wall, ask it to measure before it asks for more budget. The owner's O16 now says what a factory day costs (~900 min, ~$5) and what the fix saves.
+
