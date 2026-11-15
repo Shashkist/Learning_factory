@@ -10,7 +10,7 @@ import asyncpg
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 
-from app import auth, db, janitor, sessions, term_proxy
+from app import auth, db, google_auth, janitor, sessions, term_proxy
 from app.content import load_labs
 from app.runtime import DockerRuntime
 
@@ -70,6 +70,7 @@ async def _retry_db(app: FastAPI, dsn: str) -> None:
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Only the manager's own logger: never turn on INFO for every library.
     log.setLevel(logging.INFO)
+    google_auth.install_log_filter()
     if not log.handlers and not logging.getLogger().handlers:
         log.addHandler(logging.StreamHandler())
     app.state.pool = None
@@ -109,6 +110,7 @@ app = FastAPI(
     openapi_url="/openapi.json" if _DOCS else None,
 )
 app.include_router(auth.router)
+app.include_router(google_auth.router)
 app.include_router(sessions.router)
 app.include_router(term_proxy.router)
 

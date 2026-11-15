@@ -193,11 +193,11 @@ class RateLimiter:
                     self._drop(k)
 
 
-def _env_limit(name: str) -> int:
+def _env_limit(name: str, default: int = MAX_FAILURES) -> int:
     try:
-        return max(1, int(os.environ.get(name, MAX_FAILURES)))
+        return max(1, int(os.environ.get(name, default)))
     except ValueError:
-        return MAX_FAILURES
+        return default
 
 
 limiter = RateLimiter()
@@ -226,6 +226,39 @@ def client_ip(request: HTTPConnection) -> str:
         if hops:
             return _group_ip(hops[-1])
     return _group_ip(peer)
+
+
+# ---------------------------------------------------------------- google admin config (D39)
+
+
+@dataclass(frozen=True)
+class GoogleConfig:
+    client_id: str
+    client_secret: str
+    emails: frozenset[str]
+    redirect_uri: str
+
+
+def google_config() -> GoogleConfig | None:
+    """Configured means client id, client secret and a non-empty admin allow-list are all set."""
+    cid = os.environ.get("LF_GOOGLE_CLIENT_ID", "").strip()
+    secret = os.environ.get("LF_GOOGLE_CLIENT_SECRET", "").strip()
+    emails = frozenset(
+        e.strip().lower()
+        for e in os.environ.get("LF_ADMIN_EMAILS", "").split(",")
+        if e.strip() and e.isascii()
+    )
+    if not (cid and secret and emails):
+        return None
+    redirect = os.environ.get("LF_GOOGLE_REDIRECT_URI", "").strip()
+    return GoogleConfig(
+        cid, secret, emails, redirect or "https://labs.shashkist.com/auth/google/callback"
+    )
+
+
+def password_login_allowed() -> bool:
+    """Admin password login: on unless Google is configured, then only with the break-glass flag."""
+    return google_config() is None or os.environ.get("LF_ADMIN_PASSWORD_LOGIN") == "1"
 
 
 # ---------------------------------------------------------------- sessions
@@ -309,6 +342,10 @@ async def current_principal(request: HTTPConnection) -> Principal:
         if row is None:
             raise HTTPException(401, "not_authenticated")
         if row["kind"] == "admin":
+            if row["subject"].startswith("google:"):  # no admins row; only while Google is on
+                if google_config() is None:
+                    raise HTTPException(401, "not_authenticated")
+                return Principal("admin", "admin", row["subject"])
             exists = await pool.fetchval(
                 f"select 1 from {T}.admins where username = $1", row["subject"]
             )
@@ -391,9 +428,11 @@ async def login(body: StudentLogin, request: Request, response: Response) -> dic
 
 @router.post("/admin/login")
 async def admin_login(body: AdminLogin, request: Request, response: Response) -> dict[str, str]:
+    if not password_login_allowed():
+        raise HTTPException(403, "password_login_disabled")
     pool = _pool(request)
     name = body.username
-    valid = bool(name) and len(name) <= MAX_USERNAME_LEN and name.isprintable()
+    valid = bool(name) and len(name) <= MAX_USERNAME_LEN and name.isprintable() and ":" not in name
     keys = (
         (f"ip:{client_ip(request)}", _env_limit("LF_LOGIN_IP_LIMIT")),
         (f"admin:{name}" if valid else "", _env_limit("LF_LOGIN_ID_LIMIT")),

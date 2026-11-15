@@ -72,6 +72,10 @@ jobs:
           SERVER_USER: ${{ secrets.SERVER_USER }}
           SERVER_HOST_KEY: ${{ vars.SERVER_HOST_KEY }}
           LF_DATABASE_URL: ${{ secrets.LF_DATABASE_URL }}
+          LF_GOOGLE_CLIENT_ID: ${{ secrets.LF_GOOGLE_CLIENT_ID }}
+          LF_GOOGLE_CLIENT_SECRET: ${{ secrets.LF_GOOGLE_CLIENT_SECRET }}
+          # a secret is masked in the run log, a variable is printed in clear: prefer the secret
+          LF_ADMIN_EMAILS: ${{ secrets.LF_ADMIN_EMAILS || vars.LF_ADMIN_EMAILS }}
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_SOURCE: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
@@ -114,7 +118,9 @@ jobs:
           set -o pipefail
           st=0
           { printf 'GHCR_USER=%s\n' "$GHCR_USER"; printf 'GHCR_TOKEN=%s\n' "$GHCR_TOKEN"; \
-            if [ -n "$LF_DATABASE_URL" ]; then printf 'LF_DATABASE_URL=%s\n' "$LF_DATABASE_URL"; fi; } \
+            if [ -n "$LF_DATABASE_URL" ]; then printf 'LF_DATABASE_URL=%s\n' "$LF_DATABASE_URL"; fi; \
+            for n in LF_GOOGLE_CLIENT_ID LF_GOOGLE_CLIENT_SECRET LF_ADMIN_EMAILS; do \
+              v=${!n}; if [ -n "$v" ]; then printf '%s=%s\n' "$n" "$v"; fi; done; } \
             | ssh $ssh_opts "$server" "LF_MANAGER_TAG=$tag timeout 900 bash $dir/deploy.sh" \
             | tee "$RUNNER_TEMP/deploy.out" || st=$?
           [ "$st" = 0 ] || exit "$st"

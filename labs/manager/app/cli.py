@@ -1,4 +1,8 @@
-"""Admin CLI: python -m app.cli create-admin <username> [--reset]. Password via stdin only."""
+"""Admin CLI: python -m app.cli create-admin <username> [--reset]. Password via stdin only.
+
+create-admin is break-glass: when Google sign-in is configured (D39) the password login it
+feeds is refused unless LF_ADMIN_PASSWORD_LOGIN=1 is set for the manager.
+"""
 import argparse
 import asyncio
 import datetime as dt
@@ -112,8 +116,8 @@ def main(argv: list[str] | None = None) -> int:
         print("LF_DATABASE_URL is not set", file=sys.stderr)
         return 1
     name = args.username
-    if not name or len(name) > auth.MAX_USERNAME_LEN or not name.isprintable():
-        print("username must be 1-64 printable characters", file=sys.stderr)
+    if not name or len(name) > auth.MAX_USERNAME_LEN or not name.isprintable() or ":" in name:
+        print("username must be 1-64 printable characters, no colon", file=sys.stderr)
         return 1
     password = _read_password()
     if len(password) < 8:
