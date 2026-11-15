@@ -2,19 +2,21 @@
 
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
-_Last updated: 2026-11-15 ~12:25 UTC, laptop pass lf-b3e19 (10:40-12:25 UTC; stopped at the time limit: #80 and #83 merged, #13 deployed live)._
+_Last updated: 2026-11-15 ~14:10 UTC, laptop pass lf-c7d42 (12:36-14:10 UTC; stopped at the time limit: #87 merged and proven live, PR #91 open)._
 
 ## Now
 
-- **Pass lf-c7d42 (laptop, from 12:36 UTC) works #86** on `f/86-live-terminal-smoke` (D36: synthetic smoke student, client on a runner). Step: exam.
-- **Production is live:** `lf-manager:2b33cf3` at https://labs.shashkist.com (healthz ok, database ok). Every green CI on main now deploys its own sha (Deploy workflow, D34), including state-only commits (#85 will skip those).
+- **Pass lf-c7d42 stopped.** No claims held. **Open: PR #91** (#90, D38) on `f/90-smoke-in-deploy`: exam 2b4f1a0 + code f132977, pushed, CI started at 14:08; **not yet reviewed**.
+- **Production is live:** `lf-manager:d3e69a2` (or newer: every green main CI deploys) at https://labs.shashkist.com. **Live terminal smoke green** (run 43719981589: login, lab `hello`, `echo hi` → `hi`, container gone, smoke student disabled).
+- **Known risk until #91 merges:** every Deploy queues a `Server smoke` run that can cancel a pending Deploy (D30 group) or go red after a stale-sha skip (seen: run 43719795462, a false red). If production is behind main, dispatch Deploy on main.
 - **Next session starts at:** Next 1.
 
 ## Next (in order)
 
-1. **#86** live terminal smoke through the production path (p1; needed before #10 ships). Then **#9** task engine, **#11** teacher UI, **#10** student UI (#12 content can run in parallel).
-2. **#85** deploy follow-ups (p2, includes the two round-2 notes in its comments: skip the migrations-line check when the container was not recreated; move the stale-sha skip into the job `if`).
-3. p2: #81, #76, #67, #69, #64, #68, #54, #55, #56, #47, #44, #21, #15, #14 (the shared certificate already covers labs, D11; check what #14 still needs). Keep at least 5 issues `status:ready`.
+1. **PR #91** (#90): CI result → `reviewer` (fresh) → merge → check that the **Deploy run itself** shows the `smoke` job green after a real deploy, and that a Deploy that skips a stale sha runs no smoke. Close #90 with that evidence. The #13 exam file hangs on Windows Git Bash (`test_database_url_from_stdin_is_written_and_kept_when_stdin_is_empty`); CI on Linux is the judge.
+2. **#9** task engine slice 1 (D37: runner, task API, setup and navigation), then **#88** (check, quiz), **#89** (completion, fast flag); **#11** teacher UI (note on #11: `lf-smoke` cohort reserved and hidden), **#10** student UI (#12 content can run in parallel).
+3. **#85** deploy follow-ups (p2, includes the two round-2 notes in its comments: skip the migrations-line check when the container was not recreated; move the stale-sha skip into the job `if`).
+4. p2: #81, #76, #67, #69, #64, #68, #54, #55, #56, #47, #44, #21, #15, #14 (the shared certificate already covers labs, D11; check what #14 still needs). Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
 
@@ -23,6 +25,8 @@ _Last updated: 2026-11-15 ~12:25 UTC, laptop pass lf-b3e19 (10:40-12:25 UTC; sto
 - O9 decided by the manager: D31 (#61). **O10 open:** move `LF_DATABASE_URL` into the `production` environment. **New: O11** (create the first admin), **O12** (back up `/root/learning-factory/.env`), **O13** (re-deploy after recreating nginx-proxy3); **O5 reopened** (copy the real `labs` block to the EMEW-AI repo).
 
 ## Recently done
+
+- 2026-11-15 · #86 Live terminal smoke shipped in #87 (exam first, 2 review rounds, D36): `app.cli smoke-student` (synthetic `lf-smoke` cohort, per-run password on stdin), `labs/deploy/smoke/terminal.py` (runner → https://labs.shashkist.com → nginx → Docker DNS `lab-<uuid>` → ttyd), `server-smoke.yml` `terminal` check after Deploy and nightly. Live run 43719981589 green on `lf-manager:d3e69a2`. Review leftovers → #90 (PR #91), note on #11. #9 sliced into #9/#88/#89 (D37).
 
 - 2026-11-15 · #13 Deploy shipped in #83 (exam, code, review round 1 fixes: main-only shas, private registry login, skip without DB URL; round 2 approved). Deploy run 43712703642: `lf-manager:2b33cf3` live, migrations 001-003 applied against Supabase, `labs` + `factory` nginx blocks installed (`nginx -t` ok). Verified from outside: healthz, `/api/health` database ok, UI with noindex, `/live.json` no-cache. Follow-ups #85, #86. #72 closed after #80 (main CI 43706527875).
 
