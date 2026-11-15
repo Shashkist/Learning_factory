@@ -74,8 +74,8 @@ jobs:
           LF_DATABASE_URL: ${{ secrets.LF_DATABASE_URL }}
           LF_GOOGLE_CLIENT_ID: ${{ secrets.LF_GOOGLE_CLIENT_ID }}
           LF_GOOGLE_CLIENT_SECRET: ${{ secrets.LF_GOOGLE_CLIENT_SECRET }}
-          # a secret is masked in the run log, a variable is printed in clear: prefer the secret
-          LF_ADMIN_EMAILS: ${{ secrets.LF_ADMIN_EMAILS || vars.LF_ADMIN_EMAILS }}
+          # a secret only: it is masked in the run log (a variable would be printed in clear)
+          LF_ADMIN_EMAILS: ${{ secrets.LF_ADMIN_EMAILS }}
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_SOURCE: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}

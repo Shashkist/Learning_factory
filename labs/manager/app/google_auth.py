@@ -168,7 +168,7 @@ async def callback(request: Request) -> Any:
     cfg = auth.google_config()
     if cfg is None:
         return _page(503, "Google sign-in is not configured")
-    keys = ((f"ip:{auth.client_ip(request)}", auth._env_limit("LF_LOGIN_IP_LIMIT")),)
+    keys = ((f"gcb:{auth.client_ip(request)}", auth._env_limit("LF_LOGIN_IP_LIMIT")),)
     if not auth.limiter.hit(*keys):
         raise HTTPException(429, "too_many_attempts")
     q = request.query_params

@@ -154,16 +154,19 @@ class RateLimiter:
             self._drop(key)
         return len(q)
 
+    _CLIENT_KEY_PREFIXES = ("ip:", "gcb:", "gstart:")
+
     def _sweep(self) -> None:
-        """Drop expired keys; over the cap, evict ip: keys first, oldest first. A key at or
-        above its limit with a live window is never evicted (that would unblock it)."""
+        """Drop expired keys; over the cap, evict per-client keys (ip:, gcb:, gstart:) first,
+        oldest first: anyone can mint them cheaply. A key at or above its limit with a live
+        window is never evicted (that would unblock it)."""
         for key in list(self._events):
             self._count(key)
         for prefer_ip in (True, False):
             for key in list(self._events):
                 if len(self._events) <= self.max_keys:
                     return
-                if prefer_ip != key.startswith("ip:"):
+                if prefer_ip != key.startswith(self._CLIENT_KEY_PREFIXES):
                     continue
                 if len(self._events[key]) >= self._limits.get(key, 1 << 30):
                     continue
@@ -247,12 +250,23 @@ def _clean(value: str) -> str:
     return value.strip().lstrip(_BOM).strip()
 
 
+# The allow-list value whose dropped entries were last logged (compared as is: hashing it
+# would raise on undecodable environment bytes, which Python keeps as lone surrogates).
+_dropped_logged_for: str | None = None
+
+
 def google_config() -> GoogleConfig | None:
     """Configured means client id, client secret and a non-empty admin allow-list are all set."""
     cid = _clean(os.environ.get("LF_GOOGLE_CLIENT_ID", ""))
     secret = _clean(os.environ.get("LF_GOOGLE_CLIENT_SECRET", ""))
-    entries = (_clean(e) for e in _clean(os.environ.get("LF_ADMIN_EMAILS", "")).split(","))
-    emails = frozenset(e.lower() for e in entries if e and e.isascii())
+    raw = _clean(os.environ.get("LF_ADMIN_EMAILS", ""))
+    entries = [e for e in (_clean(e) for e in raw.split(",")) if e]
+    emails = frozenset(e.lower() for e in entries if e.isascii())
+    dropped = len(entries) - sum(1 for e in entries if e.isascii())
+    global _dropped_logged_for
+    if dropped and _dropped_logged_for != raw:
+        _dropped_logged_for = raw
+        log.warning("LF_ADMIN_EMAILS: %d entries with non-ASCII characters were ignored", dropped)
     if not (cid and secret and emails):
         return None
     redirect = _clean(os.environ.get("LF_GOOGLE_REDIRECT_URI", ""))
@@ -263,7 +277,8 @@ def google_config() -> GoogleConfig | None:
 
 def password_login_allowed() -> bool:
     """Admin password login: on unless Google is configured, then only with the break-glass flag."""
-    return google_config() is None or os.environ.get("LF_ADMIN_PASSWORD_LOGIN") == "1"
+    # The flag first: break-glass must not depend on the Google settings being readable.
+    return os.environ.get("LF_ADMIN_PASSWORD_LOGIN") == "1" or google_config() is None
 
 
 # ---------------------------------------------------------------- sessions
@@ -351,6 +366,8 @@ async def current_principal(request: HTTPConnection) -> Principal:
                 if google_config() is None:
                     raise HTTPException(401, "not_authenticated")
                 return Principal("admin", "admin", row["subject"])
+            if not password_login_allowed():  # a password session made earlier stops at once
+                raise HTTPException(401, "not_authenticated")
             exists = await pool.fetchval(
                 f"select 1 from {T}.admins where username = $1", row["subject"]
             )
