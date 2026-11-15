@@ -3,6 +3,8 @@ name: Server smoke
 # Read-only checks against the shared production server. Manual dispatch only.
 # check=isolation runs labs/deploy/smoke/isolation.sh: throw-away lf-smoke-* containers on the
 # lab network prove that labs reach nothing but the manager's 7681 path (issue #3).
+# check=liveness runs labs/deploy/smoke/liveness.sh: a diagnostic of lab containers that exit after
+# a docker exec (throw-away lf-smoke-live-* containers, read-only otherwise).
 
 on:
   workflow_dispatch:
@@ -10,7 +12,7 @@ on:
       check:
         description: "Which smoke to run"
         type: choice
-        options: [isolation]
+        options: [isolation, liveness]
         default: isolation
 
 permissions:
@@ -41,7 +43,7 @@ jobs:
             echo "deploy secrets or SERVER_HOST_KEY missing in the production environment" >&2
             exit 1
           fi
-          case "$CHECK" in isolation) script=labs/deploy/smoke/isolation.sh ;; *) echo "unknown check" >&2; exit 1 ;; esac
+          case "$CHECK" in isolation) script=labs/deploy/smoke/isolation.sh ;; liveness) script=labs/deploy/smoke/liveness.sh ;; *) echo "unknown check" >&2; exit 1 ;; esac
           key="$RUNNER_TEMP/smoke_key"
           umask 077
           printf '%s\n' "$SSH_PRIVATE_KEY" > "$key"
