@@ -47,6 +47,10 @@ DETAIL_MAX = 160
 LOG_TAIL = 60
 ABANDONED = timedelta(minutes=15)   # a tool with no PostToolUse after this long is not shown as running
 HEARTBEAT_S = 60                    # publish at least this often even when nothing changed
+# The server's ufw LIMIT rule rejects a 7th new SSH connection within 30 s from one address, and every
+# rejected attempt renews the block. Keep the publisher to 2 connections per 30 s and back off on failure.
+MIN_GAP_S = 15                      # at most one push per 15 s, even when the content keeps changing
+BACKOFF_S = 90                      # after a failed push, wait this long before trying again
 _CTRL = re.compile(r"[\x00-\x1f\x7f]")
 _SLUG = re.compile(r"^[\w .:/#()+\-]{1,60}$", re.UNICODE)
 _SCRUB = [
@@ -271,21 +275,30 @@ def content_hash(live: dict) -> str:
 
 
 def cmd_publish(a: argparse.Namespace) -> bool:
-    """Push live.json when its content changed, or every HEARTBEAT_S as a liveness signal."""
+    """Push live.json when its content changed (at most every MIN_GAP_S), or every HEARTBEAT_S as a
+    liveness signal; after a failure wait BACKOFF_S. State file: '<hash> <time>' or 'fail <time>'."""
     live = render(read_events())
     state = Path(a.key + ".last")
     h = content_hash(live)
+    now = time.time()
     try:
         last_h, last_t = state.read_text().split()
-        if last_h == h and time.time() - float(last_t) < HEARTBEAT_S:
+        age = now - float(last_t)
+        if last_h == "fail" and age < BACKOFF_S:
+            return False
+        if last_h != "fail" and (age < MIN_GAP_S or (last_h == h and age < HEARTBEAT_S)):
             return False
     except (OSError, ValueError):
         pass
     data = json.dumps(live, ensure_ascii=False).encode("utf-8")
     # The server key has a forced command that writes stdin to live.json (tmp + rename) and nothing else.
-    subprocess.run(["ssh", "-i", a.key, "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes",
-                    "-o", "ConnectTimeout=10", a.host], input=data, check=True, timeout=30, capture_output=True)
-    state.write_text(f"{h} {time.time()}")
+    try:
+        subprocess.run(["ssh", "-i", a.key, "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes",
+                        "-o", "ConnectTimeout=10", a.host], input=data, check=True, timeout=30, capture_output=True)
+    except (OSError, subprocess.SubprocessError):
+        state.write_text(f"fail {now}")
+        raise
+    state.write_text(f"{h} {now}")
     return True
 
 

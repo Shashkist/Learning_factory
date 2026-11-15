@@ -146,13 +146,39 @@ def test_live_json_has_schema_and_no_unknown_fields(monkeypatch):
     assert live["schema"] == 1 and set(live) == {"schema", "generated_at", "updated", "runner", "issues", "agents", "workers", "log"}
 
 
-def test_publish_skips_unchanged_content(monkeypatch, tmp_path):
-    calls = []
+def test_publish_skips_unchanged_content_and_respects_the_ssh_rate_limit(monkeypatch, tmp_path):
+    calls, clock = [], [1000.0]
     monkeypatch.setattr(fp.subprocess, "run", lambda *a, **k: calls.append(1))
+    monkeypatch.setattr(fp.time, "time", lambda: clock[0])
     ns = type("A", (), {"key": str(tmp_path / "k"), "host": "h"})
     fp.main(["pass-start"])
     assert fp.cmd_publish(ns) is True
-    assert fp.cmd_publish(ns) is False      # same content within the heartbeat
     add(1, "m", "manager", "plan", "pick", "start", monkeypatch=monkeypatch)
-    assert fp.cmd_publish(ns) is True
+    clock[0] += 5
+    assert fp.cmd_publish(ns) is False      # changed, but within MIN_GAP_S of the last push
+    clock[0] += fp.MIN_GAP_S
+    assert fp.cmd_publish(ns) is True       # changed and the gap has passed
+    clock[0] += fp.MIN_GAP_S
+    assert fp.cmd_publish(ns) is False      # unchanged within the heartbeat
+    clock[0] += fp.HEARTBEAT_S
+    assert fp.cmd_publish(ns) is True       # heartbeat
+    assert len(calls) == 3
+
+
+def test_publish_backs_off_after_a_failed_push(monkeypatch, tmp_path):
+    calls, clock = [], [1000.0]
+    def boom(*a, **k):
+        calls.append(1)
+        raise fp.subprocess.TimeoutExpired("ssh", 30)
+    monkeypatch.setattr(fp.subprocess, "run", boom)
+    monkeypatch.setattr(fp.time, "time", lambda: clock[0])
+    ns = type("A", (), {"key": str(tmp_path / "k"), "host": "h"})
+    fp.main(["pass-start"])
+    with pytest.raises(fp.subprocess.TimeoutExpired):
+        fp.cmd_publish(ns)
+    clock[0] += fp.BACKOFF_S - 1
+    assert fp.cmd_publish(ns) is False      # retrying now would renew the firewall block
+    clock[0] += 2
+    with pytest.raises(fp.subprocess.TimeoutExpired):
+        fp.cmd_publish(ns)
     assert len(calls) == 2
