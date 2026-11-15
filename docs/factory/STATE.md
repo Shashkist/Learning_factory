@@ -2,20 +2,24 @@
 
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
-_Last updated: 2026-11-15 ~23:30 UTC, laptop pass lf-m7k2 (stopped at the 90-minute budget; 2 merged PRs: #48, #46)._
+_Last updated: 2026-11-15 ~00:50 UTC, laptop pass lf-q4r8 (stopped at the 90-minute budget; 2 merged PRs: #53, #52)._
 
 ## Now
 
-- **Issues:** #50 in review (PR #52, CI green, D29) and #49 in build (`f/49-lifecycle-hardening`), laptop pass lf-q4r8.
-- **#3 is blocked, on purpose (D27):** code merged in #46, server **dry run** done (run 43653076930, `BOOTSTRAP RESULT: dry run`). Before any apply: (a) dispatch the reviewer on that dry-run log and record its verdict on #3; (b) ship **#50**; (c) apply (`workflow_dispatch` with `apply=true`), check the baseline evidence and an isolation smoke on the server, then close #3.
+- **Issue:** none claimed. No open feature PRs. (Leftover local branches `f/49-lifecycle-hardening`, `f/49-impl`, `f/50-bootstrap-safety` sit in agent worktrees under `C:\projects\Learning_factory\.claude\worktrees\`; they are merged, so delete them.)
+- **#3 is unblocked (`status:ready`), but still apply-gated:** #50 shipped (#52). The new server dry run of the merged script (run 43659490082) printed `BOOTSTRAP RESULT: dry run`: no daemon.json, runsc not installed (pinned 20260817.0 planned), dockerd `-H fd:// --containerd=...`, lock pre-check ok. Remaining for #3, in order:
+  - (a) a fresh-context reviewer reads that dry-run log, and its verdict is recorded on #3;
+  - (b) the apply run (`gh workflow run bootstrap.yml -f apply=true`);
+  - (c) the baseline evidence from the log: foreign container start times unchanged, owner URLs up, `BOOTSTRAP RESULT: changed`;
+  - (d) an isolation smoke on the server: a runsc container on `lf-labs` cannot reach the host, another lab or the internet, and the manager address reaches 7681;
+  - (e) close #3.
 - **Next session starts at:** Next 1.
 
 ## Next (in order)
 
-1. **#50** pre-apply bootstrap safety (p1), then the #3 apply run above. Shared server: only through `labs/deploy/` scripts.
-2. **#49** session lifecycle hardening (p1, review leftovers of #48: sweep vs `created` containers, stranded `starting` rows, janitor backoff, one exam fix).
-3. **#13** deploy (needs #3 applied: `lf-labs` + manager at `172.31.240.2`; see comments: pre-pull `lf-lab-term`, Docker socket, default route not via `lf-labs`, `LF_TRUSTED_PROXY`, `LF_LOGIN_IP_LIMIT=100`, create-admin command), then #8, #9 (exec rights comment), #11 (`app.auth.valid_id`), #10 (draft labs + start rate limit comment).
-4. p2: #47 sudo under gVisor (D26), #44 IPv6 isolation, #21 exam-integrity hardening, #15, #14. Keep at least 5 issues `status:ready`.
+1. **#3 apply** as above. Shared server: only through `labs/deploy/` scripts; never restart Docker.
+2. **#13** deploy (needs #3 applied: `lf-labs` + manager at `172.31.240.2`; see comments: pre-pull `lf-lab-term`, Docker socket, default route not via `lf-labs`, `LF_TRUSTED_PROXY`, `LF_LOGIN_IP_LIMIT=100`, create-admin command, refuse labs when the lf-labs rules or runsc's overlay arg are missing), then #8, #9 (exec rights comment), #11 (`app.auth.valid_id`), #10 (draft labs + start rate limit comment). #51 (live dashboard view, p1) can run in parallel: it is independent of the server.
+3. p2: #55 janitor guarded deadline + recovery logs, #56 bootstrap log hygiene + `iptables=false` guard, #54 bootstrap exam hardening + lock tests, #47 sudo under gVisor (D26), #44 IPv6 isolation, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
 
@@ -25,6 +29,8 @@ _Last updated: 2026-11-15 ~23:30 UTC, laptop pass lf-m7k2 (stopped at the 90-min
 
 ## Recently done
 
+- 2026-11-15 · #49 Session lifecycle hardening shipped in #53 (review approved in round 1): the janitor reads rows, then containers, then rows again; `created` counts as running; `LF_START_DEADLINE_S` (180 s); DB-down backoff and log dedupe; capped `/dev/shm` and a `/var/mail` tmpfs. In the PR run, 22 DB and 6 docker exam tests ran, none skipped. Main CI 43659088406 green. D24 amended. Leftovers → #55.
+- 2026-11-15 · #50 Bootstrap safety shipped in #52 (2 review rounds): `.lf-prev` boot copies, flag-registered runsc fails safe (D29), pinned runsc + sha512, signal-proof rollback, a detached workflow run with a per-run directory and a server-side `flock`. Server dry run 43659490082 ok. Leftovers → #54, #56.
 - 2026-11-15 · #7 Session lifecycle shipped in #48 (after #41 and #43 were re-sequenced): Docker Engine API over the socket, capped tmpfs for every student-writable path, admission, janitor (heartbeat, time limit, access expiry, orphans, `lf.expires` sweep while the DB is down). Main CI 43652825241: 207 + 31 exam tests, no skips. Sudo under gVisor does not work (setuid not honoured, D26) → #47. Leftovers → #49.
 - 2026-11-15 · #3 Server bootstrap code shipped in #46 (after #42 and #45); CI ran the real script on a runner incl. the runtime step, swap and a rollback after a step. Server dry run passed. Apply blocked on #50 (D27). Follow-ups #44 (IPv6), #50.
 
