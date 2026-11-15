@@ -330,6 +330,7 @@ in force · factory · 2026-11-15
 in force · factory · 2026-11-15
 
 **Finding.** Under runsc, input sent to ttyd before `su - student` has started its shell is dropped, not buffered by the pty (diagnostics run 43697313873, draft #71: the prompt arrives within about a second; typed after it, `echo hi` prints `hi` and the command log has it within 2 s).
-**Decision.** The docker exam's `typed` fixture waits for the prompt (`$ ` at the end of the output) before typing, as a person would. No assertion changed. The fix is its own exam commit before the code (D9), on a re-sequenced branch (#73 replaces #70).
+**Decision.** The docker exam's `typed` fixture waits for the prompt (`$ ` at the end of the output) before typing, as a person would. The fix is its own exam commit before the code (D9), on a re-sequenced branch (#74 replaces #73, #70, #66).
+**Amended (round 2 of review): one assertion changed.** The `hi` pattern `\nhi\r?\n` never matches real bash output: after the newline of the typed command, bash ends bracketed paste mode (`ESC[?2004l`) and sends `\r` before `hi` (bytes captured in run 43697313873). The pattern (`HI_LINE`) now allows CSI sequences and `\r` between the newline and `hi`. It still needs a line that is just `hi`; the echoed `echo hi` line alone does not match. What the exam proves is unchanged.
 **Consequence for the UI (#10).** Nothing to do: xterm.js only sends what the student types after seeing the terminal. A future "run this command for me" button must wait for the prompt too.
 **Revert.** Restore the fixture's immediate send if a later gVisor buffers typed-ahead input.
