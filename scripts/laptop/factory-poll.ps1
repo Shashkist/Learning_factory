@@ -20,6 +20,7 @@ $MaxPassesPerDay = 10        # cost guard
 $ProgressKey = Join-Path $StateDir 'progress_key'   # forced-command key: can only write live.json
 $ServerHost  = 'root@207.154.193.238'
 $env:LF_PROGRESS_FILE = Join-Path $StateDir 'progress.jsonl'
+$env:LF_CREW_DIR = Join-Path $env:USERPROFILE '.claude\projects\C--projects-Learning-factory-factory'   # crew view: factory transcripts only
 $HooksFile   = Join-Path $Main 'scripts/laptop/factory-hooks.json'   # live-view hooks, factory runs only (D28)
 $Progress    = if (Test-Path (Join-Path $Worktree 'scripts/factory_progress.py')) { Join-Path $Worktree 'scripts/factory_progress.py' } else { Join-Path $Main 'scripts/factory_progress.py' }
 function Publish-Live([string]$state = '', [string]$note = '', [switch]$Force) {

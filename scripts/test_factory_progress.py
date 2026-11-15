@@ -143,7 +143,7 @@ def test_live_json_has_schema_and_no_unknown_fields(monkeypatch):
     fp.main(["pass-start"])
     add(1, "m", "manager", "plan", "pick #1", "done", "x", monkeypatch)
     live = fp.render(fp.read_events())
-    assert live["schema"] == 1 and set(live) == {"schema", "generated_at", "updated", "runner", "issues", "agents", "workers", "log"}
+    assert live["schema"] == 1 and set(live) == {"schema", "generated_at", "updated", "runner", "issues", "agents", "workers", "crew", "log"}
 
 
 def test_publish_skips_unchanged_content_and_respects_the_ssh_rate_limit(monkeypatch, tmp_path):

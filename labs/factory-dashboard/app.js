@@ -295,6 +295,56 @@ function workerCard(w) {
   return card;
 }
 
+// ---- Crew: every agent and subagent from the transcripts (scripts/factory_crew.py), nested by parent.
+var CREW_STATES = { busy: "working", thinking: "thinking", waiting: "waiting on its agents", idle: "idle", finished: "finished" };
+
+function ago(iso) {
+  var t = Date.parse(iso);
+  if (isNaN(t)) return "";
+  var s = Math.max(0, Math.round((Date.now() - t) / 1000));
+  return s < 90 ? s + " s ago" : s < 5400 ? Math.round(s / 60) + " min ago" : Math.round(s / 3600) + " h ago";
+}
+
+function crewCard(n, depth) {
+  var card = lel("div", null, "crew-card", { "data-crew-id": S(n.id), "data-state": S(n.state), "data-kind": S(n.kind) });
+  var head = el("div", null, "crew-head");
+  head.appendChild(el("span", null, "live-dot"));
+  head.appendChild(el("b", " " + (LIVE_ROLE_ICONS[n.type] || LIVE_ROLE_ICONS.agent) + " " + S(n.type)));
+  if (n.title) head.appendChild(el("span", " " + S(n.title), "crew-title"));
+  card.appendChild(head);
+  card.appendChild(el("div", joined([CREW_STATES[n.state] || S(n.state), S(n.model),
+    n.started ? elapsed(n.started, n.state === "finished" ? n.last : null) : "", n.last ? "last active " + ago(n.last) : ""]), "muted"));
+  if (n.tool) {
+    var now = el("div", "now: ", "crew-now");
+    now.appendChild(el("b", S(n.tool)));
+    if (n.label) now.appendChild(el("span", " " + S(n.label)));
+    card.appendChild(now);
+  }
+  var recent = arr(n.recent);
+  if (recent.length) {
+    var chips = el("div", null, "crew-recent");
+    recent.forEach(function (t) { chips.appendChild(el("span", S(t), "crew-chip")); });
+    card.appendChild(chips);
+  }
+  var kids = arr(n.children);
+  if (kids.length && depth < 4) {
+    var box = el("div", null, "crew-kids");
+    kids.forEach(function (c) { box.appendChild(crewCard(c, depth + 1)); });
+    if (Number(n.more) > 0) box.appendChild(el("div", "+" + Number(n.more) + " more", "muted"));
+    card.appendChild(box);
+  }
+  return card;
+}
+
+function renderCrew(crew) {
+  var list = arr(crew);
+  if (!list.length) return null;
+  var sec = el("div", null, "crew");
+  sec.appendChild(el("b", "Crew: agents and subagents", "crew-heading"));
+  list.forEach(function (n) { sec.appendChild(crewCard(n, 0)); });
+  return sec;
+}
+
 function renderLive(d) {
   var titles = Object.create(null);
   var box = el("div", null, "live-box");
@@ -329,6 +379,9 @@ function renderLive(d) {
     loose.forEach(function (w) { row.appendChild(workerCard(w)); });
     box.appendChild(row);
   }
+
+  var crew = renderCrew(d.crew);
+  if (crew) box.appendChild(crew);
 
   var log = el("div", null, "live-log");
   arr(d.log).slice(-LIVE_LOG_MAX).reverse().forEach(function (e) {

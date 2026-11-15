@@ -180,6 +180,20 @@ def render_workers(evs: list[dict], at: datetime) -> list[dict]:
 
 # ---- render: the public schema ------------------------------------------------------------------
 
+def render_crew(at: datetime) -> list[dict]:
+    """Agents and subagents from the transcripts (scripts/factory_crew.py). Off unless LF_CREW_DIR is set
+    (the laptop runner sets it), so tests and other machines never read anyone's transcripts."""
+    d = os.environ.get("LF_CREW_DIR")
+    if not d:
+        return []
+    try:
+        import factory_crew
+        pf = os.environ.get("LF_PROGRESS_FILE")
+        return factory_crew.build(Path(d), at, scrub, Path(pf + ".crew-cache.json") if pf else None)
+    except Exception:  # noqa: BLE001 - the crew view must never break the publisher
+        return []
+
+
 def render(events: list[dict]) -> dict:
     evs = current_pass(events)
     t = now()
@@ -235,6 +249,7 @@ def render(events: list[dict]) -> dict:
                                   "started": s["started"], "at": s["at"], "detail": scrub(s["detail"])}
                                  for s in a["substeps"]]} for a in agents.values()],
         "workers": render_workers(evs, parse(t)),
+        "crew": render_crew(parse(t)),
         "log": [{"at": e["at"], "issue": e.get("issue"), "agent": e["agent"], "role": e["role"],
                  "station": e["station"], "substep": e["substep"], "status": e["status"],
                  "detail": scrub(e.get("detail", ""))} for e in log],

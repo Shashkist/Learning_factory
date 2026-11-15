@@ -12,6 +12,7 @@ If fso.FileExists(stateDir & "\PAUSE") Then WScript.Quit 0
 ' The main checkout's publisher: it has --min-age even when the factory worktree is on an older main.
 script = "C:\projects\Learning_factory\scripts\factory_progress.py"
 If Not fso.FileExists(script) Then WScript.Quit 0
-sh.Environment("Process")("LF_PROGRESS_FILE") = stateDir & "\progress.jsonl"
+sh.Environment("Process")("LF_PROGRESS_FILE") = stateDir & "\progress.jsonl"
+sh.Environment("Process")("LF_CREW_DIR") = sh.ExpandEnvironmentStrings("%USERPROFILE%") & "\.claude\projects\C--projects-Learning-factory-factory"
 cmd = "python """ & script & """ publish --key """ & stateDir & "\progress_key"" --host root@207.154.193.238 --min-age 50"
 sh.Run cmd, 0, True
