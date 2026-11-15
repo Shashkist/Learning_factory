@@ -59,7 +59,7 @@ if (Test-Path $Lock) {
 # A manager that outlived its runner (Stop-Job does not kill claude.exe) may still be working in the
 # worktree: never start a second one next to it.
 function Get-ManagerProcs { @(Get-CimInstance Win32_Process -Filter "Name='claude.exe'" | Where-Object { $_.CommandLine -like '*manager of the Learning Factory*' }) }
-$alive = Get-ManagerProcs
+$alive = @(Get-ManagerProcs)   # @() here too: PS 5.1 unwraps a one-item array returned from a function, and a lone CimInstance has no .Count
 if ($alive.Count -gt 0) { Log "skip: a manager is still running (pid $($alive.ProcessId -join ','))"; Publish-Live; exit 0 }
 
 # One-time owner notification when the observability page goes live (owner request, 2026-11-14).
