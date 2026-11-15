@@ -6,7 +6,7 @@ _Last updated: 2026-11-15 ~12:25 UTC, laptop pass lf-b3e19 (10:40-12:25 UTC; sto
 
 ## Now
 
-- **Pass lf-b3e19 stopped.** No claims held, no open branches.
+- **Pass lf-c7d42 (laptop, from 12:36 UTC) works #86** on `f/86-live-terminal-smoke` (D36: synthetic smoke student, client on a runner). Step: exam.
 - **Production is live:** `lf-manager:2b33cf3` at https://labs.shashkist.com (healthz ok, database ok). Every green CI on main now deploys its own sha (Deploy workflow, D34), including state-only commits (#85 will skip those).
 - **Next session starts at:** Next 1.
 
