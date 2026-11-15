@@ -1,0 +1,41 @@
+name: DB check
+
+# Read-only catalog checks against the shared database, as the application role lf_app.
+# Manual dispatch only. check=public-execute: which functions lf_app can execute outside its own
+# schema and which are SECURITY DEFINER (issue #61). The connection string comes from the secret
+# reference and is never printed; the queries print only catalog names.
+
+on:
+  workflow_dispatch:
+    inputs:
+      check:
+        description: "Which check to run"
+        type: choice
+        options: [public-execute]
+        default: public-execute
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run the check as lf_app
+        env:
+          LF_DATABASE_URL: ${{ secrets.LF_DATABASE_URL }}
+          PGSSLMODE: require
+          CHECK: ${{ inputs.check }}
+        run: |
+          if [ -z "$LF_DATABASE_URL" ]; then
+            echo "LF_DATABASE_URL is not set; nothing to check" >&2
+            exit 1
+          fi
+          case "$CHECK" in public-execute) sql=labs/deploy/db/checks/public-execute.sql ;; *) echo "unknown check" >&2; exit 1 ;; esac
+          command -v psql >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client >/dev/null; }
+          # The SQL file runs in one read-only transaction with its own timeouts (see its header).
+          # A failed connect prints the host and user, never the password.
+          psql "$LF_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f "$sql"
