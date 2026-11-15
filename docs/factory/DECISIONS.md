@@ -500,3 +500,13 @@ in force · factory · 2026-11-15
 **Why.** Re-running every PR's CI after every merge would cost a CI cycle per PR per merge, while main's CI catches a bad combination right after the merge, before the next one.
 **Alternatives.** Re-sequence every open PR after each merge (a new PR each time); allow merge commits in the gate (weakens the per-commit exam check).
 **Revert.** Require `gh pr update-branch` plus a green PR run before each merge, and allow merge commits from `main` in `exam_integrity.py`.
+
+## D50 · #88 check and quiz API shape
+in force · factory · 2026-11-16
+
+**Decision.** Two routes under the existing task router (`/api/sessions/{sid}/tasks`), same owner / running-session / lab checks and error style (`HTTPException(code, "<slug>")`) as slice 1:
+- `POST /{task_id}/check` (hands-on only). Runs the task's `check.sh` through `exec_script` with a 20 s timeout. Response `{"passed": bool, "attempts": int, "reason": null | "timeout" | "error", "checklist": [{"n": int, "text": {"en","he"}, "passed": bool, "hint": str | null}]}`. `passed` is true only when exit 0 **and** every checklist item printed `PASS <n>`; missing, duplicate-conflicting or unknown lines count as failed. A timeout or exec failure is a normal 200 with `passed: false`, a `reason`, every item failed; never a hung request or a 5xx.
+- `POST /{task_id}/answer` (quiz only), body `{"option": int}` (index into `options`). Response `{"correct": bool, "attempts": int}`. The correct index is never returned, not even after a right or wrong answer. An index out of range is 422 and counts no attempt.
+- Wrong kind for the route → 409 `wrong_task_kind`. A task never shown in this session (no `shown_at`, so its setup has not run) → 409 `task_not_shown`. Unknown task → 404 `unknown_task`.
+- Each graded call does `attempts = attempts + 1`; `passed_at` is set on the first pass only (`coalesce`), never cleared by a later fail. A check of an already passed task still runs and counts.
+**Why.** Mirrors KodeKloud's `/check_config` (one call, checklist back) and the spec §7 contract; the answer is never revealed so a student cannot fish for it with a wrong attempt. **Alternatives.** One `/grade` route for both kinds; reveal the correct option after a wrong answer. **Revert.** Change the routes and the exam together in a new issue.
