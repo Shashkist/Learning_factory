@@ -20,7 +20,8 @@ $MaxPassesPerDay = 10        # cost guard
 $ProgressKey = Join-Path $StateDir 'progress_key'   # forced-command key: can only write live.json
 $ServerHost  = 'root@207.154.193.238'
 $env:LF_PROGRESS_FILE = Join-Path $StateDir 'progress.jsonl'
-$Progress    = if (Test-Path (Join-Path $Worktree 'scriptsactory_progress.py')) { Join-Path $Worktree 'scriptsactory_progress.py' } else { Join-Path $Main 'scriptsactory_progress.py' }
+$HooksFile   = Join-Path $Main 'scripts/laptop/factory-hooks.json'   # live-view hooks, factory runs only (D28)
+$Progress    = if (Test-Path (Join-Path $Worktree 'scripts/factory_progress.py')) { Join-Path $Worktree 'scripts/factory_progress.py' } else { Join-Path $Main 'scripts/factory_progress.py' }
 function Publish-Live([string]$state = '', [string]$note = '') {
     # Best effort: never let the live view break the factory.
     try {
@@ -134,13 +135,15 @@ Stop after about $PassMinutes minutes of work or 3 merged PRs, and update docs/f
     Publish-Live
     $runLog = Join-Path $RunsDir ("{0}.log" -f (Get-Date -Format 'yyyyMMdd-HHmm'))
     $job = Start-Job -ScriptBlock {
-        param($wt, $claude, $model, $p, $out)
+        param($wt, $claude, $model, $p, $out, $progressFile, $hooks)
         Set-Location $wt
-        & $claude -p $p --model $model --permission-mode auto *>&1 | Out-File -Encoding utf8 $out
-    } -ArgumentList $Worktree, $Claude, $Model, $prompt, $runLog
+        $env:LF_PROGRESS_FILE = $progressFile        # hooks record only when this is set
+        $extra = if (Test-Path $hooks) { @('--settings', $hooks) } else { @() }
+        & $claude -p $p --model $model --permission-mode auto @extra *>&1 | Out-File -Encoding utf8 $out
+    } -ArgumentList $Worktree, $Claude, $Model, $prompt, $runLog, $env:LF_PROGRESS_FILE, $HooksFile
     $result = 'done'
     $deadline = (Get-Date).AddMinutes($PassMinutes + 20)
-    while ($job.State -eq 'Running' -and (Get-Date) -lt $deadline) { Publish-Live; Start-Sleep -Seconds 15 }
+    while ($job.State -eq 'Running' -and (Get-Date) -lt $deadline) { Publish-Live; Start-Sleep -Seconds 5 }   # publish skips unchanged content
     if ($job.State -eq 'Running') {
         Stop-Job $job; $result = 'timeout'; Log 'stopped: pass exceeded its time limit'
         Notify 'Learning Factory: pass timed out' "A pass ran longer than $($PassMinutes + 20) min and was stopped. See $runLog" 'timeout'

@@ -92,3 +92,67 @@ def test_runner_state_is_shown_between_passes():
     fp.main(["runner-state", "--state", "paused", "--note", "PAUSE file present"])
     r = fp.render(fp.read_events())["runner"]
     assert r["state"] == "paused" and r["note"] == "PAUSE file present"
+
+
+def hook(payload, monkeypatch):
+    monkeypatch.setattr(sys, "stdin", __import__("io").StringIO(json.dumps(payload)))
+    assert fp.main(["hook"]) == 0
+
+
+def test_hooks_show_workers_busy_with_a_tool_category(monkeypatch):
+    fp.main(["pass-start"])
+    hook({"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Bash", "tool_use_id": "t1",
+          "tool_input": {"command": "cat /root/.env"}}, monkeypatch)
+    hook({"hook_event_name": "PreToolUse", "session_id": "s1", "agent_id": "a7", "agent_type": "implementer",
+          "tool_name": "mcp__github__create_pr", "tool_use_id": "t2"}, monkeypatch)
+    live = fp.render(fp.read_events())
+    w = {x["role"]: x for x in live["workers"]}
+    assert w["manager"]["state"] == "busy" and w["manager"]["tool"] == "Bash"
+    assert w["implementer"]["tool"] == "MCP"
+    assert "cat" not in json.dumps(live) and ".env" not in json.dumps(live) and "github__" not in json.dumps(live)
+    hook({"hook_event_name": "PostToolUse", "session_id": "s1", "tool_name": "Bash", "tool_use_id": "t1"}, monkeypatch)
+    w = {x["role"]: x for x in fp.render(fp.read_events())["workers"]}
+    assert w["manager"]["state"] == "thinking" and w["manager"]["tool"] is None and w["manager"]["tools"] == {"Bash": 1}
+
+
+def test_waiting_and_finished_workers(monkeypatch):
+    hook({"hook_event_name": "Notification", "session_id": "s1", "message": "Claude needs your permission"}, monkeypatch)
+    hook({"hook_event_name": "SubagentStop", "session_id": "s1", "agent_id": "a1", "agent_type": "reviewer"}, monkeypatch)
+    states = {x["role"]: x["state"] for x in fp.render(fp.read_events())["workers"]}
+    assert states == {"manager": "waiting", "reviewer": "finished"}
+
+
+def test_hooks_record_nothing_outside_factory_runs(monkeypatch, events_file):
+    monkeypatch.delenv("LF_PROGRESS_FILE")
+    monkeypatch.setattr(fp, "events_path", lambda: events_file)
+    hook({"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Bash"}, monkeypatch)
+    assert not events_file.exists()
+
+
+def test_public_text_is_scrubbed(monkeypatch):
+    add(3, "impl-3", "implementer", "build", "deploy", "fail",
+        "PR https://github.com/Shashkist/Learning_factory/pull/9 ssh root@207.154.193.238 failed, see " + "C:" + chr(92) + "Users" + chr(92) + "x" + chr(92) + "log and https://evil.example/a mail me@x.com "
+        "key abcdefghijklmnopqrstuvwxyz0123456789ABCD", monkeypatch)
+    d = fp.render(fp.read_events())["log"][0]["detail"]
+    for leak in ("207.154", "C:" + chr(92) + "Users", "evil.example", "me@x.com", "abcdefghijklmnop"):
+        assert leak not in d
+    assert "github.com/Shashkist/Learning_factory/pull/9" in d
+
+
+def test_live_json_has_schema_and_no_unknown_fields(monkeypatch):
+    fp.main(["pass-start"])
+    add(1, "m", "manager", "plan", "pick #1", "done", "x", monkeypatch)
+    live = fp.render(fp.read_events())
+    assert live["schema"] == 1 and set(live) == {"schema", "generated_at", "updated", "runner", "issues", "agents", "workers", "log"}
+
+
+def test_publish_skips_unchanged_content(monkeypatch, tmp_path):
+    calls = []
+    monkeypatch.setattr(fp.subprocess, "run", lambda *a, **k: calls.append(1))
+    ns = type("A", (), {"key": str(tmp_path / "k"), "host": "h"})
+    fp.main(["pass-start"])
+    assert fp.cmd_publish(ns) is True
+    assert fp.cmd_publish(ns) is False      # same content within the heartbeat
+    add(1, "m", "manager", "plan", "pick", "start", monkeypatch=monkeypatch)
+    assert fp.cmd_publish(ns) is True
+    assert len(calls) == 2
