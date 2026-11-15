@@ -1,0 +1,65 @@
+name: Server smoke
+
+# Read-only checks against the shared production server. Manual dispatch only.
+# check=isolation runs labs/deploy/smoke/isolation.sh: throw-away lf-smoke-* containers on the
+# lab network prove that labs reach nothing but the manager's 7681 path (issue #3).
+
+on:
+  workflow_dispatch:
+    inputs:
+      check:
+        description: "Which smoke to run"
+        type: choice
+        options: [isolation]
+        default: isolation
+
+permissions:
+  contents: read
+
+# Shared with bootstrap.yml and the deploy workflow (#13): a smoke never runs during an apply or a
+# deploy, and never holds the manager address while one starts it.
+concurrency:
+  group: server-lab-host
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run the smoke on the server
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_HOST_KEY: ${{ vars.SERVER_HOST_KEY }}
+          CHECK: ${{ inputs.check }}
+        run: |
+          if [ -z "$SSH_PRIVATE_KEY" ] || [ -z "$SERVER_HOST" ] || [ -z "$SERVER_USER" ] || [ -z "$SERVER_HOST_KEY" ]; then
+            echo "deploy secrets or SERVER_HOST_KEY missing in the production environment" >&2
+            exit 1
+          fi
+          case "$CHECK" in isolation) script=labs/deploy/smoke/isolation.sh ;; *) echo "unknown check" >&2; exit 1 ;; esac
+          key="$RUNNER_TEMP/smoke_key"
+          umask 077
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$key"
+          printf '%s %s\n' "$SERVER_HOST" "$SERVER_HOST_KEY" > "$RUNNER_TEMP/known_hosts"
+          ssh_opts="-i $key -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$RUNNER_TEMP/known_hosts"
+          # One TCP connection for all commands (the server refuses bursts, incident #26).
+          ssh_opts="$ssh_opts -o ControlMaster=auto -o ControlPath=$RUNNER_TEMP/cm-%C -o ControlPersist=120"
+          dest=/root/lf-smoke/run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT
+          for attempt in 1 2 3; do
+            ssh $ssh_opts "$SERVER_USER@$SERVER_HOST" "mkdir -p $dest" && break
+            if [ "$attempt" = 3 ]; then echo "ssh failed 3 times" >&2; exit 1; fi
+            sleep 20
+          done
+          scp $ssh_opts "$script" "$SERVER_USER@$SERVER_HOST:$dest/smoke.sh"
+          st=0
+          ssh $ssh_opts "$SERVER_USER@$SERVER_HOST" "timeout 600 bash $dest/smoke.sh" || st=$?
+          ssh $ssh_opts "$SERVER_USER@$SERVER_HOST" "rm -rf $dest" || true
+          exit "$st"
+      - name: Remove the SSH key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/smoke_key" "$RUNNER_TEMP/known_hosts"
