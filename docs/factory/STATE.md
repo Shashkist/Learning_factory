@@ -2,13 +2,13 @@
 
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
-_Last updated: 2026-11-15 ~08:40 UTC, laptop pass lf-ce139 (stopped at 3 merged PRs: #59, #65, #63)._
+_Last updated: 2026-11-15 ~09:15 UTC, laptop pass lf-a7d42 (started 08:56 UTC)._
 
 ## Now
 
-- **Pass lf-ce139 stopped (3 merged PRs: #59, #65, #63; 07:32–08:40 UTC).** No claims held.
-- **#8 terminal proxy: PR #70** (branch `f/8-term-proxy-2`; it replaces #66, re-sequenced because that exam commit also touched `pyproject.toml`). The exam is byte-identical to 2069923. Review round 1 (on #66) is fixed. CI: exam-integrity, manager (all DB exam tests) and web are green. **docker is red in the `typed` fixture only:** the proxy relayed 2 frames to ttyd and 9 back, but no `hi` line appeared. Suspects: input typed before `su - student` is ready, or `su` failing under gVisor (D26). Plan in the last #8 comment. If the exam must wait for a prompt, that is an exam change: a new re-sequenced branch with the exam commit first (D9). After green: reviewer round 2 (last), merge.
-- **Next session starts at:** Next 1.
+- **Pass lf-a7d42 running.** Claims: #8, #72.
+- **#8 terminal proxy: PR #73** (branch `f/8-term-proxy-3`, replaces #70). Cause of the docker failure found (D33): under runsc, input typed before the student's shell is up is dropped. The exam fixture now waits for the prompt (its own exam commit before the code, D9). Waiting for CI, then reviewer round 2 (last), merge.
+- **#72 manager image + compose file** (slice 1 of #13, D32): exam on `f/72-manager-image` (dbaf1a7); implementer working. CI build/push of the image is a second PR (D19).
 
 ## Next (in order)
 

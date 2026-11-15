@@ -317,3 +317,19 @@ in force · factory · 2026-11-15
 **Why.** `revoke ... from public` would change what the other app relies on and protects nothing here: no definer function is exposed. Per #61's rules, the labs-side position holds: `lf_app` is used only by our manager and has no `anon` exposure.
 **Watch item for #13.** The first migration against the real database runs these event triggers as `lf_app`. Check that the deploy log shows the migration applied. DDL is transactional, so a failure leaves nothing behind.
 **Revert / re-check.** Re-run `DB check` (`check=public-execute`) after any extension or schema change in that database. If a `SECURITY DEFINER` function with `via_public = t` ever appears, decide then. The exact `revoke execute on function <fn> from public` and its `grant` restore go into a new D-entry, with a health check of the other app before and after.
+
+## D32 · #13 deploy is split: the image and compose file first (#72), then the deploy itself
+in force · factory · 2026-11-15
+
+**Decision.** #13 had grown to nine acceptance items (image, compose, workflow, `.env` generation, nginx block, trusted proxy, health checks, pre-pull, create-admin), well past one PR of ~400 lines. Slice 1 is #72: the `lf-manager` image (it serves the built web UI from `LF_WEB_DIR`, SPA fallback that never shadows `/api`, `/s` or `/healthz`) and `labs/deploy/compose.yml`. Its CI build/push of the image is a second PR (D19). #13 keeps the deploy workflow, the server-side script, the nginx `labs` block and the live checks, and depends on #72.
+**Why.** One reviewable PR each; the image can be proven in CI (the docker job builds and runs it) before anything touches the server.
+**Alternatives.** One large #13 PR (hard to review, long CI loops); building the image on the server (spec §10 allows it, but it puts npm and uv builds on the shared production host).
+**Revert.** Fold #72 back into #13; nothing on the server depends on the split.
+
+## D33 · Terminal exam types only after the student's prompt (#8)
+in force · factory · 2026-11-15
+
+**Finding.** Under runsc, input sent to ttyd before `su - student` has started its shell is dropped, not buffered by the pty (diagnostics run 43697313873, draft #71: the prompt arrives within about a second; typed after it, `echo hi` prints `hi` and the command log has it within 2 s).
+**Decision.** The docker exam's `typed` fixture waits for the prompt (`$ ` at the end of the output) before typing, as a person would. No assertion changed. The fix is its own exam commit before the code (D9), on a re-sequenced branch (#73 replaces #70).
+**Consequence for the UI (#10).** Nothing to do: xterm.js only sends what the student types after seeing the terminal. A future "run this command for me" button must wait for the prompt too.
+**Revert.** Restore the fixture's immediate send if a later gVisor buffers typed-ahead input.
