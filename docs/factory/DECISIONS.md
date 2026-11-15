@@ -379,3 +379,15 @@ in force · factory · 2026-11-15
 
 **Decision.** #9 (task engine) was larger than one ~400-line PR. #9 is now slice 1: the `docker exec` script runner (streamed on stdin, timeout, under gVisor), the task API, setup on show and Next/Skip/Previous/Restart/Continue-from-N per spec §5, `shown_at`. #88 is slice 2: `check.sh` results (20 s timeout, PASS/FAIL parsing, checklist with hints), attempts, `passed_at`, quiz grading without leaking answers. #89 is slice 3: lab completion, `lab_runs` first vs repeat, `active_seconds`, the fast flag rules of §8. Each depends on the previous one. #10 (student UI) needs #9 and #88; #11 (teacher UI) shows #89's values.
 **Why.** One reviewable PR per slice, each with its own exam (D19 pattern). **Revert.** Merge the issues back.
+
+## D38 · #90 the post-deploy smoke runs inside the Deploy run; incidents watch Server smoke
+in force · factory · 2026-11-15
+
+**Decision.**
+- `server-smoke.yml` gets `on: workflow_call` (input `from_deploy`, boolean, default false) and **loses** its `workflow_run` trigger. `deploy.yml` gets a second job `smoke` (`needs: deploy`, `uses: ./.github/workflows/server-smoke.yml`, `secrets: inherit`, `with: from_deploy: true`) that runs only when the deploy step really deployed (a job output `deployed == 'true'`; a stale-sha skip or missing access values set it false). It runs under the Deploy run's own `server-lab-host` lock, so it never queues on its own and never runs against an image that was not deployed.
+- In `server-smoke.yml` the `server-lab-host` concurrency moves from the workflow to the job, and is used only when not called from Deploy (`from_deploy` false); a called run already holds the caller's lock and must not wait for it.
+- Scheduled (nightly) and manual runs first check, in a small job without concurrency, that no `Deploy` run is queued, waiting or in progress (`gh run list --workflow deploy.yml`); if one is, the smoke is skipped with a line in the log. This shrinks the cancel window to seconds; it does not close it.
+- `incident.yml` watches `Server smoke` (the old list named `Smoke`, which does not exist), so a red live smoke opens an incident.
+**Why.** GitHub keeps one pending run per concurrency group; an automatically queued smoke could cancel a pending Deploy (seen in the review of #87), and a smoke after a skipped Deploy gave a false red (run 43719795462).
+**Alternatives.** A separate group for the smoke (it could then run during a deploy); a composite action shared by both workflows (more files, same effect).
+**Revert.** Restore the `workflow_run` trigger and the workflow-level concurrency; drop the `smoke` job from `deploy.yml`.
