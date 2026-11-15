@@ -113,12 +113,12 @@ app.include_router(sessions.router)
 app.include_router(term_proxy.router)
 
 
-@app.get("/healthz")
+@app.api_route("/healthz", methods=["GET", "HEAD"])
 def healthz() -> dict[str, bool]:
     return {"ok": True}
 
 
-@app.get("/api/health")
+@app.api_route("/api/health", methods=["GET", "HEAD"])
 async def api_health(request: Request) -> dict[str, str]:
     state: str = request.app.state.db_state
     pool = request.app.state.pool
@@ -129,6 +129,11 @@ async def api_health(request: Request) -> dict[str, str]:
         except Exception:
             state = "unavailable"
     return {"status": "ok" if state == "ok" else "degraded", "database": state}
+
+
+_STATIC_EXT = frozenset(
+    "js mjs css map ico png jpg jpeg gif svg webp webmanifest json txt woff woff2 ttf".split()
+)
 
 
 def _mount_web(web_dir: str | None) -> None:
@@ -148,7 +153,7 @@ def _mount_web(web_dir: str | None) -> None:
     def web(path: str) -> FileResponse:
         if path.split("/", 1)[0] in ("api", "s", "healthz"):
             raise HTTPException(status_code=404)
-        if not path:
+        if not path or path == "index.html":
             return page()
         try:
             target = (root / path).resolve()
@@ -157,7 +162,9 @@ def _mount_web(web_dir: str | None) -> None:
         except (ValueError, OSError):
             raise HTTPException(status_code=404) from None
         # A missing asset must fail as 404 (stale bundle after a deploy), not come back as HTML.
-        if path.startswith("assets/") or "." in path.rsplit("/", 1)[-1]:
+        last = path.rsplit("/", 1)[-1]
+        ext = last.rpartition(".")[2].lower() if "." in last else ""
+        if path.startswith("assets/") or ext in _STATIC_EXT:
             raise HTTPException(status_code=404)
         return page()
 

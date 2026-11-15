@@ -113,6 +113,45 @@ jobs:
           docker push ghcr.io/shashkist/lf-lab-term:${{ github.sha }}
           docker push ghcr.io/shashkist/lf-lab-term:latest
 
+  image-manager:
+    # Push only an image whose docker exam job passed.
+    needs: docker
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build lf-manager
+        run: docker build -f labs/manager/Dockerfile -t ghcr.io/shashkist/lf-manager:${{ github.sha }} -t ghcr.io/shashkist/lf-manager:latest labs
+      - name: Smoke test (no database, no docker socket)
+        run: |
+          trap 'docker rm -f lf-manager-smoke >/dev/null 2>&1 || true' EXIT
+          docker run -d --name lf-manager-smoke -p 127.0.0.1:18000:8000 ghcr.io/shashkist/lf-manager:${{ github.sha }}
+          ok=0
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:18000/healthz; then ok=1; break; fi
+            sleep 1
+          done
+          if [ "$ok" != 1 ]; then docker logs lf-manager-smoke; exit 1; fi
+          curl -fsS -i http://127.0.0.1:18000/ | grep -i '^content-type: text/html'
+      - name: Validate the compose file
+        env:
+          LF_TRUSTED_PROXY: 127.0.0.1
+          LF_NGINX_NETWORK: placeholder-network
+        run: |
+          sudo mkdir -p /root/learning-factory && sudo touch /root/learning-factory/.env
+          # sudo drops the environment (and -E is refused on the runner): pass the two placeholders explicitly
+          sudo LF_TRUSTED_PROXY="$LF_TRUSTED_PROXY" LF_NGINX_NETWORK="$LF_NGINX_NETWORK" docker compose -f labs/deploy/compose.yml config --quiet
+      - name: Log in to ghcr.io
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Push lf-manager
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          docker push ghcr.io/shashkist/lf-manager:${{ github.sha }}
+          docker push ghcr.io/shashkist/lf-manager:latest
+
   exam-integrity:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest

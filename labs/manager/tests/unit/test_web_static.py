@@ -49,3 +49,22 @@ def test_missing_asset_or_file_is_404_not_html(client: TestClient) -> None:
 def test_api_docs_are_off_by_default(client: TestClient) -> None:
     assert "swagger" not in client.get("/docs").text.lower()
     assert client.get("/openapi.json").status_code == 404
+
+
+def test_head_on_health_and_index_html_no_cache(client: TestClient) -> None:
+    with client:  # lifespan sets the state /api/health reads
+        assert client.head("/healthz").status_code == 200
+        assert client.head("/api/health").status_code == 200
+    r = client.get("/index.html")
+    assert "spa" in r.text and r.headers["cache-control"] == "no-cache"
+
+
+def test_dotted_deep_link_gets_the_spa_but_unknown_static_ext_is_404(client: TestClient) -> None:
+    assert "spa" in client.get("/labs/linux-1.2").text
+    assert client.get("/labs/x/logo.PNG").status_code == 404
+    assert client.get("/a/b.woff2").status_code == 404
+
+
+def test_terminal_route_is_401_not_the_spa(client: TestClient) -> None:
+    r = client.get("/s/00000000-0000-0000-0000-000000000000/term")
+    assert r.status_code == 401 and "spa" not in r.text
