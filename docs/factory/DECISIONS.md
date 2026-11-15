@@ -482,3 +482,11 @@ in force · factory · 2026-11-15
 **Why.** "Clean environment" in D45 means no manager settings or secrets reach a script; the container's own variables are already visible to the student's shell. Wrapping the command in `env -i` would contradict the exam's exact `Cmd` contract for no safety gain.
 **Alternatives.** `env -i` around the interpreter (changes the `Cmd` contract); creating lab containers without `LF_BASE_PATH` (ttyd needs it); resetting the limiter between test modules (a test-only seam in production code).
 **Revert.** Wrap the exec `Cmd` in `env -i PATH=... HOME=/root` and restore the stricter allow-list.
+
+## D48 · #106 wrong-answer exam: `chmod 600` on an answer file must still pass; one content fix in the same PR
+in force · factory · 2026-11-15
+
+**Decision.** (1) The issue named "`chmod 600` on the answer file" as an unreadable-file case. check.sh reads the file as `student`, who owns it, so `chmod 600` is readable and correct: the exam keeps it as a case that must PASS (the guard against #104's round 1 bug), and `chmod 000` is the case that must give the "cannot be read" hint. (2) The near-miss `chmod 100 hello.sh` passed task 07 item 1, but a shell script cannot run without `r`. The issue asked for an exam-only PR; since the exam exposes a real content bug, the fix (owner needs `r` and `x`, hint keeps its wording and adds "a script needs r as well") goes in the same PR as a commit after the exam (D9 order). (3) 09-chgrp item 3 (owner no longer `student`) has no near-miss case: neither root (no `CAP_CHOWN`, D45) nor the student can change a file's owner in the container.
+**Why.** An exam that fails on main cannot merge; splitting a three-line content fix into another issue would only delay it.
+**Alternatives.** Mark the case `xfail` and open a content issue; make `chmod 600` a FAIL case (contradicts the spec: the owner can read it).
+**Revert.** Restore `[ $((u % 2)) -eq 1 ]` alone in `07-chmod/check.sh` and drop the `execute_only_100` case.
