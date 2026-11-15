@@ -158,3 +158,15 @@ The owner said "factory is offline", but nothing had failed. Pass 8 had ended cl
 
 ## Copy the server, don't merge into it (2026-11-15)
 The nginx config lives in two places: the server, where the factory installs its blocks, and a separate infra repo whose pipeline overwrites the server on every push. Instead of hand-editing the repo copy, Claude pulled the live file, diffed it against the repo (only the factory's two blocks differed), and committed the server's bytes verbatim. It also checked `docker compose up --dry-run` beforehand, to make sure the pipeline would only restart nginx, not recreate it. The deploy then rewrote the server with what was already there. Every site stayed up, and nginx kept its address.
+
+## Borrowing a design, not the code (2026-11-15)
+The owner wanted the factory page to show every agent and subagent the way a sibling project's QA view does. That project's code lives in a company repo, so the other Claude session sent a design description over cross-session messaging and asked us not to read its code. The design was "read Claude Code's own transcripts, no hooks". Claude rebuilt it from that description. A subagent's parent is the transcript that holds the `tool_use` whose id is in its `.meta.json`. "Running" means a `tool_use` with no `tool_result` yet. Labels come from an allow-list (the call's own short `description`), never from inputs or outputs. A test plants secrets in fake transcripts and asserts that none of them reach `live.json`.
+
+## Deploying when CI can't run (2026-11-15)
+The free 2,000 Actions minutes ran out mid-afternoon, and GitHub refused every job. The factory noticed it by itself, opened incident #96, and switched to local-only work (D41). For the static dashboard, the "deploy without CI" path was simply the workflow's own steps run from the laptop:
+1. Run the full test suite and acceptance exam locally (141 + 160 + 69 tests).
+2. Merge the PR.
+3. Build `snapshot.json`.
+4. Stream the five files over one SSH connection with `tar | ssh`, then do the same `mv` from `.incoming` that the workflow does.
+
+The lab app itself stays blocked. Its exam needs Linux and gVisor, which a Windows laptop can't stand in for.
