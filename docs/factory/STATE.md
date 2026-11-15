@@ -24,8 +24,8 @@ _Last updated: 2026-11-15 ~01:00 UTC, laptop pass lf-m7k2 (running)._
 ## Waiting for the owner
 
 - O1–O3 done (DNS `labs` and `factory`, deploy secrets, database role). O4 (OpenRouter) skipped by choice.
-- O6 (long-lived token before 2026-11-20). O8 done (deploy secrets only in the `production` environment).
-- O9 (security, owner's call): check what `lf_app` can call in `public` through `PUBLIC` (query in OWNER.md).
+- O6 closed: no token; the owner signs in again when the runner alerts (sign-in ends 2026-11-20..23). O8 done (deploy secrets only in the `production` environment).
+- O9 handed to the manager: issue #61 (decide, owner delegated 2026-11-15).
 
 ## Recently done
 

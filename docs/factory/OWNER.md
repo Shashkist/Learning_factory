@@ -20,12 +20,7 @@ The factory never waits on these. It works around them and comes back when they 
 - [ ] **O4 · (optional, skipped for now) Second-opinion reviewer.** `gh secret set OPENROUTER_API_KEY -R Shashkist/Learning_factory`. Without it, the cross-company PR review is skipped and the PRs say so.
 - [x] **O5 · (optional) Copy the labs nginx block** (done 2026-11-14 for the placeholder blocks; repeat when the factory changes them) from `labs/deploy/nginx/labs.conf` into `EMEW-AI/Digital Ocean/default.conf`, so that repo's copy matches the server (see D3).
 
-- [ ] **O6 · Before 2026-11-20: a long-lived Claude Code token for the laptop runner.** Claude Code warned: "this sign-in ends between 2026-11-20 and 2026-11-23 … use claude setup-token for unattended jobs". In a terminal:
-  ```powershell
-  claude setup-token        # sign in in the browser; it prints a token
-  [Environment]::SetEnvironmentVariable('CLAUDE_CODE_OAUTH_TOKEN', '<paste token>', 'User')
-  ```
-  The scheduled task inherits user environment variables. Without this, passes fail after that date (the watchdog alerts "no progress").
+- [x] **O6 · Claude Code sign-in for the laptop runner** — **owner decision 2026-11-15: no long-lived token; the owner signs in again (`claude auth login`) when asked.** The current sign-in ends between 2026-11-20 and 2026-11-23. When a pass fails because the sign-in has expired, the runner shows a Windows alert "Learning Factory: sign in again" and the factory waits until then.
 - [ ] **O7 · (optional) GitHub Actions minutes.** The repo is private on the free plan: 2,000 Actions minutes a month for CI, deploys, smoke tests and the dashboard. The factory keeps the dashboard to push-to-main plus every 3 hours (D12), but a busy month of CI may still reach the limit, and then jobs stop until the month ends. Options: make the repo public (`gh repo edit Shashkist/Learning_factory --visibility public --accept-visibility-change-consequences`; check that nothing private is in it first, e.g. `courses/`), or set a spending limit in GitHub → Settings → Billing. Tell any session "O7: public" and the dashboard goes back to every 15 minutes.
 
 - [x] **O8 · Move the server deploy secrets into the `production` environment** — **done 2026-11-14 (both steps; publish verified with the new key)**. Step 1 done 2026-11-14 by `scripts/owner/setup-production-env.sh` (owner pre-approval D7): env secrets `SSH_PRIVATE_KEY` (new key `lf-deploy-prod`), `SERVER_HOST`, `SERVER_USER` are set; the old repo-level key still works. **Step 2, after #25 merges:** `bash scripts/owner/setup-production-env.sh --finish` (deletes the repo-level secrets and the old `lf-deploy` key on the server). Original note: (issue #25, D15). Only workflow runs on `main` can then read the root SSH key. After the factory has created the environment (it will note that on #25), run:
@@ -39,14 +34,14 @@ The factory never waits on these. It works around them and comes back when they 
   ```
   Do the deletes only after #25 is merged (the workflows then use `environment: production`); until then nothing changes.
 
-- [ ] **O9 · (security, your call) What `lf_app` can still reach through `PUBLIC` in the Supabase database.** The role sees tables only in `learning_factory`, but like every role it inherits `PUBLIC`'s rights: it can call functions in schema `public` (Postgres grants EXECUTE to `PUBLIC` by default) and read the catalog (table names, function source). A `SECURITY DEFINER` function in `public` would run with its owner's rights, so `lf_app` could reach JSoul data through it. The factory does not change `PUBLIC` because JSoul shares the database (D22, review of #34). To check, in the Supabase SQL editor:
+- [x] **O9 · What `lf_app` can reach through `PUBLIC`** — **handed to the manager by the owner (2026-11-15): issue #61.** The original note and query are kept below for the manager.
+  The role sees tables only in `learning_factory`, but like every role it inherits `PUBLIC`'s rights: it can call functions in schema `public` and read the catalog. A `SECURITY DEFINER` function in `public` would run with its owner's rights. Check:
   ```sql
   select p.oid::regprocedure as fn, p.prosecdef as security_definer
   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public' and has_function_privilege('lf_app', p.oid, 'EXECUTE')
   order by 2 desc, 1;
   ```
-  If a `security_definer = true` row should not be callable by everyone, `revoke execute on function <fn> from public;` (Supabase's `anon`/`authenticated`/`service_role` grants are separate, but test JSoul afterwards). Nothing in the labs platform depends on this.
 
 ## Questions
 

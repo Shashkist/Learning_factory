@@ -170,6 +170,15 @@ Stop after about $PassMinutes minutes of work or 3 merged PRs, and update docs/f
     if ((Test-Path $runLog) -and ((Get-Item $runLog).Length -eq 0)) {
         Notify 'Learning Factory: pass produced no output' "The last pass wrote nothing. Is Claude Code logged in? See $runLog" 'empty'
     }
+    # Expired sign-in (owner decision O6: no long-lived token, the owner signs in again when asked).
+    # The early warning "this sign-in ends between ..." appears in every log and is not a failure.
+    if (Test-Path $runLog) {
+        $authFail = Get-Content $runLog | Where-Object { $_ -notmatch 'sign-in ends' -and $_ -match 'authentication_error|OAuth token has expired|Please run /login|Not logged in|Invalid API key|status 401' }
+        if ($authFail) {
+            Log 'auth: Claude Code sign-in has expired'
+            Notify 'Learning Factory: sign in again' 'Claude Code is signed out, so the factory is waiting. Open a terminal and run: claude auth login' 'auth'
+        }
+    }
     # No-progress detector: 3 passes in a row without a new commit on origin/main.
     git -C $Worktree fetch -q origin
     $sha = (git -C $Worktree rev-parse origin/main).Trim()
