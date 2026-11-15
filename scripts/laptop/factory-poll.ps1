@@ -104,6 +104,13 @@ try {
 if ([int]$work -eq 0 -and [int]$prs -eq 0) { Log 'idle: nothing ready, no open PRs'; Publish-Live 'idle' 'nothing ready'; exit 0 }
 
 New-Item -ItemType File -Force $Lock | Out-Null
+# Keep the laptop awake while the pass runs (idle sleep is 5 min on AC), the way a video player does.
+# It only blocks idle sleep for this process's lifetime: no power setting changes, the screen may still
+# turn off, and closing the lid or choosing Sleep still sleeps.
+try {
+    Add-Type -Namespace LF -Name Power -MemberDefinition '[DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint esFlags);'
+    [void][LF.Power]::SetThreadExecutionState([uint32]'0x80000001')   # ES_CONTINUOUS | ES_SYSTEM_REQUIRED
+} catch { Log "keep-awake unavailable: $($_.Exception.Message)" }
 try {
     Set-Content $countFile ($passes + 1)
     Log "pass $($passes + 1)/$MaxPassesPerDay today: $work issue(s) with work, $prs open PR(s)"
@@ -195,5 +202,6 @@ Stop after about $PassMinutes minutes of work or 3 merged PRs, and update docs/f
     Log "error: $($_.Exception.Message)"
     Notify 'Learning Factory: pass failed' "$($_.Exception.Message)" 'error'
 } finally {
+    try { [void][LF.Power]::SetThreadExecutionState([uint32]'0x80000000') } catch {}   # ES_CONTINUOUS: allow sleep again
     Remove-Item $Lock -Force -ErrorAction SilentlyContinue
 }
