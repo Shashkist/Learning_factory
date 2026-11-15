@@ -21,7 +21,17 @@ from app.runtime import container_name
 log = logging.getLogger("lab-manager")
 T = db.SCHEMA
 DEFAULT_SETUP_TIMEOUT_S = 50.0  # below nginx's default proxy_read_timeout (60 s)
-_EXECS = asyncio.Semaphore(max(1, int(os.environ.get("LF_MAX_EXECS", "8") or 8)))
+SLOT_WAIT_S = 5.0  # waiting for an exec slot, on top of the setup timeout
+
+
+def _max_execs() -> int:
+    try:
+        return max(1, int(os.environ.get("LF_MAX_EXECS", "")))
+    except ValueError:
+        return 8
+
+
+_EXECS = asyncio.Semaphore(_max_execs())
 _LOCKS: dict[uuid.UUID, asyncio.Lock] = {}  # one manager process (D23): setups per session
 
 router = APIRouter(prefix="/api/sessions/{session}/tasks")
@@ -110,21 +120,33 @@ async def _ctx(
         raise HTTPException(403, "not_your_session")
     if row["status"] == "ended":
         raise HTTPException(410, "session_ended")
-    if row["status"] != "running":
+    if row["status"] == "starting":
         raise HTTPException(409, "session_starting")
+    if row["status"] != "running":
+        raise HTTPException(410, "session_ended")
     lab = request.app.state.labs.get(row["lab_id"])
     if lab is None:
         raise HTTPException(404, "unknown_lab")
     return _Ctx(request, sid, p.subject, lab, row["current_task"])
 
 
-async def _show(ctx: _Ctx, task: Task) -> dict[str, Any]:
-    """Serialised per session: a second show while one runs gets 409 and runs nothing."""
+async def _show(ctx: _Ctx, task: Task, moving_from: str | None = None) -> dict[str, Any]:
+    """Serialised per session: a second show while one runs gets 409 and runs nothing.
+
+    `moving_from` (navigation): the current task the target was computed from; if another
+    request changed it before this one got the lock, answer 409 and run nothing."""
     lock = _LOCKS.setdefault(ctx.sid, asyncio.Lock())
     if lock.locked():
         raise HTTPException(409, "setup_running")
     try:
         async with lock:
+            if moving_from is not None:
+                with db_guard():
+                    now = await ctx.pool.fetchval(
+                        f"select current_task from {T}.lab_sessions where id = $1", ctx.sid
+                    )
+                if now != moving_from:
+                    raise HTTPException(409, "task_changed")
             return await _do_show(ctx, task)
     finally:
         if not lock.locked() and _LOCKS.get(ctx.sid) is lock:
@@ -136,15 +158,23 @@ async def _do_show(ctx: _Ctx, task: Task) -> dict[str, Any]:
     if task.kind == "hands-on":
         script = (ctx.lab.path / "tasks" / task.id / "setup.sh").read_bytes().decode("utf-8")
         try:
-            async with _EXECS:
-                res = await ctx.request.app.state.runtime.exec_script(
-                    container_name(ctx.sid), script, setup_timeout()
-                )
+            await asyncio.wait_for(_EXECS.acquire(), SLOT_WAIT_S)
+        except TimeoutError:
+            log.error("setup of %s in session %s found no free exec slot", task.id, ctx.sid)
+            raise HTTPException(
+                504, {"code": "setup_timeout", "message": "The server is busy; try again."}
+            ) from None
+        try:
+            res = await ctx.request.app.state.runtime.exec_script(
+                container_name(ctx.sid), script, setup_timeout()
+            )
         except Exception as exc:
             log.error("setup of %s in session %s failed (%s)", task.id, ctx.sid, type(exc).__name__)
             raise HTTPException(
                 502, {"code": "setup_failed", "message": "The task could not be set up."}
             ) from None
+        finally:
+            _EXECS.release()
         if res.timed_out:
             log.error("setup of %s in session %s timed out", task.id, ctx.sid)
             raise HTTPException(
@@ -224,7 +254,7 @@ async def navigate(action: str, ctx: Annotated[_Ctx, Depends(_ctx)]) -> dict[str
         raise HTTPException(409, "no_next_task")
     if target < 0:
         raise HTTPException(409, "no_previous_task")
-    return await _show(ctx, ctx.lab.tasks[target])
+    return await _show(ctx, ctx.lab.tasks[target], moving_from=ctx.lab.tasks[here].id)
 
 
 @router.post("/{task_id}/show")

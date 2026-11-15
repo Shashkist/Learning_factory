@@ -129,3 +129,62 @@ def test_exec_output_is_capped_and_the_stream_still_drains():
     assert out.startswith(b"x" * runtime.MAX_OUTPUT)
     assert len(out) == runtime.MAX_OUTPUT + len(runtime.TRUNCATED)
     assert out.endswith(runtime.TRUNCATED)
+
+
+def test_navigation_is_refused_when_the_current_task_changed_before_the_lock(monkeypatch):
+    import asyncio
+    import uuid
+    from types import SimpleNamespace
+
+    from fastapi import HTTPException
+
+    ran = []
+
+    async def fake_show(ctx, task):
+        ran.append(task)
+        return {"ok": True}
+
+    class Pool:
+        async def fetchval(self, sql, sid):
+            return "03-net"  # another request already moved the session on
+
+    monkeypatch.setattr(tasks, "_do_show", fake_show)
+    ctx = SimpleNamespace(sid=uuid.uuid4(), pool=Pool())
+    with pytest.raises(HTTPException) as err:
+        asyncio.run(tasks._show(ctx, "04-last", moving_from="02-files"))
+    assert err.value.status_code == 409 and err.value.detail == "task_changed"
+    assert ran == [] and ctx.sid not in tasks._LOCKS
+    assert asyncio.run(tasks._show(ctx, "04-last", moving_from="03-net")) == {"ok": True}
+
+
+def test_no_free_exec_slot_is_a_504_setup_timeout_and_runs_nothing(monkeypatch, tmp_path: Path):
+    import asyncio
+    import uuid
+    from types import SimpleNamespace
+
+    from fastapi import HTTPException
+
+    (tmp_path / "tasks" / "t1").mkdir(parents=True)
+    (tmp_path / "tasks" / "t1" / "setup.sh").write_text("#!/bin/sh\ntrue\n", encoding="utf-8")
+    calls = []
+
+    class Runtime:
+        async def exec_script(self, name, script, timeout):
+            calls.append(name)
+
+    async def go():
+        monkeypatch.setattr(tasks, "_EXECS", asyncio.Semaphore(1))
+        monkeypatch.setattr(tasks, "SLOT_WAIT_S", 0.05)
+        await tasks._EXECS.acquire()  # every slot busy
+        ctx = SimpleNamespace(
+            sid=uuid.uuid4(),
+            lab=SimpleNamespace(path=tmp_path),
+            request=SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(runtime=Runtime()))),
+        )
+        with pytest.raises(HTTPException) as err:
+            await tasks._do_show(ctx, SimpleNamespace(id="t1", kind="hands-on"))
+        return err.value
+
+    exc = asyncio.run(go())
+    assert exc.status_code == 504 and exc.detail["code"] == "setup_timeout"
+    assert calls == []

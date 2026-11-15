@@ -162,7 +162,7 @@ class DockerRuntime:
                         left -= len(chunk)
                         eof = False
                     room = MAX_OUTPUT - len(out)
-                    if len(chunk) > room:  # keep the first 64 KiB, drain the rest
+                    if len(chunk) > room:  # keep the first MAX_OUTPUT bytes, drain the rest
                         truncated = True
                     out += chunk[: max(room, 0)]
                     if eof:
@@ -192,8 +192,11 @@ class DockerRuntime:
         }
         out = bytearray()
         try:
-            return await asyncio.wait_for(self._run_exec(name, script, create, out), timeout)
+            async with asyncio.timeout(timeout) as deadline:
+                return await self._run_exec(name, script, create, out)
         except TimeoutError:
+            if not deadline.expired():
+                raise  # a timeout inside the exec (e.g. connecting) is a failure, not a slow script
             return ExecResult(None, out.decode("utf-8", "replace"), True)
 
     async def _run_exec(
