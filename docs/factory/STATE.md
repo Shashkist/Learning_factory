@@ -2,18 +2,19 @@
 
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
-_Last updated: 2026-11-15 ~09:50 UTC, laptop pass lf-a7d42 (started 08:56 UTC; 1 PR merged: #74)._
+_Last updated: 2026-11-15 ~10:25 UTC, laptop pass lf-a7d42 (08:56-10:25 UTC; stopped at 3 merged PRs: #74, #75, #78)._
 
 ## Now
 
-- **Pass lf-a7d42 running.** Claim: #72.
-- **#72 manager image + compose file** (slice 1 of #13, D32): PR #75, round-1 review fixes in faae37e, CI green; review round 2 running. After merge: the follow-up PR for #72 (D19): `ci.yml` job `image-manager` (needs docker; build, run `/healthz`, push `:sha`/`:latest` on main) and `docker compose config --quiet` with a placeholder `.env`; plus an exam commit asserting `gw_priority` on the nginx network (round-1 finding 6). That PR closes #72.
+- **Pass lf-a7d42 stopped.** No claims held.
+- **#72: PR #80 is green and ready to merge** (exam-only follow-up, commit f0de6b2 = exam writer's d9c1c93; reviewed with #78 and approved; it ran green against the same code on #79, acceptance 320, and on #80 itself, run 43703111098). Merge it (squash), check main CI, close #72 with: #75 + #78 + #80, main run 43703069098 (image pushed: `ghcr.io/shashkist/lf-manager:latest` and `:ff98ba1...`).
+- **Next session starts at:** Next 1.
 
 ## Next (in order)
 
-1. **#72**: finish (see Now).
-2. **#13** deploy (needs #72; read the #13 comments from the reviews of #74 and #75: never run `compose config` on the server, check Docker ≥ 28 / Compose ≥ 2.33.1 for `gw_priority`, `LF_TERM_UPSTREAM` unset, live terminal smoke through the DNS path). #3 is done: isolation is proven on the server, and lf-lab-term (tini) is not affected by the busybox finding. See the #13 comments for: `install-block.sh factory` for `/live.json`, the D31 migration watch item, D30 container name `lf-manager` + concurrency group `server-lab-host`, pre-pull `lf-lab-term`, `LF_TRUSTED_PROXY`, create-admin. Then #9, #11, #10 (#12 content can run in parallel).
-3. p2: #76 (terminal proxy hardening), #67 (remove liveness.sh), #69 (WS Origin check), #64 (live view leftovers), #54, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
+1. **#80**: merge, close #72 (see Now).
+2. **#13** deploy (the image and compose file exist now). Read every #13 comment first: never run `docker compose config` on the server (it prints `env_file` values); export `LF_TRUSTED_PROXY` and `LF_NGINX_NETWORK` for every compose command; deploy `LF_MANAGER_TAG=<sha>`; check Docker >= 28 and Compose >= 2.33.1 (`gw_priority`) and `ip route` in `lf-manager`; `LF_TERM_UPSTREAM` must be unset; live smoke opens a real terminal through the Docker DNS path; `install-block.sh factory` for `/live.json`; pre-pull `lf-lab-term`; D31 migration watch item. Then #9, #11, #10 (#12 content can run in parallel).
+3. p2: #81 (manager image follow-ups), #76 (terminal proxy hardening), #67, #69, #64, #68, #54, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
 
@@ -22,6 +23,8 @@ _Last updated: 2026-11-15 ~09:50 UTC, laptop pass lf-a7d42 (started 08:56 UTC; 1
 - O9 decided by the manager: D31 (#61). **O10 open:** move `LF_DATABASE_URL` into the `production` environment.
 
 ## Recently done
+
+- 2026-11-15 · #72 (slice 1 of #13, D32) shipped in #75 (image + compose, 2 review rounds) and #78 (CI `image-manager` job: build, smoke, `compose config --quiet`, push on main; serving fixes). The first push of the new GHCR package was denied at the manifest (incident #82, closed): a re-run of the failed job pushed it. Exam follow-up #80 waits for merge. Leftovers → #81.
 
 - 2026-11-15 · #8 Terminal proxy shipped in #74 (re-sequenced from #66/#70/#73; review round 2 approved). Main CI 43699419037 green, docker exam under runsc with no skips. The docker failure was the exam typing before the student's shell was up (dropped under runsc) and a `hi` pattern that missed bash's bracketed-paste reset (D33). Live terminal smoke → #13. Leftovers → #76.
 
