@@ -686,6 +686,15 @@ def test_the_owner_keeps_access_after_another_student_was_refused(env, upstream)
     assert client.get(f"/s/{sid}/term/").status_code == 200
 
 
+def test_a_janitor_pass_keeps_a_live_session_whose_lab_is_running(env, upstream):
+    """#105: the harness itself must not let the janitor end live sessions mid-test."""
+    from app import janitor
+
+    client, sid, _ = env.owner_with_session()
+    assert env.client.portal.call(janitor.run_once, env.app) is True
+    assert client.get(f"/s/{sid}/term/").status_code == 200
+
+
 # ---------------------------------------------------------------- WebSocket proxying
 
 
