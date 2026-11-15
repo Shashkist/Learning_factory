@@ -204,3 +204,9 @@ After Google sign-in went live, the closing check was a plain `curl` of the sign
 
 The fix (#110) was an exam, then a 10-line helper. On the way, the tooling did the same thing twice: a shell heredoc and a file write each turned the `﻿` escape into the real invisible byte. Both times, `od -c` showed what the editor could not.
 Tip: a check that reads the real output (the redirect URL, not a status code) finds bugs that every unit test passes.
+
+## Two red tests, zero product bugs, and a shared rate limiter (2026-11-15)
+The task engine PR came back from its first CI run with 977 tests green and 2 red. Both were in the exam, not the code. One test module borrowed student IDs from the range the login exam locks out on purpose; the rate limiter lives in process memory, so a lockout from one test file leaked into another in the same pytest run (`429` instead of `200`). The other test forgot that `docker exec` always inherits the container's own environment variables.
+The rule "exam changes come before code" made the fix take a new branch: exam, exam fix, code, in that order, and a new PR. A force-push would have been shorter, but it would hide that the exam changed after the code was seen.
+The same pass, a 75-case "wrong answer" exam for the Linux lab found one real content bug (`chmod 100` passed a check, but a script needs read permission to run) and one bug of its own (`grep` with no match exits 1, so the near miss "failed" before the check ran).
+Tip: give every test module its own range of fake IDs, IPs and names. Shared in-process state (limiters, caches) turns a neighbour's test into your flake.
