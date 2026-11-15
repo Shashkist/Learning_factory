@@ -299,3 +299,29 @@ def test_colon_is_refused_in_admin_usernames(monkeypatch: pytest.MonkeyPatch) ->
         finally:
             app.state.pool = None
     assert r.status_code == 401
+
+
+def test_an_undecodable_allow_list_byte_is_dropped_not_a_crash(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """On Linux, environment bytes that are not UTF-8 arrive as lone surrogates (U+DC80 to U+DCFF).
+    google_config() must drop that entry (counted, never named) and break-glass must still work."""
+    import logging
+    import os
+
+    env = dict(os.environ)
+    env.update({
+        "LF_GOOGLE_CLIENT_ID": CLIENT_ID,
+        "LF_GOOGLE_CLIENT_SECRET": "unit-" + "secret",
+        "LF_ADMIN_EMAILS": EMAIL + ",m\udce4ria@example.test",
+    })
+    env.pop("LF_ADMIN_PASSWORD_LOGIN", None)
+    monkeypatch.setattr(os, "environ", env)
+    monkeypatch.setattr(auth, "_dropped_logged_for", None)
+    with caplog.at_level(logging.WARNING):
+        cfg = auth.google_config()
+    assert cfg is not None and cfg.emails == frozenset({EMAIL.lower()})
+    assert "1 entries" in caplog.text and "ria" not in caplog.text
+    assert auth.password_login_allowed() is False
+    env["LF_ADMIN_PASSWORD_LOGIN"] = "1"
+    assert auth.password_login_allowed() is True
