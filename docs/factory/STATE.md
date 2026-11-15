@@ -2,33 +2,37 @@
 
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
-_Last updated: 2026-11-15 ~22:40 UTC, laptop pass lf-r7p3 (from ~21:57 UTC)._
+_Last updated: 2026-11-15 ~23:45 UTC, laptop pass lf-r7p3 (~21:57 to ~23:45 UTC)._
 
 ## Now
 
-Pass lf-r7p3 in progress, 3 issues in flight (D44):
-- **#9 task engine slice 1, PR #114** (re-sequenced from #113, D47; worktree `C:\projects\lf-9`, branch `f/9-task-engine-2`): CI green (run 43767453539, 814 + 164 tests). Review round 1: changes requested (comment on #114); fixes for findings 1, 3, 4, 5, 8 being built; 2 and 7 moved to #117. Next: push fixes, CI, review round 2.
-- **#106 Linux 1 wrong-answer exam, PR #116** (re-sequenced from #115; worktree `C:\projects\lf-106`): CI green (75 near-miss cases), plus the 07-chmod check fix (D48). Reviewer round 1 running.
-- **#99 Google sign-in follow-ups** (worktree `C:\projects\lf-99`, branch `f/99-google-followups`): exam 8a88c5b committed (not pushed), implementer building.
-- #110 and #12 verified live and closed with evidence (Deploy 43765164837, `lf-manager:122bfa6`; no BOM in the Google redirect).
+- **Nothing in flight.** Pass lf-r7p3 merged 3 PRs (#120, #118, #114) and released every claim. Worktree `C:\projects\lf-9` (branch `f/9-task-engine-2`, merged) can be removed.
+- **Production:** Deploy 43776057035 printed `deployed lf-manager:92e32ea` (task engine slice 1, migration 004 applied; terminal smoke green). #99 live (callback through the no-access-log location answers the app's 403; methods `google: true, password: false`). #106 in the image; Linux 1 still draft (O17).
+- **Task API live check is shallow:** from outside only the routes are proven (unauthenticated `GET /api/sessions/<uuid>/tasks` → 401). A real show/next with the smoke student needs the smoke job to drive the task API: add that to #88's slice (it needs a lab with a setup in the smoke cohort).
+- **Lesson (D49):** a state commit pushed to `main` while a merge's Deploy is pending makes that Deploy skip ("no longer the head of main"); the next commit's Deploy carries the code. Push state after the Deploy, or accept the shift.
 - **Repository is public (D43).** The owner also pushes to main: always `git pull --rebase` before a state commit, never `--autostash`.
 - **Known gap (D40):** a cancelled Deploy is not noticed; fix in #85.
+- **Next session starts at:** Next 1.
 
 ## Next (in order)
 
-1. **#9 / PR #113**: CI, review (max 2 rounds), merge, deploy, live check of the task API with the smoke student. Then **#88** (check results, attempts, quiz grading), **#89** (completion, active time, fast flag), **#10** student UI, **#11** teacher UI.
-2. **#99** Google sign-in follow-ups (now with the two #112 review nits: full-callback BOM test; log the count of dropped allow-list entries, never the addresses). Exam change first.
-3. **#106** Linux 1 exam wrong-answer cases (exam-only PR).
-4. **#98** (p2 now, D46): first slice = cancel superseded PR runs; branch `f/98-ci-minutes` + PR #103's round 1 findings are the starting point.
-5. **#85** deploy follow-ups, **#94**, **#93**; p2 list: #81, #76, #67, #69, #64, #68, #54, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
+1. **#88** (check results, attempts, quiz grading; p1, builds on #9's runner): exam first. Include a smoke step that shows a task and runs a check with the smoke student. Then **#89** (completion, active time, fast flag), **#10** student UI, **#11** teacher UI.
+2. **#117** task runner follow-ups (kill timed-out scripts, needs a runner contract change, exam first; session `running` only after the skel copy; one ownership rule; authoring rules for stdin and daemons).
+3. **#119** Linux 1 checks as the student (private home gives false FAILs) + exam nits from #120.
+4. **#121** Google sign-in test nits (tests only).
+5. **#98** (p2, D46): first slice = cancel superseded PR runs; branch `f/98-ci-minutes` + PR #103's round 1 findings.
+6. **#85** deploy follow-ups, **#94**, **#93**; p2 list: #81, #76, #67, #69, #64, #68, #54, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
 
-- **O18 (new, optional since #110):** the `production` environment values `LF_GOOGLE_CLIENT_ID` (and probably `LF_GOOGLE_CLIENT_SECRET`) start with a byte-order mark. The manager strips it on read now, so nothing is broken. Re-save both without it when convenient (type or paste the value in the GitHub web form). Then do the **first real Google sign-in**.
-- **O17:** read Linux 1 (en + he) and publish it (`status: published`).
+- **O19 (new, read only):** the break-glass admin login steps, needed only if Google sign-in breaks: since #99 a password admin session is refused at once while Google is configured.
+- **O18 (optional since #110):** re-save `LF_GOOGLE_CLIENT_ID` / `LF_GOOGLE_CLIENT_SECRET` without the byte-order mark, then do the **first real Google sign-in**.
+- **O17:** read Linux 1 (en + he) and publish it (`status: published`). #106 added 75 wrong-answer cases and fixed the chmod check (D48).
 - O16/O7 resolved by D43 (public repository). O10 open (move `LF_DATABASE_URL` into `production`), O12 (back up `.env`), O13 (re-deploy after recreating nginx-proxy3), O5 reopened.
 
 ## Recently done
+
+- 2026-11-15 · Pass lf-r7p3: **3 PRs merged.** #9 task engine slice 1 (#114, re-sequenced from #113 after two exam-side CI failures, D47; round 1 blocker: per-session setup lock; round 2 should-fix fixed by the manager, D49; leftovers #117). #99 Google sign-in follow-ups (#118; round 1 blocker: undecodable allow-list bytes crashed every admin path incl. break-glass; live: callback via the no-access-log location; O19; leftovers #121). #106 Linux 1 wrong-answer exam (#120, third branch; 75 near-miss cases; chmod content fix, D48; leftovers #119). #110 and #12 closed with live evidence.
 
 - 2026-11-15 · Pass lf-q4n8: **4 PRs merged.** #92 Google admin sign-in (#102; live: `google: true`, 303 to Google with the right callback); #105 harness race in the proxy exam (#108: the janitor's first DB pass ~2 s after startup ended every live session because the fake runtime listed no containers; incident #107 closed); #12 Linux 1 (#104; round 1: 5 should-fix, round 2 approved; leftovers #106); #110 byte-order mark in the Google settings, found by the live check of #92 (#112). #98 dropped to p2 and PR #103 closed (D46). D45 (task scripts as root, no extra capabilities). #9 exam + code, PR #113 opened.
 
