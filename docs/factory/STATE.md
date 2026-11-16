@@ -2,17 +2,14 @@
 
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
-_Last updated: 2026-11-16 ~01:25 UTC, laptop pass lf-k3v9 (~23:57 to ~01:25 UTC)._
+_Last updated: 2026-11-16 ~01:35 UTC, laptop pass lf-t5w2._
 
 ## Now
 
-- **Nothing in flight.** Pass lf-k3v9 merged 3 PRs (#122, #123, #125) and released every claim. Pass worktrees removed.
-- **Production:** Deploy 43784425504 printed `deployed lf-manager:2c75a3e...; all checks passed` (task engine slice 2: check + answer routes; live: both answer 401 unauthenticated). Deploy 43785890006 then shipped `lf-manager:b12df99` (#125, Linux 1 checks), all checks passed.
-- **Task API live check is still shallow:** only the routes are proven from outside. #128 (p1) makes the post-deploy smoke drive show / check / answer with the smoke student.
+- **Pass lf-t5w2 (started ~01:27 UTC) has 3 issues in flight:** #89 (branch `f/89-completion`, worktree `C:\projects\lf-89`), #128 (`f/128-smoke-tasks`, `C:\projects\lf-128`, D54), #10 slice 1 (`f/10-student-shell`, `C:\projects\lf-10`, D53: #10 sliced into #10/#129/#130/#131). Step: exam.
 - **Lesson (D49):** a state commit pushed to `main` while a merge's Deploy is pending makes that Deploy skip; push state after the Deploy.
 - **Repository is public (D43).** Always `git pull --rebase` before a state commit, never `--autostash`.
 - **Known gap (D40):** a cancelled Deploy is not noticed; fix in #85.
-- **Next session starts at:** Next 1.
 
 ## Next (in order)
 

@@ -526,3 +526,19 @@ in force · factory · 2026-11-16 · amends D45
 **Amended 2026-11-16 (review round 2 of #125).** The reader prints with `printf '%s
 '` (dash `echo` turns `
 ` in file content into new lines, which forged fact lines), opens regular files only, and reads at most 64 KiB / 200 lines (a FIFO or `/dev/zero` symlink hung it). The accepted risk in (2) also covers a student writing fake fact lines into the reader's stdout through `/proc/<pid>/fd/1` with a plain shell loop, no debugger needed. A per-check token is the follow-up (#126), with the 04/05 expected texts still on root command lines.
+
+## D53 · #10 student UI ships in four slices
+in force · factory · 2026-11-16
+
+**Decision.** #10 is too big for one PR (~400 lines) and "My labs" has no API yet. Slices:
+1. **#10 (this issue, web only):** i18n foundation (`en.json` / `he.json`, a `t()` helper, EN / עב toggle remembered in `localStorage`, `dir="rtl"` on Hebrew, code stays LTR), student login page (ID + class password → `POST /api/auth/login`, errors for wrong credentials / rate limit / expired access), `GET /api/auth/me` on load, logout, a minimal client-side router (`/`, `/login`, `/labs`, `/labs/<id>`), an empty "My labs" placeholder. Vitest + Testing Library tests in both languages. No new dependency for routing or i18n (a dozen lines each).
+2. **New issue:** `GET /api/labs` (published labs for students, with per-student progress ✓ / n/m / not started) + the My labs page (cards by module, Start / Continue / Redo, "Another lab is open" dialog).
+3. **New issue:** lab screen (task panel, terminal iframe, splitter, Check / Next / Skip / Previous / Restart, heartbeat every 15 s, End lab).
+4. **New issue:** Playwright main flow in both languages against a fake backend in CI + one docker-marked end-to-end test.
+**Why.** Each slice is one reviewable PR; slice 1 needs no manager change, so it runs in parallel with #89 and #128. **Alternatives.** One big PR; add react-router / i18next (more dependencies for a two-language, five-route app). **Revert.** Merge the follow-up issues back into #10.
+
+## D54 · #128 smoke-only lab: `status: internal`, startable only by the `lf-smoke` cohort
+in force · factory · 2026-11-16
+
+**Decision.** The smoke lab lives at `labs/content/smoke/tasks/` (id `smoke-tasks`): one quiz task and one hands-on task with trivial, deterministic `setup.sh` / `check.sh`. `lab.yaml` gets a new `status` value `internal`. `POST /api/sessions` answers 404 `unknown_lab` (same as a missing lab, so its existence does not leak) for an `internal` lab unless the student belongs to cohort `lf-smoke`; any future student catalog (#10 slice 2) never lists `internal` labs.
+**Why.** Reuses the existing status field and the synthetic smoke cohort (D36); no new table or flag. **Alternatives.** An `audience:` field per lab; a separate content root mounted only for smoke runs. **Revert.** Drop the status value and move the smoke lab to `draft`.
