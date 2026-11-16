@@ -29,7 +29,7 @@ def test_missing_name_and_messages_never_repeat_the_id():
     errs = check_lines(split_lines("123456789\n123456780,  "))
     assert [e["code"] for e in errs.values()] == ["missing_name", "missing_name"]
     for e in errs.values():
-        assert e["message"].startswith(f"Line {e['line']}:")
+        assert e["message"].strip() and "Line" not in e["message"]  # the UI adds the line
         assert "12345678" not in e["message"]
 
 

@@ -22,9 +22,14 @@ NOT_SMOKE = f"lower(trim(c.name)) <> '{SMOKE_COHORT}'"
 router = APIRouter(prefix="/api/admin", dependencies=[Depends(current_admin)])
 
 
+def printable(value: str) -> bool:
+    """No control or bidi-format characters (Postgres refuses NUL; the rest garble the tables)."""
+    return value.isprintable()
+
+
 def _name(value: str) -> str:
     value = value.strip()
-    if not value or value.lower() == SMOKE_COHORT:
+    if not value or value.lower() == SMOKE_COHORT or not printable(value):
         raise ValueError("invalid name")
     return value
 
@@ -35,7 +40,8 @@ def _date(value: Any) -> date:
     return date.fromisoformat(value)
 
 
-Name = Annotated[str, Field(max_length=200), AfterValidator(_name)]
+MAX_NAME = 200
+Name = Annotated[str, Field(max_length=MAX_NAME), AfterValidator(_name)]
 Password = Annotated[str, Field(min_length=1, max_length=1000)]
 Day = Annotated[date, BeforeValidator(_date)]
 
@@ -102,6 +108,8 @@ async def create_cohort(body: NewCohort, request: Request) -> dict[str, Any]:
 @router.patch("/cohorts/{cohort_id}")
 async def edit_cohort(cohort_id: int, body: CohortEdit, request: Request) -> dict[str, Any]:
     pool = auth._pool(request)
+    with db_guard():
+        await _one(pool, cohort_id)  # before any argon2 work
     fields: dict[str, Any] = {}
     if body.name is not None:
         fields["name"] = body.name
@@ -110,7 +118,6 @@ async def edit_cohort(cohort_id: int, body: CohortEdit, request: Request) -> dic
     if body.password is not None:
         fields["password_hash"] = await auth.hash_password_bounded(body.password)
     with db_guard():
-        await _one(pool, cohort_id)
         if fields:  # column names come from the fixed keys above, never from the request
             sets = ", ".join(f"{k} = ${i}" for i, k in enumerate(fields, 2))
             await pool.execute(
@@ -136,7 +143,8 @@ def split_lines(text: str) -> list[Line]:
 
 
 def _error(line: int, code: str, message: str) -> dict[str, Any]:
-    return {"line": line, "status": "error", "code": code, "message": f"Line {line}: {message}"}
+    # The UI shows the line number itself; the message never repeats the id.
+    return {"line": line, "status": "error", "code": code, "message": message}
 
 
 def check_lines(lines: list[Line]) -> dict[int, dict[str, Any]]:
@@ -148,6 +156,10 @@ def check_lines(lines: list[Line]) -> dict[int, dict[str, Any]]:
             errors[ln.line] = _error(ln.line, "invalid_id", "the ID is not valid.")
         elif not ln.name:
             errors[ln.line] = _error(ln.line, "missing_name", "the name is missing.")
+        elif len(ln.name) > MAX_NAME or not printable(ln.name):
+            errors[ln.line] = _error(
+                ln.line, "invalid_name", "the name is too long or has control characters."
+            )
         elif (norm := auth.normalize(ln.id)) in seen:
             errors[ln.line] = _error(ln.line, "duplicate_in_paste", "same ID as an earlier line.")
         else:
@@ -163,26 +175,24 @@ async def import_students(cohort_id: int, body: ImportBody, request: Request) ->
         raise HTTPException(503, "login not configured")
     lines = split_lines(body.text)
     errors = check_lines(lines)
-    rows: list[dict[str, Any]] = []
-    added = 0
+    good = [(auth.id_hash(ln.id, secret), ln) for ln in lines if ln.line not in errors]
+    result: dict[int, dict[str, Any]] = dict(errors)
     with db_guard():
         await _one(pool, cohort_id)
         async with pool.acquire() as conn, conn.transaction():
-            for ln in lines:
-                if ln.line in errors:
-                    rows.append(errors[ln.line])
-                    continue
+            # In id_hash order: overlapping imports lock rows in the same order (no deadlock).
+            for h, ln in sorted(good, key=lambda g: g[0]):
                 saved = await conn.fetchval(
                     f"insert into {T}.students (id_hash, name, cohort_id) values ($1, $2, $3) "
                     "on conflict (id_hash) do nothing returning 1",
-                    auth.id_hash(ln.id, secret), ln.name, cohort_id,
+                    h, ln.name, cohort_id,
                 )
-                if saved:
-                    added += 1
-                    rows.append({"line": ln.line, "status": "added"})
-                else:
-                    rows.append(_error(ln.line, "already_exists", "this ID is already a student."))
-    return {"added": added, "rows": rows}
+                result[ln.line] = (
+                    {"line": ln.line, "status": "added"} if saved
+                    else _error(ln.line, "already_exists", "this ID is already a student.")
+                )
+    rows = [result[ln.line] for ln in lines]
+    return {"added": sum(r["status"] == "added" for r in rows), "rows": rows}
 
 
 @router.get("/cohorts/{cohort_id}/students")

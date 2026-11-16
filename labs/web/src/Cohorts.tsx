@@ -31,6 +31,7 @@ export default function Cohorts() {
   const [target, setTarget] = useState("");
   const [text, setText] = useState("");
   const [result, setResult] = useState<Result | null>(null);
+  const [busy, setBusy] = useState(false); // one request at a time: no double create or import
 
   const load = async () => {
     try {
@@ -49,8 +50,11 @@ export default function Cohorts() {
 
   const create = async (e: FormEvent) => {
     e.preventDefault();
+    if (busy) return;
+    setBusy(true);
     setSaveFailed(false);
     const r = await send("/api/admin/cohorts", { name, password, access_until: until });
+    setBusy(false);
     if (!r) return setSaveFailed(true);
     setName("");
     setPassword("");
@@ -60,9 +64,12 @@ export default function Cohorts() {
 
   const runImport = async (e: FormEvent) => {
     e.preventDefault();
+    if (busy) return;
+    setBusy(true);
     setSaveFailed(false);
     const id = target || String(cohorts?.[0]?.id);
     const r = await send(`/api/admin/cohorts/${id}/import`, { text });
+    setBusy(false);
     if (!r) {
       setResult(null);
       return setSaveFailed(true);
@@ -100,7 +107,9 @@ export default function Cohorts() {
           {t("admin.cohorts.access")}
           <input type="date" value={until} onChange={(e) => setUntil(e.target.value)} />
         </label>
-        <button type="submit">{t("admin.cohorts.create")}</button>
+        <button type="submit" disabled={busy}>
+          {t("admin.cohorts.create")}
+        </button>
       </form>
 
       {cohorts && cohorts.length > 0 && (
@@ -119,7 +128,9 @@ export default function Cohorts() {
             {t("admin.import.text")}
             <textarea value={text} onChange={(e) => setText(e.target.value)} />
           </label>
-          <button type="submit">{t("admin.import.submit")}</button>
+          <button type="submit" disabled={busy}>
+            {t("admin.import.submit")}
+          </button>
         </form>
       )}
 
