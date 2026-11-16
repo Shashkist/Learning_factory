@@ -44,7 +44,6 @@ import hmac
 import itertools
 import os
 import stat
-import uuid
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
@@ -86,7 +85,8 @@ def _task_yaml(tid: str, kind: str) -> str:
             "      - en: A\n        he: א\n      - en: B\n        he: ב\n"
             f"    correct: {CORRECT}\n"
         )
-    return f"  - id: {tid}\n    kind: hands-on\n    checklist:\n      - en: Do it\n        he: לעשות\n"
+    return (f"  - id: {tid}\n    kind: hands-on\n    checklist:\n"
+            "      - en: Do it\n        he: לעשות\n")
 
 
 def write_content(root: Path) -> Path:
@@ -251,7 +251,8 @@ class Env:
 
         self.sql(seed)
         client = self.new_client()
-        resp = client.post("/api/auth/admin/login", json={"username": name, "password": ADMIN_PASSWORD})
+        resp = client.post("/api/auth/admin/login",
+                           json={"username": name, "password": ADMIN_PASSWORD})
         assert resp.status_code == 200, resp.text
         return client
 
