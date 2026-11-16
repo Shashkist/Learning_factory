@@ -1,5 +1,8 @@
 import { defineConfig } from "@playwright/test";
 
+// Node runs this file; the app's tsconfig has no Node types, so declare just what is used.
+declare const process: { env: Record<string, string | undefined> };
+
 export default defineConfig({
   testDir: "e2e",
   forbidOnly: !!process.env.CI,
