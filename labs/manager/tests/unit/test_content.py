@@ -122,6 +122,21 @@ def test_good_allow_domains_are_accepted_and_kept(tmp_path: Path) -> None:
     assert lab.allow_domains == ["pypi.org", "files.pythonhosted.org", "a-b.c1.io"]
 
 
+def test_fast_settings_default_and_are_read(tmp_path: Path) -> None:
+    _copy(tmp_path, "c/hello", fast_lab_min=12)
+    lab = load_labs(tmp_path).labs["hello"]
+    assert lab.fast_lab_min == 12
+    assert [t.min_task_seconds for t in lab.tasks] == [20, 20]
+
+
+@pytest.mark.parametrize("value", [-1, "ten", 1.5, True])
+def test_bad_fast_lab_min_is_reported(tmp_path: Path, value: object) -> None:
+    _copy(tmp_path, "c/hello", fast_lab_min=value)
+    result = load_labs(tmp_path)
+    assert result.labs == {}
+    assert any("fast_lab_min" in e for e in result.errors["c/hello"])
+
+
 def test_validated_content_is_kept(tmp_path: Path) -> None:
     _copy(tmp_path, "c/hello")
     lab = load_labs(tmp_path).labs["hello"]

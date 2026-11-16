@@ -11,6 +11,8 @@ from typing import Any
 
 import yaml
 
+from app.flags import DEFAULT_MIN_TASK_SECONDS
+
 LANGS = ("en", "he")
 STATUSES = ("draft", "published")
 IMAGES = ("term", "code")
@@ -49,6 +51,7 @@ class Task:
     options: list[dict[str, str]] = field(default_factory=list)
     correct: int | None = None
     checklist: list[dict[str, str]] = field(default_factory=list)
+    min_task_seconds: int = DEFAULT_MIN_TASK_SECONDS
 
 
 @dataclass
@@ -66,6 +69,7 @@ class Lab:
     internet: bool = False
     allow_domains: list[str] = field(default_factory=list)
     sudo: bool = False
+    fast_lab_min: int | None = None
 
 
 @dataclass
@@ -101,7 +105,11 @@ def _bilingual_list(value: Any, name: str, errs: list[str]) -> list[dict[str, st
 
 def _check_hands_on(lab_dir: Path, task: dict[str, Any], tid: str, errs: list[str]) -> Task:
     checklist = _bilingual_list(task.get("checklist"), f"task {tid} checklist", errs)
-    result = Task(id=tid, kind="hands-on", checklist=checklist)
+    min_seconds: Any = task.get("min_task_seconds", DEFAULT_MIN_TASK_SECONDS)
+    if not _is_int(min_seconds) or min_seconds < 0:
+        errs.append(f"task {tid}: min_task_seconds must be a non-negative integer (seconds)")
+        min_seconds = DEFAULT_MIN_TASK_SECONDS
+    result = Task(id=tid, kind="hands-on", checklist=checklist, min_task_seconds=min_seconds)
     tdir = lab_dir / "tasks" / tid
     if not tdir.is_dir():
         errs.append(f"task {tid}: directory tasks/{tid}/ is missing")
@@ -186,6 +194,9 @@ def _validate(lab_dir: Path, data: Any) -> tuple[Lab | None, list[str]]:
     limit = data.get("time_limit_min", 60)
     if not _is_int(limit) or limit <= 0:
         errs.append("time_limit_min: must be a positive integer")
+    fast_min: Any = data.get("fast_lab_min")
+    if fast_min is not None and (not _is_int(fast_min) or fast_min < 0):
+        errs.append("fast_lab_min: must be a non-negative integer (minutes)")
     for flag in ("internet", "sudo"):
         if not isinstance(data.get(flag, False), bool):
             errs.append(f"{flag}: must be true or false")
@@ -215,6 +226,7 @@ def _validate(lab_dir: Path, data: Any) -> tuple[Lab | None, list[str]]:
             internet=data.get("internet", False),
             allow_domains=list(domains),
             sudo=data.get("sudo", False),
+            fast_lab_min=fast_min,
         ),
         errs,
     )

@@ -6,6 +6,7 @@ the machine (spec section 5). Check results, attempts and quiz grading are #88; 
 Nothing sent to a student carries check/setup/solution text or a quiz `correct` field."""
 import asyncio
 import logging
+import math
 import os
 import re
 import uuid
@@ -19,6 +20,7 @@ from pydantic import BaseModel, StrictInt
 from app import db
 from app.auth import Principal, current_student, db_guard
 from app.content import LANGS, Lab, Task, parse_check_output
+from app.flags import fast_lab_reason, fast_task_reason
 from app.runtime import container_name
 
 log = logging.getLogger("lab-manager")
@@ -276,19 +278,105 @@ async def show_task(task_id: str, ctx: Annotated[_Ctx, Depends(_ctx)]) -> dict[s
     return await _show(ctx, task)
 
 
-async def _count_attempt(ctx: _Ctx, task: Task, passed: bool) -> int:
-    """One atomic increment; `passed_at` only on the first pass, never cleared."""
-    with db_guard():
-        attempts = await ctx.pool.fetchval(
-            f"update {T}.task_results set attempts = attempts + 1, "
-            "passed_at = case when $3 then coalesce(passed_at, now()) else passed_at end "
-            "where session_id = $1 and task_id = $2 and shown_at is not null "
-            f"and exists (select 1 from {T}.lab_sessions where id = $1 and status = 'running') "
-            "returning attempts",
-            ctx.sid,
-            task.id,
-            passed,
+async def _complete(conn: Any, ctx: _Ctx) -> None:
+    """If every task of the lab has passed in this session, record the completion (once) and
+    the session's lab run. Runs in the transaction of the passing task."""
+    done = await conn.fetchval(
+        f"select count(*) from {T}.task_results "
+        "where session_id = $1 and passed_at is not null and task_id = any($2)",
+        ctx.sid,
+        [t.id for t in ctx.lab.tasks],
+    )
+    if done != len(ctx.lab.tasks):
+        return
+    first = (
+        await conn.fetchval(
+            f"insert into {T}.lab_completions (student, lab_id) values ($1, $2) "
+            "on conflict do nothing returning 1",
+            ctx.student,
+            ctx.lab.id,
         )
+        is not None
+    )
+    active = float(
+        await conn.fetchval(f"select active_seconds from {T}.lab_sessions where id = $1", ctx.sid)
+    )
+    priors: list[int] = []
+    if first:
+        rows = await conn.fetch(  # runs without heartbeat data (0 s) say nothing about the class
+            f"select active_seconds from {T}.lab_runs "
+            "where lab_id = $1 and first_completion and student <> $2 and active_seconds > 0",
+            ctx.lab.id,
+            ctx.student,
+        )
+        priors = [r["active_seconds"] for r in rows]
+    reason = fast_lab_reason(active, ctx.lab.fast_lab_min, priors, repeat=not first)
+    fast = reason is not None
+    await conn.execute(
+        f"insert into {T}.lab_runs (student, lab_id, session_id, first_completion, "
+        "active_seconds, fast_flag, fast_reason) values ($1, $2, $3, $4, $5, $6, $7) "
+        "on conflict (session_id) do nothing",
+        ctx.student,
+        ctx.lab.id,
+        ctx.sid,
+        first,
+        math.ceil(active),  # whole seconds, never below the session's own total
+        fast,
+        reason,
+    )
+
+
+async def _count_attempt(ctx: _Ctx, task: Task, passed: bool) -> int:
+    """One atomic increment; `passed_at` only on the first pass, never cleared. The first pass
+    also sets the task's fast flag and may complete the lab, in the same transaction."""
+    with db_guard():
+        async with ctx.pool.acquire() as conn, conn.transaction():
+            # lock order: task row, then session row (as in _do_show). The session lock
+            # serialises completions per session (two tasks passing at once each see the
+            # other's commit) and keeps End-lab from slipping in between.
+            old = await conn.fetchrow(
+                f"select passed_at, extract(epoch from now() - shown_at) as secs "
+                f"from {T}.task_results where session_id = $1 and task_id = $2 "
+                "and shown_at is not null for update",
+                ctx.sid,
+                task.id,
+            )
+            if old is not None and await conn.fetchval(
+                f"select 1 from {T}.lab_sessions where id = $1 and status = 'running' "
+                "for no key update",
+                ctx.sid,
+            ) is None:
+                old = None
+            attempts = None
+            if old is not None:
+                first_pass = passed and old["passed_at"] is None
+                fast, reason = False, None
+                if first_pass:
+                    repeat = await conn.fetchval(
+                        f"select exists (select 1 from {T}.lab_completions "
+                        "where student = $1 and lab_id = $2)",
+                        ctx.student,
+                        ctx.lab.id,
+                    )
+                    secs = float(old["secs"])
+                    reason = fast_task_reason(
+                        task.id, task.kind, secs, task.min_task_seconds, repeat
+                    )
+                    fast = reason is not None
+                attempts = await conn.fetchval(
+                    f"update {T}.task_results set attempts = attempts + 1, "
+                    "passed_at = case when $3 then now() else passed_at end, "
+                    "fast_flag = case when $3 then $4 else fast_flag end, "
+                    "fast_reason = case when $3 then $5 else fast_reason end "
+                    "where session_id = $1 and task_id = $2 returning attempts",
+                    ctx.sid,
+                    task.id,
+                    first_pass,
+                    fast,
+                    reason,
+                )
+                if first_pass:
+                    await _complete(conn, ctx)
     if attempts is None:
         with db_guard():
             status = await ctx.pool.fetchval(
