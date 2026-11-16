@@ -583,3 +583,13 @@ in force · factory · 2026-11-16
 **Why.** A rerun loop would hold one pass for 2.5 hours; every PR and `main` push runs the same docker job anyway.
 **Alternatives.** Temporary draft PRs to run the job in parallel (clutter); a `workflow_dispatch` loop (needs a CI change).
 **Revert.** Run the rerun loop; reopen the review for a third round.
+
+## D59 · #11 teacher UI ships in four slices
+in force · factory · 2026-11-16
+
+**Decision.** #11 is far bigger than one PR (~400 lines): a teacher API does not exist yet. Slices:
+1. **#11 (this issue): cohorts and import.** `app/teacher.py` router under `/api/admin/*` (every route `current_admin`): list / create / edit cohorts (name, class password, access date; the password is never returned), paste-import "ID, name" lines (`valid_id` after normalization, `id_hash`, per-row errors, duplicates reported within the paste and against existing students; the pasted text is never stored or logged), list a cohort's students (name, note, disabled, access override). The name `lf-smoke` is refused on create and rename (case-insensitive, trimmed), and the `lf-smoke` cohort is left out of every teacher list. Web: an admin shell at `/admin` (nav: Cohorts, later Class table, Live) with the Cohorts page (en/he). Vitest tests; no Playwright yet.
+2. **New issue: class table.** `GET /api/admin/class` (students × published labs, ✓ / n/m / –, ⚡ flags, last activity, filter by cohort and flagged-only) + CSV export + the page. `lf-smoke` left out of rows, medians and the export.
+3. **New issue: student page.** Per lab: tasks passed, attempts, time per task next to the class median, flags with reason, dismiss a flag (migration: `flag_dismissed_at`), extend access, disable, note.
+4. **New issue: live sessions** (who is in which lab now, end a session) **and teacher Playwright flows** (after #131 sets Playwright up).
+**Why.** Each slice is one reviewable PR with its own exam; slice 1 is the base the others need (admin shell, router, `lf-smoke` exclusion helper). **Alternatives.** One big PR; API-only and UI-only slices (UI slices could not be checked end to end). **Revert.** Merge the follow-up issues back into #11.
