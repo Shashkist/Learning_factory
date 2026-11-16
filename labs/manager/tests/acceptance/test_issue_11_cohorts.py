@@ -420,16 +420,18 @@ def test_a_student_in_a_created_cohort_logs_in_with_its_password(env, admin):
 
 @pytest.mark.parametrize("name", ["lf-smoke", "LF-SMOKE", "  Lf-Smoke  ", "lf-smoke\t"])
 def test_create_refuses_the_reserved_smoke_name(env, admin, name):
-    body = {"name": name, "password": "pw-x", "access_until": FUTURE}
-    resp = admin.post("/api/admin/cohorts", json=body)
-    assert resp.status_code == 422, resp.text
-
     async def count(conn):
         return await conn.fetchval(
             f"select count(*) from {SCHEMA}.cohorts where lower(trim(name)) = 'lf-smoke'"
         )
 
-    assert env.sql(count) == 0
+    # The smoke exams share this database and may already hold the real lf-smoke cohort,
+    # so compare before and after instead of expecting none.
+    before = env.sql(count)
+    body = {"name": name, "password": "pw-x", "access_until": FUTURE}
+    resp = admin.post("/api/admin/cohorts", json=body)
+    assert resp.status_code == 422, resp.text
+    assert env.sql(count) == before
 
 
 @pytest.mark.parametrize(
