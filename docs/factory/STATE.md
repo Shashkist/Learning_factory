@@ -2,11 +2,11 @@
 
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
-_Last updated: 2026-11-16 ~03:05 UTC, laptop pass lf-t5w2 (~01:27 to ~03:05 UTC)._
+_Last updated: 2026-11-16 ~03:45 UTC, laptop pass lf-w8c1 (started ~03:26 UTC)._
 
 ## Now
 
-- **Nothing in flight.** Pass lf-t5w2 (~01:27 to ~03:05 UTC) merged 3 PRs (#133, #134, #135) and released every claim; pass worktrees removed.
+- **Pass lf-w8c1 in flight (3 lanes):** #129 catalog API + My labs (`f/129-catalog`, worktree `C:\projects\lf-129`, folds in #136 items), #117 kill timed-out scripts (`f/117-kill-timeouts`, `C:\projects\lf-117`), #54 bootstrap exam hardening (`f/54-bootstrap-exam`, `C:\projects\lf-54`, exam only). Incident #132 closed as a one-off flake (1 of 72 runs; diagnosis on #54, now p1).
 - **Production:** Deploy 43795640534 shipped `lf-manager:e35dafe`, all checks passed. The post-deploy smoke now drives the task API live (show, check FAIL, fix, check PASS, wrong + right answer, end; both lab containers gone). Migration 005 (completion, active time, fast flag) is live.
 - **#10 is sliced (D53):** slice 1 shipped; next #129 (catalog API + My labs), #130 (lab screen), #131 (Playwright).
 - **Lesson (D49):** a state commit pushed to `main` while a merge's Deploy is pending makes that Deploy skip; push state after the Deploy.
