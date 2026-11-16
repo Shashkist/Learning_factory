@@ -103,17 +103,25 @@ def _gate() -> asyncio.Semaphore:
     return _verify_gate[1]
 
 
-async def verify_password(stored: str | None, password: str) -> bool:
-    """Argon2 check with bounded concurrency; 503 busy when no slot frees up in time."""
+async def _bounded(fn: Callable[..., Any], *args: Any) -> Any:
+    """Argon2 call in a thread with bounded concurrency; 503 busy when no slot frees up."""
     gate = _gate()
     try:
         await asyncio.wait_for(gate.acquire(), VERIFY_WAIT)
     except TimeoutError:
         raise HTTPException(503, "busy") from None
     try:
-        return await asyncio.to_thread(_verify_sync, stored, password)
+        return await asyncio.to_thread(fn, *args)
     finally:
         gate.release()
+
+
+async def verify_password(stored: str | None, password: str) -> bool:
+    return bool(await _bounded(_verify_sync, stored, password))
+
+
+async def hash_password_bounded(password: str) -> str:
+    return str(await _bounded(hash_password, password))
 
 
 # ---------------------------------------------------------------- rate limiter
