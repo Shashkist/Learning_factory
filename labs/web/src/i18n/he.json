@@ -1,0 +1,18 @@
+{
+  "lang.switch": "EN",
+  "login.title": "כניסה",
+  "login.id": "מספר תעודת זהות",
+  "login.password": "סיסמת הכיתה",
+  "login.submit": "כניסה",
+  "login.error.invalid_credentials": "תעודת הזהות או סיסמת הכיתה שגויות.",
+  "login.error.too_many_attempts": "יותר מדי ניסיונות. המתן כמה דקות ונסה שוב.",
+  "login.error.account_disabled": "החשבון חסום. פנה למורה.",
+  "login.error.access_expired": "הגישה שלך למעבדות פגה.",
+  "login.error.unavailable": "השירות עמוס או לא זמין. נסה שוב בקרוב.",
+  "login.error.generic": "משהו השתבש. נסה שוב.",
+  "labs.title": "המעבדות שלי",
+  "labs.empty": "אין עדיין מעבדות.",
+  "lab.placeholder": "דף המעבדה, בקרוב:",
+  "nav.logout": "יציאה",
+  "notFound.title": "הדף לא נמצא"
+}
