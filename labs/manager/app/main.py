@@ -55,6 +55,9 @@ def _load_content(app: FastAPI) -> None:
     result = load_labs(root)
     app.state.labs = result.labs
     log.info("labs loaded: %d valid, %d with errors", len(result.labs), len(result.errors))
+    for rel, found in result.warnings.items():
+        for warning in found:
+            log.warning("lab %s: %s", rel, warning)
 
 
 async def _retry_db(app: FastAPI, dsn: str) -> None:

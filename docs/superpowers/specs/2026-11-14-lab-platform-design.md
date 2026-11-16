@@ -137,7 +137,7 @@ Each task is either:
 
 `check.sh` contract: runs as root in the container, prints one line per checklist item (`PASS <n>` / `FAIL <n> <optional hint>`), exit code 0 only when all pass. Timeout 20 s.
 
-**Script authoring rules.** `setup.sh` and `check.sh` are streamed to the interpreter on stdin and killed (SIGKILL, the whole process tree) when they outlive their timeout. So: a command that reads stdin (`read`, a bare `cat`) takes the rest of the script as its input, give it `</dev/null`; a background service must be started as `cmd >/dev/null 2>&1 &`, or it holds the exec's output open. The validator warns about both (the lab is still served).
+**Script authoring rules.** `setup.sh` and `check.sh` are streamed to the interpreter on stdin and killed (SIGKILL, the interpreter and its descendants) when they outlive their timeout. So: a command that reads stdin (`read`, a bare `cat`) takes the rest of the script as its input, give it `</dev/null`; a background service must be started as `cmd >/dev/null 2>&1 &`, or it holds the exec's output open. The validator warns about both (the lab is still served).
 
 The manager validates every lab on start (files present, both languages, scripts executable) and the dashboard shows broken labs instead of serving them.
 
