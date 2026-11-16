@@ -557,10 +557,19 @@ in force · factory · 2026-11-16
 **Why.** Small cohorts (often < 5 completions) would never reach the median rule per cohort; the rest are the simplest readings of §8. **Alternatives.** Per-cohort median; summing time over the whole session; rows for abandoned runs. **Revert.** Change the rule in `app/flags.py` / `app/tasks.py` and the #89 exam together in a new issue.
 
 ## D56 · #117 a timed-out task script is killed by a second exec, as each process's owner
-in force (pending review round 2 of #148) · factory · 2026-11-16
+in force (review round 2 of #148 approved, shipped 2026-11-16) · factory · 2026-11-16
 
 **Decision.** After a setup/check deadline, the manager runs a second exec in the lab container (root, unprivileged, same as the script exec). With one `ps -eo pid=,ppid=,uid=,gid=,args=` walk it collects the timed-out exec's interpreter (uid 0, **PPid 0**, args exactly `<interp> -s`) and all its descendants. It sends STOP, collects again, then KILL to both sets, for up to 3 rounds. Non-root processes are signalled as their owner (`setpriv --reuid --regid --clear-groups kill`), because the container drops `CAP_KILL` and every shipped script starts work as the student (D45, D52). The kill is bounded (`min(5, max(3, 0.2*timeout))` s), so a setup still answers inside nginx's 60 s. `exec_script` returns only after the first exec stops or the bounded kill gives up, which keeps the session lock (D49) held. A failed kill logs one line and still reports `timed_out`.
 **Why.** `timeout -s KILL` kills only its direct child (background jobs survive). The `/exec/<id>/json` Pid is a host pid under runsc. The exec is not a process-group leader. The exam pins the exec env to `PATH` and `HOME`, so there is no env marker. PPid 0 tells the exec's own interpreter apart from root leftovers of earlier scripts (which get PPid 1).
 **Alternatives.** Wrap every script in `setsid` and kill the group; add `CAP_KILL` to lab containers (rejected: more privilege for the student's container).
 **Known limits.** A process that double-forks away from the tree before the deadline, or a script that `exec`s another command, is not matched. Acceptable for authored lab scripts; the spec §7 note says "the interpreter and its descendants".
 **Revert.** Drop the kill exec (scripts are abandoned again after the timeout, as before #117).
+
+## D57 · #130 lab screen: Markdown, Solution tab, end of lab
+in force · factory · 2026-11-16
+
+**Decision.** (a) Task text is rendered as Markdown with `react-markdown` and no raw-HTML plugin (HTML in a task file is shown as text, never parsed); inline code and code blocks are `dir="ltr"` inside the Hebrew panel. (b) The Solution tab ships as a visible tab that says the solution is not available yet: the API deliberately sends no solution text (`tasks.py`), and when and how a solution is revealed (after an attempt? does it count for the ⚡ flag?) is its own backend + UI issue. (c) Next/Skip on the last task: the server's 409 `no_next_task` shows "lab complete" with a link back to My labs, not an error. (d) A session that ended (timer at 0:00, 404/410 from the session, task or heartbeat calls) shows "this lab session has ended" with a link back to My labs, and the terminal is removed.
+**Why.** Spec §7 writes tasks in Markdown and §9 shows a Solution tab; the review of #150 found raw Markdown unreadable and code reversed in RTL. A library that escapes HTML by default is less code to trust than a home-made parser. The solution reveal changes what the backend sends to students, which needs its own exam.
+**Alternatives.** A small in-house Markdown subset (more code to secure); hiding the Solution tab until it works (the exam pins the tab).
+**Revert.** Swap the renderer in `LabScreen.tsx`; the solution follow-up issue replaces (b).
+
