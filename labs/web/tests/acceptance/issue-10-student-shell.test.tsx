@@ -93,9 +93,9 @@ function at(path: string, lang?: "en" | "he") {
 
 const root = () => screen.getByTestId("app-root");
 // Found by its visible text: since #129/#136 the toggle carries its own aria-label
-// (lang.switch.label), which becomes the accessible name.
+// (lang.switch.label), which becomes the accessible name; since #147 the text sits in a span inside it.
 const toggle = (lang: "en" | "he") =>
-  screen.getByText(DICTS[lang]["lang.switch"], { selector: "button" });
+  screen.getByText(DICTS[lang]["lang.switch"]).closest("button") as HTMLButtonElement;
 
 async function fillAndSubmit(lang: "en" | "he", id: string, password: string) {
   const d = DICTS[lang];
