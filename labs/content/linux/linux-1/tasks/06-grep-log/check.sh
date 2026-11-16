@@ -8,15 +8,17 @@ facts=$(su student -s /bin/sh -c '/bin/sh -s' <<'READER'
 # f key path: type, mode, owner, group. c key path: readable flag and the lines.
 f() {
   if [ -d "$2" ]; then t=d; elif [ -f "$2" ]; then t=f; elif [ -e "$2" ]; then t=o
-  else echo "F $1 - - - -"; return; fi
-  echo "F $1 $t $(stat -c '%a %U %G' "$2" 2>/dev/null || echo '- - -')"
+  else printf '%s\n' "F $1 - - - -"; return; fi
+  printf '%s\n' "F $1 $t $(stat -c '%a %U %G' "$2" 2>/dev/null || echo '- - -')"
 }
 c() {
-  if ( : < "$2" ) 2>/dev/null; then
-    echo "R $1 1"
-    head -n 200 "$2" | while IFS= read -r l || [ -n "$l" ]; do echo "C $1 $l"; done
+  if [ -f "$2" ] && ( : < "$2" ) 2>/dev/null; then
+    printf '%s\n' "R $1 1"
+    head -c 65536 "$2" | head -n 200 | while IFS= read -r l || [ -n "$l" ]; do
+      printf '%s\n' "C $1 $l"
+    done
   else
-    echo "R $1 0"
+    printf '%s\n' "R $1 0"
   fi
 }
 f out /home/student/errors.txt
@@ -26,7 +28,7 @@ READER
 # Root side: fact sets ty mo ow gr for a key; rd tells whether the student could read it; body prints its lines.
 fact() {
   ty=-; mo=-; ow=-; gr=-
-  set -- $(printf '%s\n' "$facts" | sed -n "s/^F $1 //p" | head -n 1)
+  set -f; set -- $(printf '%s\n' "$facts" | sed -n "s/^F $1 //p" | head -n 1); set +f
   if [ $# -eq 4 ]; then ty=$1; mo=$2; ow=$3; gr=$4; fi
   return 0
 }
@@ -54,10 +56,15 @@ if [ "$ty" = f ] && ! rd out; then
   exit 1
 fi
 
-got=$(body out)
+# Compare through a root-only folder (mode 700) so that neither the expected lines nor the
+# student's lines are ever on a command line (D52).
+tmp=$(mktemp -d) || exit 1
+trap 'rm -rf "$tmp"' EXIT
+printf '%s\n' "$exp" > "$tmp/exp"
+body out > "$tmp/got"
 missing=4
 if [ "$ty" = f ]; then
-  missing=$(printf '%s\n' "$exp" | grep -cvxF -e "$got")
+  missing=$(grep -cvxF -f "$tmp/got" "$tmp/exp")
 fi
 if [ "$missing" -eq 0 ]; then
   echo "PASS 2"
@@ -67,8 +74,8 @@ else
 fi
 
 extra=1
-if [ "$ty" = f ] && [ "$(body out | grep -c "")" -gt 0 ]; then
-  extra=$(body out | grep -cvxF -e "$exp")
+if [ "$ty" = f ] && [ -s "$tmp/got" ]; then
+  extra=$(grep -cvxF -f "$tmp/exp" "$tmp/got")
 fi
 if [ "$extra" -eq 0 ]; then
   echo "PASS 3"

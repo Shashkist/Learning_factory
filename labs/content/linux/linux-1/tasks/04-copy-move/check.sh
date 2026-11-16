@@ -8,15 +8,17 @@ facts=$(su student -s /bin/sh -c '/bin/sh -s' <<'READER'
 # f key path: type, mode, owner, group. c key path: readable flag and the lines.
 f() {
   if [ -d "$2" ]; then t=d; elif [ -f "$2" ]; then t=f; elif [ -e "$2" ]; then t=o
-  else echo "F $1 - - - -"; return; fi
-  echo "F $1 $t $(stat -c '%a %U %G' "$2" 2>/dev/null || echo '- - -')"
+  else printf '%s\n' "F $1 - - - -"; return; fi
+  printf '%s\n' "F $1 $t $(stat -c '%a %U %G' "$2" 2>/dev/null || echo '- - -')"
 }
 c() {
-  if ( : < "$2" ) 2>/dev/null; then
-    echo "R $1 1"
-    head -n 200 "$2" | while IFS= read -r l || [ -n "$l" ]; do echo "C $1 $l"; done
+  if [ -f "$2" ] && ( : < "$2" ) 2>/dev/null; then
+    printf '%s\n' "R $1 1"
+    head -c 65536 "$2" | head -n 200 | while IFS= read -r l || [ -n "$l" ]; do
+      printf '%s\n' "C $1 $l"
+    done
   else
-    echo "R $1 0"
+    printf '%s\n' "R $1 0"
   fi
 }
 f bak /home/student/backup/report.txt
@@ -30,7 +32,7 @@ READER
 # Root side: fact sets ty mo ow gr for a key; rd tells whether the student could read it; body prints its lines.
 fact() {
   ty=-; mo=-; ow=-; gr=-
-  set -- $(printf '%s\n' "$facts" | sed -n "s/^F $1 //p" | head -n 1)
+  set -f; set -- $(printf '%s\n' "$facts" | sed -n "s/^F $1 //p" | head -n 1); set +f
   if [ $# -eq 4 ]; then ty=$1; mo=$2; ow=$3; gr=$4; fi
   return 0
 }
