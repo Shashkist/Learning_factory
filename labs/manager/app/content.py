@@ -258,7 +258,8 @@ def load_labs(root: Path) -> LoadResult:
     return result
 
 
-_ITEM = re.compile(r"\s*(PASS|FAIL)\s+(\d+)(?:\s+(.*))?$")
+MAX_HINT = 300
+_ITEM = re.compile(r"\s*(PASS|FAIL)\s+(\d{1,4})(?:\s+(.*))?$")
 _FAIL_LINE = re.compile(r"\s*FAIL\b")
 
 
@@ -287,5 +288,5 @@ def parse_check_output(stdout: str, exit_code: int) -> CheckResult:
         if m.group(1) == "PASS":
             items.setdefault(n, ItemResult(True))  # never overwrites a FAIL
         else:
-            items[n] = ItemResult(False, (m.group(3) or "").strip() or None)
+            items[n] = ItemResult(False, (m.group(3) or "").strip()[:MAX_HINT] or None)
     return CheckResult(exit_code == 0 and not failed, items)

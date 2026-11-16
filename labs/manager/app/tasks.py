@@ -9,6 +9,8 @@ import logging
 import os
 import re
 import uuid
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -16,14 +18,13 @@ from pydantic import BaseModel, StrictInt
 
 from app import db
 from app.auth import Principal, current_student, db_guard
-from app.content import LANGS, Lab, Task
+from app.content import LANGS, Lab, Task, parse_check_output
 from app.runtime import container_name
 
 log = logging.getLogger("lab-manager")
 T = db.SCHEMA
 DEFAULT_SETUP_TIMEOUT_S = 50.0  # below nginx's default proxy_read_timeout (60 s)
 CHECK_TIMEOUT_S = 20.0  # spec section 7
-MAX_HINT = 300
 SLOT_WAIT_S = 5.0  # waiting for an exec slot, on top of the setup timeout
 
 
@@ -133,27 +134,34 @@ async def _ctx(
     return _Ctx(request, sid, p.subject, lab, row["current_task"])
 
 
+@asynccontextmanager
+async def _session_lock(sid: uuid.UUID, busy: str) -> AsyncIterator[None]:
+    """The per-session lock, never waited for: if it is held the caller gets 409 `busy`."""
+    lock = _LOCKS.setdefault(sid, asyncio.Lock())
+    if lock.locked():
+        raise HTTPException(409, busy)
+    try:
+        async with lock:
+            yield
+    finally:
+        if not lock.locked() and _LOCKS.get(sid) is lock:
+            del _LOCKS[sid]
+
+
 async def _show(ctx: _Ctx, task: Task, moving_from: str | None = None) -> dict[str, Any]:
     """Serialised per session: a second show while one runs gets 409 and runs nothing.
 
     `moving_from` (navigation): the current task the target was computed from; if another
     request changed it before this one got the lock, answer 409 and run nothing."""
-    lock = _LOCKS.setdefault(ctx.sid, asyncio.Lock())
-    if lock.locked():
-        raise HTTPException(409, "setup_running")
-    try:
-        async with lock:
-            if moving_from is not None:
-                with db_guard():
-                    now = await ctx.pool.fetchval(
-                        f"select current_task from {T}.lab_sessions where id = $1", ctx.sid
-                    )
-                if now != moving_from:
-                    raise HTTPException(409, "task_changed")
-            return await _do_show(ctx, task)
-    finally:
-        if not lock.locked() and _LOCKS.get(ctx.sid) is lock:
-            del _LOCKS[ctx.sid]
+    async with _session_lock(ctx.sid, "setup_running"):
+        if moving_from is not None:
+            with db_guard():
+                now = await ctx.pool.fetchval(
+                    f"select current_task from {T}.lab_sessions where id = $1", ctx.sid
+                )
+            if now != moving_from:
+                raise HTTPException(409, "task_changed")
+        return await _do_show(ctx, task)
 
 
 async def _do_show(ctx: _Ctx, task: Task) -> dict[str, Any]:
@@ -268,37 +276,6 @@ async def show_task(task_id: str, ctx: Annotated[_Ctx, Depends(_ctx)]) -> dict[s
     return await _show(ctx, task)
 
 
-_LINE = re.compile(r"(PASS|FAIL)[ 	]+([0-9]+)(?:[ 	]+(.*))?")
-
-
-def parse_check(output: str, count: int) -> tuple[dict[int, tuple[bool, str | None]], bool]:
-    """Parse the `check.sh` contract (spec section 7): `PASS <n>` / `FAIL <n> <hint>` lines.
-
-    Returns the verdict per item number 1..count that printed one (an item with conflicting
-    lines is failed) and whether the output was clean: any other non-blank line, or an item
-    number outside the checklist, makes it unclean and the check cannot pass."""
-    found: dict[int, tuple[bool, str | None]] = {}
-    clean = True
-    for raw in output.splitlines():
-        line = raw.strip()
-        if not line:
-            continue
-        m = _LINE.fullmatch(line)
-        if m is None or not 1 <= int(m.group(2)) <= count:
-            clean = False
-            continue
-        n, ok = int(m.group(2)), m.group(1) == "PASS"
-        if ok and m.group(3):  # `PASS <n>` takes no text
-            clean = False
-            continue
-        hint = None if ok else ((m.group(3) or "").strip()[:MAX_HINT] or None)
-        if n in found and found[n][0] != ok:
-            found[n] = (False, found[n][1] or hint)
-        elif n not in found:
-            found[n] = (ok, hint)
-    return found, clean
-
-
 async def _count_attempt(ctx: _Ctx, task: Task, passed: bool) -> int:
     """One atomic increment; `passed_at` only on the first pass, never cleared."""
     with db_guard():
@@ -306,12 +283,19 @@ async def _count_attempt(ctx: _Ctx, task: Task, passed: bool) -> int:
             f"update {T}.task_results set attempts = attempts + 1, "
             "passed_at = case when $3 then coalesce(passed_at, now()) else passed_at end "
             "where session_id = $1 and task_id = $2 and shown_at is not null "
+            f"and exists (select 1 from {T}.lab_sessions where id = $1 and status = 'running') "
             "returning attempts",
             ctx.sid,
             task.id,
             passed,
         )
     if attempts is None:
+        with db_guard():
+            status = await ctx.pool.fetchval(
+                f"select status from {T}.lab_sessions where id = $1", ctx.sid
+            )
+        if status != "running":
+            raise HTTPException(410, "session_ended")
         raise HTTPException(409, "task_not_shown")
     return int(attempts)
 
@@ -354,25 +338,30 @@ async def _run_check(ctx: _Ctx, task: Task) -> tuple[str | None, str, bool]:
 @router.post("/{task_id}/check")
 async def check_task(task_id: str, ctx: Annotated[_Ctx, Depends(_ctx)]) -> dict[str, Any]:
     task = await _gradable(ctx, task_id, "hands-on")
-    reason, output, exit_ok = await _run_check(ctx, task)
-    found, clean = parse_check(output, len(task.checklist))
-    items = [
-        {
-            "n": n,
-            "text": dict(text),
-            "passed": found.get(n, (False, None))[0],
-            "hint": found.get(n, (False, None))[1],
-        }
-        for n, text in enumerate(task.checklist, 1)
-    ]
-    passed = exit_ok and clean and all(i["passed"] for i in items)
-    attempts = await _count_attempt(ctx, task, passed)
-    return {
-        "passed": passed,
-        "attempts": attempts,
-        "reason": reason,
-        "checklist": items,
-    }
+    async with _session_lock(ctx.sid, "session_busy"):
+        reason, output, exit_ok = await _run_check(ctx, task)
+        res = parse_check_output(output, 0 if exit_ok else 1)
+        items = [
+            {
+                "n": n,
+                "text": dict(text),
+                "passed": n in res.items and res.items[n].passed,
+                "hint": res.items[n].hint if n in res.items else None,
+            }
+            for n, text in enumerate(task.checklist, 1)
+        ]
+        passed = res.passed and all(i["passed"] for i in items)
+        if reason == "error":  # the server's failure, not the student's: no attempt
+            with db_guard():
+                attempts = await ctx.pool.fetchval(
+                    f"select attempts from {T}.task_results where session_id = $1 and task_id = $2",
+                    ctx.sid,
+                    task.id,
+                )
+            attempts = int(attempts or 0)
+        else:
+            attempts = await _count_attempt(ctx, task, passed)
+    return {"passed": passed, "attempts": attempts, "reason": reason, "checklist": items}
 
 
 class _Answer(BaseModel):

@@ -190,22 +190,87 @@ def test_no_free_exec_slot_is_a_504_setup_timeout_and_runs_nothing(monkeypatch, 
     assert calls == []
 
 
-@pytest.mark.parametrize(
-    "output,found,clean",
-    [
-        ("PASS 1\nFAIL 2 no good\n", {1: (True, None), 2: (False, "no good")}, True),
-        ("\r\nPASS 1\r\n\n", {1: (True, None)}, True),
-        ("FAIL 1\n", {1: (False, None)}, True),
-        ("PASS 1\nFAIL 1 x\n", {1: (False, "x")}, True),
-        ("FAIL 1 x\nPASS 1\n", {1: (False, "x")}, True),
-        ("PASS 1\nPASS 1\n", {1: (True, None)}, True),
-        ("PASS 3\n", {}, False),
-        ("PASS 0\n", {}, False),
-        ("PASS x\n", {}, False),
-        ("OK 1\nPASS 1\n", {1: (True, None)}, False),
-        ("PASS 1 trailing\n", {}, False),
-        ("FAIL 2 " + "h" * 400 + "\n", {2: (False, "h" * 300)}, True),
-    ],
-)
-def test_parse_check(output, found, clean):
-    assert tasks.parse_check(output, 2) == (found, clean)
+def _check(monkeypatch, output, exit_ok=True, reason=None, held=False):
+    import asyncio
+    import uuid
+    from types import SimpleNamespace
+
+    task = SimpleNamespace(id="t1", checklist=[{"en": "a", "he": "b"}, {"en": "c", "he": "d"}])
+    ran, counted = [], []
+
+    async def gradable(ctx, task_id, kind):
+        return task
+
+    async def run_check(ctx, t):
+        ran.append(t)
+        return reason, output, exit_ok
+
+    async def count(ctx, t, passed):
+        counted.append(passed)
+        return 1
+
+    monkeypatch.setattr(tasks, "_gradable", gradable)
+    monkeypatch.setattr(tasks, "_run_check", run_check)
+    monkeypatch.setattr(tasks, "_count_attempt", count)
+    ctx = SimpleNamespace(sid=uuid.uuid4())
+
+    async def go():
+        lock = asyncio.Lock()
+        if held:
+            await lock.acquire()
+            tasks._LOCKS[ctx.sid] = lock
+        return await tasks.check_task("t1", ctx)
+
+    return (lambda: asyncio.run(go())), ran, counted, ctx
+
+
+def test_check_with_the_session_lock_held_is_409_and_runs_and_counts_nothing(monkeypatch):
+    from fastapi import HTTPException
+
+    go, ran, counted, ctx = _check(monkeypatch, "PASS 1\nPASS 2\n", held=True)
+    with pytest.raises(HTTPException) as err:
+        go()
+    assert err.value.status_code == 409 and err.value.detail == "session_busy"
+    assert ran == [] and counted == []
+    tasks._LOCKS.pop(ctx.sid, None)
+
+
+def test_check_drops_its_lock_entry(monkeypatch):
+    go, _, counted, ctx = _check(monkeypatch, "PASS 1\nPASS 2\n")
+    assert go()["passed"] is True
+    assert counted == [True] and ctx.sid not in tasks._LOCKS
+
+
+def test_a_stray_line_does_not_fail_a_correct_check(monkeypatch):
+    go, *_ = _check(monkeypatch, "warning: x\nPASS 1\nPASS 2\n")
+    assert go()["passed"] is True
+
+
+def test_pass_with_trailing_text_passes(monkeypatch):
+    go, *_ = _check(monkeypatch, "PASS 1 ok\nPASS 2\n")
+    assert go()["passed"] is True
+
+
+def test_a_huge_item_number_is_ignored_not_a_500(monkeypatch):
+    go, *_ = _check(monkeypatch, "PASS 1\nPASS " + "9" * 5000 + "\n")
+    body = go()
+    assert body["passed"] is False
+    assert [i["passed"] for i in body["checklist"]] == [True, False]
+
+
+def test_a_fail_hint_is_cut_and_a_missing_item_fails(monkeypatch):
+    go, *_ = _check(monkeypatch, "PASS 1\nFAIL 2 " + "h" * 400 + "\n", exit_ok=False)
+    body = go()
+    assert body["passed"] is False and body["checklist"][1]["hint"] == "h" * 300
+
+
+def test_an_error_counts_no_attempt(monkeypatch):
+    go, _, counted, ctx = _check(monkeypatch, "", exit_ok=False, reason="error")
+
+    class Pool:
+        async def fetchval(self, sql, *args):
+            return 3
+
+    ctx.pool = Pool()
+    body = go()
+    assert body["reason"] == "error" and body["attempts"] == 3 and counted == []
