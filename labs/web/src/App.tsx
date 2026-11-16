@@ -74,7 +74,7 @@ function Student() {
           <MyLabs open={(id) => go(`/labs/${encodeURIComponent(id)}`)} />
         </>
       ) : lab ? (
-        <LabScreen key={lab} go={go} />
+        <LabScreen key={lab} lab={lab} go={go} />
       ) : (
         <p>{t("notFound.title")}</p>
       )}
