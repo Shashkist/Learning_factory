@@ -58,5 +58,21 @@
   "lab.error.task_changed": "המשימה השתנתה. נסו שוב.",
   "lab.no_next": "זו המשימה האחרונה. עברו אותה כדי לסיים את המעבדה.",
   "lab.preparing": "המעבדה שלכם בהכנה...",
-  "lab.terminal": "מסוף המעבדה"
+  "lab.terminal": "מסוף המעבדה",
+  "admin.nav.cohorts": "קבוצות",
+  "admin.cohorts.title": "קבוצות",
+  "admin.cohorts.empty": "עדיין אין קבוצות.",
+  "admin.cohorts.name": "שם הקבוצה",
+  "admin.cohorts.password": "סיסמת הכיתה",
+  "admin.cohorts.access": "גישה עד",
+  "admin.cohorts.create": "יצירת קבוצה",
+  "admin.cohorts.students": "תלמידים",
+  "admin.import.cohort": "ייבוא לקבוצה",
+  "admin.import.text": "הדביקו שורות: ת״ז, שם",
+  "admin.import.submit": "ייבוא",
+  "admin.import.summary": "תלמידים שנוספו:",
+  "admin.import.row_added": "נוסף",
+  "admin.import.line": "שורה",
+  "admin.error.load": "לא ניתן לטעון את הקבוצות.",
+  "admin.error.save": "השמירה נכשלה. בדקו את הערכים ונסו שוב."
 }

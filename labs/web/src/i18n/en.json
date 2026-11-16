@@ -58,5 +58,21 @@
   "lab.error.task_changed": "The task changed. Try again.",
   "lab.no_next": "This is the last task. Pass it to finish the lab.",
   "lab.preparing": "Preparing your lab...",
-  "lab.terminal": "Lab terminal"
+  "lab.terminal": "Lab terminal",
+  "admin.nav.cohorts": "Cohorts",
+  "admin.cohorts.title": "Cohorts",
+  "admin.cohorts.empty": "No cohorts yet.",
+  "admin.cohorts.name": "Cohort name",
+  "admin.cohorts.password": "Class password",
+  "admin.cohorts.access": "Access until",
+  "admin.cohorts.create": "Create cohort",
+  "admin.cohorts.students": "students",
+  "admin.import.cohort": "Import into cohort",
+  "admin.import.text": "Paste lines: ID, name",
+  "admin.import.submit": "Import",
+  "admin.import.summary": "Students added:",
+  "admin.import.row_added": "Added",
+  "admin.import.line": "Line",
+  "admin.error.load": "Could not load the cohorts.",
+  "admin.error.save": "Could not save. Check the values and try again."
 }
