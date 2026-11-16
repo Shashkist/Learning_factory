@@ -2,13 +2,13 @@
 
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
-_Last updated: 2026-11-16 ~03:45 UTC, laptop pass lf-w8c1 (started ~03:26 UTC)._
+_Last updated: 2026-11-16 ~04:55 UTC, laptop pass lf-w8c1 (~03:26 to ~04:55 UTC)._
 
 ## Now
 
-- **Pass lf-w8c1 in flight (3 lanes):** #129 catalog API + My labs (`f/129-catalog`, worktree `C:\projects\lf-129`, folds in #136 items), #117 kill timed-out scripts (`f/117-kill-timeouts`, `C:\projects\lf-117`), #54 bootstrap exam hardening (`f/54-bootstrap-exam`, `C:\projects\lf-54`, exam only). Incident #132 closed as a one-off flake (1 of 72 runs; diagnosis on #54, now p1).
-- **Production:** Deploy 43795640534 shipped `lf-manager:e35dafe`, all checks passed. The post-deploy smoke now drives the task API live (show, check FAIL, fix, check PASS, wrong + right answer, end; both lab containers gone). Migration 005 (completion, active time, fast flag) is live.
-- **#10 is sliced (D53):** slice 1 shipped; next #129 (catalog API + My labs), #130 (lab screen), #131 (Playwright).
+- **In flight: #117 (claim held by lf-w8c1, stale after 90 min → continue it):** PR **#148** (`f/117-kill-timeouts-v2`, worktree `C:\projects\lf-117`) = exam (3 commits incl. review round 1 cases) + code with round-1 fixes (D56). Its CI was running at pass end. Next: `gh pr checks 148`; red → back to an implementer with the exact failure (the docker exam under runsc is the first real proof of the `setpriv` kill and of "PPid 0" under runsc); green → **review round 2** (reviewer, fresh context, PR #148 + spec §5/§7 + D56), then merge, Deploy, close #117 with evidence. Round-1 findings are the last comment on #117; leftover nits (validator misses `while read` / `x=$(cat)`, safe redirects flagged, kill exec not covered by the "nothing written" assertions, unused fake `Pid`) → a follow-up issue at close.
+- **Production:** Deploy 43805998335 shipped `lf-manager:014d73b` (catalog `GET /api/labs` + My labs page), deploy and post-deploy smoke green. Live: `/api/labs` signed out → 401 `not_authenticated`; the bundle has the My labs dialog.
+- **#10 is sliced (D53):** slices 1 (#133) and 2 (#146, #129) shipped; next #130 (lab screen, fold in #147), #131 (Playwright).
 - **Lesson (D49):** a state commit pushed to `main` while a merge's Deploy is pending makes that Deploy skip; push state after the Deploy.
 - **Repository is public (D43).** Always `git pull --rebase` before a state commit, never `--autostash`.
 - **Known gap (D40):** a cancelled Deploy is not noticed; fix in #85.
@@ -16,11 +16,11 @@ _Last updated: 2026-11-16 ~03:45 UTC, laptop pass lf-w8c1 (started ~03:26 UTC)._
 
 ## Next (in order)
 
-1. **#129** (p1) catalog API `GET /api/labs` + My labs page (never list `internal` labs, D54; fold in #136 items touching the same files). Then **#130** lab screen (map 409 `session_busy` / `setup_running` to "busy, try again"), **#11** teacher UI (leave out the `lf-smoke` cohort, refuse that cohort name; see comments on #11; flags/reasons are in `task_results` / `lab_runs`, D55).
-2. **#117** task runner follow-ups (first: kill a timed-out script).
-3. **#137** completion nits, **#138** task smoke nits, **#136** UI slice 1 nits, **#126** Linux 1 exam, **#127** check parser nits.
-4. **#98** (p2, D46): cancel superseded PR runs and skip full CI for docs-only pushes (this pass again ran full CI for every state/decision commit).
-5. **#131** Playwright; **#85** deploy follow-ups, **#94**, **#93**; p2 list: #81, #76, #67, #69, #64, #68, #54, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
+1. **#117** finish (see Now).
+2. **#130** (p1) lab screen (map 409 `session_busy` / `setup_running` to "busy, try again"), folding in **#147** (p1, My labs follow-ups from the review of #146: double clicks, 401 while open, error vs empty, toggle label; exam changes first). Then **#11** teacher UI (leave out the `lf-smoke` cohort, refuse that cohort name; see comments on #11; flags/reasons in `task_results` / `lab_runs`, D55; also: students can still start a `draft` lab by id).
+3. **#139** (session ready after the skel copy; one ownership check), **#137** completion nits, **#138** task smoke nits, **#126** Linux 1 exam, **#127** check parser nits, **#142** bootstrap exam scenarios.
+4. **#98** (p2, D46): cancel superseded PR runs and skip full CI for docs-only pushes.
+5. **#131** Playwright; **#85** deploy follow-ups, **#94**, **#93**; p2 list: #81, #76, #67, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
 
@@ -30,6 +30,8 @@ _Last updated: 2026-11-16 ~03:45 UTC, laptop pass lf-w8c1 (started ~03:26 UTC)._
 - O16/O7 resolved by D43 (public repository). O12 (back up `.env`), O13 (re-deploy after recreating nginx-proxy3), O5 reopened.
 
 ## Recently done
+
+- 2026-11-16 · Pass lf-w8c1: **2 PRs merged, #117 in review round 2.** Incident #132 closed as a one-off flake (1 of 72 CI runs; the bootstrap exam now prints the script output on failure). #54 bootstrap exam hardening (#140, exam-only; review approved, should-fix fixed in the PR: the workflow-shell stub refuses unknown remote commands; leftovers #142; D30 points there). #129 catalog API + My labs, with #136 folded in (#146; re-sequenced twice, from #141 (unit test outside `tests/unit/`, exam lint) and #145 (exam's fake labs had lessons outside their module ranges, so CI's DB tests saw an empty catalog); review approved; should-fix → #147; live 401 + bundle verified). #117 round 1 (#143): blocker, root cannot signal student-owned processes (no `CAP_KILL`) → setpriv as owner, PPid 0 root match, bounded kill (D56); re-sequenced into #148. New: #139, #142, #147.
 
 - 2026-11-16 · Pass lf-t5w2: **3 PRs merged, three lanes in parallel.** #10 sliced into #10/#129/#130/#131 (D53); slice 1 shipped in #133 (i18n en/he + RTL, student login, router; review approved, should-fix fixed by the manager: failed logout kept the session, malformed `%` id crashed the page; leftovers #136; live bundle verified). #89 completion, active time, fast flag (#134, D55; round 1 blocker: two tasks passing at once lost the completion forever → session row lock + race test; per-beat rounding could double or erase active time → `double precision`; round 2 approved; migration 005 live; leftovers #137). #128 smoke drives the task API (#135, D54 internal smoke lab for cohort `lf-smoke`; round 1: stale prompt, nested quiz leak, unchecked second container; round 2 approved; live smoke all 10 steps ok; leftovers #138).
 
