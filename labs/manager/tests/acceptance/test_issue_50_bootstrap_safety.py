@@ -69,6 +69,10 @@ _chain_rules = h3._chain_rules
 _lf_rules = h3._lf_rules
 _swap_names = h3._swap_names
 _remove_backups = h3._remove_backups
+_snapshot_daemon_state = h3._snapshot_daemon_state
+_check_clean_start = h3._check_clean_start
+_restore_daemon_state = h3._restore_daemon_state
+_wait_daemon_state_stable = h3._wait_daemon_state_stable
 
 SBIN = "/usr/local/sbin/lf-labs-iptables"
 UNIT_PATH = f"/etc/systemd/system/{UNIT}"
@@ -214,9 +218,14 @@ def _reset_full() -> None:
 @contextlib.contextmanager
 def _runner_scope():
     """Reset the runner, hand out a scope, and put everything back afterwards."""
+    # The runner's daemon.json, mode, owner, backups and runtimes, taken once the runner is quiet.
+    # An earlier scenario (or module) that left a backup or a changed file behind fails here as
+    # an exam precondition, not as a product failure.
+    snap = _snapshot_daemon_state()
+    _check_clean_start(snap, "test_issue_50_bootstrap_safety")
     sc = SimpleNamespace(
-        original=_daemon_bytes(), undo=[], orig_swaps=_swap_names(),
-        had_runsc="runsc" in _runtimes(),
+        restore_problem="", original=snap.original, undo=[], orig_swaps=_swap_names(),
+        had_runsc=snap.had_runsc, snap=snap,
     )
     sc.orig_stat = _stat(DAEMON_JSON) if sc.original is not None else None
     sc.runsc_path = shutil.which("runsc") or "/usr/bin/runsc"
@@ -240,14 +249,9 @@ def _runner_scope():
         if restart:
             _sudo("rm", "-f", DROPIN, check=False)
             _sudo("systemctl", "daemon-reload", check=False)
-        _write_daemon(sc.original)
-        if sc.orig_stat:
-            mode, owner = sc.orig_stat.split()
-            _sudo("chmod", mode, DAEMON_JSON, check=False)
-            _sudo("chown", owner, DAEMON_JSON, check=False)
-        _sudo("systemctl", "restart" if restart else "reload", "docker", check=False)
-        _wait_docker()
-        _wait_runsc(sc.had_runsc)
+        # Original bytes, mode, owner first, then restart (drop-in gone: dockerd drops the
+        # flag-registered runsc) or reload; no backups or temp files left.
+        restore_problem = _restore_daemon_state(sc.snap, reload=True, restart=restart)
         _sudo("swapoff", SWAPFILE, check=False)
         _sudo("rm", "-f", SWAPFILE, check=False)
         _sudo("sed", "-i", f"\\|^{SWAPFILE} |d", "/etc/fstab", check=False)
@@ -257,6 +261,15 @@ def _runner_scope():
         for name in sc.orig_swaps:
             _sudo("swapon", name, check=False)
         baseline.shutdown()
+        sc.restore_problem = restore_problem  # reported last, after the tests ran
+
+
+def _scope_result(s, sc):
+    """Fixture tail, outside the `with`: the scope is already torn down (module-scoped fixtures
+    must not hold a runner scope open until the end of the module), the tests run, then a failed
+    restore is reported last."""
+    yield s
+    h3._precondition(not sc.restore_problem, sc.restore_problem)
 
 
 def _unregister_runsc(sc) -> dict:
@@ -400,7 +413,7 @@ def prev_copy():
         s.tripped = trip.closed.is_set()
         time.sleep(1)
         s.after = _iptables_snapshot()
-    return s
+    yield from _scope_result(s, sc)
 
 
 def _precondition_prev(s) -> None:
@@ -489,7 +502,7 @@ def mixed_copy():
         time.sleep(1)
         s.after = _iptables_snapshot()
         s.bystander_bytes = [_read(p) for p in bystanders]
-    return s
+    yield from _scope_result(s, sc)
 
 
 def _precondition_mixed(s) -> None:
@@ -560,7 +573,7 @@ def no_runtimes_key():
         _write_daemon(s.seed)
         s.mode = _stat(DAEMON_JSON)
         assert "runsc" not in _runtimes()
-        trip = _TripListener(lambda: bool(glob.glob(BACKUP_GLOB)))
+        trip = h3._OneShotListener()
         cmd = ["sudo", "-n", "env", "-u", "DRY_RUN",
                *[f"{k}={v}" for k, v in _failing_env(trip.port).items()], "bash", str(SCRIPT)]
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
@@ -579,9 +592,11 @@ def no_runtimes_key():
         s.out = "".join(lines)
         s.tripped = trip.closed.is_set()
         s.runsc_gone = _wait_runsc(False)
+        _wait_daemon_state_stable()
         s.after = _daemon_bytes()
         s.after_mode = _stat(DAEMON_JSON)
-    return s
+        s.state = h3._state_text("after the rollback run")
+    yield from _scope_result(s, sc)
 
 
 @pytest.mark.docker
@@ -593,7 +608,9 @@ def test_rollback_without_a_runtimes_key_restores_daemon_json_bytes(no_runtimes_
     assert "baseline" in s.out.lower(), _tail(s.out)
     assert "baseline differs after step 'runtime'" in s.out, \
         "the baseline check that failed is not the one after the runtime step\n" + _tail(s.out)
-    assert s.after == s.seed, "daemon.json was not restored byte for byte\n" + _tail(s.out)
+    assert s.after == s.seed, ("daemon.json was not restored byte for byte\n"
+                               f"--- seeded\n{s.seed.decode(errors='replace')}\n"
+                               f"{s.state}" + _tail(s.out))
     assert s.after_mode == s.mode, \
         f"mode/owner changed: {s.mode} -> {s.after_mode}\n" + _tail(s.out)
 
@@ -657,7 +674,7 @@ def download_path():
         s.cfg = _base_cfg(_daemon_bytes())
         s.runtimes = _runtimes()
         s.hello = _run(["docker", "run", "--rm", "--runtime=runsc", "hello-world"], timeout=600)
-    return s
+    yield from _scope_result(s, sc)
 
 
 @pytest.mark.docker
@@ -727,7 +744,7 @@ def flag_registered():
         s.runtimes = _runtimes()
         s.cmdline = _run(["sudo", "-n", "sh", "-c", "tr '\\0' ' ' < /proc/$(pidof dockerd)/cmdline"]
                          ).stdout
-    return s
+    yield from _scope_result(s, sc)
 
 
 def _precondition_flag(s) -> None:
@@ -786,7 +803,7 @@ def normal_run():
         s.cfg = _base_cfg(_daemon_bytes())
         s.runtimes = _runtimes()
         s.hello = _run(["docker", "run", "--rm", "--runtime=runsc", "hello-world"], timeout=600)
-    return s
+    yield from _scope_result(s, sc)
 
 
 @pytest.mark.docker
@@ -840,7 +857,7 @@ def in_file_not_loaded():
         s.res_b = _bootstrap(sc.good_env)
         s.after_b = _daemon_bytes()
         s.runtimes_b = _runtimes()
-    return s
+    yield from _scope_result(s, sc)
 
 
 @pytest.mark.docker
