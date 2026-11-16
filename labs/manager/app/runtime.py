@@ -312,6 +312,30 @@ class DockerRuntime:
                 raise RuntimeError(f"docker start failed: {resp.status_code} {resp.text[:200]}")
         return name
 
+    async def _is_running(self, name: str) -> bool:
+        async with self._client() as c:
+            resp = await c.get(f"/containers/{name}/json")
+        if resp.status_code == 404:
+            return False
+        if resp.status_code != 200:
+            return True  # cannot tell; the timeout bounds the wait
+        return bool((resp.json().get("State") or {}).get("Running"))
+
+    async def wait_ready(self, name: str, timeout: float) -> None:
+        """Return once the entrypoint has copied the skel and exec'd ttyd; TimeoutError if never.
+        A container that is gone or stopped ends the wait at once (RuntimeError)."""
+        async with asyncio.timeout(timeout):
+            while True:
+                try:
+                    res = await self.exec_script(name, "pgrep -x ttyd >/dev/null", 5.0)
+                except Exception:  # noqa: BLE001 - the container is still coming up
+                    res = None
+                if res is not None and res.exit_code == 0:
+                    return
+                if not await self._is_running(name):
+                    raise RuntimeError("lab container is not running")
+                await asyncio.sleep(0.2)
+
     async def remove(self, name: str) -> None:
         async with self._client() as c:
             resp = await c.delete(f"/containers/{name}", params={"force": "true", "v": "true"})

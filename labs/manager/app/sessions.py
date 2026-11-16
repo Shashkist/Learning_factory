@@ -91,6 +91,18 @@ def _conflict(labs: dict[str, Lab], row: Any) -> HTTPException:
     )
 
 
+READY_TIMEOUT_MAX_S = 55.0  # nginx answers 504 at 60 s for POST /api/sessions (D56)
+
+
+async def wait_ready(runtime: Any, name: str) -> None:
+    """Running means the entrypoint copied the skel (ttyd starts after it). Bounded by
+    LF_READY_TIMEOUT_S (default 45, capped below nginx's 60 s, D56). A runtime without
+    `wait_ready` (the fakes) is ready at once."""
+    waiter = getattr(runtime, "wait_ready", None)
+    if waiter is not None:
+        await waiter(name, min(admission.env_num("LF_READY_TIMEOUT_S", 45), READY_TIMEOUT_MAX_S))
+
+
 @router.post("", status_code=201)
 async def start(
     body: StartBody,
@@ -143,10 +155,15 @@ async def start(
         sid = str(row["id"])
         try:
             name = str(await runtime.start(container_spec(lab, sid)))
+            await wait_ready(runtime, name)
         except Exception as exc:
             log.error("starting container of session %s failed (%s)", sid, type(exc).__name__)
             await remove_container(runtime, sid)
-            await pool.execute(f"delete from {T}.lab_sessions where id = $1", row["id"])
+            deleted = await pool.execute(
+                f"delete from {T}.lab_sessions where id = $1 and status = 'starting'", row["id"]
+            )
+            if str(deleted).endswith(" 0"):  # ended meanwhile: keep the row, say so
+                raise HTTPException(409, "session_ended") from None
             raise HTTPException(502, "start_failed") from None
         marked = await pool.fetchval(
             f"update {T}.lab_sessions set status = 'running', container = $2, "
