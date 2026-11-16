@@ -17,7 +17,11 @@ def _runtime(results):
             raise r
         return r
 
+    async def running(name):
+        return True
+
     rt.exec_script = exec_script  # type: ignore[method-assign]
+    rt._is_running = running  # type: ignore[method-assign]
     return rt, calls
 
 
@@ -38,13 +42,103 @@ def test_runtime_without_wait_ready_is_ready():
     asyncio.run(sessions.wait_ready(object(), "lab-x"))
 
 
-def test_wait_is_bounded_by_half_the_start_deadline(monkeypatch):
-    monkeypatch.setenv("LF_START_DEADLINE_S", "40")
+def test_ready_timeout_setting_default_and_cap(monkeypatch):
     seen = []
 
     class R:
         async def wait_ready(self, name, timeout):
             seen.append(timeout)
 
+    monkeypatch.delenv("LF_READY_TIMEOUT_S", raising=False)
     asyncio.run(sessions.wait_ready(R(), "lab-x"))
-    assert seen == [20.0]
+    monkeypatch.setenv("LF_READY_TIMEOUT_S", "500")
+    asyncio.run(sessions.wait_ready(R(), "lab-x"))
+    assert seen == [45.0, sessions.READY_TIMEOUT_MAX_S]
+    assert sessions.READY_TIMEOUT_MAX_S < 60
+
+
+def test_gone_container_stops_the_wait_at_once():
+    rt, calls = _runtime([ExecResult(1, "")])
+
+    async def gone(name):
+        return False
+
+    rt._is_running = gone  # type: ignore[method-assign]
+    with pytest.raises(RuntimeError):
+        asyncio.run(rt.wait_ready("lab-x", 30))
+    assert len(calls) == 1
+
+
+class _Pool:
+    def __init__(self, deleted):
+        self.deleted, self.sql = deleted, []
+
+    async def execute(self, sql, *args):
+        self.sql.append(sql)
+        return self.deleted
+
+
+def _failing_start(monkeypatch, deleted):
+    from types import SimpleNamespace
+
+    from fastapi import HTTPException, Response
+
+    class Row(dict):
+        pass
+
+    pool = _Pool(deleted)
+    removed = []
+
+    class Pool(_Pool):
+        async def fetchrow(self, sql, *a):
+            return Row(id="11111111-1111-1111-1111-111111111111", lab_id="l", status="starting",
+                       expires_at=None)
+
+    pool.__class__ = Pool
+
+    class RT:
+        async def start(self, spec):
+            return "lab-x"
+
+        async def wait_ready(self, name, timeout):
+            raise RuntimeError("gone")
+
+        async def remove(self, name):
+            removed.append(name)
+
+    lab = SimpleNamespace(id="l", status="public", time_limit_min=5)
+    monkeypatch.setattr(sessions, "container_spec", lambda lab, sid: {})
+    monkeypatch.setattr(sessions, "memory_limit_mb", lambda lab: 1)
+    monkeypatch.setattr(sessions.admission, "resources_ok", lambda mb: True)
+
+    async def ok(*a):
+        return True
+
+    async def none(*a):
+        return None
+
+    monkeypatch.setattr(sessions.admission, "cap_ok", ok)
+    monkeypatch.setattr(sessions, "_live", none)
+    state = SimpleNamespace(labs={"l": lab}, pool=pool, runtime=RT())
+    req = SimpleNamespace(app=SimpleNamespace(state=state))
+    p = SimpleNamespace(subject="s")
+
+    async def go():
+        return await sessions.start(sessions.StartBody(lab_id="l"), req, Response(), p)
+
+    return go, pool, removed, HTTPException
+
+
+def test_failed_start_removes_container_deletes_starting_row_502(monkeypatch):
+    go, pool, removed, HTTPException = _failing_start(monkeypatch, "DELETE 1")
+    with pytest.raises(HTTPException) as e:
+        asyncio.run(go())
+    assert e.value.status_code == 502 and e.value.detail == "start_failed"
+    assert removed and "status = 'starting'" in pool.sql[0]
+
+
+def test_failed_start_of_an_ended_session_is_409(monkeypatch):
+    go, _, removed, HTTPException = _failing_start(monkeypatch, "DELETE 0")
+    with pytest.raises(HTTPException) as e:
+        asyncio.run(go())
+    assert e.value.status_code == 409 and removed
