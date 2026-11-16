@@ -33,10 +33,13 @@ SSH_STUB = r"""#!/bin/bash
 # STUB_SKIP_REMOTE=launch,follow drops those commands (they exit 0 and do nothing).
 echo "ssh $*" >> "$STUB_LOG"
 cmd="${@: -1}"
+# Only the remote commands the workflow is known to send run here; anything else fails the
+# step instead of running on this machine.
 case "$cmd" in
-  setsid*) kind=launch ;;
-  tail*) kind=follow ;;
-  *) kind=other ;;
+  setsid\ *) kind=launch ;;
+  "tail -F "*) kind=follow ;;
+  "mkdir -p "*|"flock -n "*|"cat "*) kind=other ;;
+  *) echo "ssh stub: unexpected remote command: $cmd" >&2; exit 99 ;;
 esac
 case ",${STUB_SKIP_REMOTE:-}," in *",$kind,"*) exit 0 ;; esac
 cmd="${cmd//$SERVER_LOCK/$STUB_LOCK}"
@@ -48,6 +51,7 @@ SCP_STUB = r"""#!/bin/bash
 echo "scp $*" >> "$STUB_LOG"
 src="${@: -2:1}"
 dst="${@: -1}"
+[ -f "$src" ] || { echo "scp stub: no such source file: $src" >&2; exit 1; }
 cp "$STUB_SCRIPT" "${dst#*:}"
 """
 
@@ -141,6 +145,7 @@ def test_step_refuses_before_its_scp_when_the_bootstrap_lock_is_held(tmp_path):
     r = _Run(tmp_path, rc=0, hold_lock=True)
     assert r.res.returncode != 0, \
         "the job step passed with the bootstrap lock held\n" + r.out[-2000:]
-    assert "lock" in r.out.lower(), r.out[-2000:]
+    assert "still running" in r.out, r.out[-2000:]
+    assert "ssh failed" not in r.out, r.out[-2000:]
     assert "scp " not in r.calls, "the script was copied although the lock was held\n" + r.calls
     assert not r.rc_files, "a run was launched although the lock was held"
