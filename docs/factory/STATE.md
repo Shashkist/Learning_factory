@@ -4,16 +4,16 @@
 
 ## Now
 
-_Last updated: 2026-11-16 ~14:40 UTC, laptop pass lf-b8n5 (~13:05 to ~14:40 UTC)._
+_Last updated: 2026-11-16 ~15:10 UTC, laptop pass lf-c4z1 (started ~14:55 UTC), in progress._
 
-- **Resume #172 first (claim released; worktree `C:\projects\lf-172`, branch `f/172-cohort-edit-3`, PR #181).** Rebased from #179 (i18n conflict with #175); re-sequenced from #174 (D61: `sessions.py` uses the exact `is_smoke_member`, the teacher API the broad `is_smoke_cohort`; the #128 exam caught the widened access). Next: CI green on #179 (the DB cases of the #172 exam run only there: if one fails for an exam reason, re-sequence again: exam fix first) → reviewer round 1 → merge → Deploy → live check (`/api/admin/*` 401 anonymous; a 422 body without `input`) → close.
+- **In flight (pass lf-c4z1, claims held):** incident **#182** (PR #183: the #117 docker exam's `mentioning()` counted ttyd, whose `-b /s/<session id>/term/` held `6012`; exam-only fix, worktree `C:\projects\lf-182`); **#172** PR #181 CI green, reviewer round 1 running (worktree `C:\projects\lf-172`); **#178** exam being written (worktree `C:\projects\lf-178`, branch `f/178-lab-screen-followups`).
 - **Production:** `lf-manager:f59f272` (Deploy 43887380246, smoke all ok): #171 (#139), #175 (#160, live bundle has the new texts), #176 (#173). The f2e0bbc Deploy skipped because the D61 commit was pushed while it was pending (D49 again).
 - **Lesson (this pass):** grep the other exams for every test id, route and helper a new exam touches: three lanes each hit an older exam (#157 helper without the task list, #11 `/^cohort-/`, #128 exact smoke cohort).
 - **Lesson (D49):** a state commit pushed to `main` while a merge's Deploy is pending makes that Deploy skip; push state after the Deploy.
 - **Repository is public (D43).** Always `git pull --rebase` before a state commit, never `--autostash`.
 - **Known gap (D40):** a cancelled Deploy is not noticed; fix in #85.
 - **Laptop network:** DNS to github.com dropped twice for a minute this pass; retry before treating it as an incident.
-- **Next session starts at:** Now (#172 / PR #181), then Next 1.
+- **Next session starts at:** Now (in-flight lanes above), then Next 1.
 
 ## Next (in order)
 
