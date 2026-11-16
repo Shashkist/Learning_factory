@@ -125,8 +125,9 @@ KILL_SCRIPT = r"""
 want="$1"
 collect() {
   ps -eo pid=,ppid=,uid=,gid=,args= | awk -v want="$want" '
+    BEGIN { sub(/ +$/, "", want) }
     { pid=$1; pp[pid]=$2; uid[pid]=$3; gid[pid]=$4
-      a=$0; sub(/^ *[0-9]+ +[0-9]+ +[0-9]+ +[0-9]+ +/, "", a); args[pid]=a }
+      a=$0; sub(/^ *[0-9]+ +[0-9]+ +[0-9]+ +[0-9]+ +/, "", a); sub(/ +$/, "", a); args[pid]=a }
     END {
       for (p in pp) if (uid[p] == 0 && pp[p] == 0 && args[p] == want) mark[p] = 1
       do { n = 0
@@ -259,7 +260,7 @@ class DockerRuntime:
             "User": "root",
             "Privileged": False,
             "Env": [f"PATH={EXEC_PATH}"],
-            "Cmd": ["/bin/sh", "-c", KILL_SCRIPT, "sh", " ".join(argv) + " "],
+            "Cmd": ["/bin/sh", "-c", KILL_SCRIPT, "sh", " ".join(argv)],  # as `ps args=` prints it
         }
         async with self._client() as c:
             resp = await c.post(f"/containers/{name}/exec", json=body)
