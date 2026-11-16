@@ -438,28 +438,37 @@ def test_teacher_and_sessions_share_one_smoke_cohort_definition():
     t_names, s_names = _smoke_names(teacher), _smoke_names(sessions)
     assert s_names, "sessions.py must import its smoke-cohort check from the shared definition"
     assert t_names, "teacher.py must import its smoke-cohort check from the shared definition"
-    for name, module in s_names.items():
-        assert t_names.get(name) == module, f"{name} must come from the same module in teacher.py"
+    # One module holds the definition. The two files may use different checks from it: the
+    # internal smoke lab admits the exact cohort only (#128 exam), while the teacher API refuses
+    # every look-alike name (D61).
+    modules = set(s_names.values()) | set(t_names.values())
+    assert len(modules) == 1, f"one shared module, got {sorted(modules)}"
     for path in (teacher, sessions):
         src = path.read_text(encoding="utf-8")
         assert not re.search(r"==\s*SMOKE_COHORT|SMOKE_COHORT\s*==", src), path.name
         assert not re.search(r"<>\s*'\{SMOKE_COHORT\}'|['\"]lf-smoke['\"]", src), path.name
 
 
-def test_the_shared_smoke_check_knows_the_reserved_name():
+def _shared_callables(path: Path) -> list:
     import importlib
 
-    names = _smoke_names(APP_DIR / "sessions.py")
-    assert names, "sessions.py must import its smoke-cohort check from the shared definition"
-    checks = [
-        getattr(importlib.import_module(module), name)
-        for name, module in names.items()
-    ]
+    names = _smoke_names(path)
+    assert names, f"{path.name} must import its smoke-cohort check from the shared definition"
+    checks = [getattr(importlib.import_module(module), name) for name, module in names.items()]
     callables = [c for c in checks if callable(c)]
     assert callables, "the shared definition must include a Python check (a callable)"
-    for check in callables:
+    return callables
+
+
+def test_the_shared_smoke_check_knows_the_reserved_name():
+    # The teacher API's reserved-name check: any case, any padding.
+    for check in _shared_callables(APP_DIR / "teacher.py"):
         assert check("lf-smoke") is True
         assert check("  LF-Smoke ") is True
+        assert check("Fake Spring cohort") is False
+    # The sessions check: the exact cohort (look-alikes are refused by the #128 exam).
+    for check in _shared_callables(APP_DIR / "sessions.py"):
+        assert check("lf-smoke") is True
         assert check("Fake Spring cohort") is False
 
 
