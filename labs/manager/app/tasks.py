@@ -2,25 +2,29 @@
 
 Showing a hands-on task runs its `setup.sh` as root in the session's container (D45) before
 anything is recorded; Next/Skip/Previous/Restart all show a target the same way and never reset
-the machine (spec section 5). Check results, attempts and completion are #88 and #89.
+the machine (spec section 5). Check results, attempts and quiz grading are #88; completion is #89.
 Nothing sent to a student carries check/setup/solution text or a quiz `correct` field."""
 import asyncio
 import logging
 import os
 import re
 import uuid
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, StrictInt
 
 from app import db
 from app.auth import Principal, current_student, db_guard
-from app.content import LANGS, Lab, Task
+from app.content import LANGS, Lab, Task, parse_check_output
 from app.runtime import container_name
 
 log = logging.getLogger("lab-manager")
 T = db.SCHEMA
 DEFAULT_SETUP_TIMEOUT_S = 50.0  # below nginx's default proxy_read_timeout (60 s)
+CHECK_TIMEOUT_S = 20.0  # spec section 7
 SLOT_WAIT_S = 5.0  # waiting for an exec slot, on top of the setup timeout
 
 
@@ -130,27 +134,34 @@ async def _ctx(
     return _Ctx(request, sid, p.subject, lab, row["current_task"])
 
 
+@asynccontextmanager
+async def _session_lock(sid: uuid.UUID, busy: str) -> AsyncIterator[None]:
+    """The per-session lock, never waited for: if it is held the caller gets 409 `busy`."""
+    lock = _LOCKS.setdefault(sid, asyncio.Lock())
+    if lock.locked():
+        raise HTTPException(409, busy)
+    try:
+        async with lock:
+            yield
+    finally:
+        if not lock.locked() and _LOCKS.get(sid) is lock:
+            del _LOCKS[sid]
+
+
 async def _show(ctx: _Ctx, task: Task, moving_from: str | None = None) -> dict[str, Any]:
     """Serialised per session: a second show while one runs gets 409 and runs nothing.
 
     `moving_from` (navigation): the current task the target was computed from; if another
     request changed it before this one got the lock, answer 409 and run nothing."""
-    lock = _LOCKS.setdefault(ctx.sid, asyncio.Lock())
-    if lock.locked():
-        raise HTTPException(409, "setup_running")
-    try:
-        async with lock:
-            if moving_from is not None:
-                with db_guard():
-                    now = await ctx.pool.fetchval(
-                        f"select current_task from {T}.lab_sessions where id = $1", ctx.sid
-                    )
-                if now != moving_from:
-                    raise HTTPException(409, "task_changed")
-            return await _do_show(ctx, task)
-    finally:
-        if not lock.locked() and _LOCKS.get(ctx.sid) is lock:
-            del _LOCKS[ctx.sid]
+    async with _session_lock(ctx.sid, "setup_running"):
+        if moving_from is not None:
+            with db_guard():
+                now = await ctx.pool.fetchval(
+                    f"select current_task from {T}.lab_sessions where id = $1", ctx.sid
+                )
+            if now != moving_from:
+                raise HTTPException(409, "task_changed")
+        return await _do_show(ctx, task)
 
 
 async def _do_show(ctx: _Ctx, task: Task) -> dict[str, Any]:
@@ -263,3 +274,106 @@ async def show_task(task_id: str, ctx: Annotated[_Ctx, Depends(_ctx)]) -> dict[s
     if task is None:
         raise HTTPException(404, "unknown_task")
     return await _show(ctx, task)
+
+
+async def _count_attempt(ctx: _Ctx, task: Task, passed: bool) -> int:
+    """One atomic increment; `passed_at` only on the first pass, never cleared."""
+    with db_guard():
+        attempts = await ctx.pool.fetchval(
+            f"update {T}.task_results set attempts = attempts + 1, "
+            "passed_at = case when $3 then coalesce(passed_at, now()) else passed_at end "
+            "where session_id = $1 and task_id = $2 and shown_at is not null "
+            f"and exists (select 1 from {T}.lab_sessions where id = $1 and status = 'running') "
+            "returning attempts",
+            ctx.sid,
+            task.id,
+            passed,
+        )
+    if attempts is None:
+        with db_guard():
+            status = await ctx.pool.fetchval(
+                f"select status from {T}.lab_sessions where id = $1", ctx.sid
+            )
+        if status != "running":
+            raise HTTPException(410, "session_ended")
+        raise HTTPException(409, "task_not_shown")
+    return int(attempts)
+
+
+async def _gradable(ctx: _Ctx, task_id: str, kind: str) -> Task:
+    task = ctx.task(task_id)
+    if task is None:
+        raise HTTPException(404, "unknown_task")
+    if task.kind != kind:
+        raise HTTPException(409, "wrong_task_kind")
+    row = await ctx.result(task)
+    if row is None or row["shown_at"] is None:
+        raise HTTPException(409, "task_not_shown")
+    return task
+
+
+async def _run_check(ctx: _Ctx, task: Task) -> tuple[str | None, str, bool]:
+    """(reason, output, exited 0); the reason is "timeout" or "error" when nothing was read."""
+    script = (ctx.lab.path / "tasks" / task.id / "check.sh").read_bytes().decode("utf-8")
+    try:
+        await asyncio.wait_for(_EXECS.acquire(), SLOT_WAIT_S)
+    except TimeoutError:
+        log.error("check of %s in session %s found no free exec slot", task.id, ctx.sid)
+        return "error", "", False
+    try:
+        res = await ctx.request.app.state.runtime.exec_script(
+            container_name(ctx.sid), script, CHECK_TIMEOUT_S
+        )
+    except Exception as exc:
+        log.error("check of %s in session %s failed (%s)", task.id, ctx.sid, type(exc).__name__)
+        return "error", "", False
+    finally:
+        _EXECS.release()
+    if res.timed_out:
+        log.error("check of %s in session %s timed out", task.id, ctx.sid)
+        return "timeout", "", False
+    return None, res.output, res.exit_code == 0
+
+
+@router.post("/{task_id}/check")
+async def check_task(task_id: str, ctx: Annotated[_Ctx, Depends(_ctx)]) -> dict[str, Any]:
+    task = await _gradable(ctx, task_id, "hands-on")
+    async with _session_lock(ctx.sid, "session_busy"):
+        reason, output, exit_ok = await _run_check(ctx, task)
+        res = parse_check_output(output, 0 if exit_ok else 1)
+        items = [
+            {
+                "n": n,
+                "text": dict(text),
+                "passed": n in res.items and res.items[n].passed,
+                "hint": res.items[n].hint if n in res.items else None,
+            }
+            for n, text in enumerate(task.checklist, 1)
+        ]
+        passed = res.passed and all(i["passed"] for i in items)
+        if reason == "error":  # the server's failure, not the student's: no attempt
+            with db_guard():
+                attempts = await ctx.pool.fetchval(
+                    f"select attempts from {T}.task_results where session_id = $1 and task_id = $2",
+                    ctx.sid,
+                    task.id,
+                )
+            attempts = int(attempts or 0)
+        else:
+            attempts = await _count_attempt(ctx, task, passed)
+    return {"passed": passed, "attempts": attempts, "reason": reason, "checklist": items}
+
+
+class _Answer(BaseModel):
+    option: StrictInt
+
+
+@router.post("/{task_id}/answer")
+async def answer_task(
+    task_id: str, body: _Answer, ctx: Annotated[_Ctx, Depends(_ctx)]
+) -> dict[str, Any]:
+    task = await _gradable(ctx, task_id, "quiz")
+    if not 0 <= body.option < len(task.options):
+        raise HTTPException(422, "invalid_option")
+    correct = body.option == task.correct
+    return {"correct": correct, "attempts": await _count_attempt(ctx, task, correct)}
