@@ -27,7 +27,7 @@
  *
  * DOM
  *   app root            element with data-testid="app-root": carries dir ("ltr"|"rtl") and lang ("en"|"he")
- *   toggle              a <button> whose accessible name is the lang.switch text
+ *   toggle              a <button> whose visible text is the lang.switch text
  *   login inputs        found with getByLabelText(login.id / login.password), both dir="ltr"
  *   login error         element with role="alert" containing the message
  *   My labs             heading role named labs.title, student name as text, nav.logout button
@@ -91,8 +91,10 @@ function at(path: string, lang?: "en" | "he") {
 }
 
 const root = () => screen.getByTestId("app-root");
+// Found by its visible text: since #129/#136 the toggle carries its own aria-label
+// (lang.switch.label), which becomes the accessible name.
 const toggle = (lang: "en" | "he") =>
-  screen.getByRole("button", { name: DICTS[lang]["lang.switch"] });
+  screen.getByText(DICTS[lang]["lang.switch"], { selector: "button" });
 
 async function fillAndSubmit(lang: "en" | "he", id: string, password: string) {
   const d = DICTS[lang];
