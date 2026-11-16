@@ -224,7 +224,7 @@ def _reset_runner() -> None:
 
 
 def _daemon_bytes() -> bytes | None:
-    res = _run(["sudo", "-n", "cat", DAEMON_JSON], timeout=10)
+    res = _run(["sudo", "-n", "cat", DAEMON_JSON])
     return res.stdout.encode() if res.returncode == 0 else None
 
 
@@ -250,7 +250,7 @@ def _write_daemon(data: bytes | None) -> None:
 
 
 def _runtimes() -> dict:
-    out = _docker("info", "--format", "{{json .Runtimes}}", check=False, timeout=10).stdout
+    out = _docker("info", "--format", "{{json .Runtimes}}", check=False).stdout
     try:
         return json.loads(out) or {}
     except ValueError:
@@ -268,7 +268,7 @@ def _reload_docker_and_wait(runsc: bool | None, wait: float = 40.0) -> None:
 
 
 def _backups() -> list[str]:
-    res = _run(["sudo", "-n", "sh", "-c", f"ls {BACKUP_GLOB} 2>/dev/null"], timeout=10)
+    res = _run(["sudo", "-n", "sh", "-c", f"ls {BACKUP_GLOB} 2>/dev/null"])
     return res.stdout.split()
 
 
@@ -281,7 +281,7 @@ TEMP_GLOBS = (f"{DAEMON_JSON}.lf-new.*", f"{DAEMON_JSON}.lf-restore.*", f"{DAEMO
 
 def _temp_files() -> list[str]:
     pat = " ".join(TEMP_GLOBS)
-    return _run(["sudo", "-n", "sh", "-c", f"ls {pat} 2>/dev/null"], timeout=10).stdout.split()
+    return _run(["sudo", "-n", "sh", "-c", f"ls {pat} 2>/dev/null"]).stdout.split()
 
 
 def _state_text(label: str = "") -> str:
@@ -302,19 +302,27 @@ def _wait_daemon_state_stable(wait: float = 30.0, still: float = 3.0) -> bool:
     """Wait (bounded) until daemon.json, the backups, the temp files and the runtimes docker lists
     stop changing for `still` seconds: a `systemctl reload docker` returns before dockerd has
     applied the file, and an earlier scenario may still be settling."""
+    def _t(cmd):
+        return _run(cmd, timeout=10).stdout
+
     def sample():
         try:
-            return (_daemon_bytes(), tuple(_backups()), tuple(_temp_files()),
-                    "runsc" in _runtimes())
+            info = _run(["docker", "info", "--format", "{{json .Runtimes}}"], timeout=10).stdout
+            return (
+                _t(["sudo", "-n", "cat", DAEMON_JSON]),
+                _t(["sudo", "-n", "sh", "-c", f"ls {BACKUP_GLOB} 2>/dev/null"]),
+                _t(["sudo", "-n", "sh", "-c", f"ls {' '.join(TEMP_GLOBS)} 2>/dev/null"]),
+                "runsc" in info,
+            )
         except subprocess.TimeoutExpired:
-            return None
+            return None  # not a stable sample
 
     deadline = time.time() + wait
     last, since = sample(), time.time()
     while time.time() < deadline:
         time.sleep(0.5)
         cur = sample()
-        if cur != last:
+        if cur is None or cur != last:
             last, since = cur, time.time()
         elif time.time() - since >= still:
             return True
@@ -345,10 +353,12 @@ def _check_clean_start(snap: SimpleNamespace, module: str) -> None:
                   f"scenario: {sorted(snap.backups)} {snap.temps}")
 
 
-def _restore_daemon_state(snap: SimpleNamespace, reload: bool | None = None) -> None:
-    """Put daemon.json (bytes, mode, owner) back, remove every backup and temp file this exam
-    caused, reload and wait for a stable state. Fails the teardown if docker's runsc listing
-    still differs from the start, so a later module does not fail mysteriously."""
+def _restore_daemon_state(snap: SimpleNamespace, reload: bool | None = None,
+                          restart: bool = False) -> str:
+    """Put daemon.json (bytes, mode, owner) back first, remove every backup and temp file this
+    exam caused, then reload (or restart) docker and wait for a stable state. Returns the problem
+    text ("" when fine) instead of failing: the caller does all its other cleanup, then fails
+    last, so a leftover never skips a cleanup step or hides a product failure."""
     _remove_backups()
     _run(["sudo", "-n", "sh", "-c", "rm -f " + " ".join(TEMP_GLOBS)])
     changed = _daemon_bytes() != snap.original
@@ -358,15 +368,27 @@ def _restore_daemon_state(snap: SimpleNamespace, reload: bool | None = None) -> 
         mode, owner = snap.stat.split()
         _sudo("chmod", mode, DAEMON_JSON, check=False)
         _sudo("chown", owner, DAEMON_JSON, check=False)
-    if changed if reload is None else reload:
+    if restart:
+        _sudo("systemctl", "restart", "docker", check=False)
+        deadline = time.time() + 60.0
+        while time.time() < deadline:
+            if _run(["docker", "info", "--format", "{{.ServerVersion}}"]).returncode == 0:
+                break
+            time.sleep(1)
+    elif changed if reload is None else reload:
         _sudo("systemctl", "reload", "docker", check=False)
     deadline = time.time() + 40.0
     while time.time() < deadline and ("runsc" in _runtimes()) != snap.had_runsc:
         time.sleep(1)
-    _wait_daemon_state_stable()
-    _precondition(("runsc" in _runtimes()) == snap.had_runsc,
-                  f"teardown: docker's runsc listing differs from the start (had runsc: "
-                  f"{snap.had_runsc})")
+    problems = []
+    if not _wait_daemon_state_stable():
+        problems.append("daemon.json state did not settle within the bound")
+    if ("runsc" in _runtimes()) != snap.had_runsc:
+        problems.append(f"docker's runsc listing differs from the start (had runsc: "
+                        f"{snap.had_runsc})")
+    if not problems:
+        return ""
+    return "teardown: " + "; ".join(problems) + "\n" + _state_text("after the restore")
 
 
 class _OneShotListener:
@@ -522,7 +544,7 @@ def run():
         _sudo("rm", "-f", SWAPFILE, check=False)
 
         _reset_runner()
-        _wait_daemon_state_stable()
+        _precondition(_wait_daemon_state_stable(), "daemon.json state did not settle")
         _precondition(_daemon_bytes() == seeded.encode(),
                       "daemon.json is not the seeded file when the scenarios start")
         _precondition(not _backups(), "daemon.json backups exist when the scenarios start")
@@ -557,7 +579,7 @@ def run():
         # run1 must not depend on how the rollback scenario ended: seeded file, no runsc.
         _write_daemon(seeded.encode())
         _reload_docker_and_wait(runsc=False)
-        _wait_daemon_state_stable()
+        _precondition(_wait_daemon_state_stable(), "daemon.json state did not settle")
         _precondition(_daemon_bytes() == seeded.encode(),
                       "daemon.json is not the seeded file before the real run")
         _precondition("runsc" not in _runtimes(), "docker lists runsc before the real run")
@@ -578,13 +600,14 @@ def run():
     finally:
         _docker("rm", "-f", "-v", SENTINEL, check=False)
         _reset_runner()
-        _restore_daemon_state(snap, reload=True)
+        restore_problem = _restore_daemon_state(snap, reload=True)
         _sudo("swapoff", SWAPFILE, check=False)
         _sudo("rm", "-f", SWAPFILE, check=False)
         _sudo("sed", "-i", f"\\|^{SWAPFILE} |d", "/etc/fstab", check=False)
         for name in orig_swaps:
             _sudo("swapon", name, check=False)
         baseline.shutdown()
+        _precondition(not restore_problem, restore_problem)  # last: all cleanup is done
 
 
 # ---------------------------------------------------------------- docker: dry run
@@ -957,12 +980,13 @@ def test_second_run_does_not_touch_swap_and_reports_no_changes(run):
 @pytest.mark.docker
 def test_baseline_failing_after_the_first_step_rolls_everything_back(run):
     assert run.rb_closed, "exam precondition: the listener took the first connection and closed"
-    _precondition("baseline differs after step 'runtime'" in run.rb.stdout + run.rb.stderr,
-                  "the baseline check that failed is not the one after the runtime step\n"
-                  + _tail(run.rb))
+    _precondition("== step runtime: applying" in run.rb.stdout + run.rb.stderr,
+                  "the runtime step did not run in the rollback scenario\n" + _tail(run.rb))
     assert run.rb.returncode != 0, run.rb.stdout + run.rb.stderr
     assert "baseline" in (run.rb.stdout + run.rb.stderr).lower()
     assert f"{RESULT} changed" not in run.rb.stdout
+    assert "baseline differs after step 'runtime'" in run.rb.stdout + run.rb.stderr, (
+        "the baseline check that failed is not the one after the runtime step\n" + _tail(run.rb))
     assert run.after_rb.daemon == run.before.daemon, (
         "daemon.json not restored byte for byte\n"
         f"--- seeded (pre-run)\n{(run.before.daemon or b'').decode(errors='replace')}\n"

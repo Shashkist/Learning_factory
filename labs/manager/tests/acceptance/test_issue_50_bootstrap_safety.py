@@ -249,11 +249,9 @@ def _runner_scope():
         if restart:
             _sudo("rm", "-f", DROPIN, check=False)
             _sudo("systemctl", "daemon-reload", check=False)
-        if restart:  # the drop-in is gone: restart so dockerd drops the flag-registered runsc
-            _sudo("systemctl", "restart", "docker", check=False)
-            _wait_docker()
-        # bytes, mode, owner back; no backups or temp files; reload; docker's runsc as before
-        _restore_daemon_state(sc.snap, reload=True)
+        # Original bytes, mode, owner first, then restart (drop-in gone: dockerd drops the
+        # flag-registered runsc) or reload; no backups or temp files left.
+        restore_problem = _restore_daemon_state(sc.snap, reload=True, restart=restart)
         _sudo("swapoff", SWAPFILE, check=False)
         _sudo("rm", "-f", SWAPFILE, check=False)
         _sudo("sed", "-i", f"\\|^{SWAPFILE} |d", "/etc/fstab", check=False)
@@ -263,6 +261,7 @@ def _runner_scope():
         for name in sc.orig_swaps:
             _sudo("swapon", name, check=False)
         baseline.shutdown()
+        h3._precondition(not restore_problem, restore_problem)  # last: all cleanup is done
 
 
 def _unregister_runsc(sc) -> dict:
@@ -406,7 +405,7 @@ def prev_copy():
         s.tripped = trip.closed.is_set()
         time.sleep(1)
         s.after = _iptables_snapshot()
-    return s
+        yield s
 
 
 def _precondition_prev(s) -> None:
@@ -495,7 +494,7 @@ def mixed_copy():
         time.sleep(1)
         s.after = _iptables_snapshot()
         s.bystander_bytes = [_read(p) for p in bystanders]
-    return s
+        yield s
 
 
 def _precondition_mixed(s) -> None:
@@ -566,7 +565,7 @@ def no_runtimes_key():
         _write_daemon(s.seed)
         s.mode = _stat(DAEMON_JSON)
         assert "runsc" not in _runtimes()
-        trip = _TripListener(lambda: bool(glob.glob(BACKUP_GLOB)))
+        trip = h3._OneShotListener()
         cmd = ["sudo", "-n", "env", "-u", "DRY_RUN",
                *[f"{k}={v}" for k, v in _failing_env(trip.port).items()], "bash", str(SCRIPT)]
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
@@ -589,7 +588,7 @@ def no_runtimes_key():
         s.after = _daemon_bytes()
         s.after_mode = _stat(DAEMON_JSON)
         s.state = h3._state_text("after the rollback run")
-    return s
+        yield s
 
 
 @pytest.mark.docker
@@ -667,7 +666,7 @@ def download_path():
         s.cfg = _base_cfg(_daemon_bytes())
         s.runtimes = _runtimes()
         s.hello = _run(["docker", "run", "--rm", "--runtime=runsc", "hello-world"], timeout=600)
-    return s
+        yield s
 
 
 @pytest.mark.docker
@@ -737,7 +736,7 @@ def flag_registered():
         s.runtimes = _runtimes()
         s.cmdline = _run(["sudo", "-n", "sh", "-c", "tr '\\0' ' ' < /proc/$(pidof dockerd)/cmdline"]
                          ).stdout
-    return s
+        yield s
 
 
 def _precondition_flag(s) -> None:
@@ -796,7 +795,7 @@ def normal_run():
         s.cfg = _base_cfg(_daemon_bytes())
         s.runtimes = _runtimes()
         s.hello = _run(["docker", "run", "--rm", "--runtime=runsc", "hello-world"], timeout=600)
-    return s
+        yield s
 
 
 @pytest.mark.docker
@@ -850,7 +849,7 @@ def in_file_not_loaded():
         s.res_b = _bootstrap(sc.good_env)
         s.after_b = _daemon_bytes()
         s.runtimes_b = _runtimes()
-    return s
+        yield s
 
 
 @pytest.mark.docker
