@@ -10,7 +10,7 @@ import asyncpg
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 
-from app import auth, catalog, db, google_auth, janitor, sessions, tasks, term_proxy
+from app import auth, catalog, db, google_auth, janitor, sessions, tasks, teacher, term_proxy
 from app.content import load_labs
 from app.runtime import DockerRuntime
 
@@ -117,6 +117,7 @@ app.include_router(google_auth.router)
 app.include_router(catalog.router)
 app.include_router(sessions.router)
 app.include_router(tasks.router)
+app.include_router(teacher.router)
 app.include_router(term_proxy.router)
 
 
