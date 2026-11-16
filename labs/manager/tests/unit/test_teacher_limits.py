@@ -73,3 +73,11 @@ def test_422_has_no_input_or_ctx():
         assert resp.status_code == 422
         assert "input" not in resp.text and "ctx" not in resp.text
         assert secret not in resp.text and "ZZZZ" not in resp.text
+
+
+def test_smoke_lab_access_is_the_exact_cohort_only():
+    from app.smoke import is_smoke_member
+
+    assert is_smoke_member("lf-smoke")
+    for other in ("LF-SMOKE", "lf-smoke ", "lf-smoke-2", "Fake", None):
+        assert not is_smoke_member(other)
