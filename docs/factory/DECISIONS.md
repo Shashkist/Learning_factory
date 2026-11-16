@@ -542,3 +542,16 @@ in force · factory · 2026-11-16
 
 **Decision.** The smoke lab lives at `labs/content/smoke/smoke-tasks/` (id `smoke-tasks`; amended 2026-11-16: the loader requires the lab id to equal its folder name, so not `smoke/tasks/`): one quiz task and one hands-on task with trivial, deterministic `setup.sh` / `check.sh`. `lab.yaml` gets a new `status` value `internal`. `POST /api/sessions` answers 404 `unknown_lab` (same as a missing lab, so its existence does not leak) for an `internal` lab unless the student belongs to cohort `lf-smoke`; any future student catalog (#10 slice 2) never lists `internal` labs.
 **Why.** Reuses the existing status field and the synthetic smoke cohort (D36); no new table or flag. **Alternatives.** An `audience:` field per lab; a separate content root mounted only for smoke runs. **Revert.** Drop the status value and move the smoke lab to `draft`.
+
+## D55 · #89 completion and fast-flag contract choices
+in force · factory · 2026-11-16
+
+**Decision.** Choices the spec (§8) leaves open, as pinned by the #89 exam and review round 1:
+- (a) **Median scope:** the 30 % rule uses the median of every other student's **first** completion of the lab, across all cohorts (not per cohort), and needs at least 5 such students before it applies. Runs with 0 active seconds (no heartbeat data) do not count as priors.
+- (b) `fast_lab_min` in `lab.yaml` is in **minutes** (like `time_limit_min`); per-task `min_task_seconds` is in seconds, default 20.
+- (c) `lab_runs.active_seconds` is a snapshot **at completion** (time to finish), not the whole session.
+- (d) Only completed sessions get a `lab_runs` row; abandoned runs are visible through `lab_sessions` / `task_results`.
+- (e) A task's time runs from `shown_at` to the end of the passing check (the check's own run time counts for the student).
+- (f) Heartbeats while the session is `starting` count as active time; `last_heartbeat` is set when the session becomes `running`.
+- (g) Active time is accumulated per heartbeat in the database (gap ≤ `LF_HEARTBEAT_TIMEOUT_S`, default 300 s, read per request), unrounded; rounded only into `lab_runs`.
+**Why.** Small cohorts (often < 5 completions) would never reach the median rule per cohort; the rest are the simplest readings of §8. **Alternatives.** Per-cohort median; summing time over the whole session; rows for abandoned runs. **Revert.** Change the rule in `app/flags.py` / `app/tasks.py` and the #89 exam together in a new issue.
