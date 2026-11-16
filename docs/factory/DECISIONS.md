@@ -611,3 +611,11 @@ in force · factory · 2026-11-16
 **Why.** Access stays as tight as it was (exact name); naming stays as broad as review asked (no look-alike teacher cohorts).
 **Alternatives.** Case-insensitive access everywhere (widens access to the internal lab for a cohort created outside the teacher API).
 **Revert.** Use one check in both files and drop the #128 look-alike case.
+
+## D62 · Exam process matchers must not match the random session id
+in force · factory · 2026-11-16
+
+**Decision.** Incident #182: the #117 docker exam counted processes whose command line contained a bare marker (`6012`). ttyd runs with `-b /s/<session uuid>/term/`, and that run's session id ended in `6012`, so ttyd counted as a leftover. The exam was fixed exam-only (#183): the marker must follow a space. Rule for every docker exam: a process or log matcher anchors its marker (a leading space, `sleep MARK` at the start) or uses a non-hex marker, never a bare digit string that a UUID can hold.
+**Why.** A bare 4-digit marker collides with a random session id in about 1 run in 2,300; the failure looks like a kill bug.
+**Alternatives.** Exclude ttyd by name (misses any other process that carries the id); a fixed session id in the fixture (the fixture is shared by other exams).
+**Revert.** Not needed; the anchored match is strictly more precise.

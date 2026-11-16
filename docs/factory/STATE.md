@@ -4,21 +4,25 @@
 
 ## Now
 
-_Last updated: 2026-11-16 ~15:10 UTC, laptop pass lf-c4z1 (started ~14:55 UTC), in progress._
+_Last updated: 2026-11-16 ~16:50 UTC, laptop pass lf-c4z1 (~14:55 to ~16:50 UTC)._
 
-- **In flight (pass lf-c4z1, claims held):** incident **#182** (PR #183: the #117 docker exam's `mentioning()` counted ttyd, whose `-b /s/<session id>/term/` held `6012`; exam-only fix, worktree `C:\projects\lf-182`); **#172** PR #181 CI green, reviewer round 1 running (worktree `C:\projects\lf-172`); **#178** exam being written (worktree `C:\projects\lf-178`, branch `f/178-lab-screen-followups`).
-- **Production:** `lf-manager:f59f272` (Deploy 43887380246, smoke all ok): #171 (#139), #175 (#160, live bundle has the new texts), #176 (#173). The f2e0bbc Deploy skipped because the D61 commit was pushed while it was pending (D49 again).
-- **Lesson (this pass):** grep the other exams for every test id, route and helper a new exam touches: three lanes each hit an older exam (#157 helper without the task list, #11 `/^cohort-/`, #128 exact smoke cohort).
+- **Nothing in flight; no claims held.** #182, #172 and #178 are closed with live evidence.
+- **Production:** `lf-manager:76b0862` (Deploy 43911335654, smoke ok; bundle has the #178 texts), on top of `6a55833` (#181, #172; Deploy 43905910281, smoke ok) and `11eff8a` (#183, #182; Deploy 43901268785, smoke ok).
+- **Lesson (this pass, D62):** a docker exam matcher must not match a bare digit string: the random session id is in ttyd's argv.
+- **Lesson (this pass):** a PR branch cannot be rebased in place (no force-push; exam-integrity refuses merge commits). Merge the lanes in dependency order; when a rebase is needed, push the rebased commits to `<branch>-2` and open a new PR.
+- **Laptop load:** the web suite fails random tests on timeouts under load; `npx vitest run --maxWorkers=2` is reliable. CI is the judge.
+- **Old worktrees** from earlier passes still exist (`C:\projects\lf-139b`, `lf-160`, `lf-173`, `.claude/worktrees/agent-*` in the shared checkout); all shipped, safe to remove once checked clean.
+- **Lesson (pass lf-b8n5):** grep the other exams for every test id, route and helper a new exam touches: three lanes each hit an older exam (#157 helper without the task list, #11 `/^cohort-/`, #128 exact smoke cohort).
 - **Lesson (D49):** a state commit pushed to `main` while a merge's Deploy is pending makes that Deploy skip; push state after the Deploy.
 - **Repository is public (D43).** Always `git pull --rebase` before a state commit, never `--autostash`.
 - **Known gap (D40):** a cancelled Deploy is not noticed; fix in #85.
 - **Laptop network:** DNS to github.com dropped twice for a minute this pass; retry before treating it as an incident.
-- **Next session starts at:** Now (in-flight lanes above), then Next 1.
+- **Next session starts at:** Next 1 (#163; #172 is closed, so the teacher slices are unblocked).
 
 ## Next (in order)
 
 1. Teacher UI (D59): **#163** class table, **#164** student page, **#165** live sessions + teacher Playwright. Flags/reasons in `task_results` / `lab_runs` (D55); leave out `lf-smoke` everywhere (`app/smoke.py`, D61).
-2. **#177** session start follow-ups (transport errors keep waiting, whole start under 60 s), **#178** lab screen follow-ups (fixed-date tests first), **#180** runsc start retry.
+2. **#177** session start follow-ups (transport errors keep waiting, whole start under 60 s), **#180** runsc start retry, **#186** busy row Save + open-tasks live region (exam edit first).
 3. **#167** docker end-to-end browser test against the real manager (split from #131, D60). **#151** kill follow-ups, **#154** Solution tab (D57 b), **#156** smoke follow-ups, **#137**, **#126**, **#127**, **#142** (reuse the #153 helpers).
 4. **#98** (p2, D46): cancel superseded PR runs and skip full CI for docs-only pushes; **#155** dashboard cadence.
 5. **#85** deploy follow-ups, **#94**, **#93**; p2 list: #81, #76, #67, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
@@ -31,6 +35,8 @@ _Last updated: 2026-11-16 ~15:10 UTC, laptop pass lf-c4z1 (started ~14:55 UTC), 
 - O16/O7 resolved by D43 (public repository). O12 (back up `.env`), O13 (re-deploy after recreating nginx-proxy3), O5 reopened.
 
 ## Recently done
+
+- 2026-11-16 · Pass lf-c4z1: **3 PRs merged.** Incident #182 (#183): main CI's #117 docker exam counted ttyd as a leftover because the session id in ttyd's `-b /s/<id>/term/` ended in `6012`; exam-only fix (marker after a space), approved; D62; Deploy 43901268785 smoke ok. #172 (#181): round 1 approved; should-fix (tab-first spreadsheet paste, 2,000-line limit named before sending) and the stale student list fixed by the manager; live: `/api/admin/*` 401 anonymous, 422 bodies without `input`/`ctx`, bundle has the new text; Deploy 43905910281. #178 (#185, re-sequenced from #184 after #181 merged): exam first (clock-based dates in the #130/#160 exams, new exam), one exam fix (Hebrew pattern matched the countdown), round 1 approved, should-fix (failed show message, focus to the opened task) fixed by the manager. Live: Deploy 43911335654, bundle has the new texts. Leftovers → #186.
 
 - 2026-11-16 · Pass lf-b8n5: **3 PRs merged, #172 in PR #181.** #139 (#171): round-2 fixes (stop waiting when the container is gone, guarded cleanup, `LF_READY_TIMEOUT_S` 45 s, D24 amended), approved; live in Deploy 43883398593, smoke all ok; nits → #177. #160 (#175): exam first, two #157 exam edits before the code (D57 amended: lab complete only when every task passed, `task_changed` re-fetch); approved round 1; should-fix (fixed-date tests) + nits → #178. Incident #173 (#176): a unit-test race in `App.test.tsx`, approved. #153 closed at 11 green docker runs (runsc retry → #180). #172: exam alone first (CI proved it), two #11 exam edits, then the #128 exam failed on the code (case-insensitive smoke check in `sessions.py` widened internal-lab access) → re-sequenced into #179 (D61), rebased into #181.
 
