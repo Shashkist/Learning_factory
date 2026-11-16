@@ -67,6 +67,7 @@ function backend(replies: { me?: Reply; login?: Reply; logout?: Reply }) {
     });
     let r: Reply | undefined;
     if (u === "/api/auth/me") r = replies.me ?? { status: 401, body: { detail: "not_authenticated" } };
+    if (u === "/api/labs" && method === "GET") r = { status: 200, body: [] };
     if (u === "/api/auth/login" && method === "POST") r = replies.login;
     if (u === "/api/auth/logout" && method === "POST") r = replies.logout ?? { status: 204 };
     if (r === undefined) r = { status: 404, body: { detail: "Not Found" } };
@@ -92,9 +93,9 @@ function at(path: string, lang?: "en" | "he") {
 
 const root = () => screen.getByTestId("app-root");
 // Found by its visible text: since #129/#136 the toggle carries its own aria-label
-// (lang.switch.label), which becomes the accessible name.
+// (lang.switch.label), which becomes the accessible name; since #147 the text sits in a span inside it.
 const toggle = (lang: "en" | "he") =>
-  screen.getByText(DICTS[lang]["lang.switch"], { selector: "button" });
+  screen.getByText(DICTS[lang]["lang.switch"]).closest("button") as HTMLButtonElement;
 
 async function fillAndSubmit(lang: "en" | "he", id: string, password: string) {
   const d = DICTS[lang];

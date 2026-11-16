@@ -18,7 +18,8 @@ from app.runtime import container_name, container_spec, memory_limit_mb
 
 log = logging.getLogger("lab-manager")
 T = db.SCHEMA
-LIVE = "status in ('starting', 'running')"
+LIVE_STATUSES = admission.LIVE_STATUSES
+LIVE = admission.LIVE
 
 router = APIRouter(prefix="/api/sessions")
 

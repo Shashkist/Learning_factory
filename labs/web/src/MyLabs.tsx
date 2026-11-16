@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useI18n, type Lang } from "./i18n";
 
@@ -22,31 +22,37 @@ export function groupByModule(labs: Lab[]): [number, Lab[]][] {
 }
 
 function conflictOf(body: unknown, labId: string): Conflict | null {
-  const d = (body as { detail?: { code?: string; title?: Bi } } | null)?.detail;
-  return d && typeof d === "object" && d.code === "another_lab_open" && d.title
-    ? { labId, open: d.title }
-    : null;
+  const d = (body as { detail?: { code?: string; title?: Partial<Bi>; lab_id?: string } } | null)?.detail;
+  if (!d || typeof d !== "object" || d.code !== "another_lab_open" || !d.title) return null;
+  const fallback = d.lab_id ?? labId; // the title is {} when the open lab left the catalog
+  return { labId, open: { en: d.title.en ?? fallback, he: d.title.he ?? fallback } };
 }
 
-export default function MyLabs({ open }: { open: (labId: string) => void }) {
+export default function MyLabs({ open, signedOut }: { open: (labId: string) => void; signedOut: () => void }) {
   const { t, lang } = useI18n();
   const [labs, setLabs] = useState<Lab[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [conflict, setConflict] = useState<Conflict | null>(null);
+  const [pending, setPending] = useState(false);
+  const busy = useRef(false); // set at once, so a second click in the same tick is dropped
 
   useEffect(() => {
     fetch("/api/labs", { credentials: "same-origin" })
       .then(async (r) => {
+        if (r.status === 401) return signedOut();
         if (!r.ok) throw new Error(String(r.status));
         setLabs((await r.json()) as Lab[]);
       })
       .catch(() => {
-        setLabs([]); // the slice-1 exam still expects the empty text beside the alert
+        setLabs([]);
         setError("labs.error.load");
       });
   }, []);
 
   const start = async (labId: string, force = false) => {
+    if (busy.current) return;
+    busy.current = true;
+    setPending(true);
     setError(null);
     try {
       const r = await fetch("/api/sessions", {
@@ -55,6 +61,11 @@ export default function MyLabs({ open }: { open: (labId: string) => void }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(force ? { lab_id: labId, force: true } : { lab_id: labId }),
       });
+      if (r.status === 401) {
+        setConflict(null);
+        signedOut();
+        return;
+      }
       if (r.ok) {
         setConflict(null);
         open(labId);
@@ -69,11 +80,18 @@ export default function MyLabs({ open }: { open: (labId: string) => void }) {
     } catch {
       setConflict(null);
       setError("labs.error.start");
+    } finally {
+      busy.current = false;
+      setPending(false);
     }
   };
 
   const button = (l: Lab) =>
-    l.progress === "done" ? "labs.redo" : l.progress === "not_started" ? "labs.start" : "labs.continue";
+    l.progress === "done"
+      ? "labs.redo"
+      : l.progress === "not_started" || l.session_id === null
+        ? "labs.start"
+        : "labs.continue";
   const text = (v: Bi, l: Lang = lang) => v[l];
 
   if (labs === null) return null; // nothing flashes while the catalog loads
@@ -81,7 +99,7 @@ export default function MyLabs({ open }: { open: (labId: string) => void }) {
     <>
       <h1>{t("labs.title")}</h1>
       {error && <p role="alert">{t(error)}</p>}
-      {labs.length === 0 && <p>{t("labs.empty")}</p>}
+      {labs.length === 0 && !error && <p>{t("labs.empty")}</p>}
       {groupByModule(labs).map(([n, group]) => (
           <section key={n} data-testid={`module-${n}`}>
             <h2>
@@ -101,7 +119,7 @@ export default function MyLabs({ open }: { open: (labId: string) => void }) {
                       ? t("labs.progress.not_started")
                       : l.progress}
                 </p>
-                <button onClick={() => start(l.id)}>{t(button(l))}</button>
+                <button disabled={pending} onClick={() => start(l.id)}>{t(button(l))}</button>
               </article>
             ))}
           </section>
@@ -112,8 +130,10 @@ export default function MyLabs({ open }: { open: (labId: string) => void }) {
           <p>
             {t("labs.open_conflict.body")} <bdi>{text(conflict.open)}</bdi>
           </p>
-          <button onClick={() => start(conflict.labId, true)}>{t("labs.open_conflict.force")}</button>
-          <button onClick={() => setConflict(null)}>{t("labs.open_conflict.cancel")}</button>
+          <button disabled={pending} onClick={() => start(conflict.labId, true)}>{t("labs.open_conflict.force")}</button>
+          <button disabled={pending} onClick={() => setConflict(null)}>
+            {t("labs.open_conflict.cancel")}
+          </button>
         </div>
       )}
     </>

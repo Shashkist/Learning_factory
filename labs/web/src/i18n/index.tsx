@@ -38,8 +38,8 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   return (
     <I18n.Provider value={{ lang, toggle, t }}>
       <div data-testid="app-root" lang={lang} dir={lang === "he" ? "rtl" : "ltr"}>
-        <button onClick={toggle} lang={lang === "en" ? "he" : "en"} aria-label={t("lang.switch.label")}>
-          {t("lang.switch")}
+        <button onClick={toggle} aria-label={t("lang.switch.label")}>
+          <span lang={lang === "en" ? "he" : "en"}>{t("lang.switch")}</span>
         </button>
         {children}
       </div>

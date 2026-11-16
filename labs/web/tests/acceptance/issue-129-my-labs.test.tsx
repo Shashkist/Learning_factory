@@ -38,7 +38,9 @@
  *   dialog          role="dialog" with heading labs.open_conflict.title, the open lab's title in the
  *                   current language, and buttons labs.open_conflict.force / .cancel
  *   student name    rendered inside a <bdi> element
- *   toggle          <button lang="he"> while the page is English, lang="en" while Hebrew
+ *   toggle          <button aria-label={lang.switch.label}> WITHOUT a lang attribute (#147: the label is
+ *                   spoken in the page's language and contains the visible text, WCAG 2.5.3); the
+ *                   visible text sits in <span lang="he"> while the page is English, lang="en" while Hebrew
  * Shell (#136): /me answering anything but 200 or 401 (or failing) shows role=alert with
  *   login.error.unavailable and neither the login form nor My labs; 401 is signed out.
  *   Login and logout redirects use replaceState (never pushState). A signed-in user on /login
@@ -411,18 +413,26 @@ test("a signed-in student on /login sees My labs and the URL becomes /labs", asy
   await waitFor(() => expect(window.location.pathname).toBe("/labs"));
 });
 
-test("the toggle has its own language and an aria-label from the dictionary", async () => {
+test("the toggle label is in the page language and contains the visible text; the visible text carries the other language", async () => {
   backend({});
   at("/login");
   await screen.findByRole("heading", { name: EN["login.title"] });
   const toHebrew = screen.getByRole("button", { name: EN["lang.switch.label"] });
-  expect(toHebrew.getAttribute("lang")).toBe("he");
+  expect(toHebrew.hasAttribute("lang")).toBe(false);
   expect(toHebrew.getAttribute("aria-label")).toBe(EN["lang.switch.label"]);
+  expect(EN["lang.switch.label"]).toContain(EN["lang.switch"]);
+  const span1 = within(toHebrew).getByText(EN["lang.switch"]);
+  expect(span1.tagName).toBe("SPAN");
+  expect(span1.getAttribute("lang")).toBe("he");
   fireEvent.click(toHebrew);
   await screen.findByRole("heading", { name: HE["login.title"] });
   const toEnglish = screen.getByRole("button", { name: HE["lang.switch.label"] });
-  expect(toEnglish.getAttribute("lang")).toBe("en");
+  expect(toEnglish.hasAttribute("lang")).toBe(false);
   expect(toEnglish.getAttribute("aria-label")).toBe(HE["lang.switch.label"]);
+  expect(HE["lang.switch.label"]).toContain(HE["lang.switch"]);
+  const span2 = within(toEnglish).getByText(HE["lang.switch"]);
+  expect(span2.tagName).toBe("SPAN");
+  expect(span2.getAttribute("lang")).toBe("en");
 });
 
 test("<html lang>, <html dir> and the title follow the language", async () => {

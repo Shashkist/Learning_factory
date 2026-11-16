@@ -8,9 +8,9 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from app import db
 from app.auth import Principal, current_student, db_guard
 from app.content import Lab
+from app.sessions import LIVE_STATUSES
 
 T = db.SCHEMA
-LIVE = ("starting", "running")
 
 router = APIRouter(prefix="/api/labs")
 
@@ -20,12 +20,17 @@ def progress(lab: Lab, done: bool, session: Any) -> str:
         return "done"
     if session is None:
         return "not_started"
-    return f"{session['passed']}/{len(lab.tasks)}"
+    return f"{passed(lab, session)}/{len(lab.tasks)}"
+
+
+def passed(lab: Lab, session: Any) -> int:
+    """Passed tasks that lab.yaml still lists (a removed task id never counts)."""
+    return len(set(session["passed_ids"]) & {t.id for t in lab.tasks})
 
 
 def pick(rows: list[Any]) -> Any:
     """The live session when there is one, else the most recently started."""
-    live = [r for r in rows if r["status"] in LIVE]
+    live = [r for r in rows if r["status"] in LIVE_STATUSES]
     return (live or sorted(rows, key=lambda r: r["started_at"], reverse=True))[0]
 
 
@@ -40,8 +45,8 @@ async def catalog(
     with db_guard():
         sessions = await pool.fetch(
             "select s.lab_id, s.id, s.status, s.started_at, "
-            f"(select count(*) from {T}.task_results r "
-            "  where r.session_id = s.id and r.passed_at is not null) as passed "
+            f"(select coalesce(array_agg(r.task_id), '{{}}') from {T}.task_results r "
+            "  where r.session_id = s.id and r.passed_at is not null) as passed_ids "
             f"from {T}.lab_sessions s where s.student = $1",
             p.subject,
         )
@@ -61,7 +66,7 @@ async def catalog(
     out: list[dict[str, Any]] = []
     for lab in labs:
         s = pick(by_lab[lab.id]) if lab.id in by_lab else None
-        live = bool(s and s["status"] in LIVE)
+        live = bool(s and s["status"] in LIVE_STATUSES)
         out.append(
             {
                 "id": lab.id,
