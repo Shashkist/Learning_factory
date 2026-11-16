@@ -1,0 +1,19 @@
+{
+  "lang.switch": "עב",
+  "login.title": "Sign in",
+  "login.id": "ID number",
+  "login.password": "Class password",
+  "login.submit": "Sign in",
+  "login.error.invalid_credentials": "The ID or the class password is wrong.",
+  "login.error.too_many_attempts": "Too many attempts. Wait a few minutes and try again.",
+  "login.error.account_disabled": "This account is disabled. Ask your teacher.",
+  "login.error.access_expired": "Your access to the labs has expired.",
+  "login.error.unavailable": "The service is busy or not available. Try again soon.",
+  "login.error.generic": "Something went wrong. Try again.",
+  "labs.title": "My labs",
+  "labs.empty": "No labs yet.",
+  "lab.placeholder": "Lab page, coming soon:",
+  "nav.logout": "Log out",
+  "notFound.title": "Page not found",
+  "nav.logout_failed": "Logging out failed. You are still signed in; try again."
+}
