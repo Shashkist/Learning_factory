@@ -2,32 +2,36 @@
 
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
-_Last updated: 2026-11-15 ~23:45 UTC, laptop pass lf-r7p3 (~21:57 to ~23:45 UTC)._
+_Last updated: 2026-11-16 ~01:25 UTC, laptop pass lf-k3v9 (~23:57 to ~01:25 UTC)._
 
 ## Now
 
-- **Pass lf-k3v9 (laptop, from ~23:57 UTC 2026-11-15) in flight:** #88 (`f/88-check-results`, worktree `C:\projects\lf-88`), #119 (`f/119-linux1-as-student`, `C:\projects\lf-119`), #121 (`f/121-google-test-nits`, `C:\projects\lf-121`). Claims held by lf-k3v9; a stale claim's branch is continued, not restarted.
-- **Production:** `lf-manager:92e32ea` (task engine slice 1). Task API live check is shallow (routes only); #88 adds a smoke step.
+- **Nothing in flight.** Pass lf-k3v9 merged 3 PRs (#122, #123, #125) and released every claim. Pass worktrees removed.
+- **Production:** Deploy 43784425504 printed `deployed lf-manager:2c75a3e...; all checks passed` (task engine slice 2: check + answer routes; live: both answer 401 unauthenticated). Deploy 43785890006 then shipped `lf-manager:b12df99` (#125, Linux 1 checks), all checks passed.
+- **Task API live check is still shallow:** only the routes are proven from outside. #128 (p1) makes the post-deploy smoke drive show / check / answer with the smoke student.
 - **Lesson (D49):** a state commit pushed to `main` while a merge's Deploy is pending makes that Deploy skip; push state after the Deploy.
 - **Repository is public (D43).** Always `git pull --rebase` before a state commit, never `--autostash`.
+- **Known gap (D40):** a cancelled Deploy is not noticed; fix in #85.
+- **Next session starts at:** Next 1.
 
 ## Next (in order)
 
-1. **#88** (check results, attempts, quiz grading; p1, builds on #9's runner): exam first. Include a smoke step that shows a task and runs a check with the smoke student. Then **#89** (completion, active time, fast flag), **#10** student UI, **#11** teacher UI.
-2. **#117** task runner follow-ups (kill timed-out scripts, needs a runner contract change, exam first; session `running` only after the skel copy; one ownership rule; authoring rules for stdin and daemons).
-3. **#119** Linux 1 checks as the student (private home gives false FAILs) + exam nits from #120.
-4. **#121** Google sign-in test nits (tests only).
-5. **#98** (p2, D46): first slice = cancel superseded PR runs; branch `f/98-ci-minutes` + PR #103's round 1 findings.
-6. **#85** deploy follow-ups, **#94**, **#93**; p2 list: #81, #76, #67, #69, #64, #68, #54, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
+1. **#89** (completion, active time, fast flag; p1, builds on #88): exam first. Then **#128** (p1, smoke drives the task API), **#10** student UI (now has check/answer: D50, D51; map 409 `session_busy` / `setup_running` to "busy, try again"), **#11** teacher UI.
+2. **#117** task runner follow-ups (first: kill a timed-out script; with checks on demand, timed-out `check.sh` processes pile up toward PidsLimit).
+3. **#126** Linux 1 exam: students cannot see or influence checks (+ leftovers from #125 round 2: 04/05 expected text on root command lines, pipe write-back token, 200-line cap, unused helpers). **#127** check parser and busy-slug nits.
+4. **#98** (p2, D46): first slice = cancel superseded PR runs and skip full CI for docs-only pushes (this pass ran ~6 full CI runs for state/decision commits); branch `f/98-ci-minutes` + PR #103's round 1 findings.
+5. **#85** deploy follow-ups, **#94**, **#93**; p2 list: #81, #76, #67, #69, #64, #68, #54, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
 
 - **O19 (new, read only):** the break-glass admin login steps, needed only if Google sign-in breaks: since #99 a password admin session is refused at once while Google is configured.
 - **O18 (optional since #110):** re-save `LF_GOOGLE_CLIENT_ID` / `LF_GOOGLE_CLIENT_SECRET` without the byte-order mark, then do the **first real Google sign-in**.
 - **O17:** read Linux 1 (en + he) and publish it (`status: published`). #106 added 75 wrong-answer cases and fixed the chmod check (D48).
-- O16/O7 resolved by D43 (public repository). O10 open (move `LF_DATABASE_URL` into `production`), O12 (back up `.env`), O13 (re-deploy after recreating nginx-proxy3), O5 reopened.
+- O16/O7 resolved by D43 (public repository). O12 (back up `.env`), O13 (re-deploy after recreating nginx-proxy3), O5 reopened.
 
 ## Recently done
+
+- 2026-11-16 · Pass lf-k3v9: **3 PRs merged.** #121 Google test nits (#122; review approved, a test-order should-fix fixed in the PR). #88 task engine slice 2, check + answer (#123; D50 API shape; exam pushed alone first so CI proved the harness, one seed-order fix; round 1 blocker: checks bypassed the session lock so one student could hold every exec slot, D51; round 2 approved, nits → #127; live routes 401). #119 Linux 1 checks with a private home (#125, re-sequenced from #124 after a `find /` exit-code exam bug; round 1: check body visible in `ps` and a student-owned temp file let a wrong answer pass → facts-only reader on stdin, root decides, D52; round 2: dash `echo` let file content forge fact lines → `printf`, regular files only, bounded reads, fixed by the manager; leftovers → #126). New: #126, #127, #128.
 
 - 2026-11-15 · Pass lf-r7p3: **3 PRs merged.** #9 task engine slice 1 (#114, re-sequenced from #113 after two exam-side CI failures, D47; round 1 blocker: per-session setup lock; round 2 should-fix fixed by the manager, D49; leftovers #117). #99 Google sign-in follow-ups (#118; round 1 blocker: undecodable allow-list bytes crashed every admin path incl. break-glass; live: callback via the no-access-log location; O19; leftovers #121). #106 Linux 1 wrong-answer exam (#120, third branch; 75 near-miss cases; chmod content fix, D48; leftovers #119). #110 and #12 closed with live evidence.
 
