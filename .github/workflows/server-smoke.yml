@@ -146,22 +146,41 @@ jobs:
             echo "the client reported success but gave no session id" >&2
             exit 1
           fi
+          if [ "$st" = 0 ]; then
+            # Same student, same env: the task API (show, check, answer) through the public URL.
+            SMOKE_ID=990000000000000000000000000001
+            SMOKE_PASSWORD="$class_pw"
+            export SMOKE_ID SMOKE_PASSWORD
+            python labs/deploy/smoke/tasks.py > "$RUNNER_TEMP/tasks.out" || st=$?
+            cat "$RUNNER_TEMP/tasks.out"
+            tasks_sid=$(sed -n 's/^ok start \([0-9a-f-]*\)$/\1/p' "$RUNNER_TEMP/tasks.out" | head -n 1)
+            echo "tasks_sid=$tasks_sid" >> "$GITHUB_OUTPUT"
+          fi
           exit "$st"
       - name: Check that the lab container is gone
-        if: always() && env.CHECK == 'terminal' && steps.client.outputs.sid != ''
+        if: always() && env.CHECK == 'terminal' && (steps.client.outputs.sid != '' || steps.client.outputs.tasks_sid != '')
         env:
           SESSION_ID: ${{ steps.client.outputs.sid }}
+          TASKS_SESSION_ID: ${{ steps.client.outputs.tasks_sid }}
         run: |
-          for i in $(seq 1 30); do
-            left=$(ssh -F "$RUNNER_TEMP/ssh_config" smoke "docker ps -aq --filter name=lab-$SESSION_ID")
-            if [ -z "$left" ]; then
-              echo "container lab-$SESSION_ID is gone"
-              exit 0
+          rc=0
+          for sid in $SESSION_ID $TASKS_SESSION_ID; do
+            gone=0
+            for i in $(seq 1 30); do
+              left=$(ssh -F "$RUNNER_TEMP/ssh_config" smoke "docker ps -aq --filter name=lab-$sid")
+              if [ -z "$left" ]; then
+                echo "container lab-$sid is gone"
+                gone=1
+                break
+              fi
+              sleep 1
+            done
+            if [ "$gone" = 0 ]; then
+              echo "container lab-$sid still exists after 30 s" >&2
+              rc=1
             fi
-            sleep 1
           done
-          echo "container lab-$SESSION_ID still exists after 30 s" >&2
-          exit 1
+          exit "$rc"
       - name: Disable the smoke student
         if: always() && env.CHECK == 'terminal'
         run: |

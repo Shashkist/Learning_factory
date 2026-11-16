@@ -1,0 +1,34 @@
+id: smoke-tasks
+title:
+  en: Smoke test, task API
+  he: בדיקת עשן, ממשק המשימות
+description:
+  en: Internal lab used by the post-deploy smoke test. Not for students.
+  he: מעבדה פנימית לבדיקת העשן אחרי פריסה. לא לתלמידים.
+image: term
+time_limit_min: 10
+internet: false
+allow_domains: []
+sudo: false
+status: internal
+module: 0
+lesson: 1
+tasks:
+  - id: 01-quiz
+    kind: quiz
+    question:
+      en: Which command creates an empty file?
+      he: איזו פקודה יוצרת קובץ ריק?
+    options:
+      - en: rm
+        he: rm
+      - en: touch
+        he: touch
+      - en: cd
+        he: cd
+    correct: 1
+  - id: 02-touch-file
+    kind: hands-on
+    checklist:
+      - en: The file ~/smoke-ok exists
+        he: הקובץ ‎~/smoke-ok‎ קיים

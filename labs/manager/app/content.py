@@ -14,7 +14,7 @@ import yaml
 from app.flags import DEFAULT_MIN_TASK_SECONDS
 
 LANGS = ("en", "he")
-STATUSES = ("draft", "published")
+STATUSES = ("draft", "published", "internal")
 IMAGES = ("term", "code")
 KINDS = ("quiz", "hands-on")
 # module -> (first lesson, last lesson), per the final lesson plan (D16)
