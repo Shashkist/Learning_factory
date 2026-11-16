@@ -148,7 +148,10 @@ jobs:
           fi
           if [ "$st" = 0 ]; then
             # Same student, same env: the task API (show, check, answer) through the public URL.
-            SMOKE_ID=990000000000000000000000000001 SMOKE_PASSWORD="$class_pw" python labs/deploy/smoke/tasks.py || st=$?
+            SMOKE_ID=990000000000000000000000000001
+            SMOKE_PASSWORD="$class_pw"
+            export SMOKE_ID SMOKE_PASSWORD
+            python labs/deploy/smoke/tasks.py || st=$?
           fi
           exit "$st"
       - name: Check that the lab container is gone
