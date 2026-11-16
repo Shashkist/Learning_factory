@@ -11,21 +11,14 @@ On failure exits 1 with `smoke failed: <step>: <reason>` on stderr; the session 
 Never prints the password, the cookie, the student id or a traceback.
 """
 import asyncio
-import http.client
-import http.cookies
 import json
 import os
 import sys
 from typing import Any
 
-from terminal import (
-    COOKIE,
-    HI_LINE,
-    Fail,
-    _open,
-    _output,
-)
-from terminal import _request as _terminal_request
+from lab_api import Fail, login, start
+from lab_api import request as _request
+from terminal import HI_LINE, _open, _output
 
 DEFAULT_BASE = "https://labs.shashkist.com"
 LAB_ID = "smoke-tasks"
@@ -36,13 +29,6 @@ ANSWER_KEYS = {"correct", "attempts"}
 
 QUIZ_KEYS = {"id", "index", "total", "kind", "title", "state", "question", "options"}
 LANG_KEYS = {"en", "he"}
-
-
-def _request(base: str, method: str, path: str, cookie: str | None, body: dict | None = None):
-    try:
-        return _terminal_request(base, method, path, cookie, body)
-    except http.client.HTTPException as exc:
-        raise Fail(f"{method} {path}: bad http answer ({type(exc).__name__})") from None
 
 
 class StepFail(Fail):
@@ -186,43 +172,19 @@ def run(base: str, student: str, password: str, timeout: float) -> tuple[str, st
     """Run the smoke; return (step, reason) of the failure, or None."""
     try:
         return _run(base, student, password, timeout)
-    except _Early as exc:
+    except StepFail as exc:
         return exc.step, str(exc)
 
 
-class _Early(Fail):
-    def __init__(self, step: str, reason: str) -> None:
-        super().__init__(reason)
-        self.step = step
-
-
-def _early(step: str, base: str, path: str, cookie: str | None, body: dict | None = None):
-    try:
-        return _request(base, "POST", path, cookie, body)
-    except Fail as exc:
-        raise _Early(step, str(exc)) from None
-
-
 def _run(base: str, student: str, password: str, timeout: float) -> tuple[str, str] | None:
-    status, headers, _ = _early(
-        "login", base, "/api/auth/login", None, {"id": student, "password": password}
-    )
-    if status != 200:
-        return "login", f"login failed (http {status})"
-    jar: http.cookies.SimpleCookie = http.cookies.SimpleCookie()
-    for value in headers.get_all("Set-Cookie") or []:
-        jar.load(value)
-    if COOKIE not in jar:
-        return "login", "login set no session cookie"
-    cookie = jar[COOKIE].value
-
-    status, _, raw = _early("start", base, "/api/sessions", cookie, {"lab_id": LAB_ID})
-    if status not in (200, 201):
-        return "start", f"starting the lab failed (http {status})"
     try:
-        sid = str(json.loads(raw)["id"])
-    except (ValueError, KeyError, TypeError):
-        return "start", "starting the lab returned no session id"
+        cookie = login(base, student, password)
+    except Fail as exc:
+        raise StepFail("login", str(exc)) from None
+    try:
+        sid = start(base, cookie, LAB_ID)
+    except Fail as exc:
+        raise StepFail("start", str(exc)) from None
     print(f"ok start {sid}", flush=True)  # a session id (UUID): lets the workflow check the container
     failure: tuple[str, str] | None = None
     try:

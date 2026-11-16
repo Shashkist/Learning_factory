@@ -9,39 +9,18 @@ Prints the session id on stdout; on failure exits non-zero with one reason line 
 Never prints the password, the cookie or a traceback. Needs the `websockets` package (>=14).
 """
 import asyncio
-import http.cookies
 import json
 import os
 import re
 import sys
-import urllib.error
-import urllib.request
+
+from lab_api import COOKIE, Fail, login, start
+from lab_api import request as _request
 
 DEFAULT_BASE = "https://labs.shashkist.com"
 LAB_ID = "hello"
-COOKIE = "lf_session"
-HTTP_TIMEOUT = 30
 # a line that is just `hi`, after the newline of the typed command (bash may emit CSI and \r first)
 HI_LINE = re.compile(r"\n(?:\x1b\[[0-9;?]*[ -/]*[@-~]|\r)*hi\r?\n")
-
-
-class Fail(Exception):
-    pass
-
-
-def _request(base: str, method: str, path: str, cookie: str | None, body: dict | None = None):
-    data = json.dumps(body).encode() if body is not None else None
-    headers = {"Content-Type": "application/json"} if body is not None else {}
-    if cookie:
-        headers["Cookie"] = f"{COOKIE}={cookie}"
-    req = urllib.request.Request(base + path, data=data, method=method, headers=headers)
-    try:
-        with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as resp:
-            return resp.status, resp.headers, resp.read()
-    except urllib.error.HTTPError as exc:
-        return exc.code, exc.headers, b""
-    except (urllib.error.URLError, OSError) as exc:
-        raise Fail(f"{method} {path}: server unreachable ({type(exc).__name__})") from None
 
 
 def _output(msg: bytes | str) -> str:
@@ -102,25 +81,8 @@ async def _terminal(base: str, sid: str, cookie: str, timeout: float) -> None:
 
 def run(base: str, student: str, password: str, timeout: float) -> str | None:
     """Run the smoke; return the reason it failed, or None."""
-    status, headers, _ = _request(
-        base, "POST", "/api/auth/login", None, {"id": student, "password": password}
-    )
-    if status != 200:
-        raise Fail(f"login failed (http {status})")
-    jar: http.cookies.SimpleCookie = http.cookies.SimpleCookie()
-    for value in headers.get_all("Set-Cookie") or []:
-        jar.load(value)
-    if COOKIE not in jar:
-        raise Fail("login set no session cookie")
-    cookie = jar[COOKIE].value
-
-    status, _, raw = _request(base, "POST", "/api/sessions", cookie, {"lab_id": LAB_ID})
-    if status not in (200, 201):
-        raise Fail(f"starting the lab failed (http {status})")
-    try:
-        sid = str(json.loads(raw)["id"])
-    except (ValueError, KeyError, TypeError):
-        raise Fail("starting the lab returned no session id") from None
+    cookie = login(base, student, password)
+    sid = start(base, cookie, LAB_ID)
     print(sid, flush=True)
     failure = None
     try:
