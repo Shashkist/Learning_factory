@@ -310,6 +310,13 @@ describe.each(LANGS)("lab complete in %s", (lang) => {
       base(LAST, {
         [`POST ${API}/tasks/04-last/check`]: PASS(),
         [`POST ${API}/tasks/current/next`]: err(409, "no_next_task"),
+        // Since #160 (D57) "lab complete" needs every task passed in GET tasks.
+        [`GET ${API}/tasks`]: ok({
+          lab_id: "lab-1", current: null,
+          tasks: [1, 2, 3, 4].map((i) => ({
+            id: i === 4 ? "04-last" : `0${i}-t`, index: i, kind: "hands-on", title: HANDS.title, state: "passed",
+          })),
+        }),
         ...extra,
       }),
     );
