@@ -112,6 +112,41 @@ def exec_command(script: str) -> list[str]:
     return [*(parts or ["/bin/sh"]), "-s"]
 
 
+# Run as root by a second exec after a timeout (#117). The script's exec has the argv `<interp> -s`
+# (the manager's own, always root); the kill finds it, adds its descendants, freezes the lot so
+# nothing can fork or reparent, then SIGKILLs. Not `timeout -s KILL` (it kills only its child, and
+# a script's background jobs would live on) and not the exec Pid (under gVisor it is a host pid).
+KILL_SCRIPT = r"""
+want="$1"
+tree() {
+  all=""
+  for d in /proc/[0-9]*; do
+    [ "$(tr '\0' ' ' < "$d/cmdline" 2>/dev/null)" = "$want" ] || continue
+    [ "$(stat -c %u "$d" 2>/dev/null)" = 0 ] && all="$all ${d#/proc/}"
+  done
+  while :; do
+    before="$all"
+    for d in /proc/[0-9]*; do
+      p=${d#/proc/}
+      case " $all " in *" $p "*) continue;; esac
+      pp=$(sed -n 's/^PPid:[[:space:]]*//p' "$d/status" 2>/dev/null)
+      [ -n "$pp" ] || continue
+      case " $all " in *" $pp "*) all="$all $p";; esac
+    done
+    [ "$before" = "$all" ] && break
+  done
+  echo $all
+}
+for _ in 1 2 3; do
+  pids=$(tree)
+  [ -n "$pids" ] || exit 0
+  kill -STOP $pids 2>/dev/null
+  pids=$(tree)
+  kill -KILL $pids 2>/dev/null
+done
+"""
+
+
 class DockerRuntime:
     """Docker Engine API over the unix socket named by LF_DOCKER_HOST."""
 
@@ -191,22 +226,49 @@ class DockerRuntime:
             "Cmd": exec_command(script),
         }
         out = bytearray()
+        ids: list[str] = []
         try:
             async with asyncio.timeout(timeout) as deadline:
-                return await self._run_exec(name, script, create, out)
+                return await self._run_exec(name, script, create, out, ids)
         except TimeoutError:
             if not deadline.expired():
                 raise  # a timeout inside the exec (e.g. connecting) is a failure, not a slow script
+            if ids:  # returns only once the script has stopped, so the session lock outlives it
+                await self._kill(name, exec_command(script), ids[0])
             return ExecResult(None, out.decode("utf-8", "replace"), True)
 
+    async def _kill(self, name: str, argv: list[str], exec_id: str) -> None:
+        if argv[0].rsplit("/", 1)[-1] == "env":  # `env bash -s` replaces itself with `bash -s`
+            argv = argv[1:]
+        body = {
+            "AttachStdout": True,
+            "AttachStderr": True,
+            "Tty": False,
+            "User": "root",
+            "Privileged": False,
+            "Env": [f"PATH={EXEC_PATH}"],
+            "Cmd": ["/bin/sh", "-c", KILL_SCRIPT, "sh", " ".join(argv) + " "],
+        }
+        async with self._client() as c:
+            resp = await c.post(f"/containers/{name}/exec", json=body)
+            if resp.status_code != 201:
+                raise RuntimeError(f"docker kill exec create failed: {resp.status_code}")
+            await self._stream_exec(str(resp.json()["Id"]), "", bytearray())
+            for _ in range(100):
+                if not (await c.get(f"/exec/{exec_id}/json")).json().get("Running"):
+                    return
+                await asyncio.sleep(0.1)
+        raise RuntimeError("a timed-out script is still running after the kill")
+
     async def _run_exec(
-        self, name: str, script: str, create: dict[str, Any], out: bytearray
+        self, name: str, script: str, create: dict[str, Any], out: bytearray, ids: list[str]
     ) -> ExecResult:
         async with self._client() as c:
             resp = await c.post(f"/containers/{name}/exec", json=create)
             if resp.status_code != 201:
                 raise RuntimeError(f"docker exec create failed: {resp.status_code}")
             exec_id = str(resp.json()["Id"])
+            ids.append(exec_id)
             await self._stream_exec(exec_id, script, out)
             for _ in range(50):  # the exit code lands just after the stream closes
                 info = (await c.get(f"/exec/{exec_id}/json")).json()
