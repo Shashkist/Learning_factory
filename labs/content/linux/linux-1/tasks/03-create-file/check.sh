@@ -1,5 +1,7 @@
 #!/bin/sh
-# Root cannot bypass file permissions here, so the student's file is read as student.
+# Runs as student in one su call: root has no DAC override here (D45), so a private home
+# (chmod 700 ~) or notes folder would hide the student's files from root.
+body=$(cat <<'EOF'
 f=/home/student/notes/todo.txt
 rc=0
 
@@ -14,9 +16,9 @@ first=""
 lines=0
 readable=0
 if [ -f "$f" ]; then
-  if first=$(su student -s /bin/sh -c 'head -n 1 /home/student/notes/todo.txt' </dev/null 2>/dev/null); then
+  if first=$(head -n 1 "$f" 2>/dev/null); then
     readable=1
-    lines=$(su student -s /bin/sh -c 'grep -c "" /home/student/notes/todo.txt' </dev/null 2>/dev/null)
+    lines=$(grep -c "" "$f" 2>/dev/null)
   fi
 fi
 
@@ -26,8 +28,7 @@ if [ -f "$f" ] && [ "$readable" -eq 0 ]; then
   exit 1
 fi
 
-if printf '%s
-' "$first" | grep -qi linux; then
+if printf '%s\n' "$first" | grep -qi linux; then
   echo "PASS 2"
 else
   echo "FAIL 2 the first line does not contain the word linux; look at the file with cat, and remember that > replaces what was there"
@@ -42,3 +43,9 @@ else
 fi
 
 exit $rc
+EOF
+)
+if [ "$(id -u)" -eq 0 ]; then
+  exec su student -s /bin/sh -c "$body" </dev/null
+fi
+exec /bin/sh -c "$body"

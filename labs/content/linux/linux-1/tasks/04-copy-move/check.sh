@@ -1,12 +1,14 @@
 #!/bin/sh
-# Root cannot bypass file permissions here, so the student's file is read as student.
+# Runs as student in one su call: root has no DAC override here (D45), so private folders
+# (chmod 700) would hide the student's files from root.
+body=$(cat <<'EOF'
 h=/home/student
 rc=0
 
 if [ -f "$h/backup/report.txt" ]; then
-  if su student -s /bin/sh -c 'cat /home/student/backup/report.txt' </dev/null 2>/dev/null | grep -qF "Quarterly report draft"; then
+  if cat "$h/backup/report.txt" 2>/dev/null | grep -qF "Quarterly report draft"; then
     echo "PASS 1"
-  elif su student -s /bin/sh -c 'test -r /home/student/backup/report.txt' </dev/null 2>/dev/null; then
+  elif [ -r "$h/backup/report.txt" ]; then
     echo "FAIL 1 the file in ~/backup is not a copy of report.txt; which command makes a copy and leaves the original?"
     rc=1
   else
@@ -25,7 +27,8 @@ else
   rc=1
 fi
 
-if [ -f "$h/pictures/photo.txt" ] && [ ! -e "$h/inbox/photo.txt" ]; then
+if [ -f "$h/pictures/photo.txt" ] && [ ! -e "$h/inbox/photo.txt" ] \
+   && cat "$h/pictures/photo.txt" 2>/dev/null | grep -qF "Photo of the team"; then
   echo "PASS 3"
 else
   echo "FAIL 3 photo.txt must end up in ~/pictures and no longer be in ~/inbox; which command moves a file?"
@@ -33,3 +36,9 @@ else
 fi
 
 exit $rc
+EOF
+)
+if [ "$(id -u)" -eq 0 ]; then
+  exec su student -s /bin/sh -c "$body" </dev/null
+fi
+exec /bin/sh -c "$body"
