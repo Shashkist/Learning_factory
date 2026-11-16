@@ -1,8 +1,12 @@
 #!/bin/sh
+# Runs as student in one su call: root has no DAC override here (D45), so a private home
+# (chmod 700 ~) would hide the student's files from root.
 # The expected lines are kept here, so the check does not depend on the student's copy of the log.
+body=$(cat <<'EOF'
 out=/home/student/errors.txt
 exp=$(mktemp) || exit 1
-trap 'rm -f "$exp"' EXIT
+got=$(mktemp) || exit 1
+trap 'rm -f "$exp" "$got"' EXIT
 cat > "$exp" <<LOG
 2025-11-14 09:01:12 ERROR cannot open file /data/report.csv
 2025-11-14 09:03:15 ERROR connection to database lost
@@ -18,9 +22,7 @@ else
   rc=1
 fi
 
-got=$(mktemp) || exit 1
-trap 'rm -f "$exp" "$got"' EXIT
-if [ -f "$out" ] && ! su student -s /bin/sh -c 'cat /home/student/errors.txt' </dev/null > "$got" 2>/dev/null; then
+if [ -f "$out" ] && ! cat "$out" > "$got" 2>/dev/null; then
   echo "FAIL 2 the file ~/errors.txt cannot be read; check its permissions with ls -l"
   echo "FAIL 3 the file ~/errors.txt cannot be read; check its permissions with ls -l"
   exit 1
@@ -45,3 +47,9 @@ else
 fi
 
 exit $rc
+EOF
+)
+if [ "$(id -u)" -eq 0 ]; then
+  exec su student -s /bin/sh -c "$body" </dev/null
+fi
+exec /bin/sh -c "$body"

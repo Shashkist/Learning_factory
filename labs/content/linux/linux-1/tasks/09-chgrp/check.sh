@@ -1,4 +1,7 @@
 #!/bin/sh
+# Runs as student in one su call: root has no DAC override here (D45), so a private home
+# (chmod 700 ~) would hide the student's files from root.
+body=$(cat <<'EOF'
 f=/home/student/team-notes.txt
 rc=0
 
@@ -24,3 +27,9 @@ else
 fi
 
 exit $rc
+EOF
+)
+if [ "$(id -u)" -eq 0 ]; then
+  exec su student -s /bin/sh -c "$body" </dev/null
+fi
+exec /bin/sh -c "$body"

@@ -1,5 +1,7 @@
 #!/bin/sh
-# Root cannot bypass file permissions here, so the check only looks at the mode with stat.
+# Runs as student in one su call: root has no DAC override here (D45), so stat on files in a
+# private home (chmod 700 ~) would fail as root.
+body=$(cat <<'EOF'
 h=/home/student
 rc=0
 
@@ -39,3 +41,9 @@ else
 fi
 
 exit $rc
+EOF
+)
+if [ "$(id -u)" -eq 0 ]; then
+  exec su student -s /bin/sh -c "$body" </dev/null
+fi
+exec /bin/sh -c "$body"
