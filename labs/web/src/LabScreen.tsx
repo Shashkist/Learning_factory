@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent,
+} from "react";
 import Markdown, { type Components } from "react-markdown";
 
 import { useI18n } from "./i18n";
@@ -37,33 +43,45 @@ const ACTION_ERRORS: Record<string, string> = {
   setup_timeout: "lab.error.setup_timeout",
   task_changed: "lab.error.task_changed",
 };
-let skew = 0; // server clock minus browser clock, from the Date header of the last answer
 const RETRY_MS = 2000;
 const RETRY_MAX = 30;
 
-async function call<T>(method: string, url: string, body?: unknown): Promise<T> {
-  const r = await fetch(url, {
-    method,
-    credentials: "same-origin",
-    ...(body === undefined
-      ? {}
-      : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
-  });
-  const date = Date.parse(r.headers?.get("date") ?? "");
-  if (!Number.isNaN(date)) skew = date - Date.now();
-  if (!r.ok) {
-    const d = ((await r.json().catch(() => null)) as { detail?: unknown } | null)?.detail;
-    const code = d && typeof d === "object" ? (d as { code?: unknown }).code : d;
-    const detail = typeof code === "string" ? code : null;
-    if (r.status === 409 && detail && BUSY.has(detail)) throw new Busy();
-    throw new Failure(r.status, detail);
-  }
-  return (r.status === 204 ? undefined : await r.json()) as T;
-}
+// skew: server clock minus browser clock, from the Date header of the last answer (one per screen)
+const makeCall = (skew: { current: number }) =>
+  async function call<T>(
+    method: string,
+    url: string,
+    body?: unknown,
+  ): Promise<T> {
+    const r = await fetch(url, {
+      method,
+      credentials: "same-origin",
+      ...(body === undefined
+        ? {}
+        : {
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          }),
+    });
+    const date = Date.parse(r.headers?.get("date") ?? "");
+    if (!Number.isNaN(date)) skew.current = date - Date.now();
+    if (!r.ok) {
+      const d = (
+        (await r.json().catch(() => null)) as { detail?: unknown } | null
+      )?.detail;
+      const code =
+        d && typeof d === "object" ? (d as { code?: unknown }).code : d;
+      const detail = typeof code === "string" ? code : null;
+      if (r.status === 409 && detail && BUSY.has(detail)) throw new Busy();
+      throw new Failure(r.status, detail);
+    }
+    return (r.status === 204 ? undefined : await r.json()) as T;
+  };
 
 // The session is over (ended, expired or gone) as far as the server is concerned.
 const isEnded = (e: unknown) =>
-  e instanceof Failure && (e.status === 410 || (e.status === 404 && GONE.has(e.detail ?? "")));
+  e instanceof Failure &&
+  (e.status === 410 || (e.status === 404 && GONE.has(e.detail ?? "")));
 
 const clock = (ms: number) => {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -79,7 +97,9 @@ const parts: Components = {
   img: ({ src, alt }) => {
     let own = false;
     try {
-      own = typeof src === "string" && new URL(src, window.location.href).origin === window.location.origin;
+      own =
+        typeof src === "string" &&
+        new URL(src, window.location.href).origin === window.location.origin;
     } catch {
       /* not a URL */
     }
@@ -98,7 +118,13 @@ function Text({ md, title }: { md: string; title: string }) {
   return <Markdown components={parts}>{body}</Markdown>;
 }
 
-export default function LabScreen({ lab, go }: { lab: string; go: (to: string) => void }) {
+export default function LabScreen({
+  lab,
+  go,
+}: {
+  lab: string;
+  go: (to: string) => void;
+}) {
   const { t, lang } = useI18n();
   const dir = lang === "he" ? "rtl" : "ltr";
   const [phase, setPhase] = useState<Phase>("loading");
@@ -120,6 +146,10 @@ export default function LabScreen({ lab, go }: { lab: string; go: (to: string) =
   const inFlight = useRef(false);
   const alive = useRef(true);
   const frame = useRef<HTMLDivElement>(null);
+  const skew = useRef(0);
+  const call = useRef(makeCall(skew)).current;
+  const ending = useRef(false);
+  const [open, setOpen] = useState<Bi[] | null>(null);
 
   useEffect(() => {
     alive.current = true;
@@ -130,6 +160,7 @@ export default function LabScreen({ lab, go }: { lab: string; go: (to: string) =
 
   const show = (next: Task) => {
     setDone(false);
+    setOpen(null);
     setTask(next);
     setRows(null);
     setCheckFailed(false);
@@ -143,7 +174,8 @@ export default function LabScreen({ lab, go }: { lab: string; go: (to: string) =
   useEffect(() => {
     let live = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const wait = (ms: number) => new Promise<void>((r) => (timer = setTimeout(r, ms)));
+    const wait = (ms: number) =>
+      new Promise<void>((r) => (timer = setTimeout(r, ms)));
     (async () => {
       for (let attempt = 1; ; attempt++) {
         let known = false;
@@ -162,10 +194,14 @@ export default function LabScreen({ lab, go }: { lab: string; go: (to: string) =
           try {
             first = await call<Task>("GET", `${base}/current`);
           } catch (e) {
-            if (!(e instanceof Failure) || e.status !== 404 || isEnded(e)) throw e;
+            if (!(e instanceof Failure) || e.status !== 404 || isEnded(e))
+              throw e;
             const list = await call<{ tasks: { id: string }[] }>("GET", base);
             if (!list.tasks.length) throw e;
-            first = await call<Task>("POST", `${base}/${list.tasks[0].id}/show`);
+            first = await call<Task>(
+              "POST",
+              `${base}/${list.tasks[0].id}/show`,
+            );
           }
           if (!live) return;
           show(first);
@@ -180,7 +216,12 @@ export default function LabScreen({ lab, go }: { lab: string; go: (to: string) =
             continue;
           }
           if (known && isEnded(e)) setPhase("ended");
-          else setFatal(e instanceof Failure && e.status === 404 && !known ? "lab.error.no_session" : "lab.error.load");
+          else
+            setFatal(
+              e instanceof Failure && e.status === 404 && !known
+                ? "lab.error.no_session"
+                : "lab.error.load",
+            );
           return;
         }
       }
@@ -198,9 +239,13 @@ export default function LabScreen({ lab, go }: { lab: string; go: (to: string) =
   useEffect(() => {
     if (!sid || !running) return;
     const beat = setInterval(() => {
-      fetch(`/api/sessions/${sid}/heartbeat`, { method: "POST", credentials: "same-origin" })
+      fetch(`/api/sessions/${sid}/heartbeat`, {
+        method: "POST",
+        credentials: "same-origin",
+      })
         .then((r) => {
-          if (alive.current && (r.status === 404 || r.status === 410)) setPhase("ended");
+          if (alive.current && (r.status === 404 || r.status === 410))
+            setPhase("ended");
         })
         .catch(() => {});
     }, 15_000);
@@ -210,7 +255,7 @@ export default function LabScreen({ lab, go }: { lab: string; go: (to: string) =
   useEffect(() => {
     if (!sid || phase !== "ready" || Number.isNaN(expires)) return;
     const tick = () => {
-      setLeft(expires - (Date.now() + skew)); // display only: the server ends the lab
+      setLeft(expires - (Date.now() + skew.current)); // display only: the server ends the lab
     };
     tick();
     const clockId = setInterval(tick, 1000);
@@ -228,7 +273,8 @@ export default function LabScreen({ lab, go }: { lab: string; go: (to: string) =
       if (!alive.current) return;
       if (e instanceof Busy) setError("lab.busy");
       else if (isEnded(e)) setPhase("ended");
-      else if (e instanceof Failure && e.detail && ACTION_ERRORS[e.detail]) setError(ACTION_ERRORS[e.detail]);
+      else if (e instanceof Failure && e.detail && ACTION_ERRORS[e.detail])
+        setError(ACTION_ERRORS[e.detail]);
       else setError("lab.error.load");
     } finally {
       inFlight.current = false;
@@ -273,10 +319,25 @@ export default function LabScreen({ lab, go }: { lab: string; go: (to: string) =
       try {
         show(await call<Task>("POST", `${base}/current/${action}`));
       } catch (e) {
-        if (!(e instanceof Failure) || e.detail !== "no_next_task") throw e;
+        if (!(e instanceof Failure)) throw e;
+        if (e.detail === "task_changed") {
+          show(await call<Task>("GET", `${base}/current`));
+          return;
+        }
+        if (e.detail !== "no_next_task") throw e;
         // Skip on an unpassed last task completes nothing; on a passed one it is the same as Next.
-        if (action === "next" || passed) setDone(true);
-        else setError("lab.no_next");
+        if (action !== "next" && !passed) {
+          setError("lab.no_next");
+          return;
+        }
+        // Complete only when every task is passed: ask the server.
+        const list = await call<{ tasks: { title: Bi; state: string }[] }>(
+          "GET",
+          base,
+        );
+        const left = list.tasks.filter((x) => x.state !== "passed");
+        if (left.length) setOpen(left.map((x) => x.title));
+        else setDone(true);
       }
     });
   const check = () =>
@@ -291,23 +352,35 @@ export default function LabScreen({ lab, go }: { lab: string; go: (to: string) =
         return;
       }
       setCheckFailed(false);
-      setRows(Object.fromEntries(r.checklist.map((c) => [c.n, { passed: c.passed, hint: c.hint }])));
+      setRows(
+        Object.fromEntries(
+          r.checklist.map((c) => [c.n, { passed: c.passed, hint: c.hint }]),
+        ),
+      );
       setPassed(r.passed);
     });
   const answer = () =>
     run(async () => {
-      const r = await call<{ correct: boolean }>("POST", `${base}/${task.id}/answer`, { option: choice });
+      const r = await call<{ correct: boolean }>(
+        "POST",
+        `${base}/${task.id}/answer`,
+        { option: choice },
+      );
       setVerdict(r.correct ? "correct" : "incorrect");
       setPassed(r.correct);
     });
   const end = async () => {
+    if (ending.current) return;
+    ending.current = true;
     try {
       await call("POST", `/api/sessions/${session.id}/end`);
       go("/labs");
     } catch (e) {
       if (!alive.current) return;
       if (isEnded(e)) setPhase("ended");
-      else setError("lab.error.load");
+      else setError("lab.error.end_failed");
+    } finally {
+      ending.current = false;
     }
   };
   const arrow = (e: KeyboardEvent) => {
@@ -330,15 +403,25 @@ export default function LabScreen({ lab, go }: { lab: string; go: (to: string) =
   const dragMove = (e: PointerEvent) => {
     const box = frame.current?.getBoundingClientRect();
     if (!dragging || !box?.width) return;
-    setSplit(Math.min(80, Math.max(20, ((e.clientX - box.left) / box.width) * 100)));
+    setSplit(
+      Math.min(80, Math.max(20, ((e.clientX - box.left) / box.width) * 100)),
+    );
   };
   const dragEnd = () => setDragging(false);
 
   const hands = task.kind === "hands-on";
-  const verdictText = verdict ? t(`lab.${verdict}`) : checkFailed ? t("lab.check_failed") : "";
+  const verdictText = verdict
+    ? t(`lab.${verdict}`)
+    : checkFailed
+      ? t("lab.check_failed")
+      : "";
   return (
     <div ref={frame} dir="ltr" style={{ display: "flex", height: "80vh" }}>
-      <section data-testid="task-panel" dir={dir} style={{ width: `${split}%`, overflow: "auto" }}>
+      <section
+        data-testid="task-panel"
+        dir={dir}
+        style={{ width: `${split}%`, overflow: "auto" }}
+      >
         {left !== null && <div role="timer">{clock(left)}</div>}
         <div
           role="progressbar"
@@ -347,7 +430,13 @@ export default function LabScreen({ lab, go }: { lab: string; go: (to: string) =
           aria-valuemax={task.total}
           aria-label={`${t("lab.question")} ${task.index} ${t("lab.of")} ${task.total}`}
         >
-          <div style={{ width: `${(task.index / task.total) * 100}%`, height: 4, background: "currentColor" }} />
+          <div
+            style={{
+              width: `${(task.index / task.total) * 100}%`,
+              height: 4,
+              background: "currentColor",
+            }}
+          />
         </div>
         <p>
           {t("lab.question")} {task.index} {t("lab.of")} {task.total}
@@ -368,8 +457,25 @@ export default function LabScreen({ lab, go }: { lab: string; go: (to: string) =
           ))}
         </div>
         {error && <p role="alert">{t(error)}</p>}
-        <div id="lab-tabpanel" role="tabpanel" aria-labelledby={`lab-tab-${tab}`}>
-          {done ? (
+        <div
+          id="lab-tabpanel"
+          role="tabpanel"
+          aria-labelledby={`lab-tab-${tab}`}
+        >
+          {open ? (
+            <div role="status">
+              <p>
+                {open.length === 1
+                  ? t("lab.open.one")
+                  : `${open.length} ${t("lab.open.many")}`}
+              </p>
+              <ul>
+                {open.map((o, i) => (
+                  <li key={i}>{o[lang]}</li>
+                ))}
+              </ul>
+            </div>
+          ) : done ? (
             <p role="status">
               {t("lab.complete")} {toLabs}
             </p>
@@ -380,7 +486,9 @@ export default function LabScreen({ lab, go }: { lab: string; go: (to: string) =
               <h2>{task.title[lang]}</h2>
               {hands ? (
                 <>
-                  {task.text && <Text md={task.text[lang]} title={task.title[lang]} />}
+                  {task.text && (
+                    <Text md={task.text[lang]} title={task.title[lang]} />
+                  )}
                   <ul>
                     {(task.checklist ?? []).map((c) => {
                       const r = rows?.[c.n];
@@ -403,22 +511,35 @@ export default function LabScreen({ lab, go }: { lab: string; go: (to: string) =
                   <div role="radiogroup" aria-label={task.question?.[lang]}>
                     {(task.options ?? []).map((o, i) => (
                       <label key={i} style={{ display: "block" }}>
-                        <input type="radio" name="option" checked={choice === i} onChange={() => setChoice(i)} />
+                        <input
+                          type="radio"
+                          name="option"
+                          checked={choice === i}
+                          onChange={() => setChoice(i)}
+                        />
                         {o[lang]}
                       </label>
                     ))}
                   </div>
-                  <button onClick={answer} disabled={choice === null || pending}>
+                  <button
+                    onClick={answer}
+                    disabled={choice === null || pending}
+                  >
                     {t("lab.answer")}
                   </button>
                 </>
               )}
-              <div aria-live="polite">{verdictText && <p>{verdictText}</p>}</div>
+              <div aria-live="polite">
+                {verdictText && <p>{verdictText}</p>}
+              </div>
             </>
           )}
         </div>
         <div>
-          <button onClick={() => step("previous")} disabled={task.index <= 1 || pending}>
+          <button
+            onClick={() => step("previous")}
+            disabled={task.index <= 1 || pending}
+          >
             {t("lab.previous")}
           </button>
           {passed && (
@@ -432,9 +553,7 @@ export default function LabScreen({ lab, go }: { lab: string; go: (to: string) =
           <button onClick={() => step("restart")} disabled={pending}>
             {t("lab.restart")}
           </button>
-          <button onClick={end}>
-            {t("lab.end")}
-          </button>
+          <button onClick={end}>{t("lab.end")}</button>
         </div>
       </section>
       <div
@@ -451,12 +570,22 @@ export default function LabScreen({ lab, go }: { lab: string; go: (to: string) =
         onPointerUp={dragEnd}
         onPointerCancel={dragEnd}
         onLostPointerCapture={dragEnd}
-        style={{ width: 6, cursor: "col-resize", background: "#8888", touchAction: "none" }}
+        style={{
+          width: 6,
+          cursor: "col-resize",
+          background: "#8888",
+          touchAction: "none",
+        }}
       />
       <iframe
         title={t("lab.terminal")}
         src={`/s/${session.id}/term/`}
-        style={{ flex: 1, border: 0, minWidth: 0, pointerEvents: dragging ? "none" : "auto" }}
+        style={{
+          flex: 1,
+          border: 0,
+          minWidth: 0,
+          pointerEvents: dragging ? "none" : "auto",
+        }}
       />
     </div>
   );

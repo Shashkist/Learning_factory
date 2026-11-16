@@ -74,5 +74,8 @@
   "admin.import.row_added": "נוסף",
   "admin.import.line": "שורה",
   "admin.error.load": "לא ניתן לטעון את הקבוצות.",
-  "admin.error.save": "השמירה נכשלה. בדקו את הערכים ונסו שוב."
+  "admin.error.save": "השמירה נכשלה. בדקו את הערכים ונסו שוב.",
+  "lab.open.one": "משימה אחת עדיין פתוחה",
+  "lab.open.many": "משימות עדיין פתוחות",
+  "lab.error.end_failed": "לא ניתן היה לסיים את המעבדה. נסו שוב."
 }

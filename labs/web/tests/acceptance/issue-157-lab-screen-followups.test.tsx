@@ -17,8 +17,8 @@
  * 3. LOADING. While the first open waits for task 1 (GET tasks/current or POST .../show hangs), the screen
  *    shows lab.preparing (existing key) instead of nothing, and the task panel appears when it arrives.
  * 4. NITS.
- *      - A failed Skip/Next (502 {detail:{code:"setup_failed"}}, 504 {detail:{code:"setup_timeout"}},
- *        409 "task_changed") shows an alert that is NOT the generic lab.error.load text; the old task and
+ *      - A failed Skip/Next (502 {detail:{code:"setup_failed"}}, 504 {detail:{code:"setup_timeout"}})
+ *        shows an alert that is NOT the generic lab.error.load text; the old task and
  *        all buttons stay usable and a retry works.
  *      - While a task action hangs, End lab is still enabled and ends the lab.
  *      - Images in task Markdown load only from the page's own origin (cross-origin and protocol-relative
@@ -310,6 +310,13 @@ describe.each(LANGS)("lab complete in %s", (lang) => {
       base(LAST, {
         [`POST ${API}/tasks/04-last/check`]: PASS(),
         [`POST ${API}/tasks/current/next`]: err(409, "no_next_task"),
+        // Since #160 (D57) "lab complete" needs every task passed in GET tasks.
+        [`GET ${API}/tasks`]: ok({
+          lab_id: "lab-1", current: null,
+          tasks: [1, 2, 3, 4].map((i) => ({
+            id: i === 4 ? "04-last" : `0${i}-t`, index: i, kind: "hands-on", title: HANDS.title, state: "passed",
+          })),
+        }),
         ...extra,
       }),
     );
@@ -414,7 +421,8 @@ describe.each(LANGS)("failed Next or Skip in %s", (lang) => {
   const failures: [string, Reply][] = [
     ["502 setup_failed", { status: 502, body: { detail: { code: "setup_failed", message: "The task could not be set up." } } }],
     ["504 setup_timeout", { status: 504, body: { detail: { code: "setup_timeout", message: "Setting up the task took too long." } } }],
-    ["409 task_changed", err(409, "task_changed")],
+    // 409 task_changed is no longer here: since #160 (D57) the screen re-fetches tasks/current and shows
+    // that task instead of keeping the old one (see issue-160-lab-screen-leftovers.test.tsx).
   ];
 
   test.each(failures)("Skip answering %s says what failed (not 'could not be loaded'), keeps the old task and can be retried", async (_n, reply) => {

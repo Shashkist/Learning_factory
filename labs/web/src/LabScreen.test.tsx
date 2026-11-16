@@ -213,6 +213,7 @@ describe("lab complete", () => {
     backend({
       [`GET ${API}/tasks/current`]: ok(task({ index: 2, total: 2, state: "passed" })),
       [`POST ${API}/tasks/current/skip`]: err(409, "no_next_task"),
+      [`GET ${API}/tasks`]: ok({ tasks: [{ id: "a", state: "passed", title: { en: "A", he: "א" } }] }),
     });
     await open();
     fireEvent.click(btn(EN["lab.skip"]));
@@ -224,6 +225,7 @@ describe("lab complete", () => {
     backend({
       [`GET ${API}/tasks/current`]: ok(task({ index: 2, total: 2, state: "passed" })),
       [`POST ${API}/tasks/current/next`]: err(409, "no_next_task"),
+      [`GET ${API}/tasks`]: ok({ tasks: [{ id: "a", state: "passed", title: { en: "A", he: "א" } }] }),
     });
     await open();
     fireEvent.click(btn(EN["lab.next"]));
