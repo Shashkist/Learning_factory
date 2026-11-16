@@ -90,5 +90,6 @@
   "admin.import.error.invalid_name": "The name is too long or has control characters.",
   "admin.import.error.duplicate_in_paste": "Same ID as an earlier line.",
   "admin.import.error.already_exists": "This ID is already a student.",
-  "admin.import.error.unknown": "This line could not be imported."
+  "admin.import.error.unknown": "This line could not be imported.",
+  "admin.import.too_many": "More than 2,000 lines: nothing was imported. Split the list and import it in parts."
 }

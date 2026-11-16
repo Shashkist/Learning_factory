@@ -7,6 +7,8 @@ type Row = { line: number; status: "added" | "error"; code?: string };
 type Student = { name: string; note: string | null; disabled: boolean };
 type Result = { added: number; rows: Row[] };
 
+const MAX_IMPORT_LINES = 2000; // app/teacher.py MAX_LINES
+
 async function send(url: string, body: unknown, method = "POST"): Promise<Response | null> {
   try {
     const r = await fetch(url, {
@@ -100,6 +102,7 @@ export default function Cohorts() {
   const [text, setText] = useState("");
   const [result, setResult] = useState<Result | null>(null);
   const [busy, setBusy] = useState(false); // one request at a time: no double create or import
+  const [tooMany, setTooMany] = useState(false);
 
   const load = async () => {
     try {
@@ -147,8 +150,12 @@ export default function Cohorts() {
   const runImport = async (e: FormEvent) => {
     e.preventDefault();
     if (busy) return;
-    setBusy(true);
     setSaveFailed(false);
+    // The server refuses more than MAX_IMPORT_LINES non-blank lines (422) and saves none of them.
+    const tooLong = text.split("\n").filter((l) => l.trim()).length > MAX_IMPORT_LINES;
+    setTooMany(tooLong);
+    if (tooLong) return setResult(null);
+    setBusy(true);
     const id = target || String(cohorts?.[0]?.id);
     const r = await send(`/api/admin/cohorts/${id}/import`, { text });
     setBusy(false);
@@ -165,11 +172,12 @@ export default function Cohorts() {
       <h1>{t("admin.cohorts.title")}</h1>
       {loadFailed && <p role="alert">{t("admin.error.load")}</p>}
       {saveFailed && <p role="alert">{t("admin.error.save")}</p>}
+      {tooMany && <p role="alert">{t("admin.import.too_many")}</p>}
       {cohorts && cohorts.length === 0 && <p>{t("admin.cohorts.empty")}</p>}
       {cohorts && cohorts.length > 0 && (
         <ul>
           {cohorts.map((c) => (
-            <CohortRow key={`${c.id}-${c.name}-${c.access_until}`} cohort={c} onSave={saveCohort} />
+            <CohortRow key={`${c.id}-${c.name}-${c.access_until}-${c.students}`} cohort={c} onSave={saveCohort} />
           ))}
         </ul>
       )}
