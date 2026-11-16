@@ -249,15 +249,11 @@ def _runner_scope():
         if restart:
             _sudo("rm", "-f", DROPIN, check=False)
             _sudo("systemctl", "daemon-reload", check=False)
-        _write_daemon(sc.original)
-        if sc.orig_stat:
-            mode, owner = sc.orig_stat.split()
-            _sudo("chmod", mode, DAEMON_JSON, check=False)
-            _sudo("chown", owner, DAEMON_JSON, check=False)
-        _sudo("systemctl", "restart" if restart else "reload", "docker", check=False)
-        _wait_docker()
-        _wait_runsc(sc.had_runsc)
-        _restore_daemon_state(sc.snap)  # bytes, mode, owner; no backups or temp files left
+        if restart:  # the drop-in is gone: restart so dockerd drops the flag-registered runsc
+            _sudo("systemctl", "restart", "docker", check=False)
+            _wait_docker()
+        # bytes, mode, owner back; no backups or temp files; reload; docker's runsc as before
+        _restore_daemon_state(sc.snap, reload=True)
         _sudo("swapoff", SWAPFILE, check=False)
         _sudo("rm", "-f", SWAPFILE, check=False)
         _sudo("sed", "-i", f"\\|^{SWAPFILE} |d", "/etc/fstab", check=False)

@@ -21,7 +21,6 @@ Static tests run everywhere. Docker tests run in the CI `docker` job: an ubuntu 
 passwordless sudo, Docker and runsc already registered. They run the real script on the runner,
 once as a dry run, once with a failing baseline, twice for real.
 """
-import glob
 import json
 import os
 import re
@@ -225,7 +224,7 @@ def _reset_runner() -> None:
 
 
 def _daemon_bytes() -> bytes | None:
-    res = _run(["sudo", "-n", "cat", DAEMON_JSON])
+    res = _run(["sudo", "-n", "cat", DAEMON_JSON], timeout=10)
     return res.stdout.encode() if res.returncode == 0 else None
 
 
@@ -251,7 +250,7 @@ def _write_daemon(data: bytes | None) -> None:
 
 
 def _runtimes() -> dict:
-    out = _docker("info", "--format", "{{json .Runtimes}}", check=False).stdout
+    out = _docker("info", "--format", "{{json .Runtimes}}", check=False, timeout=10).stdout
     try:
         return json.loads(out) or {}
     except ValueError:
@@ -269,7 +268,7 @@ def _reload_docker_and_wait(runsc: bool | None, wait: float = 40.0) -> None:
 
 
 def _backups() -> list[str]:
-    res = _run(["sudo", "-n", "sh", "-c", f"ls {BACKUP_GLOB} 2>/dev/null"])
+    res = _run(["sudo", "-n", "sh", "-c", f"ls {BACKUP_GLOB} 2>/dev/null"], timeout=10)
     return res.stdout.split()
 
 
@@ -282,7 +281,7 @@ TEMP_GLOBS = (f"{DAEMON_JSON}.lf-new.*", f"{DAEMON_JSON}.lf-restore.*", f"{DAEMO
 
 def _temp_files() -> list[str]:
     pat = " ".join(TEMP_GLOBS)
-    return _run(["sudo", "-n", "sh", "-c", f"ls {pat} 2>/dev/null"]).stdout.split()
+    return _run(["sudo", "-n", "sh", "-c", f"ls {pat} 2>/dev/null"], timeout=10).stdout.split()
 
 
 def _state_text(label: str = "") -> str:
@@ -304,7 +303,11 @@ def _wait_daemon_state_stable(wait: float = 30.0, still: float = 3.0) -> bool:
     stop changing for `still` seconds: a `systemctl reload docker` returns before dockerd has
     applied the file, and an earlier scenario may still be settling."""
     def sample():
-        return (_daemon_bytes(), tuple(_backups()), tuple(_temp_files()), "runsc" in _runtimes())
+        try:
+            return (_daemon_bytes(), tuple(_backups()), tuple(_temp_files()),
+                    "runsc" in _runtimes())
+        except subprocess.TimeoutExpired:
+            return None
 
     deadline = time.time() + wait
     last, since = sample(), time.time()
@@ -325,8 +328,7 @@ def _snapshot_daemon_state() -> SimpleNamespace:
     st = None
     if original is not None:
         st = _run(["sudo", "-n", "stat", "-c", "%a %U:%G", DAEMON_JSON]).stdout.strip() or None
-    backups = {b: _run(["sudo", "-n", "cat", b]).stdout.encode() for b in _backups()}
-    return SimpleNamespace(original=original, stat=st, backups=backups,
+    return SimpleNamespace(original=original, stat=st, backups=_backups(),
                            temps=_temp_files(), had_runsc="runsc" in _runtimes())
 
 
@@ -343,14 +345,10 @@ def _check_clean_start(snap: SimpleNamespace, module: str) -> None:
                   f"scenario: {sorted(snap.backups)} {snap.temps}")
 
 
-def _write_file_as_root(path: str, data: bytes) -> None:
-    subprocess.run(["sudo", "-n", "tee", path], input=data.decode(), text=True,
-                   capture_output=True, check=False)
-
-
 def _restore_daemon_state(snap: SimpleNamespace, reload: bool | None = None) -> None:
     """Put daemon.json (bytes, mode, owner) back, remove every backup and temp file this exam
-    caused, bring back the backups that existed before, reload and wait for a stable state."""
+    caused, reload and wait for a stable state. Fails the teardown if docker's runsc listing
+    still differs from the start, so a later module does not fail mysteriously."""
     _remove_backups()
     _run(["sudo", "-n", "sh", "-c", "rm -f " + " ".join(TEMP_GLOBS)])
     changed = _daemon_bytes() != snap.original
@@ -360,14 +358,53 @@ def _restore_daemon_state(snap: SimpleNamespace, reload: bool | None = None) -> 
         mode, owner = snap.stat.split()
         _sudo("chmod", mode, DAEMON_JSON, check=False)
         _sudo("chown", owner, DAEMON_JSON, check=False)
-    for path, data in snap.backups.items():
-        _write_file_as_root(path, data)
     if changed if reload is None else reload:
         _sudo("systemctl", "reload", "docker", check=False)
     deadline = time.time() + 40.0
     while time.time() < deadline and ("runsc" in _runtimes()) != snap.had_runsc:
         time.sleep(1)
     _wait_daemon_state_stable()
+    _precondition(("runsc" in _runtimes()) == snap.had_runsc,
+                  f"teardown: docker's runsc listing differs from the start (had runsc: "
+                  f"{snap.had_runsc})")
+
+
+class _OneShotListener:
+    """A TCP listener that accepts one connection, then shuts down and closes at once. shutdown()
+    ends the listening state, so the kernel completes no handshake from the backlog afterwards."""
+
+    def __init__(self) -> None:
+        self.sock = socket.socket()
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.sock.bind(("127.0.0.1", 0))
+        self.sock.listen(16)
+        self.port = self.sock.getsockname()[1]
+        self.closed = threading.Event()
+        self._t = threading.Thread(target=self._serve, daemon=True)
+        self._t.start()
+
+    def _serve(self) -> None:
+        try:
+            c, _ = self.sock.accept()
+        except OSError:
+            return
+        c.close()
+        self._shut()
+        self.closed.set()
+
+    def _shut(self) -> None:
+        try:
+            self.sock.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+        try:
+            self.sock.close()
+        except OSError:
+            pass
+
+    def finish(self) -> None:
+        self._shut()  # wakes accept() when nothing ever connected
+        self._t.join(timeout=5)
 
 
 def _swap_names() -> list[str]:
@@ -476,7 +513,6 @@ def run():
     _run(["sudo", "-n", "mkdir", "-p", "/etc/docker"], check=True)
     orig_swaps = _swap_names()
     s = SimpleNamespace(good_env=good_env, seeded=json.loads(seeded), orig_swaps=orig_swaps)
-    stop = threading.Event()
     try:
         _write_daemon(seeded.encode())
         _reload_docker_and_wait(runsc=False)
@@ -500,48 +536,32 @@ def run():
                             "LF_SWAP_MIN_FREE_GB": "1"}, unset=("DRY_RUN",))
         s.after_bad = _snapshot()
 
-        # Rollback after a step: the baseline passes at first, then fails right after the
-        # runtime step, because a TCP listener closes itself as soon as a backup appears.
-        lsock = socket.socket()
-        lsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        lsock.bind(("127.0.0.1", 0))
-        lsock.listen(16)
-        lport = lsock.getsockname()[1]
-        closed = threading.Event()
-
-        def _accept() -> None:
-            lsock.settimeout(0.2)
-            while not stop.is_set() and not closed.is_set():
-                try:
-                    c, _ = lsock.accept()
-                    c.close()
-                except OSError:
-                    pass
-
-        def _closer() -> None:
-            while not stop.is_set():
-                if glob.glob(BACKUP_GLOB):
-                    closed.set()
-                    time.sleep(0.3)  # let the accept loop leave accept()
-                    lsock.close()
-                    return
-                time.sleep(0.05)
-
-        threading.Thread(target=_accept, daemon=True).start()
-        threading.Thread(target=_closer, daemon=True).start()
-        s.rb = _bootstrap({"LF_BASELINE_URLS": "", "LF_BASELINE_TCP": f"127.0.0.1:{lport}",
+        # Rollback after a step: the baseline passes once, at the start of the run (the only TCP
+        # check before any change), then the listener is shut down and closed right after that
+        # first connection, so every later baseline check fails: no timing window, the check
+        # after the runtime step is the one that fails and rolls the runtime step back.
+        trip = _OneShotListener()
+        s.rb = _bootstrap({"LF_BASELINE_URLS": "", "LF_BASELINE_TCP": f"127.0.0.1:{trip.port}",
                            "LF_SWAP_MIN_FREE_GB": "1"}, unset=("DRY_RUN",))
-        stop.set()
-        s.rb_closed = closed.is_set()
+        trip.finish()
+        s.rb_closed = trip.closed.is_set()
+        s.after_rb_runtimes = _runtimes()  # read at once: the rollback itself waits for runsc
         time.sleep(1)
         _wait_daemon_state_stable()
         s.state_after_rb = _state_text("after the rollback run")
-        s.after_rb_runtimes = _runtimes()
         s.after_rb = _snapshot()
         s.after_rb_swapfile = os.path.exists(SWAPFILE)
         s.after_rb_lf_rules = _lf_rules()
         s.after_rb_nets = _networks()
         _remove_backups()
+        # run1 must not depend on how the rollback scenario ended: seeded file, no runsc.
+        _write_daemon(seeded.encode())
+        _reload_docker_and_wait(runsc=False)
+        _wait_daemon_state_stable()
+        _precondition(_daemon_bytes() == seeded.encode(),
+                      "daemon.json is not the seeded file before the real run")
+        _precondition("runsc" not in _runtimes(), "docker lists runsc before the real run")
+        _precondition(not _backups(), "daemon.json backups exist before the real run")
 
         s.run_env = {**good_env, "LF_SWAP_MIN_FREE_GB": "1"}
         s.run1 = _bootstrap(s.run_env, unset=("DRY_RUN",))
@@ -556,7 +576,6 @@ def run():
         s.after2 = _snapshot()
         yield s
     finally:
-        stop.set()
         _docker("rm", "-f", "-v", SENTINEL, check=False)
         _reset_runner()
         _restore_daemon_state(snap, reload=True)
@@ -937,7 +956,10 @@ def test_second_run_does_not_touch_swap_and_reports_no_changes(run):
 
 @pytest.mark.docker
 def test_baseline_failing_after_the_first_step_rolls_everything_back(run):
-    assert run.rb_closed, "exam precondition: the listener closed after the backup appeared"
+    assert run.rb_closed, "exam precondition: the listener took the first connection and closed"
+    _precondition("baseline differs after step 'runtime'" in run.rb.stdout + run.rb.stderr,
+                  "the baseline check that failed is not the one after the runtime step\n"
+                  + _tail(run.rb))
     assert run.rb.returncode != 0, run.rb.stdout + run.rb.stderr
     assert "baseline" in (run.rb.stdout + run.rb.stderr).lower()
     assert f"{RESULT} changed" not in run.rb.stdout
