@@ -15,5 +15,20 @@
   "lab.placeholder": "Lab page, coming soon:",
   "nav.logout": "Log out",
   "notFound.title": "Page not found",
-  "nav.logout_failed": "Logging out failed. You are still signed in; try again."
+  "nav.logout_failed": "Logging out failed. You are still signed in; try again.",
+  "app.title": "Learning Factory Labs",
+  "lang.switch.label": "Switch language to Hebrew",
+  "labs.module": "Module",
+  "labs.tasks": "tasks",
+  "labs.progress.not_started": "Not started",
+  "labs.progress.done": "Done",
+  "labs.start": "Start",
+  "labs.continue": "Continue",
+  "labs.redo": "Redo",
+  "labs.open_conflict.title": "Another lab is open",
+  "labs.open_conflict.body": "You already have a lab open:",
+  "labs.open_conflict.force": "End it and start this one",
+  "labs.open_conflict.cancel": "Cancel",
+  "labs.error.load": "The labs could not be loaded. Try again soon.",
+  "labs.error.start": "The lab could not be started. Try again."
 }
