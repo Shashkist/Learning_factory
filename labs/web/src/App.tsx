@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import Admin from "./Admin";
 import { I18nProvider, useI18n } from "./i18n";
 import Login, { type User } from "./Login";
+import LabScreen from "./LabScreen";
 import MyLabs from "./MyLabs";
 import { usePath } from "./router";
 
@@ -73,9 +74,7 @@ function Student() {
           <MyLabs open={(id) => go(`/labs/${encodeURIComponent(id)}`)} />
         </>
       ) : lab ? (
-        <p>
-          {t("lab.placeholder")} <span dir="ltr">{lab}</span>
-        </p>
+        <LabScreen key={lab} go={go} />
       ) : (
         <p>{t("notFound.title")}</p>
       )}
