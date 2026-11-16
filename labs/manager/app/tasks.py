@@ -11,7 +11,6 @@ import re
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from statistics import median
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -20,7 +19,7 @@ from pydantic import BaseModel, StrictInt
 from app import db
 from app.auth import Principal, current_student, db_guard
 from app.content import LANGS, Lab, Task, parse_check_output
-from app.flags import is_fast_lab, is_fast_task
+from app.flags import fast_lab_reason, fast_task_reason
 from app.runtime import container_name
 
 log = logging.getLogger("lab-manager")
@@ -298,31 +297,20 @@ async def _complete(conn: Any, ctx: _Ctx) -> None:
         )
         is not None
     )
-    active = int(
+    active = float(
         await conn.fetchval(f"select active_seconds from {T}.lab_sessions where id = $1", ctx.sid)
     )
     priors: list[int] = []
     if first:
-        rows = await conn.fetch(
+        rows = await conn.fetch(  # runs without heartbeat data (0 s) say nothing about the class
             f"select active_seconds from {T}.lab_runs "
-            "where lab_id = $1 and first_completion and student <> $2",
+            "where lab_id = $1 and first_completion and student <> $2 and active_seconds > 0",
             ctx.lab.id,
             ctx.student,
         )
         priors = [r["active_seconds"] for r in rows]
-    fast = is_fast_lab(active, ctx.lab.fast_lab_min, priors, repeat=not first)
-    reason = None
-    if fast:
-        if ctx.lab.fast_lab_min is not None and active < ctx.lab.fast_lab_min * 60:
-            reason = (
-                f"lab finished in {active} s of active time, "
-                f"under the {ctx.lab.fast_lab_min} min minimum"
-            )
-        else:
-            reason = (
-                f"lab finished in {active} s of active time, under 30 % of the class median "
-                f"({median(priors):.0f} s)"
-            )
+    reason = fast_lab_reason(active, ctx.lab.fast_lab_min, priors, repeat=not first)
+    fast = reason is not None
     await conn.execute(
         f"insert into {T}.lab_runs (student, lab_id, session_id, first_completion, "
         "active_seconds, fast_flag, fast_reason) values ($1, $2, $3, $4, $5, $6, $7) "
@@ -331,7 +319,7 @@ async def _complete(conn: Any, ctx: _Ctx) -> None:
         ctx.lab.id,
         ctx.sid,
         first,
-        active,
+        round(active),
         fast,
         reason,
     )
@@ -342,15 +330,22 @@ async def _count_attempt(ctx: _Ctx, task: Task, passed: bool) -> int:
     also sets the task's fast flag and may complete the lab, in the same transaction."""
     with db_guard():
         async with ctx.pool.acquire() as conn, conn.transaction():
+            # lock order: task row, then session row (as in _do_show). The session lock
+            # serialises completions per session (two tasks passing at once each see the
+            # other's commit) and keeps End-lab from slipping in between.
             old = await conn.fetchrow(
                 f"select passed_at, extract(epoch from now() - shown_at) as secs "
                 f"from {T}.task_results where session_id = $1 and task_id = $2 "
-                "and shown_at is not null "
-                f"and exists (select 1 from {T}.lab_sessions where id = $1 and status = 'running') "
-                "for update",
+                "and shown_at is not null for update",
                 ctx.sid,
                 task.id,
             )
+            if old is not None and await conn.fetchval(
+                f"select 1 from {T}.lab_sessions where id = $1 and status = 'running' "
+                "for no key update",
+                ctx.sid,
+            ) is None:
+                old = None
             attempts = None
             if old is not None:
                 first_pass = passed and old["passed_at"] is None
@@ -363,9 +358,10 @@ async def _count_attempt(ctx: _Ctx, task: Task, passed: bool) -> int:
                         ctx.lab.id,
                     )
                     secs = float(old["secs"])
-                    fast = is_fast_task(task.kind, secs, task.min_task_seconds, repeat)
-                    if fast:
-                        reason = f"task {task.id} passed {int(secs)} s after it appeared"
+                    reason = fast_task_reason(
+                        task.id, task.kind, secs, task.min_task_seconds, repeat
+                    )
+                    fast = reason is not None
                 attempts = await conn.fetchval(
                     f"update {T}.task_results set attempts = attempts + 1, "
                     "passed_at = case when $3 then now() else passed_at end, "

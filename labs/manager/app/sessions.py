@@ -135,7 +135,8 @@ async def start(
             await pool.execute(f"delete from {T}.lab_sessions where id = $1", row["id"])
             raise HTTPException(502, "start_failed") from None
         marked = await pool.fetchval(
-            f"update {T}.lab_sessions set status = 'running', container = $2 "
+            f"update {T}.lab_sessions set status = 'running', container = $2, "
+            "last_heartbeat = now() "
             "where id = $1 and status = 'starting' returning id",
             row["id"],
             name,
@@ -175,11 +176,12 @@ async def heartbeat(
         raise HTTPException(503, "database unavailable")
     with db_guard():
         found = await request.app.state.pool.fetchval(
-            # active time: the gap since the previous beat counts unless it is a long silence
+            # active time (the SQL form of app.flags.covered_seconds): the gap since the
+            # previous beat counts, as fractional seconds, unless it is a long silence
             f"update {T}.lab_sessions set last_heartbeat = now(), active_seconds = active_seconds"
             " + case when last_heartbeat is not null"
             " and now() - last_heartbeat <= make_interval(secs => $3)"
-            " then round(extract(epoch from now() - last_heartbeat))::integer else 0 end "
+            " then extract(epoch from now() - last_heartbeat)::double precision else 0 end "
             f"where id = $1 and student = $2 and {LIVE} returning id",
             sid,
             p.subject,
