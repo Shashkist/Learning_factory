@@ -603,3 +603,11 @@ in force · factory · 2026-11-16
 
 **Decision.** For #131 the Playwright specs are the deliverable, so there is no separate exam: they live in `labs/web/e2e/` (not `tests/acceptance/`), run against a fake backend (`page.route`, every unmocked `/api` call answers 500) with the built app served by `vite preview`, Chromium only, in the `web` CI job. Criterion 2 (one docker end-to-end test against the real manager) needs Node, Chromium, Postgres, the smoke lab and a seeded smoke student in the `docker` job; it is split into #167. The Playwright config declares `process` itself instead of adding Node types to the app's tsconfig (they would change timer types in `src`).
 **Why.** One reviewable PR; the docker job setup is a separate piece of CI work. **Alternatives.** Wait for both parts in one PR; a separate tsconfig for e2e. **Revert.** Fold #167 back into #131.
+
+## D61 · #172 two smoke-cohort checks from one module
+in force · factory · 2026-11-16
+
+**Decision.** `app/smoke.py` holds the one definition of the reserved smoke cohort: `SMOKE_COHORT`, the SQL filter `NOT_SMOKE_SQL`, and two checks. `is_smoke_cohort` (any case, any padding) is the teacher API's reserved-name refusal and list filter; `is_smoke_member` (the exact name) decides access to the internal smoke lab in `sessions.py`. The #172 exam asked both files to use a case-insensitive check, which contradicted the #128 exam (a cohort named `LF-SMOKE` or `lf-smoke ` must not reach the internal lab); the #172 exam was corrected before the code, and the branch was re-sequenced (#174 → new PR).
+**Why.** Access stays as tight as it was (exact name); naming stays as broad as review asked (no look-alike teacher cohorts).
+**Alternatives.** Case-insensitive access everywhere (widens access to the internal lab for a cohort created outside the teacher API).
+**Revert.** Use one check in both files and drop the #128 look-alike case.
