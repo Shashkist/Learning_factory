@@ -274,8 +274,9 @@ export default function LabScreen({ lab, go }: { lab: string; go: (to: string) =
         show(await call<Task>("POST", `${base}/current/${action}`));
       } catch (e) {
         if (!(e instanceof Failure) || e.detail !== "no_next_task") throw e;
-        if (action === "next") setDone(true);
-        else setError("lab.no_next"); // Skip on an unpassed last task: nothing was completed
+        // Skip on an unpassed last task completes nothing; on a passed one it is the same as Next.
+        if (action === "next" || passed) setDone(true);
+        else setError("lab.no_next");
       }
     });
   const check = () =>

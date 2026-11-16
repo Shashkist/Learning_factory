@@ -209,6 +209,17 @@ describe("lab complete", () => {
     expect(screen.queryByText(EN["lab.complete"], { exact: false })).toBeNull();
   });
 
+  test("409 no_next_task on skip of a passed last task shows lab complete, not 'pass it'", async () => {
+    backend({
+      [`GET ${API}/tasks/current`]: ok(task({ index: 2, total: 2, state: "passed" })),
+      [`POST ${API}/tasks/current/skip`]: err(409, "no_next_task"),
+    });
+    await open();
+    fireEvent.click(btn(EN["lab.skip"]));
+    expect(await screen.findByText(EN["lab.complete"], { exact: false })).toBeTruthy();
+    expect(screen.queryByText(EN["lab.no_next"], { exact: false })).toBeNull();
+  });
+
   test("409 no_next_task on next shows lab complete with a link, not an error", async () => {
     backend({
       [`GET ${API}/tasks/current`]: ok(task({ index: 2, total: 2, state: "passed" })),
