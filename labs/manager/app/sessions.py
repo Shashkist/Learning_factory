@@ -175,10 +175,15 @@ async def heartbeat(
         raise HTTPException(503, "database unavailable")
     with db_guard():
         found = await request.app.state.pool.fetchval(
-            f"update {T}.lab_sessions set last_heartbeat = now() "
+            # active time: the gap since the previous beat counts unless it is a long silence
+            f"update {T}.lab_sessions set last_heartbeat = now(), active_seconds = active_seconds"
+            " + case when last_heartbeat is not null"
+            " and now() - last_heartbeat <= make_interval(secs => $3)"
+            " then round(extract(epoch from now() - last_heartbeat))::integer else 0 end "
             f"where id = $1 and student = $2 and {LIVE} returning id",
             sid,
             p.subject,
+            float(admission.env_num("LF_HEARTBEAT_TIMEOUT_S", 300)),
         )
     if found is None:
         raise HTTPException(404, "no_session")
