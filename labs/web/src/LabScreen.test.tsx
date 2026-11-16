@@ -1,0 +1,260 @@
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+
+import App from "./App";
+import en from "./i18n/en.json";
+
+const EN = en as Record<string, string>;
+type Reply = { status: number; body?: unknown } | "hang";
+type Route = Reply | Reply[];
+type Calls = { url: string; method: string }[];
+
+const SID = "s1";
+const API = `/api/sessions/${SID}`;
+const T0 = Date.UTC(2026, 10, 16, 9, 0, 0);
+const ok = (body: unknown): Reply => ({ status: 200, body });
+const err = (status: number, detail: string): Reply => ({ status, body: { detail } });
+const session = (extra: object = {}) =>
+  ok({ id: SID, lab_id: "lab-1", status: "running", expires_at: new Date(T0 + 3_600_000).toISOString(), ...extra });
+
+const TEXT = {
+  en: "# Tree\n\nRun **mkdir** in `~/inbox` now <b>raw</b>.\n\n```text\nprojects/\n  website/\n```\n\n1. one\n2. two\n",
+  he: "# עץ\n\nהריצו `~/inbox`.\n",
+};
+const task = (extra: object = {}) => ({
+  id: "01-a", index: 1, total: 2, kind: "hands-on", state: "shown",
+  title: { en: "Tree", he: "עץ" }, text: TEXT,
+  checklist: [{ n: 1, text: { en: "Exists", he: "קיים" } }],
+  ...extra,
+});
+
+/** Routes are "METHOD path". An array is a queue (the last entry repeats). */
+function backend(routes: Record<string, Route>) {
+  const calls: Calls = [];
+  const all: Record<string, Route> = {
+    "GET /api/auth/me": ok({ kind: "student", name: "Dana Test" }),
+    "GET /api/labs": ok([]),
+    "GET /api/sessions/current": session(),
+    [`GET ${API}/tasks/current`]: ok(task()),
+    [`POST ${API}/heartbeat`]: { status: 204 },
+    ...routes,
+  };
+  const queues = new Map<string, Reply[]>();
+  vi.spyOn(globalThis, "fetch").mockImplementation((async (url: RequestInfo | URL, init?: RequestInit) => {
+    const method = (init?.method ?? "GET").toUpperCase();
+    calls.push({ url: String(url), method });
+    const key = `${method} ${String(url)}`;
+    const h = all[key];
+    let r: Reply = err(404, "Not Found");
+    if (Array.isArray(h)) {
+      if (!queues.has(key)) queues.set(key, [...h]);
+      const q = queues.get(key) as Reply[];
+      r = q.length > 1 ? (q.shift() as Reply) : q[0];
+    } else if (h) r = h;
+    if (r === "hang") return new Promise<Response>(() => {});
+    return { ok: r.status < 300, status: r.status, json: async () => r.body ?? {} } as Response;
+  }) as typeof fetch);
+  return calls;
+}
+
+const n = (calls: Calls, method: string, url: string) => calls.filter((c) => c.method === method && c.url === url).length;
+const open = async (path = "/labs/lab-1") => {
+  window.history.replaceState({}, "", path);
+  const view = render(<App />);
+  await screen.findByTestId("task-panel");
+  return view;
+};
+const btn = (name: string) => within(screen.getByTestId("task-panel")).getByRole("button", { name }) as HTMLButtonElement;
+
+beforeEach(() => {
+  window.localStorage.clear();
+});
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
+
+describe("markdown", () => {
+  test("renders bold, numbered steps and code; code is left-to-right and HTML stays text", async () => {
+    backend({});
+    const view = await open();
+    const panel = screen.getByTestId("task-panel");
+    expect(panel.querySelector("strong")?.textContent).toBe("mkdir");
+    expect(panel.querySelectorAll("ol > li")).toHaveLength(2);
+    const inline = panel.querySelector("p code");
+    expect(inline?.textContent).toBe("~/inbox");
+    expect(inline?.getAttribute("dir")).toBe("ltr");
+    const pre = panel.querySelector("pre");
+    expect(pre?.getAttribute("dir")).toBe("ltr");
+    expect(pre?.textContent).toBe("projects/\n  website/\n");
+    expect(panel.querySelector("b")).toBeNull();
+    expect(panel.textContent).toContain("<b>raw</b>");
+    expect(panel.querySelectorAll("h2, h3")).toHaveLength(1); // the duplicate "# Tree" heading is dropped
+    expect(view.container.querySelector("iframe")?.getAttribute("title")).toBe(EN["lab.terminal"]);
+  });
+
+  test("Hebrew inline code is left-to-right inside the right-to-left panel", async () => {
+    window.localStorage.setItem("lf-lang", "he");
+    backend({});
+    await open();
+    const code = screen.getByTestId("task-panel").querySelector("code");
+    expect(code?.getAttribute("dir")).toBe("ltr");
+    expect(screen.getByTestId("task-panel").getAttribute("dir")).toBe("rtl");
+  });
+});
+
+describe("in-flight guard", () => {
+  test("while a request is pending every action button is disabled and a second click sends nothing", async () => {
+    const calls = backend({ [`POST ${API}/tasks/current/skip`]: "hang" });
+    await open();
+    fireEvent.click(btn(EN["lab.skip"]));
+    await waitFor(() => expect(btn(EN["lab.skip"]).disabled).toBe(true));
+    for (const k of ["lab.check", "lab.restart", "lab.end", "lab.skip"]) expect(btn(EN[k]).disabled).toBe(true);
+    fireEvent.click(btn(EN["lab.skip"]));
+    fireEvent.click(btn(EN["lab.restart"]));
+    expect(n(calls, "POST", `${API}/tasks/current/skip`)).toBe(1);
+    expect(n(calls, "POST", `${API}/tasks/current/restart`)).toBe(0);
+  });
+
+  test("a busy alert does not stay over the next task", async () => {
+    backend({
+      [`POST ${API}/tasks/01-a/check`]: ok({ passed: true, attempts: 1, reason: null, checklist: [{ n: 1, passed: true, hint: null }] }),
+      [`POST ${API}/tasks/current/skip`]: err(409, "session_busy"),
+      [`POST ${API}/tasks/current/next`]: ok(task({ id: "02-b", index: 2 })),
+    });
+    await open();
+    fireEvent.click(btn(EN["lab.skip"]));
+    expect((await screen.findByRole("alert")).textContent).toContain(EN["lab.busy"]);
+    fireEvent.click(btn(EN["lab.check"]));
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    fireEvent.click(await screen.findByRole("button", { name: EN["lab.next"] }));
+    await waitFor(() => expect(screen.getByTestId("task-panel").textContent).toContain(`${EN["lab.question"]} 2`));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
+
+describe("the route's lab", () => {
+  test("a live session for another lab is not shown under this URL", async () => {
+    const calls = backend({ "GET /api/sessions/current": session({ lab_id: "lab-9" }) });
+    window.history.replaceState({}, "", "/labs/lab-1");
+    const view = render(<App />);
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain(EN["lab.error.other_lab"]);
+    expect(within(alert).getByRole("link", { name: EN["lab.to_labs"] })).toBeTruthy();
+    expect(view.container.querySelector("iframe")).toBeNull();
+    expect(calls.some((c) => c.url.includes("/tasks"))).toBe(false);
+  });
+
+  test("the id in the URL is what is compared", async () => {
+    backend({ "GET /api/sessions/current": session({ lab_id: "lab-9" }) });
+    await open("/labs/lab-9");
+    expect(screen.queryByText(EN["lab.error.other_lab"], { exact: false })).toBeNull();
+  });
+});
+
+describe("end of the session", () => {
+  test("a 410 from an action shows the ended message with a link, no terminal, no more heartbeats", async () => {
+    backend({ [`POST ${API}/tasks/current/skip`]: err(410, "session_ended") });
+    const view = await open();
+    fireEvent.click(btn(EN["lab.skip"]));
+    expect((await screen.findByText(EN["lab.ended"])).textContent).toBeTruthy();
+    expect(screen.getByRole("link", { name: EN["lab.to_labs"] })).toBeTruthy();
+    expect(view.container.querySelector("iframe")).toBeNull();
+    expect(screen.queryByTestId("task-panel")).toBeNull();
+  });
+
+  test("a heartbeat answering 404 ends the screen and stops the heartbeat", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "setTimeout", "clearTimeout", "Date"] });
+    vi.setSystemTime(T0);
+    const calls = backend({ [`POST ${API}/heartbeat`]: err(404, "no_session") });
+    window.history.replaceState({}, "", "/labs/lab-1");
+    render(<App />);
+    for (let i = 0; i < 12; i++) await act(async () => void (await vi.advanceTimersByTimeAsync(0)));
+    await act(async () => void (await vi.advanceTimersByTimeAsync(16_000)));
+    expect(screen.queryByText(EN["lab.ended"])).not.toBeNull();
+    const beats = n(calls, "POST", `${API}/heartbeat`);
+    await act(async () => void (await vi.advanceTimersByTimeAsync(60_000)));
+    expect(n(calls, "POST", `${API}/heartbeat`)).toBe(beats);
+  });
+
+  test("at 0:00 the screen says the session has ended and removes the terminal", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "setTimeout", "clearTimeout", "Date"] });
+    vi.setSystemTime(T0);
+    backend({ "GET /api/sessions/current": session({ expires_at: new Date(T0 + 5_000).toISOString() }) });
+    window.history.replaceState({}, "", "/labs/lab-1");
+    const view = render(<App />);
+    for (let i = 0; i < 12; i++) await act(async () => void (await vi.advanceTimersByTimeAsync(0)));
+    await act(async () => void (await vi.advanceTimersByTimeAsync(6_000)));
+    expect(screen.queryByText(EN["lab.ended"])).not.toBeNull();
+    expect(screen.getByRole("timer").textContent).toBe("0:00");
+    expect(view.container.querySelector("iframe")).toBeNull();
+  });
+
+  test("expires_at null shows no timer", async () => {
+    backend({ "GET /api/sessions/current": session({ expires_at: null }) });
+    await open();
+    expect(screen.queryByRole("timer")).toBeNull();
+  });
+});
+
+describe("lab complete", () => {
+  test.each(["next", "skip"])("409 no_next_task on %s shows lab complete with a link, not an error", async (action) => {
+    backend({
+      [`GET ${API}/tasks/current`]: ok(task({ index: 2, total: 2, state: "passed" })),
+      [`POST ${API}/tasks/current/${action}`]: err(409, "no_next_task"),
+    });
+    await open();
+    fireEvent.click(btn(EN[`lab.${action}`]));
+    expect(await screen.findByText(EN["lab.complete"], { exact: false })).toBeTruthy();
+    expect(screen.getByRole("link", { name: EN["lab.to_labs"] })).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
+
+describe("check reason", () => {
+  test.each(["timeout", "error"])("reason %s says the check itself failed and marks no row", async (reason) => {
+    backend({
+      [`POST ${API}/tasks/01-a/check`]: ok({ passed: false, attempts: 1, reason, checklist: [{ n: 1, passed: false, hint: "h" }] }),
+    });
+    await open();
+    fireEvent.click(btn(EN["lab.check"]));
+    expect(await screen.findByText(EN["lab.check_failed"])).toBeTruthy();
+    expect(screen.getByTestId("task-panel").textContent).not.toContain("✗");
+    expect(screen.getByText(EN["lab.check_failed"]).closest("[aria-live]")?.getAttribute("aria-live")).toBe("polite");
+  });
+});
+
+describe("first load while the lab is being prepared", () => {
+  test.each(["setup_running", "session_busy", "session_starting"])("%s is retried and then shows the task", async (code) => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "setTimeout", "clearTimeout", "Date"] });
+    vi.setSystemTime(T0);
+    backend({ [`GET ${API}/tasks/current`]: [err(409, code), err(409, code), ok(task())] });
+    window.history.replaceState({}, "", "/labs/lab-1");
+    render(<App />);
+    for (let i = 0; i < 12; i++) await act(async () => void (await vi.advanceTimersByTimeAsync(0)));
+    expect(screen.queryByText(EN["lab.preparing"])).not.toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    await act(async () => void (await vi.advanceTimersByTimeAsync(2_000)));
+    await act(async () => void (await vi.advanceTimersByTimeAsync(2_000)));
+    for (let i = 0; i < 12; i++) await act(async () => void (await vi.advanceTimersByTimeAsync(0)));
+    expect(screen.queryByTestId("task-panel")).not.toBeNull();
+  });
+});
+
+describe("splitter", () => {
+  test("pointer capture is taken on press and a move after release does nothing", async () => {
+    backend({});
+    await open();
+    const sep = screen.getByRole("separator");
+    const capture = vi.fn();
+    (sep as unknown as { setPointerCapture: unknown }).setPointerCapture = capture;
+    const frame = sep.parentElement as HTMLElement;
+    frame.getBoundingClientRect = () => ({ left: 0, width: 1000 }) as DOMRect;
+    fireEvent.pointerDown(sep, { pointerId: 1, clientX: 400 });
+    expect(capture).toHaveBeenCalledWith(1);
+    fireEvent.pointerMove(sep, { pointerId: 1, clientX: 600 });
+    expect(sep.getAttribute("aria-valuenow")).toBe("60");
+    fireEvent.pointerUp(sep, { pointerId: 1 });
+    fireEvent.pointerMove(sep, { pointerId: 1, clientX: 300 });
+    expect(sep.getAttribute("aria-valuenow")).toBe("60");
+  });
+});

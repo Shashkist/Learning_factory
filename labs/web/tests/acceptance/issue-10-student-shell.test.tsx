@@ -21,7 +21,7 @@
  *   login.error.generic               anything else (422, 500, network failure)
  *   labs.title                  heading of My labs
  *   labs.empty                  placeholder text on My labs
- *   lab.placeholder             text on /labs/<id>
+ *   lab.error.no_session        text on /labs/<id> with no live session (lab screen, #130)
  *   nav.logout                  logout button
  *   notFound.title              text for unknown paths
  *
@@ -121,7 +121,7 @@ test("every text in both files is a non-empty string and the contract keys exist
     "login.error.invalid_credentials", "login.error.too_many_attempts",
     "login.error.account_disabled", "login.error.access_expired",
     "login.error.unavailable", "login.error.generic",
-    "labs.title", "labs.empty", "lab.placeholder", "nav.logout", "notFound.title",
+    "labs.title", "labs.empty", "lab.error.no_session", "nav.logout", "notFound.title",
   ];
   for (const d of [EN, HE])
     for (const k of keys) {
@@ -183,12 +183,11 @@ test.each(["/", "/labs"])("an authenticated student on %s sees My labs with thei
   expect(screen.queryByRole("heading", { name: EN["login.title"] })).toBeNull();
 });
 
-test("/labs/<id> shows the placeholder and the id, which stays left-to-right", async () => {
+test("/labs/<id> is the lab screen; with no live session it says so in the page language", async () => {
+  // Since #130 the slice-1 placeholder is replaced by the lab screen (no session in this fake: 404).
   backend({ me: STUDENT });
   at("/labs/linux-1", "he");
-  expect(await screen.findByText(HE["lab.placeholder"], { exact: false })).toBeTruthy();
-  const id = screen.getByText("linux-1", { exact: false });
-  expect(id.closest("[dir]")?.getAttribute("dir")).toBe("ltr");
+  expect(await screen.findByText(HE["lab.error.no_session"], { exact: false })).toBeTruthy();
 });
 
 test("an unknown path shows the not-found text", async () => {
@@ -211,7 +210,7 @@ test("browser back/forward (popstate) changes the page", async () => {
   act(() => {
     window.dispatchEvent(new PopStateEvent("popstate"));
   });
-  expect(await screen.findByText(EN["lab.placeholder"], { exact: false })).toBeTruthy();
+  expect(await screen.findByText(EN["lab.error.no_session"], { exact: false })).toBeTruthy();
 });
 
 // ------------------------------------------------------------------ login
