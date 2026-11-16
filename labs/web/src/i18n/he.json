@@ -74,5 +74,18 @@
   "admin.import.row_added": "נוסף",
   "admin.import.line": "שורה",
   "admin.error.load": "לא ניתן לטעון את הקבוצות.",
-  "admin.error.save": "השמירה נכשלה. בדקו את הערכים ונסו שוב."
+  "admin.error.save": "השמירה נכשלה. בדקו את הערכים ונסו שוב.",
+  "admin.cohorts.edit.name": "עריכת שם",
+  "admin.cohorts.edit.password": "סיסמת כיתה חדשה (ריק לשמירת הקיימת)",
+  "admin.cohorts.edit.access": "עריכת תאריך גישה",
+  "admin.cohorts.save": "שמירת שינויים",
+  "admin.students.show": "הצגת תלמידים",
+  "admin.students.disabled": "מושבת",
+  "admin.students.empty": "אין עדיין תלמידים בקבוצה.",
+  "admin.import.error.invalid_id": "תעודת הזהות אינה תקינה.",
+  "admin.import.error.missing_name": "השם חסר.",
+  "admin.import.error.invalid_name": "השם ארוך מדי או מכיל תווי בקרה.",
+  "admin.import.error.duplicate_in_paste": "אותה תעודת זהות כמו בשורה קודמת.",
+  "admin.import.error.already_exists": "תעודת הזהות כבר רשומה כתלמיד.",
+  "admin.import.error.unknown": "לא ניתן לייבא את השורה."
 }
