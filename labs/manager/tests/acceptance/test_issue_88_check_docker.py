@@ -278,10 +278,10 @@ def lab(admin_dsn, network, image, tmp_path_factory, request):
             id_hash(raw), f"Fake Student {raw}", cohort,
         )
 
-    _run_as(admin_dsn, seed)
     sid = ""
     try:
         with TestClient(app, base_url="https://testserver", client=("10.189.0.1", 50000)) as c:
+            _run_as(admin_dsn, seed)  # after startup: the app's migrations create the tables
             resp = c.post("/api/auth/login", json={"id": raw, "password": COHORT_PASSWORD})
             assert resp.status_code == 200, resp.text
             resp = c.post("/api/sessions", json={"lab_id": LAB})
