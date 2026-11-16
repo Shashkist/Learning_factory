@@ -66,13 +66,13 @@ QUIZ, PLAIN, SHORT = "01-quiz", "02-plain", "03-short"
 
 _n = itertools.count(1)
 
-# lab id -> (status, module, lesson, tasks)
+# lab id -> (status, module, lesson, tasks); lessons inside the module ranges of content.py
 LABS: dict[str, tuple[str, int, int, list[tuple[str, str]]]] = {
-    "cat-a": ("published", 1, 2, [(QUIZ, "quiz"), (PLAIN, "hands-on"), (SHORT, "hands-on")]),
-    "cat-b": ("published", 1, 1, [(PLAIN, "hands-on")]),
-    "cat-c": ("published", 2, 1, [(PLAIN, "hands-on"), (SHORT, "hands-on")]),
-    "cat-draft": ("draft", 1, 3, [(PLAIN, "hands-on")]),
-    "cat-internal": ("internal", 1, 4, [(PLAIN, "hands-on")]),
+    "cat-a": ("published", 1, 6, [(QUIZ, "quiz"), (PLAIN, "hands-on"), (SHORT, "hands-on")]),
+    "cat-b": ("published", 1, 5, [(PLAIN, "hands-on")]),
+    "cat-c": ("published", 2, 13, [(PLAIN, "hands-on"), (SHORT, "hands-on")]),
+    "cat-draft": ("draft", 1, 7, [(PLAIN, "hands-on")]),
+    "cat-internal": ("internal", 1, 8, [(PLAIN, "hands-on")]),
 }
 PUBLISHED = ["cat-b", "cat-a", "cat-c"]  # the expected order: module, lesson
 
@@ -407,7 +407,7 @@ def test_entries_carry_titles_descriptions_module_lesson_and_task_count(env):
     x = entry(env.student(), "cat-a")
     assert x["title"] == {"en": "Title cat-a", "he": "כותרת cat-a"}
     assert x["description"] == {"en": "About cat-a.", "he": "על cat-a."}
-    assert x["module"] == 1 and x["lesson"] == 2
+    assert x["module"] == 1 and x["lesson"] == 6
     assert isinstance(x["module"], int) and isinstance(x["lesson"], int)
     assert x["tasks"] == 3
     assert entry(env.student(), "cat-c")["tasks"] == 2
