@@ -255,6 +255,7 @@ def test_non_ascii_email_is_refused_before_the_allow_list(
     configured: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # U+212A (Kelvin sign) lowercases to "k"
+    monkeypatch.setattr(auth, "limiter", auth.RateLimiter())  # no gstart: hits from other tests
     monkeypatch.setenv("LF_ADMIN_EMAILS", "kim@example.test")
     claims: dict[str, Any] = {"iss": "accounts.google.com", "sub": "s", "email_verified": True,
                               "email": "Kim@example.test", "nonce": "?"}  # fmt: skip
@@ -318,6 +319,7 @@ def test_an_undecodable_allow_list_byte_is_dropped_not_a_crash(
     env.pop("LF_ADMIN_PASSWORD_LOGIN", None)
     monkeypatch.setattr(os, "environ", env)
     monkeypatch.setattr(auth, "_dropped_logged_for", None)
+    monkeypatch.setattr(auth, "limiter", auth.RateLimiter())  # no gstart: hits from other tests
     with caplog.at_level(logging.WARNING):
         cfg = auth.google_config()
     assert cfg is not None and cfg.emails == frozenset({EMAIL.lower()})
@@ -326,14 +328,15 @@ def test_an_undecodable_allow_list_byte_is_dropped_not_a_crash(
     env["LF_ADMIN_PASSWORD_LOGIN"] = "1"
     assert auth.password_login_allowed() is True
     with _client() as c:
-        assert c.get("/api/auth/admin/methods").status_code == 200
+        r = c.get("/api/auth/admin/methods")
+        assert r.status_code == 200 and r.json() == {"google": True, "password": True}
         assert c.get("/auth/google/start", follow_redirects=False).status_code == 303
 
 
 def test_sweep_evicts_other_keys_first_and_spares_a_key_at_its_limit() -> None:
-    """Over the cap, per-client keys (ip:, gcb:, gstart:) go first, oldest first; a non-client key
-    (admin:) goes only if nothing else is left to evict, and any key at or above its limit with
-    a live window is never evicted. The newest client keys survive."""
+    """Over the cap, per-client keys (ip:, gcb:, gstart:) are evicted first, in insertion order,
+    before any non-client key (admin:); a key at or above its limit with a live window is never
+    evicted. The newest client keys survive."""
     now = [0.0]
     rl = auth.RateLimiter(window=1000, clock=lambda: now[0], max_keys=5, sweep_at=1000,
                            sweep_interval=0)
