@@ -244,6 +244,8 @@ in force · factory · 2026-11-15
 - *DB down.* The expiry-label sweep backs off from 2 s, doubling up to the janitor interval, and resets after a healthy pass. An identical repeated error is logged once at ERROR (DEBUG after that). Recovery lines and periodic reminders come in #55.
 - *Mounts.* Two more capped mounts: `/dev/shm` (`ShmSize` 64 MB) and a root-owned 1 MB tmpfs on `/var/mail`, which hides the `student` mail spool that `useradd -m` creates. The exam's write-surface check is `find / -xdev ! -type l \( -perm -0002 -o -user student \)`. `! -type l` was added to the issue's command because symlinks always show mode 0777 and hold no data.
 
+**Amended after the review of #139 (round 1).** The start waits for the lab to be ready for at most `LF_READY_TIMEOUT_S` (default 45 s, capped at 55 s, so under nginx's 60 s for `POST /api/sessions`, D56). A container that is gone or stopped ends the wait at once.
+
 ## D25 · Server bootstrap for #3: one script with steps, tested on the CI runner
 in force · factory · 2026-11-15
 
