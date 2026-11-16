@@ -151,8 +151,12 @@ jobs:
             SMOKE_ID=990000000000000000000000000001
             SMOKE_PASSWORD="$class_pw"
             export SMOKE_ID SMOKE_PASSWORD
-            python labs/deploy/smoke/tasks.py > "$RUNNER_TEMP/tasks.out" || st=$?
-            cat "$RUNNER_TEMP/tasks.out"
+            # Streamed to the log as it happens, bounded below the job limit; the session id is read
+            # from the file afterwards, so it is recorded even when the limit cuts the smoke off.
+            set +e
+            timeout -k 10 300 python labs/deploy/smoke/tasks.py | tee "$RUNNER_TEMP/tasks.out"
+            st=${PIPESTATUS[0]}
+            set -e
             tasks_sid=$(sed -n 's/^ok start \([0-9a-f-]*\)$/\1/p' "$RUNNER_TEMP/tasks.out" | head -n 1)
             echo "tasks_sid=$tasks_sid" >> "$GITHUB_OUTPUT"
           fi
