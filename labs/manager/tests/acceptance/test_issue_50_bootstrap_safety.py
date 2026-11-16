@@ -269,6 +269,16 @@ def _unregister_runsc(sc) -> dict:
     return cfg
 
 
+def _out(res: subprocess.CompletedProcess) -> str:
+    return (res.stdout or "") + (res.stderr or "")
+
+
+def _tail(out: str) -> str:
+    """The end of the script output, appended to assertion messages so a CI failure shows which
+    step rolled back."""
+    return "---- script output (tail) ----\n" + out[-2000:]
+
+
 def _bootstrap(env: dict[str, str]) -> subprocess.CompletedProcess:
     return h3._bootstrap(env, unset=("DRY_RUN",))
 
@@ -291,12 +301,24 @@ class _TripListener:
         self.port = self.sock.getsockname()[1]
         self.closed = threading.Event()
         self.stop = threading.Event()
-        threading.Thread(target=self._accept, daemon=True).start()
-        threading.Thread(target=self._watch, daemon=True).start()
+        self._accepter = threading.Thread(target=self._accept, daemon=True)
+        self._watcher = threading.Thread(target=self._watch, daemon=True)
+        self._accepter.start()
+        self._watcher.start()
+
+    def _shut(self) -> None:
+        """Stop listening at once. close() alone would leave the socket listening (and the kernel
+        completing handshakes from its backlog) while another thread sits in accept(); shutdown()
+        wakes that accept() and ends the listening state first."""
+        with contextlib.suppress(OSError):
+            self.sock.shutdown(h3.socket.SHUT_RDWR)
+        with contextlib.suppress(OSError):
+            self.sock.close()
 
     def _accept(self) -> None:
-        self.sock.settimeout(0.2)
-        while not self.stop.is_set() and not self.closed.is_set():
+        with contextlib.suppress(OSError):
+            self.sock.settimeout(0.2)
+        while not self.stop.is_set() and not self.closed.is_set() and self.sock.fileno() != -1:
             try:
                 c, _ = self.sock.accept()
                 c.close()
@@ -310,16 +332,17 @@ class _TripListener:
             except Exception:
                 hit = False
             if hit:
+                self._shut()
                 self.closed.set()
-                time.sleep(0.3)  # let the accept loop leave accept()
-                self.sock.close()
                 return
-            time.sleep(0.05)
+            time.sleep(0.01)
 
     def finish(self) -> None:
         self.stop.set()
-        with contextlib.suppress(OSError):
-            self.sock.close()
+        self._shut()
+        self._accepter.join(5)
+        self._watcher.join(5)
+        assert not self._accepter.is_alive(), "the listener's accept thread did not exit"
 
 
 def _boot_copy_is_new() -> bool:
@@ -367,12 +390,13 @@ def prev_copy():
                 time.sleep(0.02)
 
         threading.Thread(target=_watch_prev, daemon=True).start()
-        trip = _TripListener(_boot_copy_is_new)
+        trip = _TripListener(lambda: os.path.exists(f"{SBIN}.lf-prev"))
         try:
             s.res = _bootstrap(_failing_env(trip.port))
         finally:
             trip.finish()
             stop.set()
+        s.out = _out(s.res)
         s.tripped = trip.closed.is_set()
         time.sleep(1)
         s.after = _iptables_snapshot()
@@ -383,49 +407,60 @@ def _precondition_prev(s) -> None:
     assert s.first.returncode == 0, s.first.stdout + s.first.stderr
     assert s.before.sbin == OUTDATED_SBIN and s.before.unit == s.old_unit
     assert s.before.rules, "exam precondition: lf-labs rules exist before the failing run"
-    assert s.tripped, "exam precondition: the listener closed after the new boot copy appeared"
+    assert s.tripped, "exam precondition: the listener closed after the .lf-prev marker " \
+        "appeared\n" + _tail(s.out)
 
 
 @pytest.mark.docker
 def test_rollback_after_the_iptables_step_exits_non_zero_and_reports_baseline(prev_copy):
     _precondition_prev(prev_copy)
-    out = prev_copy.res.stdout + prev_copy.res.stderr
-    assert prev_copy.res.returncode != 0, out
-    assert "baseline" in out.lower()
-    assert f"{RESULT} changed" not in prev_copy.res.stdout
+    out = prev_copy.out
+    assert prev_copy.res.returncode != 0, _tail(out)
+    assert "baseline" in out.lower(), _tail(out)
+    assert "baseline differs after step 'iptables'" in out, \
+        "the baseline check that failed is not the one after the iptables step\n" + _tail(out)
+    assert f"{RESULT} changed" not in prev_copy.res.stdout, _tail(out)
 
 
 @pytest.mark.docker
 def test_rollback_restores_the_previous_boot_copy_of_the_rules_script(prev_copy):
     _precondition_prev(prev_copy)
-    assert prev_copy.after.sbin == OUTDATED_SBIN, "the old /usr/local/sbin/lf-labs-iptables is gone"
-    assert prev_copy.after.sbin_mode == prev_copy.before.sbin_mode, prev_copy.after.sbin_mode
+    assert prev_copy.after.sbin == OUTDATED_SBIN, \
+        "the old /usr/local/sbin/lf-labs-iptables is gone\n" + _tail(prev_copy.out)
+    assert prev_copy.after.sbin_mode == prev_copy.before.sbin_mode, \
+        f"{prev_copy.after.sbin_mode}\n" + _tail(prev_copy.out)
 
 
 @pytest.mark.docker
 def test_rollback_restores_the_previous_unit_file(prev_copy):
     _precondition_prev(prev_copy)
-    assert prev_copy.after.unit == prev_copy.old_unit, "the old lf-labs-iptables.service is gone"
-    assert prev_copy.after.enabled == prev_copy.before.enabled, "unit enablement changed"
+    assert prev_copy.after.unit == prev_copy.old_unit, \
+        "the old lf-labs-iptables.service is gone\n" + _tail(prev_copy.out)
+    assert prev_copy.after.enabled == prev_copy.before.enabled, \
+        "unit enablement changed\n" + _tail(prev_copy.out)
 
 
 @pytest.mark.docker
 def test_rollback_leaves_the_previous_lf_labs_rules_intact(prev_copy):
     _precondition_prev(prev_copy)
-    assert prev_copy.after.rules == prev_copy.before.rules, "lf-labs rules lost or reordered"
-    assert prev_copy.after.chain == prev_copy.before.chain, "LF-LABS-INPUT chain changed"
+    assert prev_copy.after.rules == prev_copy.before.rules, \
+        "lf-labs rules lost or reordered\n" + _tail(prev_copy.out)
+    assert prev_copy.after.chain == prev_copy.before.chain, \
+        "LF-LABS-INPUT chain changed\n" + _tail(prev_copy.out)
 
 
 @pytest.mark.docker
 def test_previous_boot_copy_is_kept_as_lf_prev_while_the_step_runs(prev_copy):
     _precondition_prev(prev_copy)
-    assert prev_copy.prev_seen, f"{SBIN}.lf-prev never appeared during the run"
+    assert prev_copy.prev_seen, f"{SBIN}.lf-prev never appeared during the run\n" + \
+        _tail(prev_copy.out)
 
 
 @pytest.mark.docker
 def test_rollback_leaves_no_lf_prev_files_behind(prev_copy):
     _precondition_prev(prev_copy)
-    assert prev_copy.after.leftovers == [], prev_copy.after.leftovers
+    assert prev_copy.after.leftovers == [], \
+        f"{prev_copy.after.leftovers}\n" + _tail(prev_copy.out)
 
 
 # ---------------------------------------------------------------- scenario 2: mixed state
@@ -449,6 +484,7 @@ def mixed_copy():
             s.res = _bootstrap(_failing_env(trip.port))
         finally:
             trip.finish()
+        s.out = _out(s.res)
         s.tripped = trip.closed.is_set()
         time.sleep(1)
         s.after = _iptables_snapshot()
@@ -458,36 +494,42 @@ def mixed_copy():
 
 def _precondition_mixed(s) -> None:
     assert s.before.sbin == OUTDATED_SBIN and s.before.unit is None and not s.before.rules
-    assert s.tripped, "exam precondition: the listener closed after the new boot copy appeared"
-    assert s.res.returncode != 0, s.res.stdout + s.res.stderr
+    assert s.tripped, "exam precondition: the listener closed after the new boot copy " \
+        "appeared\n" + _tail(s.out)
+    assert s.res.returncode != 0, _tail(s.out)
 
 
 @pytest.mark.docker
 def test_rollback_removes_the_unit_this_run_created(mixed_copy):
     _precondition_mixed(mixed_copy)
-    assert mixed_copy.after.unit is None, "the unit written by the failed run is still there"
-    assert not os.path.exists(UNIT_PATH)
+    assert mixed_copy.after.unit is None, \
+        "the unit written by the failed run is still there\n" + _tail(mixed_copy.out)
+    assert not os.path.exists(UNIT_PATH), _tail(mixed_copy.out)
 
 
 @pytest.mark.docker
 def test_rollback_restores_the_boot_copy_that_existed_even_when_the_unit_did_not(mixed_copy):
     _precondition_mixed(mixed_copy)
-    assert mixed_copy.after.sbin == OUTDATED_SBIN
+    assert mixed_copy.after.sbin == OUTDATED_SBIN, _tail(mixed_copy.out)
 
 
 @pytest.mark.docker
 def test_rollback_removes_the_lf_labs_rules_this_run_added(mixed_copy):
     _precondition_mixed(mixed_copy)
-    assert mixed_copy.after.rules == [], mixed_copy.after.rules
-    assert mixed_copy.after.chain is None, "the LF-LABS-INPUT chain created by the run is left"
+    assert mixed_copy.after.rules == [], f"{mixed_copy.after.rules}\n" + _tail(mixed_copy.out)
+    assert mixed_copy.after.chain is None, \
+        "the LF-LABS-INPUT chain created by the run is left\n" + _tail(mixed_copy.out)
 
 
 @pytest.mark.docker
 def test_rollback_deletes_only_files_this_run_created(mixed_copy):
     _precondition_mixed(mixed_copy)
-    assert mixed_copy.bystander_bytes[0] == b"#!/bin/sh\n", "an unrelated sbin file was touched"
-    assert mixed_copy.bystander_bytes[1] is not None, "an unrelated unit file was deleted"
-    assert mixed_copy.after.leftovers == [], mixed_copy.after.leftovers
+    assert mixed_copy.bystander_bytes[0] == b"#!/bin/sh\n", \
+        "an unrelated sbin file was touched\n" + _tail(mixed_copy.out)
+    assert mixed_copy.bystander_bytes[1] is not None, \
+        "an unrelated unit file was deleted\n" + _tail(mixed_copy.out)
+    assert mixed_copy.after.leftovers == [], \
+        f"{mixed_copy.after.leftovers}\n" + _tail(mixed_copy.out)
 
 
 # ---------------------------------------------------------------- scenario 3: no runtimes key
@@ -545,28 +587,38 @@ def no_runtimes_key():
 @pytest.mark.docker
 def test_rollback_without_a_runtimes_key_restores_daemon_json_bytes(no_runtimes_key):
     s = no_runtimes_key
-    assert s.tripped, "exam precondition: the listener closed after the backup appeared"
-    assert s.rc != 0, s.out
-    assert "baseline" in s.out.lower()
-    assert s.after == s.seed, "daemon.json was not restored byte for byte"
-    assert s.after_mode == s.mode, f"mode/owner changed: {s.mode} -> {s.after_mode}"
+    assert s.tripped, "exam precondition: the listener closed after the backup appeared\n" \
+        + _tail(s.out)
+    assert s.rc != 0, _tail(s.out)
+    assert "baseline" in s.out.lower(), _tail(s.out)
+    assert "baseline differs after step 'runtime'" in s.out, \
+        "the baseline check that failed is not the one after the runtime step\n" + _tail(s.out)
+    assert s.after == s.seed, "daemon.json was not restored byte for byte\n" + _tail(s.out)
+    assert s.after_mode == s.mode, \
+        f"mode/owner changed: {s.mode} -> {s.after_mode}\n" + _tail(s.out)
 
 
 @pytest.mark.docker
 def test_rollback_without_a_runtimes_key_removes_runsc_from_docker(no_runtimes_key):
-    assert no_runtimes_key.tripped
-    assert no_runtimes_key.runsc_gone, "docker still lists runsc after the rollback"
+    assert no_runtimes_key.tripped, _tail(no_runtimes_key.out)
+    assert no_runtimes_key.runsc_gone, \
+        "docker still lists runsc after the rollback\n" + _tail(no_runtimes_key.out)
 
 
 @pytest.mark.docker
 def test_signals_during_the_rollback_do_not_stop_it(no_runtimes_key):
     s = no_runtimes_key
     assert s.signals == ["HUP", "TERM", "INT"], \
-        f"exam precondition: could not signal the script during its rollback ({s.signals})"
-    assert s.rc != 0
-    assert _last_line(SimpleNamespace(stdout=s.out)) == f"{RESULT} failed", s.out[-600:]
-    assert s.after == s.seed, "a signal cut the rollback short: daemon.json not restored"
-    assert s.runsc_gone, "a signal cut the rollback short: docker still lists runsc"
+        f"exam precondition: could not signal the script during its rollback ({s.signals})\n" \
+        + _tail(s.out)
+    assert s.rc != 0, _tail(s.out)
+    assert "interrupted by a signal" not in s.out, \
+        "the rollback reacted to a signal instead of ignoring it\n" + _tail(s.out)
+    assert _last_line(SimpleNamespace(stdout=s.out)) == f"{RESULT} failed", _tail(s.out)
+    assert s.after == s.seed, \
+        "a signal cut the rollback short: daemon.json not restored\n" + _tail(s.out)
+    assert s.runsc_gone, \
+        "a signal cut the rollback short: docker still lists runsc\n" + _tail(s.out)
 
 
 # ---------------------------------------------------------------- scenario 4: download path
@@ -613,28 +665,29 @@ def test_run_with_runsc_moved_aside_downloads_and_installs_it(download_path):
     s = download_path
     assert s.moved, "exam precondition: the runner has a runsc binary to move aside"
     assert s.which == "", f"exam precondition: runsc still on root's PATH at {s.which}"
-    assert s.res.returncode == 0, s.res.stdout + s.res.stderr
-    assert _last_line(s.res) == f"{RESULT} changed"
-    assert s.dest_exists and s.dest_exec, f"{RUNSC_DEST} was not installed"
-    assert s.version.returncode == 0, s.version.stderr
+    assert s.res.returncode == 0, _tail(_out(s.res))
+    assert _last_line(s.res) == f"{RESULT} changed", _tail(_out(s.res))
+    assert s.dest_exists and s.dest_exec, f"{RUNSC_DEST} was not installed\n" + _tail(_out(s.res))
+    assert s.version.returncode == 0, s.version.stderr + _tail(_out(s.res))
 
 
 @pytest.mark.docker
 def test_downloaded_runsc_is_registered_and_runs_containers(download_path):
     s = download_path
-    assert s.res.returncode == 0
+    assert s.res.returncode == 0, _tail(_out(s.res))
     entry = (s.cfg.get("runtimes") or {}).get("runsc") or {}
-    assert entry.get("path") == RUNSC_DEST, entry
-    assert OVERLAY in (entry.get("runtimeArgs") or []), entry
-    assert "runsc" in s.runtimes
-    assert s.hello.returncode == 0, s.hello.stderr
+    assert entry.get("path") == RUNSC_DEST, f"{entry}\n" + _tail(_out(s.res))
+    assert OVERLAY in (entry.get("runtimeArgs") or []), f"{entry}\n" + _tail(_out(s.res))
+    assert "runsc" in s.runtimes, _tail(_out(s.res))
+    assert s.hello.returncode == 0, s.hello.stderr + _tail(_out(s.res))
     assert "Hello from Docker" in s.hello.stdout
 
 
 @pytest.mark.docker
 def test_download_leaves_no_temp_files_next_to_runsc(download_path):
-    assert download_path.res.returncode == 0
-    assert download_path.leftovers == [], download_path.leftovers
+    assert download_path.res.returncode == 0, _tail(_out(download_path.res))
+    assert download_path.leftovers == [], \
+        f"{download_path.leftovers}\n" + _tail(_out(download_path.res))
 
 
 # ---------------------------------------------------------------- scenario 5: dockerd flag
@@ -685,17 +738,19 @@ def _precondition_flag(s) -> None:
 @pytest.mark.docker
 def test_flag_registered_runsc_leaves_daemon_json_byte_identical(flag_registered):
     _precondition_flag(flag_registered)
-    assert flag_registered.after == flag_registered.seed, "daemon.json was rewritten"
-    assert flag_registered.after_mode == flag_registered.seed_mode
+    assert flag_registered.after == flag_registered.seed, \
+        "daemon.json was rewritten\n" + _tail(flag_registered.out)
+    assert flag_registered.after_mode == flag_registered.seed_mode, _tail(flag_registered.out)
 
 
 @pytest.mark.docker
 def test_flag_registered_runsc_report_shows_the_dockerd_command_line_and_runtimes(flag_registered):
     _precondition_flag(flag_registered)
     out = flag_registered.out
-    assert "--add-runtime" in out, "the report does not show the live dockerd command line"
-    assert re.search(r"runsc=\S+", out) or "runsc" in out
-    assert "dockerd" in out
+    assert "--add-runtime" in out, \
+        "the report does not show the live dockerd command line\n" + _tail(out)
+    assert re.search(r"runsc=\S+", out) or "runsc" in out, _tail(out)
+    assert "dockerd" in out, _tail(out)
 
 
 @pytest.mark.docker
@@ -704,12 +759,12 @@ def test_flag_registered_runsc_run_never_claims_success_without_overlay2_root_me
 ):
     s = flag_registered
     _precondition_flag(s)
-    assert "runsc" in s.runtimes, "the run left docker without runsc"
+    assert "runsc" in s.runtimes, "the run left docker without runsc\n" + _tail(s.out)
     if s.res.returncode == 0:
         args = (s.runtimes.get("runsc") or {}).get("runtimeArgs") or []
-        assert OVERLAY in args, f"exit 0 but docker info shows runsc with {args}"
+        assert OVERLAY in args, f"exit 0 but docker info shows runsc with {args}\n" + _tail(s.out)
     else:
-        assert _last_line(s.res) == f"{RESULT} failed", s.out[-600:]
+        assert _last_line(s.res) == f"{RESULT} failed", _tail(s.out)
 
 
 # ---------------------------------------------------------------- scenario 6: normal run
@@ -737,25 +792,27 @@ def normal_run():
 @pytest.mark.docker
 def test_normal_run_docker_info_shows_runsc_with_overlay2_root_memory(normal_run):
     s = normal_run
-    assert s.res.returncode == 0, s.res.stdout + s.res.stderr
-    assert _last_line(s.res) == f"{RESULT} changed"
+    out = _out(s.res)
+    assert s.res.returncode == 0, _tail(out)
+    assert _last_line(s.res) == f"{RESULT} changed", _tail(out)
     runsc = s.runtimes.get("runsc")
-    assert runsc, f"docker info lists no runsc: {s.runtimes}"
-    assert OVERLAY in (runsc.get("runtimeArgs") or []), runsc
-    assert s.hello.returncode == 0, s.hello.stderr
+    assert runsc, f"docker info lists no runsc: {s.runtimes}\n" + _tail(out)
+    assert OVERLAY in (runsc.get("runtimeArgs") or []), f"{runsc}\n" + _tail(out)
+    assert s.hello.returncode == 0, s.hello.stderr + _tail(out)
 
 
 @pytest.mark.docker
 def test_daemon_json_keeps_its_original_mode_and_owner(normal_run):
-    assert normal_run.res.returncode == 0
+    assert normal_run.res.returncode == 0, _tail(_out(normal_run.res))
     assert normal_run.before == "640 root:adm", normal_run.before
-    assert normal_run.after_stat == normal_run.before, normal_run.after_stat
+    assert normal_run.after_stat == normal_run.before, \
+        f"{normal_run.after_stat}\n" + _tail(_out(normal_run.res))
 
 
 @pytest.mark.docker
 def test_normal_run_keeps_the_other_daemon_json_keys(normal_run):
-    assert normal_run.res.returncode == 0
-    assert normal_run.cfg.get("max-concurrent-uploads") == 4
+    assert normal_run.res.returncode == 0, _tail(_out(normal_run.res))
+    assert normal_run.cfg.get("max-concurrent-uploads") == 4, _tail(_out(normal_run.res))
 
 
 # ---------------------------------------------------------------- scenario 7: in file, not loaded
@@ -789,18 +846,21 @@ def in_file_not_loaded():
 @pytest.mark.docker
 def test_runsc_in_file_but_not_loaded_fails_when_something_else_differs(in_file_not_loaded):
     s = in_file_not_loaded
-    out = s.res_a.stdout + s.res_a.stderr
+    out = _out(s.res_a)
     assert s.res_a.returncode != 0, "a reload would have applied unrelated changes: " + out
-    assert _last_line(s.res_a) == f"{RESULT} failed", out[-600:]
-    assert s.after_a == s.bytes_a, "daemon.json was modified"
-    assert not s.loaded_a, "docker was reloaded although the file differs in other keys"
+    assert _last_line(s.res_a) == f"{RESULT} failed", _tail(out)
+    assert s.after_a == s.bytes_a, "daemon.json was modified\n" + _tail(out)
+    assert not s.loaded_a, \
+        "docker was reloaded although the file differs in other keys\n" + _tail(out)
 
 
 @pytest.mark.docker
 def test_runsc_in_file_but_not_loaded_is_reloaded_when_nothing_else_differs(in_file_not_loaded):
     s = in_file_not_loaded
-    assert s.res_b.returncode == 0, s.res_b.stdout + s.res_b.stderr
-    assert s.after_b == s.bytes_b, "daemon.json must not be rewritten, only reloaded"
+    out = _out(s.res_b)
+    assert s.res_b.returncode == 0, _tail(out)
+    assert s.after_b == s.bytes_b, \
+        "daemon.json must not be rewritten, only reloaded\n" + _tail(out)
     runsc = s.runtimes_b.get("runsc")
-    assert runsc, f"docker info lists no runsc after the reload: {s.runtimes_b}"
-    assert OVERLAY in (runsc.get("runtimeArgs") or []), runsc
+    assert runsc, f"docker info lists no runsc after the reload: {s.runtimes_b}\n" + _tail(out)
+    assert OVERLAY in (runsc.get("runtimeArgs") or []), f"{runsc}\n" + _tail(out)
