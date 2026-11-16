@@ -325,3 +325,27 @@ def test_an_undecodable_allow_list_byte_is_dropped_not_a_crash(
     assert auth.password_login_allowed() is False
     env["LF_ADMIN_PASSWORD_LOGIN"] = "1"
     assert auth.password_login_allowed() is True
+    with _client() as c:
+        assert c.get("/api/auth/admin/methods").status_code == 200
+        assert c.get("/auth/google/start", follow_redirects=False).status_code == 303
+
+
+def test_sweep_evicts_other_keys_first_and_spares_a_key_at_its_limit() -> None:
+    """Over the cap, per-client keys (ip:, gcb:, gstart:) go first, oldest first; a non-client key
+    (admin:) goes only if nothing else is left to evict, and any key at or above its limit with
+    a live window is never evicted. The newest client keys survive."""
+    now = [0.0]
+    rl = auth.RateLimiter(window=1000, clock=lambda: now[0], max_keys=5, sweep_at=1000,
+                           sweep_interval=0)
+    assert rl.hit(("admin:a", 5))  # below its limit, not a client key
+    assert rl.hit(("gcb:full", 1))  # at its limit
+    for i in range(10):
+        now[0] += 1
+        assert rl.hit((f"gcb:{i}", 5))
+        assert rl.hit((f"gstart:{i}", 5))
+    rl.sweep_at = 1
+    now[0] += 1
+    assert rl.hit(("gstart:last", 5))
+    assert len(rl._events) <= rl.max_keys
+    assert "admin:a" in rl._events and "gcb:full" in rl._events
+    assert set(rl._events) == {"admin:a", "gcb:full", "gcb:9", "gstart:9", "gstart:last"}
