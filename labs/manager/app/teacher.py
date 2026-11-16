@@ -9,15 +9,13 @@ from datetime import date
 from typing import Annotated, Any, NamedTuple
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import AfterValidator, BaseModel, BeforeValidator, Field
+from pydantic import AfterValidator, BaseModel, BeforeValidator, Field, field_validator
 
 from app import auth, db
 from app.auth import current_admin, db_guard
-from app.cli import SMOKE_COHORT
+from app.smoke import NOT_SMOKE_SQL, is_smoke_cohort
 
 T = db.SCHEMA
-# The reserved smoke cohort (D36/D54) is left out of every teacher query that joins `cohorts c`.
-NOT_SMOKE = f"lower(trim(c.name)) <> '{SMOKE_COHORT}'"
 
 router = APIRouter(prefix="/api/admin", dependencies=[Depends(current_admin)])
 
@@ -29,7 +27,7 @@ def printable(value: str) -> bool:
 
 def _name(value: str) -> str:
     value = value.strip()
-    if not value or value.lower() == SMOKE_COHORT or not printable(value):
+    if not value or is_smoke_cohort(value) or not printable(value):
         raise ValueError("invalid name")
     return value
 
@@ -37,12 +35,23 @@ def _name(value: str) -> str:
 def _date(value: Any) -> date:
     if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
         raise ValueError("expected YYYY-MM-DD")
-    return date.fromisoformat(value)
+    day = date.fromisoformat(value)
+    if day < MIN_DAY:
+        raise ValueError("date too early")
+    return day
+
+
+def _password(value: str) -> str:
+    if not value.strip():
+        raise ValueError("invalid password")
+    return value
 
 
 MAX_NAME = 200
+MAX_LINES = 2000
+MIN_DAY = date(2020, 1, 1)
 Name = Annotated[str, Field(max_length=MAX_NAME), AfterValidator(_name)]
-Password = Annotated[str, Field(min_length=1, max_length=1000)]
+Password = Annotated[str, Field(min_length=1, max_length=1000), AfterValidator(_password)]
 Day = Annotated[date, BeforeValidator(_date)]
 
 
@@ -61,6 +70,13 @@ class CohortEdit(BaseModel):
 class ImportBody(BaseModel):
     text: str = Field(max_length=200_000)
 
+    @field_validator("text")
+    @classmethod
+    def _line_cap(cls, value: str) -> str:
+        if sum(1 for raw in value.split("\n") if raw.strip()) > MAX_LINES:
+            raise ValueError("too many lines")
+        return value
+
 
 def _cohort(row: Any) -> dict[str, Any]:
     return {
@@ -74,7 +90,7 @@ def _cohort(row: Any) -> dict[str, Any]:
 _COHORT_SQL = (
     "select c.id, c.name, c.access_until, "
     f"(select count(*) from {T}.students s where s.cohort_id = c.id)::int as students "
-    f"from {T}.cohorts c where {NOT_SMOKE}"
+    f"from {T}.cohorts c where {NOT_SMOKE_SQL}"
 )
 
 
@@ -133,11 +149,12 @@ class Line(NamedTuple):
 
 
 def split_lines(text: str) -> list[Line]:
-    """The non-blank lines "ID, name" with their 1-based line numbers; split at the first comma."""
+    """The non-blank lines "ID, name" with their 1-based line numbers; split at the first comma,
+    or at the first tab when the line has no comma (a spreadsheet paste)."""
     out = []
     for n, raw in enumerate(text.split("\n"), 1):
         if raw.strip():
-            sid, _, name = raw.partition(",")
+            sid, _, name = raw.partition("," if "," in raw else "\t")
             out.append(Line(n, sid, name.strip()))
     return out
 
