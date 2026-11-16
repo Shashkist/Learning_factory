@@ -8,7 +8,8 @@ from pathlib import Path
 
 import asyncpg
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import FileResponse, JSONResponse
 
 from app import auth, catalog, db, google_auth, janitor, sessions, tasks, teacher, term_proxy
 from app.content import load_labs
@@ -178,3 +179,15 @@ def _mount_web(web_dir: str | None) -> None:
 
 
 _mount_web(os.environ.get("LF_WEB_DIR"))
+
+
+async def quiet_validation_error(request: Request, exc: Exception) -> JSONResponse:
+    """A 422 never repeats the request: only the error type, location and message are kept."""
+    errors = exc.errors() if isinstance(exc, RequestValidationError) else []
+    detail = [
+        {"type": e.get("type"), "loc": list(e.get("loc", ())), "msg": e.get("msg")} for e in errors
+    ]
+    return JSONResponse({"detail": detail}, status_code=422)
+
+
+app.add_exception_handler(RequestValidationError, quiet_validation_error)
