@@ -10,6 +10,7 @@ function backend(logoutStatus: number) {
     calls.push(String(url));
     if (String(url) === "/api/auth/me")
       return new Response(JSON.stringify({ kind: "student", name: "Dana Test" }), { status: 200 });
+    if (String(url) === "/api/labs") return new Response("[]", { status: 200 });
     return new Response(null, { status: logoutStatus });
   }) as typeof fetch;
   return calls;
