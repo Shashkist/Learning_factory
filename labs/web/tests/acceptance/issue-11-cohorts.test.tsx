@@ -335,7 +335,7 @@ describe.each(LANGS)("paste import in %s", (lang) => {
     expect(JSON.parse(sent[0].body ?? "null")).toEqual({ text: PASTE });
   });
 
-  test("the result shows the added count and one row per line with the server's messages", async () => {
+  test("the result shows the added count and one row per line with the translated error per code (#172)", async () => {
     backend({ import: RESULT });
     at(lang);
     await doImport("Spring group", PASTE);
@@ -346,10 +346,10 @@ describe.each(LANGS)("paste import in %s", (lang) => {
     expect(r1.textContent).toContain(d["admin.import.row_added"]);
     const r2 = screen.getByTestId("import-row-2");
     expect(r2.textContent).toContain(`${d["admin.import.line"]} 2`);
-    expect(r2.textContent).toContain("Line 2: the ID is not valid.");
+    expect(r2.textContent).toContain(d["admin.import.error.invalid_id"]);
     expect(r2.textContent).not.toContain(d["admin.import.row_added"]);
     const r3 = screen.getByTestId("import-row-3");
-    expect(r3.textContent).toContain("Same ID as an earlier line.");
+    expect(r3.textContent).toContain(d["admin.import.error.duplicate_in_paste"]);
     expect(screen.getAllByTestId(/^import-row-/)).toHaveLength(3);
   });
 
