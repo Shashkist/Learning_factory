@@ -362,9 +362,30 @@ describe("open tasks view", () => {
     await open();
     fireEvent.click(btn(EN["lab.next"]));
     fireEvent.click(await screen.findByRole("button", { name: "Alpha" }));
-    expect(await screen.findByRole("heading", { name: "Alpha" })).toBeTruthy();
+    const heading = await screen.findByRole("heading", { name: "Alpha" });
     expect(n(calls, "POST", `${API}/tasks/a/show`)).toBe(1);
     expect(screen.queryByText(EN["lab.open.one"])).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(heading));
+  });
+
+  test("a failed show says the task could not be opened, not that the lab failed", async () => {
+    backend({ ...openRoutes, [`POST ${API}/tasks/a/show`]: err(500, "boom") });
+    await open();
+    fireEvent.click(btn(EN["lab.next"]));
+    fireEvent.click(await screen.findByRole("button", { name: "Alpha" }));
+    expect((await screen.findByRole("alert")).textContent).toBe(EN["lab.error.show"]);
+    expect(screen.getByText(EN["lab.open.one"])).toBeTruthy();
+  });
+
+  test("a second click while a show is pending sends one request", async () => {
+    const calls = backend({ ...openRoutes, [`POST ${API}/tasks/a/show`]: "hang" });
+    await open();
+    fireEvent.click(btn(EN["lab.next"]));
+    const alpha = await screen.findByRole("button", { name: "Alpha" });
+    fireEvent.click(alpha);
+    fireEvent.click(alpha);
+    await waitFor(() => expect((alpha as HTMLButtonElement).disabled).toBe(true));
+    expect(n(calls, "POST", `${API}/tasks/a/show`)).toBe(1);
   });
 
   test("a failed re-read of the list says the list could not be loaded", async () => {

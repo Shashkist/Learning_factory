@@ -149,6 +149,9 @@ export default function LabScreen({
   const call = useRef(makeCall(skew)).current;
   const ending = useRef(false);
   const [open, setOpen] = useState<{ id: string; title: Bi }[] | null>(null);
+  // A task opened from the open-tasks list takes the focus (its button unmounts with the list).
+  const heading = useRef<HTMLHeadingElement>(null);
+  const focusTask = useRef(false);
 
   useEffect(() => {
     alive.current = true;
@@ -261,7 +264,13 @@ export default function LabScreen({
     return () => clearInterval(clockId);
   }, [sid, phase, expires]);
 
-  const run = async (fn: () => Promise<void>) => {
+  useEffect(() => {
+    if (open || !focusTask.current || !heading.current) return;
+    focusTask.current = false;
+    heading.current.focus();
+  });
+
+  const run = async (fn: () => Promise<void>, fallback = "lab.error.load") => {
     if (inFlight.current) return;
     inFlight.current = true;
     setPending(true);
@@ -274,7 +283,7 @@ export default function LabScreen({
       else if (isEnded(e)) setPhase("ended");
       else if (e instanceof Failure && e.detail && ACTION_ERRORS[e.detail])
         setError(ACTION_ERRORS[e.detail]);
-      else setError("lab.error.load");
+      else setError(fallback);
     } finally {
       inFlight.current = false;
       if (alive.current) setPending(false);
@@ -481,10 +490,10 @@ export default function LabScreen({
                       disabled={pending}
                       onClick={() =>
                         run(async () => {
-                          show(
-                            await call<Task>("POST", `${base}/${o.id}/show`),
-                          );
-                        })
+                          const next = await call<Task>("POST", `${base}/${o.id}/show`);
+                          focusTask.current = true;
+                          show(next);
+                        }, "lab.error.show")
                       }
                     >
                       {o.title[lang]}
@@ -501,7 +510,9 @@ export default function LabScreen({
             <p>{t("lab.solution.none")}</p>
           ) : (
             <>
-              <h2>{task.title[lang]}</h2>
+              <h2 ref={heading} tabIndex={-1}>
+                {task.title[lang]}
+              </h2>
               {hands ? (
                 <>
                   {task.text && (
