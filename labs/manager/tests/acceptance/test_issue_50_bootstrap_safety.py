@@ -224,7 +224,7 @@ def _runner_scope():
     snap = _snapshot_daemon_state()
     _check_clean_start(snap, "test_issue_50_bootstrap_safety")
     sc = SimpleNamespace(
-        original=snap.original, undo=[], orig_swaps=_swap_names(),
+        restore_problem="", original=snap.original, undo=[], orig_swaps=_swap_names(),
         had_runsc=snap.had_runsc, snap=snap,
     )
     sc.orig_stat = _stat(DAEMON_JSON) if sc.original is not None else None
@@ -261,7 +261,15 @@ def _runner_scope():
         for name in sc.orig_swaps:
             _sudo("swapon", name, check=False)
         baseline.shutdown()
-        h3._precondition(not restore_problem, restore_problem)  # last: all cleanup is done
+        sc.restore_problem = restore_problem  # reported last, after the tests ran
+
+
+def _scope_result(s, sc):
+    """Fixture tail, outside the `with`: the scope is already torn down (module-scoped fixtures
+    must not hold a runner scope open until the end of the module), the tests run, then a failed
+    restore is reported last."""
+    yield s
+    h3._precondition(not sc.restore_problem, sc.restore_problem)
 
 
 def _unregister_runsc(sc) -> dict:
@@ -405,7 +413,7 @@ def prev_copy():
         s.tripped = trip.closed.is_set()
         time.sleep(1)
         s.after = _iptables_snapshot()
-        yield s
+    yield from _scope_result(s, sc)
 
 
 def _precondition_prev(s) -> None:
@@ -494,7 +502,7 @@ def mixed_copy():
         time.sleep(1)
         s.after = _iptables_snapshot()
         s.bystander_bytes = [_read(p) for p in bystanders]
-        yield s
+    yield from _scope_result(s, sc)
 
 
 def _precondition_mixed(s) -> None:
@@ -588,7 +596,7 @@ def no_runtimes_key():
         s.after = _daemon_bytes()
         s.after_mode = _stat(DAEMON_JSON)
         s.state = h3._state_text("after the rollback run")
-        yield s
+    yield from _scope_result(s, sc)
 
 
 @pytest.mark.docker
@@ -666,7 +674,7 @@ def download_path():
         s.cfg = _base_cfg(_daemon_bytes())
         s.runtimes = _runtimes()
         s.hello = _run(["docker", "run", "--rm", "--runtime=runsc", "hello-world"], timeout=600)
-        yield s
+    yield from _scope_result(s, sc)
 
 
 @pytest.mark.docker
@@ -736,7 +744,7 @@ def flag_registered():
         s.runtimes = _runtimes()
         s.cmdline = _run(["sudo", "-n", "sh", "-c", "tr '\\0' ' ' < /proc/$(pidof dockerd)/cmdline"]
                          ).stdout
-        yield s
+    yield from _scope_result(s, sc)
 
 
 def _precondition_flag(s) -> None:
@@ -795,7 +803,7 @@ def normal_run():
         s.cfg = _base_cfg(_daemon_bytes())
         s.runtimes = _runtimes()
         s.hello = _run(["docker", "run", "--rm", "--runtime=runsc", "hello-world"], timeout=600)
-        yield s
+    yield from _scope_result(s, sc)
 
 
 @pytest.mark.docker
@@ -849,7 +857,7 @@ def in_file_not_loaded():
         s.res_b = _bootstrap(sc.good_env)
         s.after_b = _daemon_bytes()
         s.runtimes_b = _runtimes()
-        yield s
+    yield from _scope_result(s, sc)
 
 
 @pytest.mark.docker
