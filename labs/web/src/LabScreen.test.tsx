@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 
 import App from "./App";
 import en from "./i18n/en.json";
@@ -10,19 +17,33 @@ type Calls = { url: string; method: string }[];
 
 const SID = "s1";
 const API = `/api/sessions/${SID}`;
-const T0 = Date.UTC(2026, 10, 16, 9, 0, 0);
+const T0 = Date.now(); // the real clock at load: no case depends on the date it runs on
 const ok = (body: unknown): Reply => ({ status: 200, body });
-const err = (status: number, detail: string): Reply => ({ status, body: { detail } });
+const err = (status: number, detail: string): Reply => ({
+  status,
+  body: { detail },
+});
 const session = (extra: object = {}) =>
-  ok({ id: SID, lab_id: "lab-1", status: "running", expires_at: new Date(T0 + 3_600_000).toISOString(), ...extra });
+  ok({
+    id: SID,
+    lab_id: "lab-1",
+    status: "running",
+    expires_at: new Date(T0 + 3_600_000).toISOString(),
+    ...extra,
+  });
 
 const TEXT = {
   en: "# Tree\n\nRun **mkdir** in `~/inbox` now <b>raw</b>.\n\n```text\nprojects/\n  website/\n```\n\n1. one\n2. two\n",
   he: "# עץ\n\nהריצו `~/inbox`.\n",
 };
 const task = (extra: object = {}) => ({
-  id: "01-a", index: 1, total: 2, kind: "hands-on", state: "shown",
-  title: { en: "Tree", he: "עץ" }, text: TEXT,
+  id: "01-a",
+  index: 1,
+  total: 2,
+  kind: "hands-on",
+  state: "shown",
+  title: { en: "Tree", he: "עץ" },
+  text: TEXT,
   checklist: [{ n: 1, text: { en: "Exists", he: "קיים" } }],
   ...extra,
 });
@@ -39,7 +60,10 @@ function backend(routes: Record<string, Route>) {
     ...routes,
   };
   const queues = new Map<string, Reply[]>();
-  vi.spyOn(globalThis, "fetch").mockImplementation((async (url: RequestInfo | URL, init?: RequestInit) => {
+  vi.spyOn(globalThis, "fetch").mockImplementation((async (
+    url: RequestInfo | URL,
+    init?: RequestInit,
+  ) => {
     const method = (init?.method ?? "GET").toUpperCase();
     calls.push({ url: String(url), method });
     const key = `${method} ${String(url)}`;
@@ -51,19 +75,27 @@ function backend(routes: Record<string, Route>) {
       r = q.length > 1 ? (q.shift() as Reply) : q[0];
     } else if (h) r = h;
     if (r === "hang") return new Promise<Response>(() => {});
-    return { ok: r.status < 300, status: r.status, json: async () => r.body ?? {} } as Response;
+    return {
+      ok: r.status < 300,
+      status: r.status,
+      json: async () => r.body ?? {},
+    } as Response;
   }) as typeof fetch);
   return calls;
 }
 
-const n = (calls: Calls, method: string, url: string) => calls.filter((c) => c.method === method && c.url === url).length;
+const n = (calls: Calls, method: string, url: string) =>
+  calls.filter((c) => c.method === method && c.url === url).length;
 const open = async (path = "/labs/lab-1") => {
   window.history.replaceState({}, "", path);
   const view = render(<App />);
   await screen.findByTestId("task-panel");
   return view;
 };
-const btn = (name: string) => within(screen.getByTestId("task-panel")).getByRole("button", { name }) as HTMLButtonElement;
+const btn = (name: string) =>
+  within(screen.getByTestId("task-panel")).getByRole("button", {
+    name,
+  }) as HTMLButtonElement;
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -89,7 +121,9 @@ describe("markdown", () => {
     expect(panel.querySelector("b")).toBeNull();
     expect(panel.textContent).toContain("<b>raw</b>");
     expect(panel.querySelectorAll("h2, h3")).toHaveLength(1); // the duplicate "# Tree" heading is dropped
-    expect(view.container.querySelector("iframe")?.getAttribute("title")).toBe(EN["lab.terminal"]);
+    expect(view.container.querySelector("iframe")?.getAttribute("title")).toBe(
+      EN["lab.terminal"],
+    );
   });
 
   test("Hebrew inline code is left-to-right inside the right-to-left panel", async () => {
@@ -108,7 +142,8 @@ describe("in-flight guard", () => {
     await open();
     fireEvent.click(btn(EN["lab.skip"]));
     await waitFor(() => expect(btn(EN["lab.skip"]).disabled).toBe(true));
-    for (const k of ["lab.check", "lab.restart", "lab.skip"]) expect(btn(EN[k]).disabled).toBe(true);
+    for (const k of ["lab.check", "lab.restart", "lab.skip"])
+      expect(btn(EN[k]).disabled).toBe(true);
     expect(btn(EN["lab.end"]).disabled).toBe(false); // End lab is never blocked by a hung action
     fireEvent.click(btn(EN["lab.skip"]));
     fireEvent.click(btn(EN["lab.restart"]));
@@ -118,29 +153,46 @@ describe("in-flight guard", () => {
 
   test("a busy alert does not stay over the next task", async () => {
     backend({
-      [`POST ${API}/tasks/01-a/check`]: ok({ passed: true, attempts: 1, reason: null, checklist: [{ n: 1, passed: true, hint: null }] }),
+      [`POST ${API}/tasks/01-a/check`]: ok({
+        passed: true,
+        attempts: 1,
+        reason: null,
+        checklist: [{ n: 1, passed: true, hint: null }],
+      }),
       [`POST ${API}/tasks/current/skip`]: err(409, "session_busy"),
       [`POST ${API}/tasks/current/next`]: ok(task({ id: "02-b", index: 2 })),
     });
     await open();
     fireEvent.click(btn(EN["lab.skip"]));
-    expect((await screen.findByRole("alert")).textContent).toContain(EN["lab.busy"]);
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      EN["lab.busy"],
+    );
     fireEvent.click(btn(EN["lab.check"]));
     await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
-    fireEvent.click(await screen.findByRole("button", { name: EN["lab.next"] }));
-    await waitFor(() => expect(screen.getByTestId("task-panel").textContent).toContain(`${EN["lab.question"]} 2`));
+    fireEvent.click(
+      await screen.findByRole("button", { name: EN["lab.next"] }),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("task-panel").textContent).toContain(
+        `${EN["lab.question"]} 2`,
+      ),
+    );
     expect(screen.queryByRole("alert")).toBeNull();
   });
 });
 
 describe("the route's lab", () => {
   test("a live session for another lab is not shown under this URL", async () => {
-    const calls = backend({ "GET /api/sessions/current": session({ lab_id: "lab-9" }) });
+    const calls = backend({
+      "GET /api/sessions/current": session({ lab_id: "lab-9" }),
+    });
     window.history.replaceState({}, "", "/labs/lab-1");
     const view = render(<App />);
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toContain(EN["lab.error.other_lab"]);
-    expect(within(alert).getByRole("link", { name: EN["lab.to_labs"] })).toBeTruthy();
+    expect(
+      within(alert).getByRole("link", { name: EN["lab.to_labs"] }),
+    ).toBeTruthy();
     expect(view.container.querySelector("iframe")).toBeNull();
     expect(calls.some((c) => c.url.includes("/tasks"))).toBe(false);
   });
@@ -148,7 +200,9 @@ describe("the route's lab", () => {
   test("the id in the URL is what is compared", async () => {
     backend({ "GET /api/sessions/current": session({ lab_id: "lab-9" }) });
     await open("/labs/lab-9");
-    expect(screen.queryByText(EN["lab.error.other_lab"], { exact: false })).toBeNull();
+    expect(
+      screen.queryByText(EN["lab.error.other_lab"], { exact: false }),
+    ).toBeNull();
   });
 });
 
@@ -164,12 +218,23 @@ describe("end of the session", () => {
   });
 
   test("a heartbeat answering 404 ends the screen and stops the heartbeat", async () => {
-    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "setTimeout", "clearTimeout", "Date"] });
+    vi.useFakeTimers({
+      toFake: [
+        "setInterval",
+        "clearInterval",
+        "setTimeout",
+        "clearTimeout",
+        "Date",
+      ],
+    });
     vi.setSystemTime(T0);
-    const calls = backend({ [`POST ${API}/heartbeat`]: err(404, "no_session") });
+    const calls = backend({
+      [`POST ${API}/heartbeat`]: err(404, "no_session"),
+    });
     window.history.replaceState({}, "", "/labs/lab-1");
     render(<App />);
-    for (let i = 0; i < 12; i++) await act(async () => void (await vi.advanceTimersByTimeAsync(0)));
+    for (let i = 0; i < 12; i++)
+      await act(async () => void (await vi.advanceTimersByTimeAsync(0)));
     await act(async () => void (await vi.advanceTimersByTimeAsync(16_000)));
     expect(screen.queryByText(EN["lab.ended"])).not.toBeNull();
     const beats = n(calls, "POST", `${API}/heartbeat`);
@@ -178,12 +243,25 @@ describe("end of the session", () => {
   });
 
   test("at 0:00 the timer stops at 0:00 and the terminal stays (only the server ends a lab)", async () => {
-    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "setTimeout", "clearTimeout", "Date"] });
+    vi.useFakeTimers({
+      toFake: [
+        "setInterval",
+        "clearInterval",
+        "setTimeout",
+        "clearTimeout",
+        "Date",
+      ],
+    });
     vi.setSystemTime(T0);
-    backend({ "GET /api/sessions/current": session({ expires_at: new Date(T0 + 5_000).toISOString() }) });
+    backend({
+      "GET /api/sessions/current": session({
+        expires_at: new Date(T0 + 5_000).toISOString(),
+      }),
+    });
     window.history.replaceState({}, "", "/labs/lab-1");
     const view = render(<App />);
-    for (let i = 0; i < 12; i++) await act(async () => void (await vi.advanceTimersByTimeAsync(0)));
+    for (let i = 0; i < 12; i++)
+      await act(async () => void (await vi.advanceTimersByTimeAsync(0)));
     await act(async () => void (await vi.advanceTimersByTimeAsync(6_000)));
     expect(screen.queryByText(EN["lab.ended"])).toBeNull();
     expect(screen.getByRole("timer").textContent).toBe("0:00");
@@ -205,64 +283,192 @@ describe("lab complete", () => {
     });
     await open();
     fireEvent.click(btn(EN["lab.skip"]));
-    expect((await screen.findByRole("alert")).textContent).toContain(EN["lab.no_next"]);
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      EN["lab.no_next"],
+    );
     expect(screen.queryByText(EN["lab.complete"], { exact: false })).toBeNull();
   });
 
   test("409 no_next_task on skip of a passed last task shows lab complete, not 'pass it'", async () => {
     backend({
-      [`GET ${API}/tasks/current`]: ok(task({ index: 2, total: 2, state: "passed" })),
+      [`GET ${API}/tasks/current`]: ok(
+        task({ index: 2, total: 2, state: "passed" }),
+      ),
       [`POST ${API}/tasks/current/skip`]: err(409, "no_next_task"),
-      [`GET ${API}/tasks`]: ok({ tasks: [{ id: "a", state: "passed", title: { en: "A", he: "א" } }] }),
+      [`GET ${API}/tasks`]: ok({
+        tasks: [{ id: "a", state: "passed", title: { en: "A", he: "א" } }],
+      }),
     });
     await open();
     fireEvent.click(btn(EN["lab.skip"]));
-    expect(await screen.findByText(EN["lab.complete"], { exact: false })).toBeTruthy();
+    expect(
+      await screen.findByText(EN["lab.complete"], { exact: false }),
+    ).toBeTruthy();
     expect(screen.queryByText(EN["lab.no_next"], { exact: false })).toBeNull();
   });
 
   test("409 no_next_task on next shows lab complete with a link, not an error", async () => {
     backend({
-      [`GET ${API}/tasks/current`]: ok(task({ index: 2, total: 2, state: "passed" })),
+      [`GET ${API}/tasks/current`]: ok(
+        task({ index: 2, total: 2, state: "passed" }),
+      ),
       [`POST ${API}/tasks/current/next`]: err(409, "no_next_task"),
-      [`GET ${API}/tasks`]: ok({ tasks: [{ id: "a", state: "passed", title: { en: "A", he: "א" } }] }),
+      [`GET ${API}/tasks`]: ok({
+        tasks: [{ id: "a", state: "passed", title: { en: "A", he: "א" } }],
+      }),
     });
     await open();
     fireEvent.click(btn(EN["lab.next"]));
-    expect(await screen.findByText(EN["lab.complete"], { exact: false })).toBeTruthy();
+    expect(
+      await screen.findByText(EN["lab.complete"], { exact: false }),
+    ).toBeTruthy();
     expect(screen.getByRole("link", { name: EN["lab.to_labs"] })).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 });
 
-describe("check reason", () => {
-  test.each(["timeout", "error"])("reason %s says the check itself failed and marks no row", async (reason) => {
+describe("open tasks view", () => {
+  const openRoutes = {
+    [`GET ${API}/tasks/current`]: ok(
+      task({ index: 2, total: 2, state: "passed" }),
+    ),
+    [`POST ${API}/tasks/current/next`]: err(409, "no_next_task"),
+    [`GET ${API}/tasks`]: ok({
+      tasks: [{ id: "a", state: "shown", title: { en: "Alpha", he: "א" } }],
+    }),
+  };
+
+  test("clears after Previous", async () => {
     backend({
-      [`POST ${API}/tasks/01-a/check`]: ok({ passed: false, attempts: 1, reason, checklist: [{ n: 1, passed: false, hint: "h" }] }),
+      ...openRoutes,
+      [`POST ${API}/tasks/current/previous`]: ok(task({ index: 1 })),
     });
     await open();
-    fireEvent.click(btn(EN["lab.check"]));
-    expect(await screen.findByText(EN["lab.check_failed"])).toBeTruthy();
-    expect(screen.getByTestId("task-panel").textContent).not.toContain("✗");
-    expect(screen.getByText(EN["lab.check_failed"]).closest("[aria-live]")?.getAttribute("aria-live")).toBe("polite");
+    fireEvent.click(btn(EN["lab.next"]));
+    expect(await screen.findByText(EN["lab.open.one"])).toBeTruthy();
+    fireEvent.click(btn(EN["lab.previous"]));
+    await waitFor(() =>
+      expect(screen.queryByText(EN["lab.open.one"])).toBeNull(),
+    );
+  });
+
+  test("a click on an open task opens it", async () => {
+    const calls = backend({
+      ...openRoutes,
+      [`POST ${API}/tasks/a/show`]: ok(
+        task({ id: "a", title: { en: "Alpha", he: "א" } }),
+      ),
+    });
+    await open();
+    fireEvent.click(btn(EN["lab.next"]));
+    fireEvent.click(await screen.findByRole("button", { name: "Alpha" }));
+    const heading = await screen.findByRole("heading", { name: "Alpha" });
+    expect(n(calls, "POST", `${API}/tasks/a/show`)).toBe(1);
+    expect(screen.queryByText(EN["lab.open.one"])).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(heading));
+  });
+
+  test("a failed show says the task could not be opened, not that the lab failed", async () => {
+    backend({ ...openRoutes, [`POST ${API}/tasks/a/show`]: err(500, "boom") });
+    await open();
+    fireEvent.click(btn(EN["lab.next"]));
+    fireEvent.click(await screen.findByRole("button", { name: "Alpha" }));
+    expect((await screen.findByRole("alert")).textContent).toBe(EN["lab.error.show"]);
+    expect(screen.getByText(EN["lab.open.one"])).toBeTruthy();
+  });
+
+  test("a second click while a show is pending sends one request", async () => {
+    const calls = backend({ ...openRoutes, [`POST ${API}/tasks/a/show`]: "hang" });
+    await open();
+    fireEvent.click(btn(EN["lab.next"]));
+    const alpha = await screen.findByRole("button", { name: "Alpha" });
+    fireEvent.click(alpha);
+    fireEvent.click(alpha);
+    await waitFor(() => expect((alpha as HTMLButtonElement).disabled).toBe(true));
+    expect(n(calls, "POST", `${API}/tasks/a/show`)).toBe(1);
+  });
+
+  test("a failed re-read of the list says the list could not be loaded", async () => {
+    backend({ ...openRoutes, [`GET ${API}/tasks`]: err(500, "boom") });
+    await open();
+    fireEvent.click(btn(EN["lab.next"]));
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      EN["lab.error.tasks"],
+    );
+    expect(screen.getByTestId("task-panel")).toBeTruthy();
   });
 });
 
-describe("first load while the lab is being prepared", () => {
-  test.each(["setup_running", "session_busy", "session_starting"])("%s is retried and then shows the task", async (code) => {
-    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "setTimeout", "clearTimeout", "Date"] });
-    vi.setSystemTime(T0);
-    backend({ [`GET ${API}/tasks/current`]: [err(409, code), err(409, code), ok(task())] });
-    window.history.replaceState({}, "", "/labs/lab-1");
-    render(<App />);
-    for (let i = 0; i < 12; i++) await act(async () => void (await vi.advanceTimersByTimeAsync(0)));
-    expect(screen.queryByText(EN["lab.preparing"])).not.toBeNull();
-    expect(screen.queryByRole("alert")).toBeNull();
-    await act(async () => void (await vi.advanceTimersByTimeAsync(2_000)));
-    await act(async () => void (await vi.advanceTimersByTimeAsync(2_000)));
-    for (let i = 0; i < 12; i++) await act(async () => void (await vi.advanceTimersByTimeAsync(0)));
-    expect(screen.queryByTestId("task-panel")).not.toBeNull();
+describe("End guard", () => {
+  test("a second click while End is pending sends one request", async () => {
+    const calls = backend({ [`POST ${API}/end`]: "hang" });
+    await open();
+    fireEvent.click(btn(EN["lab.end"]));
+    fireEvent.click(btn(EN["lab.end"]));
+    expect(n(calls, "POST", `${API}/end`)).toBe(1);
   });
+});
+
+describe("check reason", () => {
+  test.each(["timeout", "error"])(
+    "reason %s says the check itself failed and marks no row",
+    async (reason) => {
+      backend({
+        [`POST ${API}/tasks/01-a/check`]: ok({
+          passed: false,
+          attempts: 1,
+          reason,
+          checklist: [{ n: 1, passed: false, hint: "h" }],
+        }),
+      });
+      await open();
+      fireEvent.click(btn(EN["lab.check"]));
+      expect(await screen.findByText(EN["lab.check_failed"])).toBeTruthy();
+      expect(screen.getByTestId("task-panel").textContent).not.toContain("✗");
+      expect(
+        screen
+          .getByText(EN["lab.check_failed"])
+          .closest("[aria-live]")
+          ?.getAttribute("aria-live"),
+      ).toBe("polite");
+    },
+  );
+});
+
+describe("first load while the lab is being prepared", () => {
+  test.each(["setup_running", "session_busy", "session_starting"])(
+    "%s is retried and then shows the task",
+    async (code) => {
+      vi.useFakeTimers({
+        toFake: [
+          "setInterval",
+          "clearInterval",
+          "setTimeout",
+          "clearTimeout",
+          "Date",
+        ],
+      });
+      vi.setSystemTime(T0);
+      backend({
+        [`GET ${API}/tasks/current`]: [
+          err(409, code),
+          err(409, code),
+          ok(task()),
+        ],
+      });
+      window.history.replaceState({}, "", "/labs/lab-1");
+      render(<App />);
+      for (let i = 0; i < 12; i++)
+        await act(async () => void (await vi.advanceTimersByTimeAsync(0)));
+      expect(screen.queryByText(EN["lab.preparing"])).not.toBeNull();
+      expect(screen.queryByRole("alert")).toBeNull();
+      await act(async () => void (await vi.advanceTimersByTimeAsync(2_000)));
+      await act(async () => void (await vi.advanceTimersByTimeAsync(2_000)));
+      for (let i = 0; i < 12; i++)
+        await act(async () => void (await vi.advanceTimersByTimeAsync(0)));
+      expect(screen.queryByTestId("task-panel")).not.toBeNull();
+    },
+  );
 });
 
 describe("splitter", () => {
@@ -271,7 +477,8 @@ describe("splitter", () => {
     await open();
     const sep = screen.getByRole("separator");
     const capture = vi.fn();
-    (sep as unknown as { setPointerCapture: unknown }).setPointerCapture = capture;
+    (sep as unknown as { setPointerCapture: unknown }).setPointerCapture =
+      capture;
     const frame = sep.parentElement as HTMLElement;
     frame.getBoundingClientRect = () => ({ left: 0, width: 1000 }) as DOMRect;
     fireEvent.pointerDown(sep, { pointerId: 1, clientX: 400 });
