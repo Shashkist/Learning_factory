@@ -74,5 +74,18 @@
   "admin.import.row_added": "Added",
   "admin.import.line": "Line",
   "admin.error.load": "Could not load the cohorts.",
-  "admin.error.save": "Could not save. Check the values and try again."
+  "admin.error.save": "Could not save. Check the values and try again.",
+  "admin.cohorts.edit.name": "Edit name",
+  "admin.cohorts.edit.password": "New class password (leave empty to keep)",
+  "admin.cohorts.edit.access": "Edit access date",
+  "admin.cohorts.save": "Save changes",
+  "admin.students.show": "Show students",
+  "admin.students.disabled": "Disabled",
+  "admin.students.empty": "No students in this cohort yet.",
+  "admin.import.error.invalid_id": "The ID is not valid.",
+  "admin.import.error.missing_name": "The name is missing.",
+  "admin.import.error.invalid_name": "The name is too long or has control characters.",
+  "admin.import.error.duplicate_in_paste": "Same ID as an earlier line.",
+  "admin.import.error.already_exists": "This ID is already a student.",
+  "admin.import.error.unknown": "This line could not be imported."
 }
