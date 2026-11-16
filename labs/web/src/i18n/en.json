@@ -12,7 +12,6 @@
   "login.error.generic": "Something went wrong. Try again.",
   "labs.title": "My labs",
   "labs.empty": "No labs yet.",
-  "lab.placeholder": "Lab page, coming soon:",
   "nav.logout": "Log out",
   "notFound.title": "Page not found",
   "nav.logout_failed": "Logging out failed. You are still signed in; try again.",
