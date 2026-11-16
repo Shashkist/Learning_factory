@@ -68,7 +68,8 @@ type Calls = { url: string; method: string; body?: string }[];
 
 const SID = "sess-1";
 const API = `/api/sessions/${SID}`;
-const T0 = Date.UTC(2026, 10, 16, 9, 0, 0);
+// Taken from the real clock when the file loads, so no case depends on the date it runs on (#178).
+const T0 = Date.now();
 const STUDENT: Reply = { status: 200, body: { kind: "student", name: "Dana Test" } };
 const session = (extra: object = {}): Reply => ({
   status: 200,
