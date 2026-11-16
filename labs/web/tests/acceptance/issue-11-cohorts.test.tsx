@@ -177,7 +177,7 @@ describe.each(LANGS)("the admin shell in %s", (lang) => {
     expect(row(7).textContent).toContain("2027-03-01");
     expect(row(7).textContent).toContain(`12 ${d["admin.cohorts.students"]}`);
     expect(row(9).textContent).toContain(`0 ${d["admin.cohorts.students"]}`);
-    const order = screen.getAllByTestId(/^cohort-/).map((e) => e.getAttribute("data-testid"));
+    const order = screen.getAllByTestId(/^cohort-\d+$/).map((e) => e.getAttribute("data-testid"));
     expect(order).toEqual(["cohort-7", "cohort-9"]);
     expect(screen.queryByText(d["admin.cohorts.empty"])).toBeNull();
   });
@@ -186,7 +186,7 @@ describe.each(LANGS)("the admin shell in %s", (lang) => {
     backend({ cohorts: [] });
     at(lang);
     expect(await screen.findByText(d["admin.cohorts.empty"])).toBeTruthy();
-    expect(screen.queryAllByTestId(/^cohort-/)).toHaveLength(0);
+    expect(screen.queryAllByTestId(/^cohort-\d+$/)).toHaveLength(0);
   });
 
   test("a failed list request shows an alert and no list", async () => {
@@ -194,7 +194,7 @@ describe.each(LANGS)("the admin shell in %s", (lang) => {
     at(lang);
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toContain(d["admin.error.load"]);
-    expect(screen.queryAllByTestId(/^cohort-/)).toHaveLength(0);
+    expect(screen.queryAllByTestId(/^cohort-\d+$/)).toHaveLength(0);
     expect(screen.queryByText(d["admin.cohorts.empty"])).toBeNull();
   });
 
@@ -277,7 +277,7 @@ describe.each(LANGS)("creating a cohort in %s", (lang) => {
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toContain(d["admin.error.save"]);
     expect((screen.getByLabelText(d["admin.cohorts.name"]) as HTMLInputElement).value).toBe("lf-smoke");
-    for (const r of screen.getAllByTestId(/^cohort-/)) expect(r.textContent).not.toContain("lf-smoke");
+    for (const r of screen.getAllByTestId(/^cohort-\d+$/)) expect(r.textContent).not.toContain("lf-smoke");
   });
 
   test("a network failure on create shows the save alert", async () => {
