@@ -39,6 +39,24 @@ def sleepers(box: str, mark: int) -> int:
     return int(res.stdout.strip())
 
 
+COUNT_ANY = r"""
+n=0
+p=PRE; q=POST
+for d in /proc/[0-9]*; do
+  c=$(tr '\0' ' ' < "$d/cmdline" 2>/dev/null)
+  case "$c" in *"$p$q"*) n=$((n+1));; esac
+done
+echo $n
+"""
+
+
+def mentioning(box: str, mark: int) -> int:
+    """Processes of any owner whose command line mentions the mark (the counter hides its own)."""
+    text = str(mark)
+    script = COUNT_ANY.replace("PRE", text[:2]).replace("POST", text[2:])
+    return int(docker("exec", "-u", "root", box, "sh", "-c", script).stdout.strip())
+
+
 def wait_gone(box: str, mark: int, seconds: float = 5.0) -> int:
     deadline = time.monotonic() + seconds
     left = sleepers(box, mark)
@@ -98,3 +116,57 @@ def test_after_a_kill_the_container_still_runs_the_next_script(runtime, call, bo
 def test_a_script_that_finishes_in_time_is_unaffected(runtime, call, box):
     res = run(runtime, call, box, "#!/bin/sh\nsleep 1\necho done\n", timeout=20)
     assert res.timed_out is False and res.exit_code == 0 and "done" in res.output
+
+
+# ---------------------------------------------------------------- review round 1 of #143
+# The lab container has CapDrop ALL plus only SETUID and SETGID: root cannot signal another uid
+# (no CAP_KILL), so a student-owned process must be signalled as the student.
+
+
+def test_a_process_started_as_the_student_is_killed_on_timeout(runtime, call, box):
+    script = "#!/bin/sh\nsu student -s /bin/sh -c 'sleep 6010' </dev/null\n"
+    res = run(runtime, call, box, script, timeout=2)
+    assert res.timed_out is True
+    assert sleepers(box, 6010) == 0, "a student-owned sleeper outlived exec_script (lock released)"
+    assert wait_gone(box, 6010) == 0
+
+
+def test_a_stopped_student_process_is_killed_on_timeout(runtime, call, box):
+    """The student stops its own shell (SIGSTOP); a stopped process is not killed by TERM."""
+    script = "#!/bin/sh\nsu student -s /bin/sh -c 'sleep 6011 & kill -STOP $$' </dev/null\n"
+    res = run(runtime, call, box, script, timeout=2)
+    assert res.timed_out is True
+    assert wait_gone(box, 6011) == 0, "the student's sleeper is still running"
+    assert mentioning(box, 6011) == 0, "a stopped student shell is still there"
+
+
+def test_a_stopped_student_reader_is_gone_after_the_timeout(runtime, call, box):
+    script = "#!/bin/sh\nsu student -s /bin/sh -c 'kill -STOP $$; : 6012' </dev/null\n"
+    res = run(runtime, call, box, script, timeout=2)
+    assert res.timed_out is True
+    deadline = time.monotonic() + 5
+    while mentioning(box, 6012) and time.monotonic() < deadline:
+        time.sleep(0.25)
+    assert mentioning(box, 6012) == 0, "a SIGSTOPped student process piled up"
+
+
+def test_a_root_leftover_of_an_earlier_finished_script_survives_a_later_timeout(
+    runtime, call, box
+):
+    earlier = (
+        "#!/bin/sh\n"
+        "( while :; do date +%s%N > /tmp/hb117; sleep 1; done ) >/dev/null 2>&1 &\n"
+        "exit 0\n"
+    )
+    first = run(runtime, call, box, earlier)
+    assert first.exit_code == 0 and first.timed_out is False
+
+    def beat() -> str:
+        return docker("exec", "-u", "root", box, "cat", "/tmp/hb117", check=False).stdout.strip()
+
+    time.sleep(1.5)
+    assert beat(), "the background loop of the earlier script did not start"
+    assert run(runtime, call, box, "#!/bin/sh\nsleep 6013\n", timeout=2).timed_out is True
+    before = beat()
+    time.sleep(2.5)
+    assert beat() != before, "the timeout of a later script killed an earlier script's process"

@@ -28,11 +28,13 @@ Criteria covered:
    The spec §7 note itself is checked by the reviewer, not here.
 """
 # ruff: noqa: F811
+import logging
 import time
 
 import pytest
 from test_issue_5_content_loader import make_lab
 from test_issue_9_runner import (  # noqa: F401  (engine is a fixture, used by name)
+    FakeEngine,
     engine,
     frame,
     run,
@@ -137,6 +139,38 @@ def test_a_slow_kill_delays_the_return_it_never_leaves_the_script_running(engine
     returned = time.monotonic()
     assert "exec1" in engine.finished
     assert returned >= engine.finished_at["exec1"] - 0.05
+
+
+class _KillFailsEngine(FakeEngine):
+    """Every exec create after the first (the kill exec of mechanism (b)) is refused with a 500."""
+
+    async def _route(self, method, path, body, headers, r, w) -> bool:
+        if method == "POST" and path.endswith("/exec") and self.creates:
+            await self._reply(w, "500 Error", {"message": "kill refused"})
+            return False
+        return await super()._route(method, path, body, headers, r, w)
+
+
+@pytest.fixture
+def broken_kill_engine(monkeypatch):
+    eng = _KillFailsEngine()
+    eng.start()
+    monkeypatch.setenv("LF_DOCKER_HOST", f"tcp://127.0.0.1:{eng.port}")
+    yield eng
+    eng.stop()
+
+
+def test_a_failing_kill_still_reports_timed_out_not_an_error(broken_kill_engine):
+    res, took = _timed_out_run(broken_kill_engine, timeout=1)
+    assert res.timed_out is True and res.exit_code != 0
+    assert took < 20, "a failing kill must not stall exec_script"
+
+
+def test_a_hanging_kill_is_bounded_and_still_reports_timed_out(engine):
+    engine.kill_delay = 600.0  # the kill exec never answers
+    res, took = _timed_out_run(engine, timeout=1)
+    assert res.timed_out is True and res.exit_code != 0
+    assert took < 30, "an unbounded kill held the setup lock for good"
 
 
 # ================================================================ criterion 3: authoring rules
@@ -289,3 +323,32 @@ def test_the_shipped_sample_labs_follow_the_authoring_rules():
     result = load_labs(root / "labs" / "content")
     assert result.labs, result.errors
     assert not result.warnings, dict(result.warnings)
+
+
+def test_the_loaders_warnings_are_logged_one_line_each_at_warning_level(
+    tmp_path, monkeypatch, caplog
+):
+    """Observable: starting the app (lifespan, no database) with LF_CONTENT_DIR on a lab that
+    has findings. Every entry of `LoadResult.warnings` shows up as one WARNING record of the
+    manager's logger ("lab-manager") whose text contains that warning."""
+    from fastapi.testclient import TestClient
+
+    lab_with_script(tmp_path, "#!/bin/sh\nread x\nsleep 600 &\nexit 0\n")
+    expected = [w for ws in load_labs(tmp_path).warnings.values() for w in ws]
+    assert len(expected) >= 2, expected
+    monkeypatch.setenv("LF_CONTENT_DIR", str(tmp_path))
+    monkeypatch.delenv("LF_DATABASE_URL", raising=False)
+    monkeypatch.setenv("LF_DOCKER_HOST", f"unix://{tmp_path / 'no-docker.sock'}")
+    monkeypatch.setenv("LF_JANITOR_INTERVAL_S", "3600")
+    from app.main import app
+
+    with caplog.at_level(logging.WARNING, logger="lab-manager"), TestClient(app):
+        pass
+    lines = [
+        r.getMessage()
+        for r in caplog.records
+        if r.name == "lab-manager" and r.levelno == logging.WARNING
+    ]
+    for w in expected:
+        hits = [ln for ln in lines if w in ln]
+        assert len(hits) == 1, f"warning {w!r} logged {len(hits)} times; lines={lines}"
