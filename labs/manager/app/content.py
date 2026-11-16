@@ -12,7 +12,7 @@ from typing import Any
 import yaml
 
 LANGS = ("en", "he")
-STATUSES = ("draft", "published")
+STATUSES = ("draft", "published", "internal")
 IMAGES = ("term", "code")
 KINDS = ("quiz", "hands-on")
 # module -> (first lesson, last lesson), per the final lesson plan (D16)

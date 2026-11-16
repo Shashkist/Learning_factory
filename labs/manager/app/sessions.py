@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from app import admission, db
 from app.auth import Principal, current_student, db_guard
+from app.cli import SMOKE_COHORT
 from app.content import Lab
 from app.runtime import container_name, container_spec, memory_limit_mb
 
@@ -25,6 +26,16 @@ router = APIRouter(prefix="/api/sessions")
 class StartBody(BaseModel):
     lab_id: str = Field(max_length=200)
     force: bool = False
+
+
+async def _in_smoke_cohort(pool: Any, student: str) -> bool:
+    with db_guard():
+        name = await pool.fetchval(
+            f"select c.name from {T}.students s join {T}.cohorts c on c.id = s.cohort_id "
+            "where s.id_hash = $1",
+            student,
+        )
+    return bool(name == SMOKE_COHORT)
 
 
 async def remove_container(runtime: Any, session_id: Any) -> None:
@@ -94,6 +105,8 @@ async def start(
     pool = state.pool
     if pool is None:
         raise HTTPException(503, "database unavailable")
+    if lab.status == "internal" and not await _in_smoke_cohort(pool, p.subject):
+        raise HTTPException(404, "unknown_lab")  # byte-identical to a missing lab (D54)
     runtime = state.runtime
     with db_guard():
         existing = await _live(pool, p.subject)
