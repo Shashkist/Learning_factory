@@ -534,7 +534,12 @@ def test_the_owner_of_a_live_session_passes_the_ownership_check_on_every_endpoin
     client, _ = env.student()
     sid = env.session(client)
     got = answers(client, sid)
-    # The task endpoints answer 200 or a task-level 409; the terminal reaches (and fails to
+    # The task endpoints answer 200 or a task-level answer (a fresh session has no current
+    # task yet: 404 no_current_task; no next task: 409); the terminal reaches (and fails to
     # reach) its upstream: 502/503/504. None of them is an ownership refusal.
-    for label, (code, _detail) in got.items():
-        assert code not in (401, 403, 404, 410), (label, got)
+    ownership = {"no_session", "not_your_session", "session_ended"}
+    for label, (code, detail) in got.items():
+        assert code not in (401, 403, 410), (label, got)
+        assert not (isinstance(detail, str) and detail in ownership), (label, got)
+        if code == 404:
+            assert detail == "no_current_task", (label, got)
