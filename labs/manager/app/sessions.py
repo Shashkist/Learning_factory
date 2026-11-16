@@ -12,9 +12,9 @@ from pydantic import BaseModel, Field
 
 from app import admission, db
 from app.auth import Principal, current_student, db_guard
-from app.cli import SMOKE_COHORT
 from app.content import Lab
 from app.runtime import container_name, container_spec, memory_limit_mb
+from app.smoke import is_smoke_member
 
 log = logging.getLogger("lab-manager")
 T = db.SCHEMA
@@ -36,7 +36,7 @@ async def _in_smoke_cohort(pool: Any, student: str) -> bool:
             "where s.id_hash = $1",
             student,
         )
-    return bool(name == SMOKE_COHORT)
+    return is_smoke_member(name)
 
 
 async def remove_container(runtime: Any, session_id: Any) -> None:

@@ -77,5 +77,19 @@
   "admin.error.save": "Could not save. Check the values and try again.",
   "lab.open.one": "1 task still open",
   "lab.open.many": "tasks still open",
-  "lab.error.end_failed": "The lab could not be ended. Try again."
+  "lab.error.end_failed": "The lab could not be ended. Try again.",
+  "admin.cohorts.edit.name": "Edit name",
+  "admin.cohorts.edit.password": "New class password (leave empty to keep)",
+  "admin.cohorts.edit.access": "Edit access date",
+  "admin.cohorts.save": "Save changes",
+  "admin.students.show": "Show students",
+  "admin.students.disabled": "Disabled",
+  "admin.students.empty": "No students in this cohort yet.",
+  "admin.import.error.invalid_id": "The ID is not valid.",
+  "admin.import.error.missing_name": "The name is missing.",
+  "admin.import.error.invalid_name": "The name is too long or has control characters.",
+  "admin.import.error.duplicate_in_paste": "Same ID as an earlier line.",
+  "admin.import.error.already_exists": "This ID is already a student.",
+  "admin.import.error.unknown": "This line could not be imported.",
+  "admin.import.too_many": "More than 2,000 lines: nothing was imported. Split the list and import it in parts."
 }

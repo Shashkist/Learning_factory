@@ -11,6 +11,7 @@ import os
 import sys
 
 from app import auth, db
+from app.smoke import SMOKE_COHORT
 
 
 def _read_password() -> str:
@@ -44,7 +45,6 @@ async def create_admin(dsn: str, username: str, password: str, reset: bool) -> s
         await conn.close()
 
 
-SMOKE_COHORT = "lf-smoke"
 SMOKE_ID = "990000000000000000000000000001"  # 30 digits: cannot be a real id
 SMOKE_NAME = "Smoke Test"
 
