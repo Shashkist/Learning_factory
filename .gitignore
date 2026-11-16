@@ -23,3 +23,6 @@ archive/
 
 # Course material is private: kept outside the public repository (D43)
 courses/
+
+labs/web/test-results/
+labs/web/playwright-report/
