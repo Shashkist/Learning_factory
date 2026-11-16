@@ -67,6 +67,7 @@ function backend(replies: { me?: Reply; login?: Reply; logout?: Reply }) {
     });
     let r: Reply | undefined;
     if (u === "/api/auth/me") r = replies.me ?? { status: 401, body: { detail: "not_authenticated" } };
+    if (u === "/api/labs" && method === "GET") r = { status: 200, body: [] };
     if (u === "/api/auth/login" && method === "POST") r = replies.login;
     if (u === "/api/auth/logout" && method === "POST") r = replies.logout ?? { status: 204 };
     if (r === undefined) r = { status: 404, body: { detail: "Not Found" } };
