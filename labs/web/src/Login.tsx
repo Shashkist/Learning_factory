@@ -18,9 +18,12 @@ export default function Login({ onUser }: { onUser: (u: User) => void }) {
   const [id, setId] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (busy) return; // a double click must not spend two rate-limited attempts
+    setBusy(true);
     setError(null);
     try {
       const r = await fetch("/api/auth/login", {
@@ -33,6 +36,8 @@ export default function Login({ onUser }: { onUser: (u: User) => void }) {
       else setError(await errorKey(r));
     } catch {
       setError("login.error.generic");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -41,13 +46,13 @@ export default function Login({ onUser }: { onUser: (u: User) => void }) {
       <h1>{t("login.title")}</h1>
       <label>
         {t("login.id")}
-        <input dir="ltr" value={id} onChange={(e) => setId(e.target.value)} />
+        <input dir="ltr" autoComplete="username" inputMode="numeric" required value={id} onChange={(e) => setId(e.target.value)} />
       </label>
       <label>
         {t("login.password")}
-        <input dir="ltr" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+        <input dir="ltr" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
       </label>
-      <button type="submit">{t("login.submit")}</button>
+      <button type="submit" disabled={busy}>{t("login.submit")}</button>
       {error && <p role="alert">{t(error)}</p>}
     </form>
   );

@@ -6,8 +6,13 @@ import he from "./he.json";
 export type Lang = "en" | "he";
 const DICTS: Record<Lang, Record<string, string>> = { en, he };
 
+// Storage can be blocked (SecurityError); the language then lives for this page only.
 function stored(): Lang {
-  return window.localStorage.getItem("lf-lang") === "he" ? "he" : "en";
+  try {
+    return window.localStorage.getItem("lf-lang") === "he" ? "he" : "en";
+  } catch {
+    return "en";
+  }
 }
 
 type Ctx = { lang: Lang; toggle: () => void; t: (key: string) => string };
@@ -17,7 +22,11 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const [lang, setLang] = useState<Lang>(stored);
   const toggle = () => {
     const next = lang === "en" ? "he" : "en";
-    window.localStorage.setItem("lf-lang", next);
+    try {
+      window.localStorage.setItem("lf-lang", next);
+    } catch {
+      /* storage blocked: keep the choice in memory */
+    }
     setLang(next);
   };
   const t = (key: string) => DICTS[lang][key] ?? key;
