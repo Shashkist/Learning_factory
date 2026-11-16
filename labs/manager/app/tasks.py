@@ -6,6 +6,7 @@ the machine (spec section 5). Check results, attempts and quiz grading are #88; 
 Nothing sent to a student carries check/setup/solution text or a quiz `correct` field."""
 import asyncio
 import logging
+import math
 import os
 import re
 import uuid
@@ -319,7 +320,7 @@ async def _complete(conn: Any, ctx: _Ctx) -> None:
         ctx.lab.id,
         ctx.sid,
         first,
-        round(active),
+        math.ceil(active),  # whole seconds, never below the session's own total
         fast,
         reason,
     )
