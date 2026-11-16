@@ -210,7 +210,7 @@ describe.each(LANGS)("the open-tasks view lets the student open a task (%s)", (l
   const openView = (states: string[], extra: Record<string, Handler> = {}) =>
     reachEnd(lang, { [`GET ${API}/tasks`]: list(states), ...extra });
   const region = async () => {
-    await screen.findByText(new RegExp(lang === "en" ? "tasks? still open" : "[0-9]|פתוח"), { exact: false });
+    await screen.findByText(d["lab.open.many"], { exact: false });
     return screen.getAllByRole("status").find((e) => (e.textContent ?? "").includes(title(2))) as HTMLElement;
   };
 
@@ -231,7 +231,7 @@ describe.each(LANGS)("the open-tasks view lets the student open a task (%s)", (l
     fireEvent.click(within(view).getByRole("button", { name: title(3) }));
     await waitFor(() => expect(count(calls, "POST", `${API}/tasks/t3/show`)).toBe(1));
     expect(await screen.findByRole("heading", { name: title(3) })).toBeTruthy();
-    await waitFor(() => expect(screen.queryByText(new RegExp(lang === "en" ? "tasks? still open" : "פתוח"))).toBeNull());
+    await waitFor(() => expect(screen.queryByText(d["lab.open.many"], { exact: false })).toBeNull());
     expect(screen.queryByText(d["lab.complete"], { exact: false })).toBeNull();
     expect(count(calls, "POST", `${API}/tasks/t2/show`)).toBe(0);
     expect(count(calls, "POST", `${API}/tasks/current/previous`)).toBe(0);
