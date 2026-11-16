@@ -19,7 +19,7 @@ type Task = {
 };
 type Row = { passed: boolean; hint: string | null };
 type Verdict = "correct" | "incorrect" | null;
-type Phase = "loading" | "preparing" | "ready" | "ended" | "complete" | "mismatch";
+type Phase = "loading" | "preparing" | "ready" | "ended" | "mismatch";
 
 class Busy extends Error {}
 class Failure extends Error {
@@ -32,6 +32,12 @@ class Failure extends Error {
 }
 const BUSY = new Set(["session_busy", "setup_running", "session_starting"]);
 const GONE = new Set(["no_session", "session_ended"]);
+const ACTION_ERRORS: Record<string, string> = {
+  setup_failed: "lab.error.setup_failed",
+  setup_timeout: "lab.error.setup_timeout",
+  task_changed: "lab.error.task_changed",
+};
+let skew = 0; // server clock minus browser clock, from the Date header of the last answer
 const RETRY_MS = 2000;
 const RETRY_MAX = 30;
 
@@ -43,9 +49,12 @@ async function call<T>(method: string, url: string, body?: unknown): Promise<T> 
       ? {}
       : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
   });
+  const date = Date.parse(r.headers?.get("date") ?? "");
+  if (!Number.isNaN(date)) skew = date - Date.now();
   if (!r.ok) {
     const d = ((await r.json().catch(() => null)) as { detail?: unknown } | null)?.detail;
-    const detail = typeof d === "string" ? d : null;
+    const code = d && typeof d === "object" ? (d as { code?: unknown }).code : d;
+    const detail = typeof code === "string" ? code : null;
     if (r.status === 409 && detail && BUSY.has(detail)) throw new Busy();
     throw new Failure(r.status, detail);
   }
@@ -67,6 +76,15 @@ const parts: Components = {
   h2: ({ children }) => <h3>{children}</h3>,
   pre: ({ children }) => <pre dir="ltr">{children}</pre>,
   code: ({ children }) => <code dir="ltr">{children}</code>,
+  img: ({ src, alt }) => {
+    let own = false;
+    try {
+      own = typeof src === "string" && new URL(src, window.location.href).origin === window.location.origin;
+    } catch {
+      /* not a URL */
+    }
+    return own ? <img src={src} alt={alt} /> : null;
+  },
   a: ({ href, children }) => (
     <a href={href} target="_blank" rel="noreferrer noopener">
       {children}
@@ -97,9 +115,9 @@ export default function LabScreen({ lab, go }: { lab: string; go: (to: string) =
   const [left, setLeft] = useState<number | null>(null);
   const [split, setSplit] = useState(40);
   const [dragging, setDragging] = useState(false);
+  const [done, setDone] = useState(false);
   const [pending, setPending] = useState(false);
   const inFlight = useRef(false);
-  const epoch = useRef(0); // changes whenever another task is shown
   const alive = useRef(true);
   const frame = useRef<HTMLDivElement>(null);
 
@@ -111,7 +129,7 @@ export default function LabScreen({ lab, go }: { lab: string; go: (to: string) =
   }, []);
 
   const show = (next: Task) => {
-    epoch.current += 1;
+    setDone(false);
     setTask(next);
     setRows(null);
     setCheckFailed(false);
@@ -138,6 +156,7 @@ export default function LabScreen({ lab, go }: { lab: string; go: (to: string) =
             return;
           }
           setSession(s);
+          setPhase("preparing");
           const base = `/api/sessions/${s.id}/tasks`;
           let first: Task;
           try {
@@ -174,7 +193,7 @@ export default function LabScreen({ lab, go }: { lab: string; go: (to: string) =
 
   const sid = session?.id;
   const expires = session?.expires_at ? Date.parse(session.expires_at) : NaN;
-  const running = phase === "ready" || phase === "complete";
+  const running = phase === "ready";
 
   useEffect(() => {
     if (!sid || !running) return;
@@ -191,9 +210,7 @@ export default function LabScreen({ lab, go }: { lab: string; go: (to: string) =
   useEffect(() => {
     if (!sid || phase !== "ready" || Number.isNaN(expires)) return;
     const tick = () => {
-      const ms = expires - Date.now();
-      setLeft(ms);
-      if (ms <= 0) setPhase("ended");
+      setLeft(expires - (Date.now() + skew)); // display only: the server ends the lab
     };
     tick();
     const clockId = setInterval(tick, 1000);
@@ -211,7 +228,7 @@ export default function LabScreen({ lab, go }: { lab: string; go: (to: string) =
       if (!alive.current) return;
       if (e instanceof Busy) setError("lab.busy");
       else if (isEnded(e)) setPhase("ended");
-      else if (e instanceof Failure && e.detail === "no_next_task") setPhase("complete");
+      else if (e instanceof Failure && e.detail && ACTION_ERRORS[e.detail]) setError(ACTION_ERRORS[e.detail]);
       else setError("lab.error.load");
     } finally {
       inFlight.current = false;
@@ -251,16 +268,24 @@ export default function LabScreen({ lab, go }: { lab: string; go: (to: string) =
   if (!session || !task) return null;
 
   const base = `/api/sessions/${session.id}/tasks`;
-  const step = (action: string) => run(async () => show(await call<Task>("POST", `${base}/current/${action}`)));
+  const step = (action: string) =>
+    run(async () => {
+      try {
+        show(await call<Task>("POST", `${base}/current/${action}`));
+      } catch (e) {
+        if (!(e instanceof Failure) || e.detail !== "no_next_task") throw e;
+        // Skip on an unpassed last task completes nothing; on a passed one it is the same as Next.
+        if (action === "next" || passed) setDone(true);
+        else setError("lab.no_next");
+      }
+    });
   const check = () =>
     run(async () => {
-      const ep = epoch.current;
       const r = await call<{
         passed: boolean;
         reason?: string | null;
         checklist: { n: number; passed: boolean; hint: string | null }[];
       }>("POST", `${base}/${task.id}/check`);
-      if (ep !== epoch.current) return; // another task is shown now
       if (r.reason === "timeout" || r.reason === "error") {
         setCheckFailed(true);
         return;
@@ -271,17 +296,28 @@ export default function LabScreen({ lab, go }: { lab: string; go: (to: string) =
     });
   const answer = () =>
     run(async () => {
-      const ep = epoch.current;
       const r = await call<{ correct: boolean }>("POST", `${base}/${task.id}/answer`, { option: choice });
-      if (ep !== epoch.current) return;
       setVerdict(r.correct ? "correct" : "incorrect");
       setPassed(r.correct);
     });
-  const end = () =>
-    run(async () => {
+  const end = async () => {
+    try {
       await call("POST", `/api/sessions/${session.id}/end`);
       go("/labs");
-    });
+    } catch (e) {
+      if (!alive.current) return;
+      if (isEnded(e)) setPhase("ended");
+      else setError("lab.error.load");
+    }
+  };
+  const arrow = (e: KeyboardEvent) => {
+    const d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+    if (!d) return;
+    e.preventDefault();
+    const next = tab === "task" ? "solution" : "task"; // two tabs: either arrow wraps to the other
+    setTab(next);
+    document.getElementById(`lab-tab-${next}`)?.focus();
+  };
   const resize = (e: KeyboardEvent) => {
     const d = e.key === "ArrowRight" ? 5 : e.key === "ArrowLeft" ? -5 : 0;
     if (d) setSplit((s) => Math.min(80, Math.max(20, s + d)));
@@ -316,13 +352,14 @@ export default function LabScreen({ lab, go }: { lab: string; go: (to: string) =
         <p>
           {t("lab.question")} {task.index} {t("lab.of")} {task.total}
         </p>
-        <div role="tablist">
+        <div role="tablist" onKeyDown={arrow}>
           {(["task", "solution"] as const).map((k) => (
             <button
               key={k}
               id={`lab-tab-${k}`}
               role="tab"
               aria-selected={tab === k}
+              tabIndex={tab === k ? 0 : -1}
               aria-controls="lab-tabpanel"
               onClick={() => setTab(k)}
             >
@@ -332,7 +369,7 @@ export default function LabScreen({ lab, go }: { lab: string; go: (to: string) =
         </div>
         {error && <p role="alert">{t(error)}</p>}
         <div id="lab-tabpanel" role="tabpanel" aria-labelledby={`lab-tab-${tab}`}>
-          {phase === "complete" ? (
+          {done ? (
             <p role="status">
               {t("lab.complete")} {toLabs}
             </p>
@@ -395,7 +432,7 @@ export default function LabScreen({ lab, go }: { lab: string; go: (to: string) =
           <button onClick={() => step("restart")} disabled={pending}>
             {t("lab.restart")}
           </button>
-          <button onClick={end} disabled={pending}>
+          <button onClick={end}>
             {t("lab.end")}
           </button>
         </div>

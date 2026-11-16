@@ -108,7 +108,8 @@ describe("in-flight guard", () => {
     await open();
     fireEvent.click(btn(EN["lab.skip"]));
     await waitFor(() => expect(btn(EN["lab.skip"]).disabled).toBe(true));
-    for (const k of ["lab.check", "lab.restart", "lab.end", "lab.skip"]) expect(btn(EN[k]).disabled).toBe(true);
+    for (const k of ["lab.check", "lab.restart", "lab.skip"]) expect(btn(EN[k]).disabled).toBe(true);
+    expect(btn(EN["lab.end"]).disabled).toBe(false); // End lab is never blocked by a hung action
     fireEvent.click(btn(EN["lab.skip"]));
     fireEvent.click(btn(EN["lab.restart"]));
     expect(n(calls, "POST", `${API}/tasks/current/skip`)).toBe(1);
@@ -176,7 +177,7 @@ describe("end of the session", () => {
     expect(n(calls, "POST", `${API}/heartbeat`)).toBe(beats);
   });
 
-  test("at 0:00 the screen says the session has ended and removes the terminal", async () => {
+  test("at 0:00 the timer stops at 0:00 and the terminal stays (only the server ends a lab)", async () => {
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "setTimeout", "clearTimeout", "Date"] });
     vi.setSystemTime(T0);
     backend({ "GET /api/sessions/current": session({ expires_at: new Date(T0 + 5_000).toISOString() }) });
@@ -184,9 +185,9 @@ describe("end of the session", () => {
     const view = render(<App />);
     for (let i = 0; i < 12; i++) await act(async () => void (await vi.advanceTimersByTimeAsync(0)));
     await act(async () => void (await vi.advanceTimersByTimeAsync(6_000)));
-    expect(screen.queryByText(EN["lab.ended"])).not.toBeNull();
+    expect(screen.queryByText(EN["lab.ended"])).toBeNull();
     expect(screen.getByRole("timer").textContent).toBe("0:00");
-    expect(view.container.querySelector("iframe")).toBeNull();
+    expect(view.container.querySelector("iframe")).not.toBeNull();
   });
 
   test("expires_at null shows no timer", async () => {
@@ -197,13 +198,35 @@ describe("end of the session", () => {
 });
 
 describe("lab complete", () => {
-  test.each(["next", "skip"])("409 no_next_task on %s shows lab complete with a link, not an error", async (action) => {
+  test("409 no_next_task on skip is a neutral message, not lab complete", async () => {
     backend({
-      [`GET ${API}/tasks/current`]: ok(task({ index: 2, total: 2, state: "passed" })),
-      [`POST ${API}/tasks/current/${action}`]: err(409, "no_next_task"),
+      [`GET ${API}/tasks/current`]: ok(task({ index: 2, total: 2 })),
+      [`POST ${API}/tasks/current/skip`]: err(409, "no_next_task"),
     });
     await open();
-    fireEvent.click(btn(EN[`lab.${action}`]));
+    fireEvent.click(btn(EN["lab.skip"]));
+    expect((await screen.findByRole("alert")).textContent).toContain(EN["lab.no_next"]);
+    expect(screen.queryByText(EN["lab.complete"], { exact: false })).toBeNull();
+  });
+
+  test("409 no_next_task on skip of a passed last task shows lab complete, not 'pass it'", async () => {
+    backend({
+      [`GET ${API}/tasks/current`]: ok(task({ index: 2, total: 2, state: "passed" })),
+      [`POST ${API}/tasks/current/skip`]: err(409, "no_next_task"),
+    });
+    await open();
+    fireEvent.click(btn(EN["lab.skip"]));
+    expect(await screen.findByText(EN["lab.complete"], { exact: false })).toBeTruthy();
+    expect(screen.queryByText(EN["lab.no_next"], { exact: false })).toBeNull();
+  });
+
+  test("409 no_next_task on next shows lab complete with a link, not an error", async () => {
+    backend({
+      [`GET ${API}/tasks/current`]: ok(task({ index: 2, total: 2, state: "passed" })),
+      [`POST ${API}/tasks/current/next`]: err(409, "no_next_task"),
+    });
+    await open();
+    fireEvent.click(btn(EN["lab.next"]));
     expect(await screen.findByText(EN["lab.complete"], { exact: false })).toBeTruthy();
     expect(screen.getByRole("link", { name: EN["lab.to_labs"] })).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
