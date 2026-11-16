@@ -27,7 +27,8 @@ test("a failed logout keeps the student signed in and says so", async () => {
   render(<App />);
   fireEvent.click(await screen.findByRole("button", { name: en["nav.logout"] }));
   expect((await screen.findByRole("alert")).textContent).toBe(en["nav.logout_failed"]);
-  expect(screen.getByRole("heading", { name: en["labs.title"] })).toBeTruthy();
+  // The heading needs /api/labs, which may answer after the logout alert: wait for it (#173).
+  expect(await screen.findByRole("heading", { name: en["labs.title"] })).toBeTruthy();
   expect(window.location.pathname).toBe("/labs");
 });
 
