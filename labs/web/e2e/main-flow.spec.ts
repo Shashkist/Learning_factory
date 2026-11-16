@@ -30,7 +30,7 @@ const TEXT = {
 for (const lang of ["en", "he"] as const) {
   test(`main flow in ${lang}: login, My labs, start, task, check, next, end`, async ({ page }) => {
     const x = TEXT[lang];
-    const log = await fakeBackend(page);
+    const { log, unmocked } = await fakeBackend(page);
     await page.addInitScript((l) => window.localStorage.setItem("lf-lang", l), lang);
 
     await page.goto("/");
@@ -60,7 +60,11 @@ for (const lang of ["en", "he"] as const) {
     await panel.getByRole("button", { name: x.end }).click();
     await expect(page).toHaveURL(/\/labs$/);
     await expect(page.getByRole("heading", { name: x.myLabs })).toBeVisible();
+    // Back on My labs: the ended run shows its progress and offers Start again (catalog.py).
+    await expect(page.getByText("1/2")).toBeVisible();
+    await expect(page.getByRole("button", { name: x.start, exact: true })).toBeVisible();
 
+    expect(unmocked).toEqual([]);
     expect(log).toEqual(
       expect.arrayContaining([
         "POST /api/auth/login",

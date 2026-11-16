@@ -6,7 +6,7 @@ declare const process: { env: Record<string, string | undefined> };
 export default defineConfig({
   testDir: "e2e",
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+  retries: 0, // a retry would hide timing bugs in the flow under test
   reporter: process.env.CI ? "github" : "list",
   use: { baseURL: "http://127.0.0.1:4173", trace: "retain-on-failure" },
   projects: [{ name: "chromium", use: { browserName: "chromium" } }],
@@ -14,7 +14,7 @@ export default defineConfig({
   webServer: {
     command: "npm run build && npx vite preview --host 127.0.0.1 --port 4173 --strictPort",
     url: "http://127.0.0.1:4173",
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false, // never test another worktree's server on the same port
     timeout: 120_000,
   },
 });

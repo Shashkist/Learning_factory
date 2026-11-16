@@ -29,9 +29,13 @@ const LAB = {
 export const SESSION_ID = "s-e2e";
 
 // The /api/* calls the student UI makes, answered from memory. The request log lets a test
-// assert what the UI sent.
+// assert what the UI sent; `unmocked` lists every call the fake does not know (each test
+// asserts it stays empty, so a new or renamed call fails the suite even when the UI hides it).
 export async function fakeBackend(page: Page) {
   const log: string[] = [];
+  const unmocked: string[] = [];
+  const passedIds = new Set<string>();
+  let started = false;
   let signedIn = false;
   let session: { id: string; lab_id: string; expires_at: string } | null = null;
   let index = 0;
@@ -42,6 +46,8 @@ export async function fakeBackend(page: Page) {
     kind: "hands-on",
     state: "shown",
   });
+  const progress = () =>
+    passedIds.size === TASKS.length ? "done" : started ? `${passedIds.size}/${TASKS.length}` : "not_started";
   const json = (route: Route, body: unknown, status = 200) =>
     route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
 
@@ -50,7 +56,6 @@ export async function fakeBackend(page: Page) {
     const path = new URL(req.url()).pathname;
     const key = `${req.method()} ${path}`;
     log.push(key);
-    const step = /^POST \/api\/sessions\/[^/]+\/tasks\/current\/(next)$/.exec(key);
     switch (true) {
       case key === "GET /api/auth/me":
         return signedIn ? json(route, { kind: "student", name: "Dana" }) : json(route, {}, 401);
@@ -61,8 +66,11 @@ export async function fakeBackend(page: Page) {
         signedIn = false;
         return route.fulfill({ status: 204 });
       case key === "GET /api/labs":
-        return json(route, [{ ...LAB, session_id: session?.id ?? null, progress: session ? "in_progress" : "not_started" }]);
+        // As catalog.py: "done", "not_started" before any session, else "<passed>/<total>"
+        // (an ended session still counts; session_id is only set while one is live).
+        return json(route, [{ ...LAB, session_id: session?.id ?? null, progress: progress() }]);
       case key === "POST /api/sessions":
+        started = true;
         session = { id: SESSION_ID, lab_id: LAB.id, expires_at: new Date(Date.now() + 3_600_000).toISOString() };
         return json(route, session, 201);
       case key === "GET /api/sessions/current":
@@ -70,8 +78,9 @@ export async function fakeBackend(page: Page) {
       case key === `GET /api/sessions/${SESSION_ID}/tasks/current`:
         return json(route, task(index));
       case key === `POST /api/sessions/${SESSION_ID}/tasks/${TASKS[index]?.id}/check`:
+        passedIds.add(TASKS[index].id);
         return json(route, { passed: true, checklist: [{ n: 1, passed: true, hint: null }] });
-      case !!step:
+      case key === `POST /api/sessions/${SESSION_ID}/tasks/current/next`:
         if (index + 1 >= TASKS.length) return json(route, { detail: "no_next_task" }, 409);
         return json(route, task(++index));
       case key === `POST /api/sessions/${SESSION_ID}/end`:
@@ -80,6 +89,7 @@ export async function fakeBackend(page: Page) {
       case key === `POST /api/sessions/${SESSION_ID}/heartbeat`:
         return route.fulfill({ status: 204 });
       default:
+        unmocked.push(key);
         return json(route, { detail: `unmocked ${key}` }, 500);
     }
   });
@@ -87,5 +97,5 @@ export async function fakeBackend(page: Page) {
   await page.route(`**/s/${SESSION_ID}/term/`, (route) =>
     route.fulfill({ contentType: "text/html", body: "<body><pre id=term>student@lab:~$ </pre></body>" }),
   );
-  return log;
+  return { log, unmocked };
 }
