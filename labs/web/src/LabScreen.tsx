@@ -41,7 +41,6 @@ const GONE = new Set(["no_session", "session_ended"]);
 const ACTION_ERRORS: Record<string, string> = {
   setup_failed: "lab.error.setup_failed",
   setup_timeout: "lab.error.setup_timeout",
-  task_changed: "lab.error.task_changed",
 };
 const RETRY_MS = 2000;
 const RETRY_MAX = 30;
@@ -149,7 +148,7 @@ export default function LabScreen({
   const skew = useRef(0);
   const call = useRef(makeCall(skew)).current;
   const ending = useRef(false);
-  const [open, setOpen] = useState<Bi[] | null>(null);
+  const [open, setOpen] = useState<{ id: string; title: Bi }[] | null>(null);
 
   useEffect(() => {
     alive.current = true;
@@ -331,12 +330,17 @@ export default function LabScreen({
           return;
         }
         // Complete only when every task is passed: ask the server.
-        const list = await call<{ tasks: { title: Bi; state: string }[] }>(
-          "GET",
-          base,
-        );
-        const left = list.tasks.filter((x) => x.state !== "passed");
-        if (left.length) setOpen(left.map((x) => x.title));
+        let list: { tasks: { id: string; title: Bi; state: string }[] };
+        try {
+          list = await call("GET", base);
+        } catch (e2) {
+          if (e2 instanceof Busy || isEnded(e2)) throw e2;
+          setError("lab.error.tasks");
+          return;
+        }
+        const rest = list.tasks.filter((x) => x.state !== "passed");
+        if (rest.length)
+          setOpen(rest.map((x) => ({ id: x.id, title: x.title })));
         else setDone(true);
       }
     });
@@ -470,8 +474,22 @@ export default function LabScreen({
                   : `${open.length} ${t("lab.open.many")}`}
               </p>
               <ul>
-                {open.map((o, i) => (
-                  <li key={i}>{o[lang]}</li>
+                {open.map((o) => (
+                  <li key={o.id}>
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() =>
+                        run(async () => {
+                          show(
+                            await call<Task>("POST", `${base}/${o.id}/show`),
+                          );
+                        })
+                      }
+                    >
+                      {o.title[lang]}
+                    </button>
+                  </li>
                 ))}
               </ul>
             </div>
