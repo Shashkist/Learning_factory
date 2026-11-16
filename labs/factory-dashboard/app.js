@@ -93,10 +93,13 @@ function runLine(li, name, run) {
 
 var lastGenerated = null;
 
+// Two sources, two ages: live.json (the laptop, every few seconds while a pass runs) and
+// snapshot.json (GitHub issues, PRs and CI, rebuilt by a workflow on pushes to main and on a timer).
 function showAge() {
-  if (lastGenerated) {
-    document.getElementById("updated").textContent = "updated " + ago(lastGenerated);
-  }
+  var parts = [];
+  if (lastLive) parts.push("live status " + ago(lastLive.generated_at));
+  if (lastGenerated) parts.push("GitHub data " + ago(lastGenerated));
+  if (parts.length) document.getElementById("updated").textContent = "updated: " + parts.join(" · ");
 }
 
 function render(s) {
@@ -644,6 +647,7 @@ function pollLive() {
       if (timer !== null) clearTimeout(timer);
       livePending = false;
       showOffline();
+      showAge();
     });
 }
 
@@ -651,4 +655,4 @@ load();
 pollLive();
 setInterval(pollLive, 3000);
 setInterval(load, 5 * 60 * 1000);
-setInterval(showAge, 30 * 1000);
+setInterval(showAge, 5 * 1000);
