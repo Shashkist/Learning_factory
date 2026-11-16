@@ -284,14 +284,17 @@ def test_05_find_from_dot_prints_a_relative_path_and_fails_the_full_path_item(ma
 @pytest.mark.docker
 def test_05_find_from_the_root_folder_with_errors_hidden_passes(machine):
     _setup(machine, "05-find-file")
-    _student(machine, "find / -name secret-recipe.txt 2>/dev/null > ~/found.txt")
+    _student(machine, "find / -name secret-recipe.txt 2>/dev/null > ~/found.txt || [ $? -eq 1 ]")
     _assert_verdict(machine, "05-find-file", {1: P, 2: P})
 
 
 @pytest.mark.docker
 def test_05_find_from_the_root_folder_with_errors_hidden_passes_on_a_private_home(machine):
     _setup(machine, "05-find-file")
-    _student(machine, "find / -name secret-recipe.txt 2>/dev/null > ~/found.txt; " + PRIVATE_HOME)
+    _student(
+        machine,
+        "find / -name secret-recipe.txt 2>/dev/null > ~/found.txt || [ $? -eq 1 ]; " + PRIVATE_HOME,
+    )
     _assert_verdict(machine, "05-find-file", {1: P, 2: P})
 
 
