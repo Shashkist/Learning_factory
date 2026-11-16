@@ -593,3 +593,9 @@ in force · factory · 2026-11-16
 3. **New issue: student page.** Per lab: tasks passed, attempts, time per task next to the class median, flags with reason, dismiss a flag (migration: `flag_dismissed_at`), extend access, disable, note.
 4. **New issue: live sessions** (who is in which lab now, end a session) **and teacher Playwright flows** (after #131 sets Playwright up).
 **Why.** Each slice is one reviewable PR with its own exam; slice 1 is the base the others need (admin shell, router, `lf-smoke` exclusion helper). **Alternatives.** One big PR; API-only and UI-only slices (UI slices could not be checked end to end). **Revert.** Merge the follow-up issues back into #11.
+
+## D60 · #131 Playwright: the suite is the deliverable; the docker end-to-end test moves to #167
+in force · factory · 2026-11-16
+
+**Decision.** For #131 the Playwright specs are the deliverable, so there is no separate exam: they live in `labs/web/e2e/` (not `tests/acceptance/`), run against a fake backend (`page.route`, every unmocked `/api` call answers 500) with the built app served by `vite preview`, Chromium only, in the `web` CI job. Criterion 2 (one docker end-to-end test against the real manager) needs Node, Chromium, Postgres, the smoke lab and a seeded smoke student in the `docker` job; it is split into #167. The Playwright config declares `process` itself instead of adding Node types to the app's tsconfig (they would change timer types in `src`).
+**Why.** One reviewable PR; the docker job setup is a separate piece of CI work. **Alternatives.** Wait for both parts in one PR; a separate tsconfig for e2e. **Revert.** Fold #167 back into #131.

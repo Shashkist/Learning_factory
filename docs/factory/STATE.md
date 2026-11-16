@@ -6,17 +6,16 @@ _Last updated: 2026-11-16 ~10:52 UTC, laptop pass lf-h6d2 (~09:20 to ~10:52 UTC)
 
 ## Now
 
-- **Resume #153 first (no claim held; worktree `C:\projects\lf-153`, branch `f/153-bootstrap-flake`, PR #158).** Exam-harness only. Cause found (D58): the #3 rollback trigger's listener kept accepting for ~0.3 s, so a later step failed instead of the runtime step. Fixed with a one-shot listener; review rounds 1 and 2 done, round-2 fixes checked by the manager (D58 b). The round-2 commit bd5e346 went red in CI (11 #50 setup errors: module-scoped fixtures held their runner scope open, so a backup from an earlier scenario was still there); fixed in **adc2e2e**, CI was running at the end of the pass. Next: if PR #158 is green → `git log origin/main..HEAD`, squash-merge, Deploy, close nothing yet: #153 stays open until 10 consecutive green docker jobs after the merge are recorded on it (D58 c; count main + PR runs). If red → read `--log-failed`, fix in the same branch (exam harness only, never `labs/deploy/`).
-- **Production:** `lf-manager:b826ca1` (#162 My labs follow-ups, on top of #159 lab screen follow-ups), Deploy 43852049652 (deploy + smoke green). No lab is published to students yet (O17).
+- **Pass lf-q7m3 in progress (started ~10:58 UTC).** Lanes: **#11** slice 1 cohorts + import (D59; worktree `C:\projects\lf-11`, branch `f/11-cohorts`, exam in draft PR #169, implementer running), **#131** Playwright (worktree `C:\projects\lf-131`, `f/131-playwright`, implementer), **#139** session ready + one ownership rule (worktree `C:\projects\lf-139`, `f/139-session-ready`, exam being written).
+- **#153:** PR #158 merged (abbaf15); green docker jobs since: main abbaf15, main 522e62d (2 of 10). Stays open until 10 consecutive green docker jobs after the merge are recorded on it (D58 c; count main + PR runs).
+- **Production:** `lf-manager:522e62d` (Deploy 43856331709, deploy + smoke green; includes #158). No lab is published to students yet (O17).
 - **Lesson (D49):** a state commit pushed to `main` while a merge's Deploy is pending makes that Deploy skip; push state after the Deploy.
-- **Lesson (this pass):** a PR branch made before a fix can fail tests that `main` passes (the #130 tests have a fixed date; #161 → re-sequenced as #162). When a PR is red only in tests it does not touch, compare with `main` before debugging.
 - **Repository is public (D43).** Always `git pull --rebase` before a state commit, never `--autostash`.
 - **Known gap (D40):** a cancelled Deploy is not noticed; fix in #85.
-- **Next session starts at:** Now (#153), then Next 1.
 
 ## Next (in order)
 
-1. **#11** teacher UI (leave out the `lf-smoke` cohort, refuse that cohort name; see comments on #11; flags/reasons in `task_results` / `lab_runs`, D55; students can still start a `draft` lab by id). **#131** Playwright (slice 4 of #10).
+1. Teacher UI slices after #11 (D59): **#163** class table, **#164** student page, **#165** live sessions + teacher Playwright (after #131). Flags/reasons in `task_results` / `lab_runs` (D55); leave out `lf-smoke` everywhere.
 2. **#160** (p2) lab screen leftovers: "lab complete" only when every task passed, `task_changed` re-fetch, End lab guard, skew per screen, fixed-date tests (comment on #160).
 3. **#151** kill follow-ups (kill on early failures, nginx 60 s bound, real uid), **#139** (session ready after the skel copy; one ownership check), **#154** Solution tab (decide when to reveal, D57 b), **#156** smoke follow-ups, **#137**, **#126**, **#127**, **#142** (reuse the #153 helpers `_snapshot_daemon_state` / `_restore_daemon_state` / `_OneShotListener`).
 4. **#98** (p2, D46): cancel superseded PR runs and skip full CI for docs-only pushes; **#155** dashboard cadence.
