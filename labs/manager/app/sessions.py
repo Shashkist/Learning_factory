@@ -103,10 +103,10 @@ async def start(
     if lab is None:
         raise HTTPException(404, "unknown_lab")
     pool = state.pool
+    if lab.status == "internal" and (pool is None or not await _in_smoke_cohort(pool, p.subject)):
+        raise HTTPException(404, "unknown_lab")  # byte-identical to a missing lab (D54)
     if pool is None:
         raise HTTPException(503, "database unavailable")
-    if lab.status == "internal" and not await _in_smoke_cohort(pool, p.subject):
-        raise HTTPException(404, "unknown_lab")  # byte-identical to a missing lab (D54)
     runtime = state.runtime
     with db_guard():
         existing = await _live(pool, p.subject)

@@ -11,6 +11,7 @@ On failure exits 1 with `smoke failed: <step>: <reason>` on stderr; the session 
 Never prints the password, the cookie, the student id or a traceback.
 """
 import asyncio
+import http.client
 import http.cookies
 import json
 import os
@@ -23,14 +24,25 @@ from terminal import (
     Fail,
     _open,
     _output,
-    _request,
 )
+from terminal import _request as _terminal_request
 
 DEFAULT_BASE = "https://labs.shashkist.com"
 LAB_ID = "smoke-tasks"
 QUIZ, HANDS_ON = "01-quiz", "02-touch-file"
 CHECK_KEYS = {"passed", "attempts", "reason", "checklist"}
 ANSWER_KEYS = {"correct", "attempts"}
+
+
+QUIZ_KEYS = {"id", "index", "total", "kind", "title", "state", "question", "options"}
+LANG_KEYS = {"en", "he"}
+
+
+def _request(base: str, method: str, path: str, cookie: str | None, body: dict | None = None):
+    try:
+        return _terminal_request(base, method, path, cookie, body)
+    except http.client.HTTPException as exc:
+        raise Fail(f"{method} {path}: bad http answer ({type(exc).__name__})") from None
 
 
 class StepFail(Fail):
@@ -75,6 +87,17 @@ def _prompt(buf: str) -> bool:
     return buf.endswith("$ ")
 
 
+def _hi_then_prompt(buf: str) -> bool:
+    """`hi` seen and the prompt that follows it consumed, so no stale prompt stays queued."""
+    return HI_LINE.search(buf) is not None and _prompt(buf)
+
+
+def _fix_done(buf: str) -> bool:
+    """The typed command was echoed (`smoke-ok`) and a prompt came after that echo."""
+    i = buf.find("smoke-ok")
+    return i >= 0 and _prompt(buf[i:])
+
+
 async def _type(ws: Any, cmd: str) -> None:
     await ws.send(b"0" + cmd.encode() + b"\r")
 
@@ -95,8 +118,7 @@ async def _steps(base: str, sid: str, cookie: str, timeout: float) -> None:
         await _wait(ws, _prompt, timeout, "terminal", "no shell prompt in the terminal")
         await _type(ws, "echo hi")
         await _wait(
-            ws, lambda b: HI_LINE.search(b) is not None, timeout, "terminal",
-            "the terminal never answered hi to echo hi",
+            ws, _hi_then_prompt, timeout, "terminal", "the terminal never answered hi to echo hi"
         )
         _ok("terminal")
 
@@ -117,7 +139,7 @@ async def _steps(base: str, sid: str, cookie: str, timeout: float) -> None:
         _ok("check-fail")
 
         await _type(ws, "touch ~/smoke-ok")
-        await _wait(ws, _prompt, timeout, "fix", "no shell prompt after the change")
+        await _wait(ws, _fix_done, timeout, "fix", "no shell prompt after the change")
         _ok("fix")
 
         res = await _post("check-pass", base, f"{task}/{HANDS_ON}/check", cookie)
@@ -127,8 +149,7 @@ async def _steps(base: str, sid: str, cookie: str, timeout: float) -> None:
         _ok("check-pass")
 
     quiz = await _post("quiz-show", base, f"{task}/{QUIZ}/show", cookie)
-    if {"correct", "answer", "correct_option"} & set(quiz):
-        raise StepFail("quiz-show", "the quiz detail carries its answer")
+    _quiz_shape(quiz)
     _ok("quiz-show")
 
     for step, option, expected in (("answer-wrong", 0, False), ("answer-right", 1, True)):
@@ -139,6 +160,22 @@ async def _steps(base: str, sid: str, cookie: str, timeout: float) -> None:
         _ok(step)
 
 
+def _quiz_shape(quiz: dict[str, Any]) -> None:
+    """Allow-list: any key the contract does not name might leak the correct option."""
+    bad = set(quiz) - QUIZ_KEYS
+    texts = [quiz.get("title"), quiz.get("question")]
+    options = quiz.get("options")
+    if not isinstance(options, list):
+        raise StepFail("quiz-show", "the quiz detail has no options list")
+    for item in [*texts, *options]:
+        if not isinstance(item, dict):
+            raise StepFail("quiz-show", "a quiz text is not a mapping")
+        if set(item) - LANG_KEYS or not all(isinstance(v, str) for v in item.values()):
+            raise StepFail("quiz-show", "a quiz text carries something besides en/he strings")
+    if bad:
+        raise StepFail("quiz-show", f"unexpected keys in the quiz: {', '.join(sorted(bad))}")
+
+
 def _contract(step: str, res: dict[str, Any], allowed: set[str]) -> None:
     extra = set(res) - allowed
     if extra:
@@ -147,8 +184,28 @@ def _contract(step: str, res: dict[str, Any], allowed: set[str]) -> None:
 
 def run(base: str, student: str, password: str, timeout: float) -> tuple[str, str] | None:
     """Run the smoke; return (step, reason) of the failure, or None."""
-    status, headers, _ = _request(
-        base, "POST", "/api/auth/login", None, {"id": student, "password": password}
+    try:
+        return _run(base, student, password, timeout)
+    except _Early as exc:
+        return exc.step, str(exc)
+
+
+class _Early(Fail):
+    def __init__(self, step: str, reason: str) -> None:
+        super().__init__(reason)
+        self.step = step
+
+
+def _early(step: str, base: str, path: str, cookie: str | None, body: dict | None = None):
+    try:
+        return _request(base, "POST", path, cookie, body)
+    except Fail as exc:
+        raise _Early(step, str(exc)) from None
+
+
+def _run(base: str, student: str, password: str, timeout: float) -> tuple[str, str] | None:
+    status, headers, _ = _early(
+        "login", base, "/api/auth/login", None, {"id": student, "password": password}
     )
     if status != 200:
         return "login", f"login failed (http {status})"
@@ -159,13 +216,14 @@ def run(base: str, student: str, password: str, timeout: float) -> tuple[str, st
         return "login", "login set no session cookie"
     cookie = jar[COOKIE].value
 
-    status, _, raw = _request(base, "POST", "/api/sessions", cookie, {"lab_id": LAB_ID})
+    status, _, raw = _early("start", base, "/api/sessions", cookie, {"lab_id": LAB_ID})
     if status not in (200, 201):
         return "start", f"starting the lab failed (http {status})"
     try:
         sid = str(json.loads(raw)["id"])
     except (ValueError, KeyError, TypeError):
         return "start", "starting the lab returned no session id"
+    print(f"ok start {sid}", flush=True)  # a session id (UUID): lets the workflow check the container
     failure: tuple[str, str] | None = None
     try:
         asyncio.run(_steps(base, sid, cookie, timeout))
