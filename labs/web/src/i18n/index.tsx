@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
 import en from "./en.json";
 import he from "./he.json";
@@ -30,10 +30,17 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     setLang(next);
   };
   const t = (key: string) => DICTS[lang][key] ?? key;
+  useEffect(() => {
+    document.documentElement.lang = lang;
+    document.documentElement.dir = lang === "he" ? "rtl" : "ltr";
+    document.title = DICTS[lang]["app.title"];
+  }, [lang]);
   return (
     <I18n.Provider value={{ lang, toggle, t }}>
       <div data-testid="app-root" lang={lang} dir={lang === "he" ? "rtl" : "ltr"}>
-        <button onClick={toggle}>{t("lang.switch")}</button>
+        <button onClick={toggle} lang={lang === "en" ? "he" : "en"} aria-label={t("lang.switch.label")}>
+          {t("lang.switch")}
+        </button>
         {children}
       </div>
     </I18n.Provider>
