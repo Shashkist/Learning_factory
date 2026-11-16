@@ -2,22 +2,25 @@
 
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
-_Last updated: 2026-11-16 ~01:35 UTC, laptop pass lf-t5w2._
+_Last updated: 2026-11-16 ~03:05 UTC, laptop pass lf-t5w2 (~01:27 to ~03:05 UTC)._
 
 ## Now
 
-- **Pass lf-t5w2 (started ~01:27 UTC) has 3 issues in flight:** #89 (branch `f/89-completion`, worktree `C:\projects\lf-89`), #128 (`f/128-smoke-tasks`, `C:\projects\lf-128`, D54), #10 slice 1 (`f/10-student-shell`, `C:\projects\lf-10`, D53: #10 sliced into #10/#129/#130/#131). Step: exam.
+- **Nothing in flight.** Pass lf-t5w2 (~01:27 to ~03:05 UTC) merged 3 PRs (#133, #134, #135) and released every claim; pass worktrees removed.
+- **Production:** Deploy 43795640534 shipped `lf-manager:e35dafe`, all checks passed. The post-deploy smoke now drives the task API live (show, check FAIL, fix, check PASS, wrong + right answer, end; both lab containers gone). Migration 005 (completion, active time, fast flag) is live.
+- **#10 is sliced (D53):** slice 1 shipped; next #129 (catalog API + My labs), #130 (lab screen), #131 (Playwright).
 - **Lesson (D49):** a state commit pushed to `main` while a merge's Deploy is pending makes that Deploy skip; push state after the Deploy.
 - **Repository is public (D43).** Always `git pull --rebase` before a state commit, never `--autostash`.
 - **Known gap (D40):** a cancelled Deploy is not noticed; fix in #85.
+- **Next session starts at:** Next 1.
 
 ## Next (in order)
 
-1. **#89** (completion, active time, fast flag; p1, builds on #88): exam first. Then **#128** (p1, smoke drives the task API), **#10** student UI (now has check/answer: D50, D51; map 409 `session_busy` / `setup_running` to "busy, try again"), **#11** teacher UI.
-2. **#117** task runner follow-ups (first: kill a timed-out script; with checks on demand, timed-out `check.sh` processes pile up toward PidsLimit).
-3. **#126** Linux 1 exam: students cannot see or influence checks (+ leftovers from #125 round 2: 04/05 expected text on root command lines, pipe write-back token, 200-line cap, unused helpers). **#127** check parser and busy-slug nits.
-4. **#98** (p2, D46): first slice = cancel superseded PR runs and skip full CI for docs-only pushes (this pass ran ~6 full CI runs for state/decision commits); branch `f/98-ci-minutes` + PR #103's round 1 findings.
-5. **#85** deploy follow-ups, **#94**, **#93**; p2 list: #81, #76, #67, #69, #64, #68, #54, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
+1. **#129** (p1) catalog API `GET /api/labs` + My labs page (never list `internal` labs, D54; fold in #136 items touching the same files). Then **#130** lab screen (map 409 `session_busy` / `setup_running` to "busy, try again"), **#11** teacher UI (leave out the `lf-smoke` cohort, refuse that cohort name; see comments on #11; flags/reasons are in `task_results` / `lab_runs`, D55).
+2. **#117** task runner follow-ups (first: kill a timed-out script).
+3. **#137** completion nits, **#138** task smoke nits, **#136** UI slice 1 nits, **#126** Linux 1 exam, **#127** check parser nits.
+4. **#98** (p2, D46): cancel superseded PR runs and skip full CI for docs-only pushes (this pass again ran full CI for every state/decision commit).
+5. **#131** Playwright; **#85** deploy follow-ups, **#94**, **#93**; p2 list: #81, #76, #67, #69, #64, #68, #54, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
 
@@ -27,6 +30,8 @@ _Last updated: 2026-11-16 ~01:35 UTC, laptop pass lf-t5w2._
 - O16/O7 resolved by D43 (public repository). O12 (back up `.env`), O13 (re-deploy after recreating nginx-proxy3), O5 reopened.
 
 ## Recently done
+
+- 2026-11-16 · Pass lf-t5w2: **3 PRs merged, three lanes in parallel.** #10 sliced into #10/#129/#130/#131 (D53); slice 1 shipped in #133 (i18n en/he + RTL, student login, router; review approved, should-fix fixed by the manager: failed logout kept the session, malformed `%` id crashed the page; leftovers #136; live bundle verified). #89 completion, active time, fast flag (#134, D55; round 1 blocker: two tasks passing at once lost the completion forever → session row lock + race test; per-beat rounding could double or erase active time → `double precision`; round 2 approved; migration 005 live; leftovers #137). #128 smoke drives the task API (#135, D54 internal smoke lab for cohort `lf-smoke`; round 1: stale prompt, nested quiz leak, unchecked second container; round 2 approved; live smoke all 10 steps ok; leftovers #138).
 
 - 2026-11-16 · Pass lf-k3v9: **3 PRs merged.** #121 Google test nits (#122; review approved, a test-order should-fix fixed in the PR). #88 task engine slice 2, check + answer (#123; D50 API shape; exam pushed alone first so CI proved the harness, one seed-order fix; round 1 blocker: checks bypassed the session lock so one student could hold every exec slot, D51; round 2 approved, nits → #127; live routes 401). #119 Linux 1 checks with a private home (#125, re-sequenced from #124 after a `find /` exit-code exam bug; round 1: check body visible in `ps` and a student-owned temp file let a wrong answer pass → facts-only reader on stdin, root decides, D52; round 2: dash `echo` let file content forge fact lines → `printf`, regular files only, bounded reads, fixed by the manager; leftovers → #126). New: #126, #127, #128.
 
