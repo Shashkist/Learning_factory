@@ -2,7 +2,7 @@
 
 Showing a hands-on task runs its `setup.sh` as root in the session's container (D45) before
 anything is recorded; Next/Skip/Previous/Restart all show a target the same way and never reset
-the machine (spec section 5). Check results, attempts and completion are #88 and #89.
+the machine (spec section 5). Check results, attempts and quiz grading are #88; completion is #89.
 Nothing sent to a student carries check/setup/solution text or a quiz `correct` field."""
 import asyncio
 import logging
@@ -12,6 +12,7 @@ import uuid
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, StrictInt
 
 from app import db
 from app.auth import Principal, current_student, db_guard
@@ -21,6 +22,8 @@ from app.runtime import container_name
 log = logging.getLogger("lab-manager")
 T = db.SCHEMA
 DEFAULT_SETUP_TIMEOUT_S = 50.0  # below nginx's default proxy_read_timeout (60 s)
+CHECK_TIMEOUT_S = 20.0  # spec section 7
+MAX_HINT = 300
 SLOT_WAIT_S = 5.0  # waiting for an exec slot, on top of the setup timeout
 
 
@@ -263,3 +266,125 @@ async def show_task(task_id: str, ctx: Annotated[_Ctx, Depends(_ctx)]) -> dict[s
     if task is None:
         raise HTTPException(404, "unknown_task")
     return await _show(ctx, task)
+
+
+_LINE = re.compile(r"(PASS|FAIL)[ 	]+([0-9]+)(?:[ 	]+(.*))?")
+
+
+def parse_check(output: str, count: int) -> tuple[dict[int, tuple[bool, str | None]], bool]:
+    """Parse the `check.sh` contract (spec section 7): `PASS <n>` / `FAIL <n> <hint>` lines.
+
+    Returns the verdict per item number 1..count that printed one (an item with conflicting
+    lines is failed) and whether the output was clean: any other non-blank line, or an item
+    number outside the checklist, makes it unclean and the check cannot pass."""
+    found: dict[int, tuple[bool, str | None]] = {}
+    clean = True
+    for raw in output.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        m = _LINE.fullmatch(line)
+        if m is None or not 1 <= int(m.group(2)) <= count:
+            clean = False
+            continue
+        n, ok = int(m.group(2)), m.group(1) == "PASS"
+        if ok and m.group(3):  # `PASS <n>` takes no text
+            clean = False
+            continue
+        hint = None if ok else ((m.group(3) or "").strip()[:MAX_HINT] or None)
+        if n in found and found[n][0] != ok:
+            found[n] = (False, found[n][1] or hint)
+        elif n not in found:
+            found[n] = (ok, hint)
+    return found, clean
+
+
+async def _count_attempt(ctx: _Ctx, task: Task, passed: bool) -> int:
+    """One atomic increment; `passed_at` only on the first pass, never cleared."""
+    with db_guard():
+        attempts = await ctx.pool.fetchval(
+            f"update {T}.task_results set attempts = attempts + 1, "
+            "passed_at = case when $3 then coalesce(passed_at, now()) else passed_at end "
+            "where session_id = $1 and task_id = $2 and shown_at is not null "
+            "returning attempts",
+            ctx.sid,
+            task.id,
+            passed,
+        )
+    if attempts is None:
+        raise HTTPException(409, "task_not_shown")
+    return int(attempts)
+
+
+async def _gradable(ctx: _Ctx, task_id: str, kind: str) -> Task:
+    task = ctx.task(task_id)
+    if task is None:
+        raise HTTPException(404, "unknown_task")
+    if task.kind != kind:
+        raise HTTPException(409, "wrong_task_kind")
+    row = await ctx.result(task)
+    if row is None or row["shown_at"] is None:
+        raise HTTPException(409, "task_not_shown")
+    return task
+
+
+async def _run_check(ctx: _Ctx, task: Task) -> tuple[str | None, str, bool]:
+    """(reason, output, exited 0); the reason is "timeout" or "error" when nothing was read."""
+    script = (ctx.lab.path / "tasks" / task.id / "check.sh").read_bytes().decode("utf-8")
+    try:
+        await asyncio.wait_for(_EXECS.acquire(), SLOT_WAIT_S)
+    except TimeoutError:
+        log.error("check of %s in session %s found no free exec slot", task.id, ctx.sid)
+        return "error", "", False
+    try:
+        res = await ctx.request.app.state.runtime.exec_script(
+            container_name(ctx.sid), script, CHECK_TIMEOUT_S
+        )
+    except Exception as exc:
+        log.error("check of %s in session %s failed (%s)", task.id, ctx.sid, type(exc).__name__)
+        return "error", "", False
+    finally:
+        _EXECS.release()
+    if res.timed_out:
+        log.error("check of %s in session %s timed out", task.id, ctx.sid)
+        return "timeout", "", False
+    return None, res.output, res.exit_code == 0
+
+
+@router.post("/{task_id}/check")
+async def check_task(task_id: str, ctx: Annotated[_Ctx, Depends(_ctx)]) -> dict[str, Any]:
+    task = await _gradable(ctx, task_id, "hands-on")
+    reason, output, exit_ok = await _run_check(ctx, task)
+    found, clean = parse_check(output, len(task.checklist))
+    items = [
+        {
+            "n": n,
+            "text": dict(text),
+            "passed": found.get(n, (False, None))[0],
+            "hint": found.get(n, (False, None))[1],
+        }
+        for n, text in enumerate(task.checklist, 1)
+    ]
+    passed = exit_ok and clean and all(i["passed"] for i in items)
+    attempts = await _count_attempt(ctx, task, passed)
+    return {
+        "passed": passed,
+        "attempts": attempts,
+        "reason": reason,
+        "checklist": items,
+    }
+
+
+class _Answer(BaseModel):
+    option: StrictInt
+
+
+@router.post("/{task_id}/answer")
+async def answer_task(
+    task_id: str, body: _Answer, ctx: Annotated[_Ctx, Depends(_ctx)]
+) -> dict[str, Any]:
+    task = await _gradable(ctx, task_id, "quiz")
+    if not 0 <= body.option < len(task.options):
+        raise HTTPException(422, "invalid_option")
+    correct = body.option == task.correct
+    return {"correct": correct, "attempts": await _count_attempt(ctx, task, correct)}

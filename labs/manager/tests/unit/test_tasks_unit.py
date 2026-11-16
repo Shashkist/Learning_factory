@@ -188,3 +188,24 @@ def test_no_free_exec_slot_is_a_504_setup_timeout_and_runs_nothing(monkeypatch, 
     exc = asyncio.run(go())
     assert exc.status_code == 504 and exc.detail["code"] == "setup_timeout"
     assert calls == []
+
+
+@pytest.mark.parametrize(
+    "output,found,clean",
+    [
+        ("PASS 1\nFAIL 2 no good\n", {1: (True, None), 2: (False, "no good")}, True),
+        ("\r\nPASS 1\r\n\n", {1: (True, None)}, True),
+        ("FAIL 1\n", {1: (False, None)}, True),
+        ("PASS 1\nFAIL 1 x\n", {1: (False, "x")}, True),
+        ("FAIL 1 x\nPASS 1\n", {1: (False, "x")}, True),
+        ("PASS 1\nPASS 1\n", {1: (True, None)}, True),
+        ("PASS 3\n", {}, False),
+        ("PASS 0\n", {}, False),
+        ("PASS x\n", {}, False),
+        ("OK 1\nPASS 1\n", {1: (True, None)}, False),
+        ("PASS 1 trailing\n", {}, False),
+        ("FAIL 2 " + "h" * 400 + "\n", {2: (False, "h" * 300)}, True),
+    ],
+)
+def test_parse_check(output, found, clean):
+    assert tasks.parse_check(output, 2) == (found, clean)
