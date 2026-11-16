@@ -44,14 +44,18 @@ n=0
 p=PRE; q=POST
 for d in /proc/[0-9]*; do
   c=$(tr '\0' ' ' < "$d/cmdline" 2>/dev/null)
-  case "$c" in *"$p$q"*) n=$((n+1));; esac
+  case "$c" in *" $p$q"*) n=$((n+1));; esac
 done
 echo $n
 """
 
 
 def mentioning(box: str, mark: int) -> int:
-    """Processes of any owner whose command line mentions the mark (the counter hides its own)."""
+    """Processes of any owner whose command line mentions the mark (the counter hides its own).
+
+    The mark must follow a space: ttyd's `-b /s/<session uuid>/term/` holds a random hex string
+    that can contain the digits of a mark (#182: a session id ending in 6012), never ` 6012`.
+    """
     text = str(mark)
     script = COUNT_ANY.replace("PRE", text[:2]).replace("POST", text[2:])
     return int(docker("exec", "-u", "root", box, "sh", "-c", script).stdout.strip())
