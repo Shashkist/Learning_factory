@@ -6,6 +6,7 @@ _Last updated: 2026-11-16 ~12:45 UTC, laptop pass lf-q7m3 (~10:58 to ~12:45 UTC)
 
 ## Now
 
+- **Pass lf-b8n5 in progress (started ~13:10 UTC), three lanes:** #139 round-2 fixes (worktree `C:\projects\lf-139b`, PR #171); #172 exam (worktree `C:\projects\lf-172`, branch `f/172-cohort-edit`); #160 exam (worktree `C:\projects\lf-160`, branch `f/160-lab-screen-leftovers`, D57 amended for #160). Claims held by lf-b8n5.
 - **Resume #139 first (claim released; worktree `C:\projects\lf-139b`, branch `f/139-session-ready-2`, PR #171, CI green).** Review round 1 asked for changes (comment on #171): (1) `wait_ready` must stop at once when the container is gone or the session was ended meanwhile, and the start cleanup must only delete a row still `starting`; add a unit test for the failure path; (2) bound the wait with `LF_READY_TIMEOUT_S` (default 45 s, below nginx's 60 s), note it in D24. Nits → a follow-up issue. Then round 2 → merge → Deploy → live check → close.
 - **#153:** 7 of 10 consecutive green docker jobs since the PR #171 failure (count on #153). New failure mode seen once: runsc `OCI runtime start failed ... oom_score_adj: no such process` right after `systemctl reload docker` in the #50 exam; proposed fix: the bootstrap runtime check retries one failed runsc `docker run` (`labs/deploy/`). Close #153 at 10.
 - **Production:** `lf-manager:fa2f8ff` (#170 teacher cohorts + import; Deploy 43868362230, deploy + smoke green; `/api/admin/*` answer 401 anonymous). No lab is published to students yet (O17).
