@@ -2,27 +2,26 @@
 
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
-_Last updated: 2026-11-16 ~10:52 UTC, laptop pass lf-h6d2 (~09:20 to ~10:52 UTC)._
+_Last updated: 2026-11-16 ~12:45 UTC, laptop pass lf-q7m3 (~10:58 to ~12:45 UTC)._
 
 ## Now
 
-- **Pass lf-q7m3 in progress (since ~10:58 UTC).** Merged: #158 (#153 harness), #168 (#131 Playwright, closed). In flight:
-  - **#11** slice 1 cohorts + import: **PR #170** (re-sequenced from #169: exam, exam fix, code). Review round 1: no blocker; should-fix fixed by the manager in 2ef3ea9; CI re-running. Next: green → merge, Deploy, live check `GET /api/admin/cohorts` → 401 anonymous, close #11. Leftovers → **#172** (edit form, student list, import hardening; D59 amended).
-  - **#139** session ready + one ownership rule: **PR #171** (re-sequenced from #166). The #139 exam is green in docker; the docker job failed once in the #50 bootstrap exam (runsc start race, see #153) and was re-run. Next: green → reviewer (round 1) → merge.
-- **#153:** count of 10 green docker jobs restarted after a new failure mode on PR #171 (`oom_score_adj: no such process` right after `systemctl reload docker`; proposed fix: the bootstrap runtime check retries a runsc `docker run` once). Comment on #153.
-- **Production:** `lf-manager:ee75ee0` (Deploy 43864385605, deploy + smoke green). No lab is published to students yet (O17).
+- **Resume #139 first (claim released; worktree `C:\projects\lf-139b`, branch `f/139-session-ready-2`, PR #171, CI green).** Review round 1 asked for changes (comment on #171): (1) `wait_ready` must stop at once when the container is gone or the session was ended meanwhile, and the start cleanup must only delete a row still `starting`; add a unit test for the failure path; (2) bound the wait with `LF_READY_TIMEOUT_S` (default 45 s, below nginx's 60 s), note it in D24. Nits → a follow-up issue. Then round 2 → merge → Deploy → live check → close.
+- **#153:** 7 of 10 consecutive green docker jobs since the PR #171 failure (count on #153). New failure mode seen once: runsc `OCI runtime start failed ... oom_score_adj: no such process` right after `systemctl reload docker` in the #50 exam; proposed fix: the bootstrap runtime check retries one failed runsc `docker run` (`labs/deploy/`). Close #153 at 10.
+- **Production:** `lf-manager:fa2f8ff` (#170 teacher cohorts + import; Deploy 43868362230, deploy + smoke green; `/api/admin/*` answer 401 anonymous). No lab is published to students yet (O17).
+- **Lesson (this pass):** push the exam alone first and **wait for its CI before committing code**: both the #11 and #139 exams had a case wrong for an exam reason; because code was already on top, each needed a re-sequenced branch and PR (#169 → #170, #166 → #171).
 - **Lesson (D49):** a state commit pushed to `main` while a merge's Deploy is pending makes that Deploy skip; push state after the Deploy.
-- **Lesson (this pass):** push the exam alone first (draft PR): both #11 and #139 exams had a case that failed on CI for an exam reason, caught before review; the fix still needed a re-sequenced branch because the code was already committed. Next time, wait for the exam-only CI before committing code.
 - **Repository is public (D43).** Always `git pull --rebase` before a state commit, never `--autostash`.
 - **Known gap (D40):** a cancelled Deploy is not noticed; fix in #85.
+- **Next session starts at:** Now (#139), then Next 1.
 
 ## Next (in order)
 
-1. Teacher UI slices after #11 (D59): **#163** class table, **#164** student page, **#165** live sessions + teacher Playwright (after #131). Flags/reasons in `task_results` / `lab_runs` (D55); leave out `lf-smoke` everywhere.
-2. **#160** (p2) lab screen leftovers: "lab complete" only when every task passed, `task_changed` re-fetch, End lab guard, skew per screen, fixed-date tests (comment on #160).
-3. **#151** kill follow-ups (kill on early failures, nginx 60 s bound, real uid), **#139** (session ready after the skel copy; one ownership check), **#154** Solution tab (decide when to reveal, D57 b), **#156** smoke follow-ups, **#137**, **#126**, **#127**, **#142** (reuse the #153 helpers `_snapshot_daemon_state` / `_restore_daemon_state` / `_OneShotListener`).
+1. Teacher UI (D59): **#172** (p1: cohort edit form, student list, translated import errors, import hardening, one smoke-cohort definition, Google-admin exam case), then **#163** class table, **#164** student page, **#165** live sessions + teacher Playwright. Flags/reasons in `task_results` / `lab_runs` (D55); leave out `lf-smoke` everywhere (use `teacher.NOT_SMOKE`).
+2. **#160** (p2) lab screen leftovers: "lab complete" only when every task passed, `task_changed` re-fetch, End lab guard, skew per screen, fixed-date tests.
+3. **#167** docker end-to-end browser test against the real manager (split from #131, D60). **#151** kill follow-ups, **#154** Solution tab (D57 b), **#156** smoke follow-ups, **#137**, **#126**, **#127**, **#142** (reuse the #153 helpers).
 4. **#98** (p2, D46): cancel superseded PR runs and skip full CI for docs-only pushes; **#155** dashboard cadence.
-5. **#85** deploy follow-ups, **#94**, **#93**; p2 list: #81, #76, #67, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready` (29 now).
+5. **#85** deploy follow-ups, **#94**, **#93**; p2 list: #81, #76, #67, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
 
@@ -32,6 +31,8 @@ _Last updated: 2026-11-16 ~10:52 UTC, laptop pass lf-h6d2 (~09:20 to ~10:52 UTC)
 - O16/O7 resolved by D43 (public repository). O12 (back up `.env`), O13 (re-deploy after recreating nginx-proxy3), O5 reopened.
 
 ## Recently done
+
+- 2026-11-16 · Pass lf-q7m3: **3 PRs merged, #139 in review.** #153 harness PR #158 merged (abbaf15; #153 stays open for the green-run count, now 7/10 after a new runsc start race). #131 Playwright (#168; en/he main flow against a fake backend in the `web` job; tsc in CI needed `process` declared; round 1 approved, should-fix (unmocked calls asserted empty, real progress after End lab, no retries, no server reuse) fixed by the manager; docker e2e → #167, D60; live in Deploy 43864385605). #11 sliced (D59: #11, #163, #164, #165) and slice 1 shipped (#170, re-sequenced from #169 after an exam case assumed no `lf-smoke` cohort in the shared DB; round 1: no blocker, should-fix (double "Line N", a NUL in one name failing the whole import, insert order, double submit) fixed by the manager; edit form + nits → #172, D59 amended; live in Deploy 43868362230: `/api/admin/*` 401). #139 exam + code (#171, re-sequenced from #166; exam green in docker; round 1 changes requested).
 
 - 2026-11-16 · Pass lf-h6d2: **2 PRs merged, #153 in PR.** #157 lab screen follow-ups (#159; exam first, 46 cases; only the server ends a lab, the countdown is corrected for clock skew with the `Date` header, D57 (c)/(d) amended; round 1 approved, should-fix (Skip on a passed last task) fixed by the manager; live in Deploy 43848344847; leftovers #160). #147 My labs follow-ups (#162, re-sequenced from #161, whose branch predated #159 and hit the #130 fixed-date tests; exam edits to #10/#129 first; round 1 approved, should-fix (stale "logging out failed" after a 401), Cancel during forced start and a third live-session copy in `admission.py` fixed by the manager; live in Deploy 43852049652). #153 (#158): cause found by the reviewer (trigger race in the #3 exam, no product bug, D58); in CI at the end of the pass.
 
