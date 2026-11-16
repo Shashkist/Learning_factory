@@ -71,7 +71,13 @@ function Student() {
       {logoutFailed && <p role="alert">{t("nav.logout_failed")}</p>}
       {["/", "/labs", "/login"].includes(path) ? (
         <>
-          <MyLabs open={(id) => go(`/labs/${encodeURIComponent(id)}`)} />
+          <MyLabs
+            open={(id) => go(`/labs/${encodeURIComponent(id)}`)}
+            signedOut={() => {
+              setUser(null);
+              go("/login", true);
+            }}
+          />
         </>
       ) : lab ? (
         <LabScreen key={lab} lab={lab} go={go} />
