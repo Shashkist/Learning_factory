@@ -22,6 +22,7 @@ from app.auth import Principal, current_student, db_guard
 from app.content import LANGS, Lab, Task, parse_check_output
 from app.flags import fast_lab_reason, fast_task_reason
 from app.runtime import container_name
+from app.term_proxy import authorize
 
 log = logging.getLogger("lab-manager")
 T = db.SCHEMA
@@ -111,21 +112,8 @@ class _Ctx:
 async def _ctx(
     session: str, request: Request, p: Annotated[Principal, Depends(current_student)]
 ) -> _Ctx:
-    try:
-        sid = uuid.UUID(session)
-    except ValueError:
-        raise HTTPException(404, "no_session") from None
-    with db_guard():
-        row = await request.app.state.pool.fetchrow(
-            f"select student, status, lab_id, current_task from {T}.lab_sessions where id = $1",
-            sid,
-        )
-    if row is None:
-        raise HTTPException(404, "no_session")
-    if row["student"] != p.subject:
-        raise HTTPException(403, "not_your_session")
-    if row["status"] == "ended":
-        raise HTTPException(410, "session_ended")
+    row = await authorize(request, session, p)
+    sid = uuid.UUID(session)
     if row["status"] == "starting":
         raise HTTPException(409, "session_starting")
     if row["status"] != "running":

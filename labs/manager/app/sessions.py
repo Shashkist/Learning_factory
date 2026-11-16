@@ -91,6 +91,15 @@ def _conflict(labs: dict[str, Lab], row: Any) -> HTTPException:
     )
 
 
+async def wait_ready(runtime: Any, name: str) -> None:
+    """Running means the entrypoint copied the skel (ttyd starts after it). Bounded by half the
+    start deadline, so the janitor never reaps a start that is still waiting. A runtime without
+    `wait_ready` (the fakes) is ready at once."""
+    waiter = getattr(runtime, "wait_ready", None)
+    if waiter is not None:
+        await waiter(name, admission.env_num("LF_START_DEADLINE_S", 180) / 2)
+
+
 @router.post("", status_code=201)
 async def start(
     body: StartBody,
@@ -143,6 +152,7 @@ async def start(
         sid = str(row["id"])
         try:
             name = str(await runtime.start(container_spec(lab, sid)))
+            await wait_ready(runtime, name)
         except Exception as exc:
             log.error("starting container of session %s failed (%s)", sid, type(exc).__name__)
             await remove_container(runtime, sid)

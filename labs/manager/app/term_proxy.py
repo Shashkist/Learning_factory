@@ -10,6 +10,7 @@ import os
 import socket
 import uuid
 from collections.abc import AsyncIterator
+from typing import Any
 
 import httpx
 from fastapi import APIRouter, HTTPException, Request, WebSocket
@@ -48,16 +49,19 @@ def upstream_address(session: uuid.UUID) -> str:
     return os.environ.get("LF_TERM_UPSTREAM") or f"lab-{session}:{TTYD_PORT}"
 
 
-async def authorize(conn: HTTPConnection, raw_session: str) -> uuid.UUID:
-    """401 (no/invalid/disabled), 404 (not a UUID / unknown), 403 (not yours), 410 (ended)."""
-    principal = await auth.current_principal(conn)
+async def authorize(conn: HTTPConnection, raw_session: str, principal: Any) -> Any:
+    """The one ownership rule for a session id (task API and terminal): returns the session row.
+
+    404 (not a UUID / unknown), 403 (not yours), 410 (ended). The caller authenticated first."""
     try:
         sid = uuid.UUID(raw_session)
     except ValueError:
         raise HTTPException(404, "no_session") from None
     with auth.db_guard():
         row = await auth._pool(conn).fetchrow(
-            f"select student, status from {T}.lab_sessions where id = $1", sid
+            f"select student, status, lab_id, current_task from {T}.lab_sessions "
+            "where id = $1",
+            sid,
         )
     if row is None:
         raise HTTPException(404, "no_session")
@@ -65,7 +69,7 @@ async def authorize(conn: HTTPConnection, raw_session: str) -> uuid.UUID:
         raise HTTPException(403, "not_your_session")
     if row["status"] == "ended":
         raise HTTPException(410, "session_ended")
-    return sid
+    return row
 
 
 def forward_headers(conn: HTTPConnection, drop: set[str]) -> list[tuple[str, str]]:
@@ -95,7 +99,9 @@ def _target(conn: HTTPConnection, sid: uuid.UUID) -> tuple[str, str]:
 @router.api_route("/s/{session}/term", methods=METHODS)
 @router.api_route("/s/{session}/term/{rest:path}", methods=METHODS)
 async def http_proxy(session: str, request: Request) -> StreamingResponse:
-    sid = await authorize(request, session)
+    principal = await auth.current_principal(request)
+    await authorize(request, session, principal)
+    sid = uuid.UUID(session)
     address, target = _target(request, sid)
     headers = forward_headers(request, NOT_FORWARDED)
     has_body = "content-length" in request.headers or "transfer-encoding" in request.headers
@@ -146,7 +152,9 @@ async def _refuse(websocket: WebSocket, status: int, detail: str) -> None:
 @router.websocket("/s/{session}/term/{rest:path}")
 async def ws_proxy(session: str, websocket: WebSocket) -> None:
     try:
-        sid = await authorize(websocket, session)
+        principal = await auth.current_principal(websocket)
+        await authorize(websocket, session, principal)
+        sid = uuid.UUID(session)
     except HTTPException as exc:
         await _refuse(websocket, exc.status_code, str(exc.detail))
         return
