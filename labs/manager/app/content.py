@@ -76,6 +76,7 @@ class Lab:
 class LoadResult:
     labs: dict[str, Lab] = field(default_factory=dict)
     errors: dict[str, list[str]] = field(default_factory=dict)
+    warnings: dict[str, list[str]] = field(default_factory=dict)
 
 
 def _is_int(value: Any) -> bool:
@@ -232,6 +233,57 @@ def _validate(lab_dir: Path, data: Any) -> tuple[Lab | None, list[str]]:
     )
 
 
+_SEPARATORS = re.compile(r"(\|\||&&|;|\|)")
+_REDIRECTS = re.compile(r"\d*>&\d+|\d*>>?\s*\S+")
+_QUIET = re.compile(r">\s*/dev/null\s+2>&1|&>\s*/dev/null")
+
+
+def _reads_stdin(segment: str) -> bool:
+    if "<" in segment:
+        return False
+    words = _REDIRECTS.sub(" ", segment).split()
+    if not words:
+        return False
+    if words[0] == "read":
+        return True
+    return words[0] == "cat" and all(w.startswith("-") for w in words[1:])
+
+
+def _script_warnings(text: str, label: str) -> list[str]:
+    """Authoring rules (spec 7): the script arrives on stdin, and a timeout kills it."""
+    found: list[str] = []
+    for n, raw in enumerate(text.splitlines(), 1):
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = _SEPARATORS.split(line)
+        for i in range(0, len(parts), 2):
+            if (i == 0 or parts[i - 1] != "|") and _reads_stdin(parts[i]):
+                found.append(
+                    f"{label} line {n}: reads stdin, which is the script itself; "
+                    "add </dev/null"
+                )
+        if line.endswith("&") and not line.endswith("&&") and not _QUIET.search(line):
+            found.append(
+                f"{label} line {n}: a background job keeps the exec open; "
+                "redirect it with >/dev/null 2>&1"
+            )
+    return found
+
+
+def _lab_warnings(lab: Lab) -> list[str]:
+    found: list[str] = []
+    for task in lab.tasks:
+        for name in SCRIPTS if task.kind == "hands-on" else ():
+            path = lab.path / "tasks" / task.id / name
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            found += _script_warnings(text, f"task {task.id}: {name}")
+    return found
+
+
 def load_labs(root: Path) -> LoadResult:
     result = LoadResult()
     found: dict[str, list[str]] = {}  # lab id -> lab dirs
@@ -251,6 +303,8 @@ def load_labs(root: Path) -> LoadResult:
             result.errors[rel] = errs
         else:
             loaded[rel] = lab
+            if warns := _lab_warnings(lab):
+                result.warnings[rel] = warns
     for lab_id, dirs in found.items():
         if len(dirs) > 1:
             valid = [rel for rel in dirs if rel in loaded]

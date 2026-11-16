@@ -16,7 +16,8 @@ Contract this exam fixes (the build must follow it or change the exam through th
     (a connection upgrade; the script is written on that connection, then the write side is
     closed so the interpreter sees end of input) and `GET /exec/<id>/json` for the exit code.
     A `/v<version>` prefix on those paths is accepted. Nothing else is called: in particular
-    nothing that writes a file into the container (no archive upload, no `cat >`).
+    nothing that writes a file into the container (no archive upload, no `cat >`). (#117: the
+    kill exec of mechanism (b) uses these same endpoints, so this list does not change.)
   - The create body: `AttachStdin`, `AttachStdout`, `AttachStderr` true; `User` root
     (`root`, `0` or `0:0`); `Privileged` absent or false; no capability field; `WorkingDir`
     `/`; `Env` holds exactly `PATH=...` and `HOME=/root`; `Cmd` is the interpreter named by
@@ -25,6 +26,14 @@ Contract this exam fixes (the build must follow it or change the exam through th
     `["/usr/bin/env", "python3", "-s"]`). The script text appears only on stdin.
   - A script that outlives `timeout` seconds returns `ExecResult(exit_code=None or non-zero,
     timed_out=True)` shortly after the deadline; it does not raise and does not hang.
+  - (#117) A timed-out script is killed, not abandoned. Two mechanisms are accepted, the build
+    picks one: (a) the `Cmd` is wrapped as `timeout -s KILL <n> <interpreter> -s` (`<n>` at
+    least `timeout` and at most `timeout + 5` seconds), or (b) after the deadline a second exec
+    (same endpoints, same no-privilege rules) kills the first one's processes with SIGKILL.
+    Either way `exec_script` returns only once the first exec has stopped running. Where the
+    shebang interpreter is checked below, a leading `timeout ...` wrapper is ignored: the rest
+    of `Cmd` is still exactly the interpreter and `-s`. test_issue_117_kill_timeouts.py has the
+    kill exam.
   - An engine that cannot be reached, or that refuses the exec create, raises (any
     `Exception`): a runner that returned exit code 0 there would let a task look set up.
 * `LF_DOCKER_HOST` also accepts `tcp://host:port` (next to `unix://path`); this is the seam
@@ -49,6 +58,38 @@ ALLOWED = (
 )
 
 
+def timeout_wrapper(cmd: list[str]) -> tuple[str, float] | None:
+    """(signal, seconds) when `cmd` starts with `timeout [-s SIG] [-k D] <n> ...`, else None."""
+    if not cmd or cmd[0].rsplit("/", 1)[-1] != "timeout":
+        return None
+    sig, i = "TERM", 1
+    while i < len(cmd) and cmd[i].startswith("-"):
+        if cmd[i] in ("-s", "--signal") and i + 1 < len(cmd):
+            sig, i = cmd[i + 1], i + 2
+        elif cmd[i].startswith("--signal="):
+            sig, i = cmd[i].split("=", 1)[1], i + 1
+        elif cmd[i] in ("-k", "--kill-after") and i + 1 < len(cmd):
+            i += 2
+        elif cmd[i].startswith("-s") and len(cmd[i]) > 2:
+            sig, i = cmd[i][2:], i + 1
+        else:
+            i += 1
+    try:
+        return sig.removeprefix("SIG"), float(cmd[i].rstrip("s"))
+    except (IndexError, ValueError):
+        return None
+
+
+def inner_cmd(cmd: list[str]) -> list[str]:
+    """`cmd` without a leading `timeout ... <n>` wrapper (#117 mechanism (a))."""
+    if timeout_wrapper(cmd) is None:
+        return cmd
+    i = 1
+    while cmd[i].startswith("-") or not cmd[i].rstrip("s").replace(".", "").isdigit():
+        i += 2 if cmd[i] in ("-s", "--signal", "-k", "--kill-after") else 1
+    return cmd[i + 1 :]
+
+
 def frame(stream: int, data: bytes) -> bytes:
     return struct.pack(">BxxxI", stream, len(data)) + data
 
@@ -63,6 +104,12 @@ class FakeEngine:
         self.exit_codes: dict[str, int] = {}
         self.finished: set[str] = set()
         self.create_status = 201
+        # #117: a kill exec (mechanism (b)) is recognised by the word "kill" in its Cmd or stdin.
+        self.kill_runs: list[tuple[dict, bytes]] = []
+        self.kill_delay = 0.0  # seconds the kill exec itself takes
+        self.gone_delay = 0.0  # seconds from the kill until the killed process is really gone
+        self.finished_at: dict[str, float] = {}
+        self._wake: dict[str, asyncio.Event] = {}
         # behaviour(create_body, stdin) -> dict(exit=, frames=[bytes], delay=)
         self.behaviour = lambda body, stdin: {"exit": 0, "frames": [], "delay": 0.0}
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -152,15 +199,42 @@ class FakeEngine:
                     b"HTTP/1.1 200 OK\r\nContent-Type: application/vnd.docker.raw-stream\r\n"
                     b"Connection: close\r\n\r\n"
                 )
+            text = " ".join(create.get("Cmd", [])) + " " + stdin.decode("utf-8", "replace")
+            if timeout_wrapper(create.get("Cmd", [])) is None and "kill" in text.lower():
+                self.kill_runs.append((create, stdin))
+                await asyncio.sleep(self.kill_delay)
+                for other, evt in self._wake.items():  # the killed processes die now
+                    if other not in self.finished:
+                        evt.set()
+                self.exit_codes[eid] = 0
+                self.finished.add(eid)
+                self.finished_at[eid] = time.monotonic()
+                return True
             self.stdin.append(stdin)
             plan = self.behaviour(create, stdin)
-            if plan.get("delay"):
-                await asyncio.sleep(plan["delay"])
-            for fr in plan.get("frames", []):
-                w.write(fr)
-                await w.drain()
-            self.exit_codes[eid] = plan.get("exit", 0)
-            self.finished.add(eid)
+            delay, code = plan.get("delay", 0.0), plan.get("exit", 0)
+            wrapped = timeout_wrapper(create.get("Cmd", []))
+            if wrapped and delay > wrapped[1]:  # `timeout -s KILL n` ends the script at n
+                delay, code = wrapped[1] + 0.3, 137
+            evt = self._wake[eid] = asyncio.Event()
+            frames = plan.get("frames", [])
+            try:
+                if delay:
+                    try:
+                        await asyncio.wait_for(evt.wait(), delay)
+                        code, frames = 137, []  # killed by a kill exec
+                        await asyncio.sleep(self.gone_delay)
+                    except TimeoutError:
+                        pass
+                for fr in frames:
+                    w.write(fr)
+                    await w.drain()
+            except (ConnectionError, OSError):
+                pass  # the client stopped reading: the process still ends below
+            finally:
+                self.exit_codes[eid] = code
+                self.finished.add(eid)
+                self.finished_at[eid] = time.monotonic()
             return True
         m = re.fullmatch(r"/exec/([^/]+)/json", path)
         if m and method == "GET":
@@ -170,6 +244,7 @@ class FakeEngine:
                 "200 OK",
                 {
                     "ID": eid,
+                    "Pid": 4242,
                     "Running": eid not in self.finished,
                     "ExitCode": self.exit_codes.get(eid, 0) if eid in self.finished else None,
                 },
@@ -248,12 +323,12 @@ def test_the_exec_is_created_on_the_named_container(engine):
 )
 def test_the_shebang_interpreter_runs_the_script_with_dash_s(engine, script, cmd):
     run(engine, script)
-    assert engine.creates[0]["Cmd"] == cmd
+    assert inner_cmd(engine.creates[0]["Cmd"]) == cmd
 
 
 def test_an_env_shebang_keeps_its_interpreter_and_adds_dash_s(engine):
     run(engine, "#!/usr/bin/env python3\nprint(1)\n")
-    assert engine.creates[0]["Cmd"] == ["/usr/bin/env", "python3", "-s"]
+    assert inner_cmd(engine.creates[0]["Cmd"]) == ["/usr/bin/env", "python3", "-s"]
 
 
 def test_the_script_text_never_appears_in_any_request_but_stdin(engine):
@@ -270,7 +345,7 @@ def test_nothing_is_written_into_the_container(engine):
     for call in engine.paths():
         assert any(p.match(call) for p in ALLOWED), f"unexpected engine call: {call}"
     cmd = engine.creates[0]["Cmd"]
-    assert len(cmd) <= 3 and "-c" not in cmd, cmd
+    assert len(inner_cmd(cmd)) <= 3 and "-c" not in cmd, cmd
     assert not any(a in ("tee", "cat", "dd") for a in cmd)
 
 
