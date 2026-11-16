@@ -2,11 +2,13 @@
 
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
-_Last updated: 2026-11-16 ~04:55 UTC, laptop pass lf-w8c1 (~03:26 to ~04:55 UTC)._
+_Last updated: 2026-11-16 ~05:40 UTC, laptop pass lf-p9x4 (started ~05:15 UTC)._
 
 ## Now
 
-- **In flight: #117 (claim held by lf-w8c1, stale after 90 min → continue it):** PR **#148** (`f/117-kill-timeouts-v2`, worktree `C:\projects\lf-117`) = exam (3 commits incl. review round 1 cases) + code with round-1 fixes (D56). Its CI was running at pass end. Next: `gh pr checks 148`; red → back to an implementer with the exact failure (the docker exam under runsc is the first real proof of the `setpriv` kill and of "PPid 0" under runsc); green → **review round 2** (reviewer, fresh context, PR #148 + spec §5/§7 + D56), then merge, Deploy, close #117 with evidence. Round-1 findings are the last comment on #117; leftover nits (validator misses `while read` / `x=$(cat)`, safe redirects flagged, kill exec not covered by the "nothing written" assertions, unused fake `Pid`) → a follow-up issue at close.
+- **Pass lf-p9x4 in flight.** #144 (CI incident) closed: a one-off ghcr.io login denial, later main runs green.
+- **#117 (claim lf-p9x4):** PR **#148** CI was red: every docker exam case timed out in the kill. Cause: the kill exec matched `<interp> -s ` with a trailing space, `ps args=` prints none, so nothing was killed. Fixed in 748f946 (CI running). Next: green → review round 2 → merge → Deploy → close.
+- **#130 (claim lf-p9x4):** lab screen, worktree `C:\projects\lf-130`, branch `f/130-lab-screen`; exam being written. #147 stays a separate issue after #130 (keeps the PR under ~400 lines).
 - **Production:** Deploy 43805998335 shipped `lf-manager:014d73b` (catalog `GET /api/labs` + My labs page), deploy and post-deploy smoke green. Live: `/api/labs` signed out → 401 `not_authenticated`; the bundle has the My labs dialog.
 - **#10 is sliced (D53):** slices 1 (#133) and 2 (#146, #129) shipped; next #130 (lab screen, fold in #147), #131 (Playwright).
 - **Lesson (D49):** a state commit pushed to `main` while a merge's Deploy is pending makes that Deploy skip; push state after the Deploy.
