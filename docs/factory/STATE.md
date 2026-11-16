@@ -2,11 +2,11 @@
 
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
-_Last updated: 2026-11-16 ~08:15 UTC, laptop pass lf-p9x4 (~06:00 to ~08:15 UTC)._
+_Last updated: 2026-11-16 ~08:30 UTC, laptop pass lf-h6d2 (started ~08:20 UTC)._
 
 ## Now
 
-- **Nothing in flight.** Pass lf-p9x4 ended after 3 merges (#148, #152, #150); no claims held, worktrees removed except `C:\projects\lf-130` (safe to delete).
+- **Pass lf-h6d2 in flight, three lanes (claims lf-h6d2):** #157 lab screen follow-ups (`C:\projects\lf-157`, `f/157-lab-screen-followups`, D57 (d) amended: only the server ends a lab), #147 My labs follow-ups (`C:\projects\lf-147`, `f/147-my-labs-followups`), #153 flaky bootstrap exams (`C:\projects\lf-153`, `f/153-bootstrap-flake`, exam harness only). All three: exam being written.
 - **Production:** `lf-manager:3eae676` (lab screen), Deploy 43828613429 (deploy + smoke green). The lab screen is live but no lab is published to students yet (O17), so the clock-skew should-fix (#157) has no live impact; fix it before Linux 1 is published.
 - **Flaky CI (#153, p1):** the bootstrap docker exams fail now and then on PRs that do not touch bootstrap (second case today, #132 was the first). A rerun of the failed job passes; work #153 before it trains everyone to rerun.
 - **Lesson (D49):** a state commit pushed to `main` while a merge's Deploy is pending makes that Deploy skip; push state after the Deploy. Other sessions push to `main` too (dashboard, history): the merge's evidence may land in the next Deploy run.
