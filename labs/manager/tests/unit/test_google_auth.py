@@ -255,6 +255,7 @@ def test_non_ascii_email_is_refused_before_the_allow_list(
     configured: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # U+212A (Kelvin sign) lowercases to "k"
+    monkeypatch.setattr(auth, "limiter", auth.RateLimiter())  # no gstart: hits from other tests
     monkeypatch.setenv("LF_ADMIN_EMAILS", "kim@example.test")
     claims: dict[str, Any] = {"iss": "accounts.google.com", "sub": "s", "email_verified": True,
                               "email": "Kim@example.test", "nonce": "?"}  # fmt: skip
@@ -318,6 +319,7 @@ def test_an_undecodable_allow_list_byte_is_dropped_not_a_crash(
     env.pop("LF_ADMIN_PASSWORD_LOGIN", None)
     monkeypatch.setattr(os, "environ", env)
     monkeypatch.setattr(auth, "_dropped_logged_for", None)
+    monkeypatch.setattr(auth, "limiter", auth.RateLimiter())  # no gstart: hits from other tests
     with caplog.at_level(logging.WARNING):
         cfg = auth.google_config()
     assert cfg is not None and cfg.emails == frozenset({EMAIL.lower()})
@@ -325,3 +327,28 @@ def test_an_undecodable_allow_list_byte_is_dropped_not_a_crash(
     assert auth.password_login_allowed() is False
     env["LF_ADMIN_PASSWORD_LOGIN"] = "1"
     assert auth.password_login_allowed() is True
+    with _client() as c:
+        r = c.get("/api/auth/admin/methods")
+        assert r.status_code == 200 and r.json() == {"google": True, "password": True}
+        assert c.get("/auth/google/start", follow_redirects=False).status_code == 303
+
+
+def test_sweep_evicts_other_keys_first_and_spares_a_key_at_its_limit() -> None:
+    """Over the cap, per-client keys (ip:, gcb:, gstart:) are evicted first, in insertion order,
+    before any non-client key (admin:); a key at or above its limit with a live window is never
+    evicted. The newest client keys survive."""
+    now = [0.0]
+    rl = auth.RateLimiter(window=1000, clock=lambda: now[0], max_keys=5, sweep_at=1000,
+                           sweep_interval=0)
+    assert rl.hit(("admin:a", 5))  # below its limit, not a client key
+    assert rl.hit(("gcb:full", 1))  # at its limit
+    for i in range(10):
+        now[0] += 1
+        assert rl.hit((f"gcb:{i}", 5))
+        assert rl.hit((f"gstart:{i}", 5))
+    rl.sweep_at = 1
+    now[0] += 1
+    assert rl.hit(("gstart:last", 5))
+    assert len(rl._events) <= rl.max_keys
+    assert "admin:a" in rl._events and "gcb:full" in rl._events
+    assert set(rl._events) == {"admin:a", "gcb:full", "gcb:9", "gstart:9", "gstart:last"}
