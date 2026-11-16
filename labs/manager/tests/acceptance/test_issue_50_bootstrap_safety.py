@@ -69,6 +69,10 @@ _chain_rules = h3._chain_rules
 _lf_rules = h3._lf_rules
 _swap_names = h3._swap_names
 _remove_backups = h3._remove_backups
+_snapshot_daemon_state = h3._snapshot_daemon_state
+_check_clean_start = h3._check_clean_start
+_restore_daemon_state = h3._restore_daemon_state
+_wait_daemon_state_stable = h3._wait_daemon_state_stable
 
 SBIN = "/usr/local/sbin/lf-labs-iptables"
 UNIT_PATH = f"/etc/systemd/system/{UNIT}"
@@ -214,9 +218,14 @@ def _reset_full() -> None:
 @contextlib.contextmanager
 def _runner_scope():
     """Reset the runner, hand out a scope, and put everything back afterwards."""
+    # The runner's daemon.json, mode, owner, backups and runtimes, taken once the runner is quiet.
+    # An earlier scenario (or module) that left a backup or a changed file behind fails here as
+    # an exam precondition, not as a product failure.
+    snap = _snapshot_daemon_state()
+    _check_clean_start(snap, "test_issue_50_bootstrap_safety")
     sc = SimpleNamespace(
-        original=_daemon_bytes(), undo=[], orig_swaps=_swap_names(),
-        had_runsc="runsc" in _runtimes(),
+        original=snap.original, undo=[], orig_swaps=_swap_names(),
+        had_runsc=snap.had_runsc, snap=snap,
     )
     sc.orig_stat = _stat(DAEMON_JSON) if sc.original is not None else None
     sc.runsc_path = shutil.which("runsc") or "/usr/bin/runsc"
@@ -248,6 +257,7 @@ def _runner_scope():
         _sudo("systemctl", "restart" if restart else "reload", "docker", check=False)
         _wait_docker()
         _wait_runsc(sc.had_runsc)
+        _restore_daemon_state(sc.snap)  # bytes, mode, owner; no backups or temp files left
         _sudo("swapoff", SWAPFILE, check=False)
         _sudo("rm", "-f", SWAPFILE, check=False)
         _sudo("sed", "-i", f"\\|^{SWAPFILE} |d", "/etc/fstab", check=False)
@@ -579,8 +589,10 @@ def no_runtimes_key():
         s.out = "".join(lines)
         s.tripped = trip.closed.is_set()
         s.runsc_gone = _wait_runsc(False)
+        _wait_daemon_state_stable()
         s.after = _daemon_bytes()
         s.after_mode = _stat(DAEMON_JSON)
+        s.state = h3._state_text("after the rollback run")
     return s
 
 
@@ -593,7 +605,9 @@ def test_rollback_without_a_runtimes_key_restores_daemon_json_bytes(no_runtimes_
     assert "baseline" in s.out.lower(), _tail(s.out)
     assert "baseline differs after step 'runtime'" in s.out, \
         "the baseline check that failed is not the one after the runtime step\n" + _tail(s.out)
-    assert s.after == s.seed, "daemon.json was not restored byte for byte\n" + _tail(s.out)
+    assert s.after == s.seed, ("daemon.json was not restored byte for byte\n"
+                               f"--- seeded\n{s.seed.decode(errors='replace')}\n"
+                               f"{s.state}" + _tail(s.out))
     assert s.after_mode == s.mode, \
         f"mode/owner changed: {s.mode} -> {s.after_mode}\n" + _tail(s.out)
 
