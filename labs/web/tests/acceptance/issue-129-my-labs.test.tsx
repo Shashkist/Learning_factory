@@ -464,6 +464,8 @@ test("an act-wrapped popstate to a lab page still works with the catalog loaded"
   act(() => {
     window.dispatchEvent(new PopStateEvent("popstate"));
   });
-  expect(await screen.findByText(EN["lab.placeholder"], { exact: false })).toBeTruthy();
+  // Since #130 the lab route is the lab screen; this fake has no live session (404), so it
+  // shows the no-session message instead of the slice-2 placeholder.
+  expect(await screen.findByText(EN["lab.error.no_session"], { exact: false })).toBeTruthy();
   expect(screen.queryByTestId("module-1")).toBeNull();
 });
