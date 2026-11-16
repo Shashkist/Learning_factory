@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 
+import Cohorts from "./Cohorts";
+import { useI18n } from "./i18n";
+
 type State = "loading" | "admin" | "google" | "none" | "error";
 
 async function getJson(url: string): Promise<{ ok: boolean; body: Record<string, unknown> }> {
@@ -12,6 +15,7 @@ async function getJson(url: string): Promise<{ ok: boolean; body: Record<string,
 }
 
 export default function Admin() {
+  const { t } = useI18n();
   const [state, setState] = useState<State>("loading");
 
   useEffect(() => {
@@ -32,10 +36,16 @@ export default function Admin() {
   if (state === "loading") return <p>Loading</p>;
   if (state === "admin")
     return (
-      <div>
+      <main>
         <p>Signed in as admin</p>
         <button onClick={logout}>Log out</button>
-      </div>
+        <nav>
+          <a href="/admin" aria-current="page">
+            {t("admin.nav.cohorts")}
+          </a>
+        </nav>
+        <Cohorts />
+      </main>
     );
   if (state === "google") return <a href="/auth/google/start">Sign in with Google</a>;
   if (state === "error") return <p>Could not load sign-in options</p>;

@@ -90,10 +90,6 @@ function Student() {
 }
 
 export default function App() {
-  if (window.location.pathname.replace(/\/+$/, "") === "/admin") return <Admin />;
-  return (
-    <I18nProvider>
-      <Student />
-    </I18nProvider>
-  );
+  const admin = window.location.pathname.replace(/\/+$/, "") === "/admin";
+  return <I18nProvider>{admin ? <Admin /> : <Student />}</I18nProvider>;
 }
