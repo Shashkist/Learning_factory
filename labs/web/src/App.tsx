@@ -39,6 +39,12 @@ function Student() {
     if (user && path === "/login") go("/labs", true);
   });
 
+  const signedOut = () => {
+    setLogoutFailed(false);
+    setUser(null);
+    go("/login", true);
+  };
+
   const logout = async () => {
     // A failed logout keeps the session cookie: never pretend the student is signed out.
     const r = await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }).catch(() => null);
@@ -46,9 +52,7 @@ function Student() {
       setLogoutFailed(true);
       return;
     }
-    setLogoutFailed(false);
-    setUser(null);
-    go("/login", true);
+    signedOut();
   };
 
   if (unavailable) return <p role="alert">{t("login.error.unavailable")}</p>;
@@ -73,10 +77,7 @@ function Student() {
         <>
           <MyLabs
             open={(id) => go(`/labs/${encodeURIComponent(id)}`)}
-            signedOut={() => {
-              setUser(null);
-              go("/login", true);
-            }}
+            signedOut={signedOut}
           />
         </>
       ) : lab ? (

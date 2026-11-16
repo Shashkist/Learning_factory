@@ -18,8 +18,8 @@ from app.runtime import container_name, container_spec, memory_limit_mb
 
 log = logging.getLogger("lab-manager")
 T = db.SCHEMA
-LIVE_STATUSES = ("starting", "running")
-LIVE = f"status in {LIVE_STATUSES}"  # the SQL form of the same set
+LIVE_STATUSES = admission.LIVE_STATUSES
+LIVE = admission.LIVE
 
 router = APIRouter(prefix="/api/sessions")
 

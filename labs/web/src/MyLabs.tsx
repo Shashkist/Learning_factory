@@ -131,7 +131,9 @@ export default function MyLabs({ open, signedOut }: { open: (labId: string) => v
             {t("labs.open_conflict.body")} <bdi>{text(conflict.open)}</bdi>
           </p>
           <button disabled={pending} onClick={() => start(conflict.labId, true)}>{t("labs.open_conflict.force")}</button>
-          <button onClick={() => setConflict(null)}>{t("labs.open_conflict.cancel")}</button>
+          <button disabled={pending} onClick={() => setConflict(null)}>
+            {t("labs.open_conflict.cancel")}
+          </button>
         </div>
       )}
     </>

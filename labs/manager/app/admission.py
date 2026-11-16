@@ -9,6 +9,11 @@ from typing import Any
 from app import db
 from app.content import Lab
 
+# The one definition of a live session (catalog, sessions and admission share it).
+LIVE_STATUSES = ("starting", "running")
+# The SQL form of the same set.
+LIVE = "status in (" + ", ".join(f"'{s}'" for s in LIVE_STATUSES) + ")"
+
 GB = 1024**3
 log = logging.getLogger("lab-manager")
 
@@ -79,8 +84,7 @@ async def cap_ok(pool: Any, lab: Lab, labs: dict[str, Lab]) -> bool:
     cap = int(env_num("LF_MAX_CODE", 8) if lab.image == "code" else env_num("LF_MAX_TERM", 20))
     ids = [i for i, other in labs.items() if other.image == lab.image]
     live = await pool.fetchval(
-        f"select count(*) from {db.SCHEMA}.lab_sessions "
-        "where status in ('starting', 'running') and lab_id = any($1::text[])",
+        f"select count(*) from {db.SCHEMA}.lab_sessions where {LIVE} and lab_id = any($1::text[])",
         ids,
     )
     return bool(live < cap)
