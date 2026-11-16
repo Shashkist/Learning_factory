@@ -150,12 +150,13 @@ class Line(NamedTuple):
 
 def split_lines(text: str) -> list[Line]:
     """The non-blank lines "ID, name" with their 1-based line numbers; split at the first comma,
-    or at the first tab when the line has no comma (a spreadsheet paste)."""
+    or at the first tab when one comes before any comma (a spreadsheet paste: `ID<TAB>Cohen, Dana`).
+    Tabs left in the name (more columns: `ID<TAB>First<TAB>Last`) become single spaces."""
     out = []
     for n, raw in enumerate(text.split("\n"), 1):
         if raw.strip():
-            sid, _, name = raw.partition("," if "," in raw else "\t")
-            out.append(Line(n, sid, name.strip()))
+            sid, _, name = raw.partition("\t" if "\t" in raw.split(",", 1)[0] else ",")
+            out.append(Line(n, sid, re.sub(r"\t+", " ", name).strip()))
     return out
 
 

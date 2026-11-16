@@ -14,9 +14,19 @@ def test_tab_split_when_no_comma():
     assert (ln.id, ln.name) == ("123456789", "Fake Name")
 
 
-def test_comma_wins_over_tab():
+def test_comma_first_splits_at_the_comma_and_a_tab_in_the_name_becomes_a_space():
     (ln,) = split_lines("123456789, Fake\tName")
-    assert (ln.id, ln.name) == ("123456789", "Fake\tName")
+    assert (ln.id, ln.name) == ("123456789", "Fake Name")
+
+
+def test_tab_first_splits_at_the_tab_and_keeps_a_comma_in_the_name():
+    (ln,) = split_lines("123456789\tFake, Name")
+    assert (ln.id, ln.name) == ("123456789", "Fake, Name")
+
+
+def test_more_spreadsheet_columns_join_with_single_spaces():
+    (ln,) = split_lines("123456789\tFake\t\tName\t")
+    assert (ln.id, ln.name) == ("123456789", "Fake Name")
 
 
 def test_line_cap():
