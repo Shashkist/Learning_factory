@@ -4,9 +4,9 @@
 
 ## Now
 
-_Last updated: 2026-11-16 ~16:50 UTC, laptop pass lf-c4z1 (~14:55 to ~16:50 UTC)._
+_Last updated: 2026-11-16 ~22:05 UTC, laptop pass lf-x2v7 (started ~21:55 UTC)._
 
-- **Nothing in flight; no claims held.** #182, #172 and #178 are closed with live evidence.
+- **In flight (pass lf-x2v7, claims held):** #163 class table (`f/163-class-table`, worktree `C:\projects\lf-163`), #180 runsc start retry (`f/180-runsc-retry`, `C:\projects\lf-180`), #177 session start follow-ups (`f/177-start-followups`, `C:\projects\lf-177`). Step: exams being written.
 - **Production:** `lf-manager:76b0862` (Deploy 43911335654, smoke ok; bundle has the #178 texts), on top of `6a55833` (#181, #172; Deploy 43905910281, smoke ok) and `11eff8a` (#183, #182; Deploy 43901268785, smoke ok).
 - **Lesson (this pass, D62):** a docker exam matcher must not match a bare digit string: the random session id is in ttyd's argv.
 - **Lesson (this pass):** a PR branch cannot be rebased in place (no force-push; exam-integrity refuses merge commits). Merge the lanes in dependency order; when a rebase is needed, push the rebased commits to `<branch>-2` and open a new PR.
