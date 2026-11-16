@@ -593,6 +593,7 @@ in force · factory · 2026-11-16
 3. **New issue: student page.** Per lab: tasks passed, attempts, time per task next to the class median, flags with reason, dismiss a flag (migration: `flag_dismissed_at`), extend access, disable, note.
 4. **New issue: live sessions** (who is in which lab now, end a session) **and teacher Playwright flows** (after #131 sets Playwright up).
 **Why.** Each slice is one reviewable PR with its own exam; slice 1 is the base the others need (admin shell, router, `lf-smoke` exclusion helper). **Alternatives.** One big PR; API-only and UI-only slices (UI slices could not be checked end to end). **Revert.** Merge the follow-up issues back into #11.
+**Amended (review round 1 of #170).** Slice 1 ships the edit API (`PATCH`) and the students API; the edit form, the student list on the Cohorts page, translated import errors and the import hardening nits move to #172. #11 closes with #170; #172 carries the "edit" criterion in the UI.
 
 ## D60 · #131 Playwright: the suite is the deliverable; the docker end-to-end test moves to #167
 in force · factory · 2026-11-16

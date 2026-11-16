@@ -6,10 +6,13 @@ _Last updated: 2026-11-16 ~10:52 UTC, laptop pass lf-h6d2 (~09:20 to ~10:52 UTC)
 
 ## Now
 
-- **Pass lf-q7m3 in progress (started ~10:58 UTC).** Lanes: **#11** slice 1 cohorts + import (D59; worktree `C:\projects\lf-11`, branch `f/11-cohorts`, exam in draft PR #169, implementer running), **#131** Playwright (worktree `C:\projects\lf-131`, `f/131-playwright`, implementer), **#139** session ready + one ownership rule (worktree `C:\projects\lf-139`, `f/139-session-ready`, exam being written).
-- **#153:** PR #158 merged (abbaf15); green docker jobs since: main abbaf15, main 522e62d (2 of 10). Stays open until 10 consecutive green docker jobs after the merge are recorded on it (D58 c; count main + PR runs).
-- **Production:** `lf-manager:522e62d` (Deploy 43856331709, deploy + smoke green; includes #158). No lab is published to students yet (O17).
+- **Pass lf-q7m3 in progress (since ~10:58 UTC).** Merged: #158 (#153 harness), #168 (#131 Playwright, closed). In flight:
+  - **#11** slice 1 cohorts + import: **PR #170** (re-sequenced from #169: exam, exam fix, code). Review round 1: no blocker; should-fix fixed by the manager in 2ef3ea9; CI re-running. Next: green → merge, Deploy, live check `GET /api/admin/cohorts` → 401 anonymous, close #11. Leftovers → **#172** (edit form, student list, import hardening; D59 amended).
+  - **#139** session ready + one ownership rule: **PR #171** (re-sequenced from #166). The #139 exam is green in docker; the docker job failed once in the #50 bootstrap exam (runsc start race, see #153) and was re-run. Next: green → reviewer (round 1) → merge.
+- **#153:** count of 10 green docker jobs restarted after a new failure mode on PR #171 (`oom_score_adj: no such process` right after `systemctl reload docker`; proposed fix: the bootstrap runtime check retries a runsc `docker run` once). Comment on #153.
+- **Production:** `lf-manager:ee75ee0` (Deploy 43864385605, deploy + smoke green). No lab is published to students yet (O17).
 - **Lesson (D49):** a state commit pushed to `main` while a merge's Deploy is pending makes that Deploy skip; push state after the Deploy.
+- **Lesson (this pass):** push the exam alone first (draft PR): both #11 and #139 exams had a case that failed on CI for an exam reason, caught before review; the fix still needed a re-sequenced branch because the code was already committed. Next time, wait for the exam-only CI before committing code.
 - **Repository is public (D43).** Always `git pull --rebase` before a state commit, never `--autostash`.
 - **Known gap (D40):** a cancelled Deploy is not noticed; fix in #85.
 
