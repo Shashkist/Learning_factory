@@ -107,6 +107,8 @@ class LabRuntime(Protocol):
 
     async def exec_script(self, name: str, script: str, timeout: float) -> ExecResult: ...
 
+    async def wait_ready(self, name: str, timeout: float) -> None: ...
+
 
 def exec_command(script: str) -> list[str]:
     """The shebang interpreter plus `-s` (read the program from stdin); `/bin/sh` without one."""
@@ -313,8 +315,11 @@ class DockerRuntime:
         return name
 
     async def _is_running(self, name: str) -> bool:
-        async with self._client() as c:
-            resp = await c.get(f"/containers/{name}/json")
+        try:
+            async with self._client() as c:
+                resp = await c.get(f"/containers/{name}/json")
+        except httpx.HTTPError:
+            return True  # the socket blinked; keep waiting, the timeout bounds it
         if resp.status_code == 404:
             return False
         if resp.status_code != 200:

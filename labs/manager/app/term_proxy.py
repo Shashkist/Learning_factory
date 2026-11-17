@@ -49,7 +49,7 @@ def upstream_address(session: uuid.UUID) -> str:
     return os.environ.get("LF_TERM_UPSTREAM") or f"lab-{session}:{TTYD_PORT}"
 
 
-async def authorize(conn: HTTPConnection, raw_session: str, principal: Any) -> Any:
+async def authorize(conn: HTTPConnection, raw_session: str, principal: auth.Principal) -> Any:
     """The one ownership rule for a session id (task API and terminal): returns the session row.
 
     404 (not a UUID / unknown), 403 (not yours), 410 (ended). The caller authenticated first."""

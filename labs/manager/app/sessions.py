@@ -3,6 +3,7 @@
 One live session per student is enforced by the partial unique index; the row is inserted
 before the container is started, so a losing concurrent start never creates a container."""
 import logging
+import time
 import uuid
 from typing import Annotated, Any
 
@@ -94,13 +95,19 @@ def _conflict(labs: dict[str, Lab], row: Any) -> HTTPException:
 READY_TIMEOUT_MAX_S = 55.0  # nginx answers 504 at 60 s for POST /api/sessions (D56)
 
 
-async def wait_ready(runtime: Any, name: str) -> None:
+async def wait_ready(runtime: Any, name: str, deadline: float) -> None:
     """Running means the entrypoint copied the skel (ttyd starts after it). Bounded by
-    LF_READY_TIMEOUT_S (default 45, capped below nginx's 60 s, D56). A runtime without
-    `wait_ready` (the fakes) is ready at once."""
+    LF_READY_TIMEOUT_S (default 45, capped below nginx's 60 s, D56) counted from the start of
+    the request: `deadline` is a time.monotonic() value, so a slow forced end or create/start
+    leaves the wait only what is left. A runtime without `wait_ready` is ready at once."""
     waiter = getattr(runtime, "wait_ready", None)
-    if waiter is not None:
-        await waiter(name, min(admission.env_num("LF_READY_TIMEOUT_S", 45), READY_TIMEOUT_MAX_S))
+    if waiter is None:
+        log.warning("runtime %s has no wait_ready; assuming ready", type(runtime).__name__)
+        return
+    left = deadline - time.monotonic()
+    if left <= 0:
+        raise TimeoutError("start budget spent before the readiness wait")
+    await waiter(name, left)
 
 
 @router.post("", status_code=201)
@@ -110,6 +117,7 @@ async def start(
     response: Response,
     p: Annotated[Principal, Depends(current_student)],
 ) -> dict[str, Any]:
+    started = time.monotonic()
     state = request.app.state
     labs: dict[str, Lab] = state.labs
     lab = labs.get(body.lab_id)
@@ -155,7 +163,12 @@ async def start(
         sid = str(row["id"])
         try:
             name = str(await runtime.start(container_spec(lab, sid)))
-            await wait_ready(runtime, name)
+            await wait_ready(
+                runtime,
+                name,
+                started
+                + min(admission.env_num("LF_READY_TIMEOUT_S", 45), READY_TIMEOUT_MAX_S),
+            )
         except Exception as exc:
             log.error("starting container of session %s failed (%s)", sid, type(exc).__name__)
             await remove_container(runtime, sid)

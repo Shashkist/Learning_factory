@@ -1,5 +1,7 @@
 import asyncio
+import time
 
+import httpx
 import pytest
 
 from app import sessions
@@ -39,22 +41,40 @@ def test_never_ready_times_out():
 
 
 def test_runtime_without_wait_ready_is_ready():
-    asyncio.run(sessions.wait_ready(object(), "lab-x"))
+    asyncio.run(sessions.wait_ready(object(), "lab-x", time.monotonic() + 5))
 
 
-def test_ready_timeout_setting_default_and_cap(monkeypatch):
+def test_wait_gets_only_what_is_left_of_the_deadline():
     seen = []
 
     class R:
         async def wait_ready(self, name, timeout):
             seen.append(timeout)
 
-    monkeypatch.delenv("LF_READY_TIMEOUT_S", raising=False)
-    asyncio.run(sessions.wait_ready(R(), "lab-x"))
-    monkeypatch.setenv("LF_READY_TIMEOUT_S", "500")
-    asyncio.run(sessions.wait_ready(R(), "lab-x"))
-    assert seen == [45.0, sessions.READY_TIMEOUT_MAX_S]
+    asyncio.run(sessions.wait_ready(R(), "lab-x", time.monotonic() + 2))
+    assert 0 < seen[0] <= 2
+    with pytest.raises(TimeoutError):
+        asyncio.run(sessions.wait_ready(R(), "lab-x", time.monotonic() - 1))
+    assert len(seen) == 1
     assert sessions.READY_TIMEOUT_MAX_S < 60
+
+
+@pytest.mark.parametrize(
+    ("handler", "expected"),
+    [
+        (lambda r: httpx.Response(404), False),
+        (lambda r: httpx.Response(200, json={"State": {"Running": False}}), False),
+        (lambda r: httpx.Response(200, json={"State": {"Running": True}}), True),
+        (lambda r: httpx.Response(500), True),
+        (lambda r: (_ for _ in ()).throw(httpx.ConnectError("down")), True),
+    ],
+)
+def test_is_running_keeps_waiting_unless_gone_or_stopped(handler, expected):
+    rt = DockerRuntime.__new__(DockerRuntime)
+    rt._client = lambda: httpx.AsyncClient(  # type: ignore[method-assign]
+        transport=httpx.MockTransport(handler), base_url="http://docker"
+    )
+    assert asyncio.run(rt._is_running("lab-x")) is expected
 
 
 def test_gone_container_stops_the_wait_at_once():
@@ -73,6 +93,14 @@ class _Pool:
     def __init__(self, deleted):
         self.deleted, self.sql = deleted, []
 
+    async def fetchrow(self, sql, *a):
+        return {
+            "id": "11111111-1111-1111-1111-111111111111",
+            "lab_id": "l",
+            "status": "starting",
+            "expires_at": None,
+        }
+
     async def execute(self, sql, *args):
         self.sql.append(sql)
         return self.deleted
@@ -83,18 +111,8 @@ def _failing_start(monkeypatch, deleted):
 
     from fastapi import HTTPException, Response
 
-    class Row(dict):
-        pass
-
     pool = _Pool(deleted)
     removed = []
-
-    class Pool(_Pool):
-        async def fetchrow(self, sql, *a):
-            return Row(id="11111111-1111-1111-1111-111111111111", lab_id="l", status="starting",
-                       expires_at=None)
-
-    pool.__class__ = Pool
 
     class RT:
         async def start(self, spec):
