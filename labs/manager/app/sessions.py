@@ -2,6 +2,7 @@
 
 One live session per student is enforced by the partial unique index; the row is inserted
 before the container is started, so a losing concurrent start never creates a container."""
+
 import asyncio
 import logging
 import time
@@ -224,8 +225,24 @@ async def start(
                         await remove_container(runtime, str(row["id"]))
                 except Exception as err:
                     log.error("removing the container failed (%s)", type(err).__name__)
-            if str(deleted).endswith(" 0"):  # ended meanwhile: keep the row, say so
-                raise HTTPException(409, "session_ended") from None
+            if rows and str(deleted).endswith(" 0"):
+                # not 'starting' any more: ended meanwhile (keep the row, say so), or the final
+                # update committed before the deadline cancelled it, so the row is live
+                try:
+                    async with asyncio.timeout(CLEANUP_BOUND_S):
+                        status = await pool.fetchval(
+                            f"select status from {T}.lab_sessions where id = $1", rows[0]["id"]
+                        )
+                        if status not in (None, "ended"):
+                            await end_session(pool, runtime, rows[0]["id"], "start_failed")
+                            status = "live"
+                except Exception as err:
+                    log.error(
+                        "checking the session after a failed start failed (%s)", type(err).__name__
+                    )
+                    status = "live"
+                if status in (None, "ended"):
+                    raise HTTPException(409, "session_ended") from None
             raise HTTPException(502, "start_failed") from None
 
 
