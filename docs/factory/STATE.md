@@ -4,31 +4,31 @@
 
 ## Now
 
-_Last updated: 2026-11-17 ~01:55 UTC, laptop pass lf-x2v7 (~21:55 to ~01:55 UTC, no merges)._
+_Last updated: 2026-11-17 ~06:40 UTC, laptop pass lf-r5k8 (started ~06:00 UTC)._
 
-- **Pass lf-x2v7 stalled on the laptop (O20):** every Git Bash call hung and `uv run pytest` did not finish in 10 min; ~500 hung `qa-statusline.py` processes, CPU 100 %. No PR, nothing pushed except state. Claims released.
-- **Parked lanes (local only, resume them first once O20 is ticked or the laptop is responsive):**
-  - **#177**: worktree `C:\projects\lf-177`, branch `f/177-start-followups` (= `fde396b`). **Uncommitted, never-run** exam `labs/manager/tests/acceptance/test_issue_177_start_followups.py` (13 tests, MockTransport + fake pool, no DB). Run it (expect red: `ConnectError` / elapsed-time bounds), ruff, compare with the issue text (the writer could not read the issue; it kept 404 / `Running: false` = stop at once, per D24 and `test_gone_container_stops_the_wait_at_once`), then commit `test(manager): exam for #177`.
-  - **#180**: worktree `C:\projects\lf-180`, branch `f/180-runsc-retry`. **Uncommitted, never-run** exam `labs/manager/tests/acceptance/test_issue_180_runsc_start_retry.py` (11 tests; real `bootstrap.sh` copy under bash with stub `docker`/`systemctl`/… on PATH; Linux + bash + jq only, so CI-only). Check it against the issue (retry line pattern `retr(y|ied|ying)|try again`, "reloaded exactly once"), collect-only, commit `test(deploy): exam for #180`, push alone first so CI proves it.
-  - **#163**: worktree `C:\projects\lf-163`, branch `f/163-class-table`, nothing written (start the exam over). Reusable: the #172 exam's `_db`/`env` fixtures and helpers (`new_cohort`, `import_ok`, `student_login`, `uniq`); web exams are `labs/web/tests/acceptance/issue-<n>-<slug>.test.tsx`.
-- **Lesson (this pass):** the subagents here have only Bash as a shell; when Bash hangs, they cannot read issues, run tests or commit. Check `echo hi` in Bash at orient before dispatching; if it hangs, stop the pass and raise it.
-- **Production:** `lf-manager:76b0862` (Deploy 43911335654, smoke ok; bundle has the #178 texts), on top of `6a55833` (#181, #172; Deploy 43905910281, smoke ok) and `11eff8a` (#183, #182; Deploy 43901268785, smoke ok).
-- **Lesson (this pass, D62):** a docker exam matcher must not match a bare digit string: the random session id is in ttyd's argv.
-- **Lesson (this pass):** a PR branch cannot be rebased in place (no force-push; exam-integrity refuses merge commits). Merge the lanes in dependency order; when a rebase is needed, push the rebased commits to `<branch>-2` and open a new PR.
+- **Pass lf-r5k8 in flight (three lanes):**
+  - **#180** PR #188 (`f/180-runsc-retry`, worktree `C:\projects\lf-180`): exam pushed alone first (CI: exactly the 6 retry cases red, 4 green), then the fix (one retry, one `retrying once` line on stderr, `docker rm -f` + 2 s pause between). CI on the fix running.
+  - **#163** class table (worktree `C:\projects\lf-163`): exam being written (API + web).
+  - **#156** smoke follow-ups (worktree `C:\projects\lf-156`, `f/156-smoke-followups`): exam being written.
+  - **#177** is held by another session (lf-m3q8; exam committed as `410729e` in `C:\projects\lf-177`). Leave it to that claim.
+- **Laptop (O20 still open):** Bash responds this pass, but ~885 hung `qa-statusline.py` processes, CPU ~50 %. GitHub API/DNS from the laptop drops often (TLS handshake timeouts): wrap every `gh`/`git push` in a retry loop.
+- **Lesson (pass lf-x2v7):** the subagents here have only Bash as a shell; when Bash hangs, they cannot read issues, run tests or commit. Check `echo hi` in Bash at orient before dispatching; if it hangs, stop the pass and raise it.
+- **Production:** `lf-manager:76b0862` (Deploy 43911335654, smoke ok; bundle has the #178 texts); #187 (dashboard only) merged after.
+- **Lesson (D62):** a docker exam matcher must not match a bare digit string: the random session id is in ttyd's argv.
+- **Lesson:** a PR branch cannot be rebased in place (no force-push; exam-integrity refuses merge commits). Merge the lanes in dependency order; when a rebase is needed, push the rebased commits to `<branch>-2` and open a new PR.
 - **Laptop load:** the web suite fails random tests on timeouts under load; `npx vitest run --maxWorkers=2` is reliable. CI is the judge.
 - **Old worktrees** from earlier passes still exist (`C:\projects\lf-139b`, `lf-160`, `lf-173`, `.claude/worktrees/agent-*` in the shared checkout); all shipped, safe to remove once checked clean.
-- **Lesson (pass lf-b8n5):** grep the other exams for every test id, route and helper a new exam touches: three lanes each hit an older exam (#157 helper without the task list, #11 `/^cohort-/`, #128 exact smoke cohort).
+- **Lesson (pass lf-b8n5):** grep the other exams for every test id, route and helper a new exam touches.
 - **Lesson (D49):** a state commit pushed to `main` while a merge's Deploy is pending makes that Deploy skip; push state after the Deploy.
 - **Repository is public (D43).** Always `git pull --rebase` before a state commit, never `--autostash`.
 - **Known gap (D40):** a cancelled Deploy is not noticed; fix in #85.
-- **Laptop network:** DNS to github.com dropped twice for a minute this pass; retry before treating it as an incident.
-- **Next session starts at:** the parked lanes above (#177, #180 exams to verify and commit; #163 exam from scratch), then Next 1.
+- **Next session starts at:** whatever this pass leaves in flight (see the lanes above), then Next 1.
 
 ## Next (in order)
 
 1. Teacher UI (D59): **#163** class table, **#164** student page, **#165** live sessions + teacher Playwright. Flags/reasons in `task_results` / `lab_runs` (D55); leave out `lf-smoke` everywhere (`app/smoke.py`, D61).
-2. **#177** session start follow-ups (transport errors keep waiting, whole start under 60 s), **#180** runsc start retry, **#186** busy row Save + open-tasks live region (exam edit first).
-3. **#167** docker end-to-end browser test against the real manager (split from #131, D60). **#151** kill follow-ups, **#154** Solution tab (D57 b), **#156** smoke follow-ups, **#137**, **#126**, **#127**, **#142** (reuse the #153 helpers).
+2. **#177** session start follow-ups (held by lf-m3q8), **#186** busy row Save + open-tasks live region (exam edit first).
+3. **#167** docker end-to-end browser test against the real manager (split from #131, D60). **#151** kill follow-ups, **#154** Solution tab (D57 b), **#137**, **#126**, **#127**, **#142** (reuse the #153 helpers).
 4. **#98** (p2, D46): cancel superseded PR runs and skip full CI for docs-only pushes; **#155** dashboard cadence.
 5. **#85** deploy follow-ups, **#94**, **#93**; p2 list: #81, #76, #67, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
