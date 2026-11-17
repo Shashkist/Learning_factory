@@ -32,6 +32,14 @@ def published(labs: dict[str, Lab]) -> list[Lab]:
     return sorted(found, key=lambda lab: (lab.module, lab.lesson, lab.id))
 
 
+_FORMULA_START = ("=", "+", "-", "@", "\t", "\r")
+
+
+def safe_cell(text: str) -> str:
+    """Keep a pasted name from running as a spreadsheet formula (CSV injection)."""
+    return "'" + text if text.startswith(_FORMULA_START) else text
+
+
 def csv_text(table: dict[str, Any]) -> str:
     ids = [lab["id"] for lab in table["labs"]]
     out = io.StringIO(newline="")
@@ -41,7 +49,9 @@ def csv_text(table: dict[str, Any]) -> str:
         cells = [
             row["cells"][i]["status"] + (" ⚡" if row["cells"][i]["flag"] else "") for i in ids
         ]
-        writer.writerow([row["name"], row["cohort"], row["last_activity"] or "", *cells])
+        writer.writerow(
+            [safe_cell(row["name"]), safe_cell(row["cohort"]), row["last_activity"] or "", *cells]
+        )
     return out.getvalue()
 
 
@@ -131,7 +141,8 @@ async def class_csv(
 ) -> Response:
     text = csv_text(await build(request, cohort, flagged))
     return Response(
-        text.encode("utf-8"),
+        # The BOM makes Excel on Windows read the file as UTF-8 (Hebrew names, the bolt).
+        text.encode("utf-8-sig"),
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="class.csv"'},
     )

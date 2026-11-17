@@ -54,3 +54,11 @@ def test_csv_text_quotes_and_flags():
     lines = csv_text(table).splitlines()
     assert lines[0] == "name,cohort,last_activity,l1,l2"
     assert lines[1] == '"Fake, ""Q""",C,,2/3 ⚡,none'
+
+
+def test_csv_text_defuses_formulas():
+    row = {"name": '=HYPERLINK("x")', "cohort": "-c", "last_activity": None, "cells": {}}
+    lines = csv_text({"labs": [], "rows": [row]}).splitlines()
+    assert lines[1] == "\"'=HYPERLINK(\"\"x\"\")\",'-c,"
+    plain = {"name": "Fake Dana", "cohort": "C", "last_activity": None, "cells": {}}
+    assert csv_text({"labs": [], "rows": [plain]}).splitlines()[1] == "Fake Dana,C,"

@@ -597,6 +597,7 @@ in force · factory · 2026-11-16
 4. **New issue: live sessions** (who is in which lab now, end a session) **and teacher Playwright flows** (after #131 sets Playwright up).
 **Why.** Each slice is one reviewable PR with its own exam; slice 1 is the base the others need (admin shell, router, `lf-smoke` exclusion helper). **Alternatives.** One big PR; API-only and UI-only slices (UI slices could not be checked end to end). **Revert.** Merge the follow-up issues back into #11.
 **Amended (review round 1 of #170).** Slice 1 ships the edit API (`PATCH`) and the students API; the edit form, the student list on the Cohorts page, translated import errors and the import hardening nits move to #172. #11 closes with #170; #172 carries the "edit" criterion in the UI.
+**Amended (#163, slice 2).** The `flag_dismissed_at` column (migration 006, on `task_results` and `lab_runs`) ships with the class table, because the ⚡ already hides dismissed flags; slice 3 (#164) only adds the dismiss action. The CSV is written with a UTF-8 BOM (Excel on Windows reads Hebrew names correctly) and a name or cohort that starts with `= + - @`, tab or CR gets a leading `'` (no formula runs when it opens). Two students with the same name are told apart by their note on the student page (#164); the class table shows the name only.
 
 ## D60 · #131 Playwright: the suite is the deliverable; the docker end-to-end test moves to #167
 in force · factory · 2026-11-16

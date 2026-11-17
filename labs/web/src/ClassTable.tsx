@@ -91,7 +91,7 @@ export default function ClassTable() {
           <tbody>
             {table.rows.map((r, i) => (
               <tr key={i} data-testid={`class-row-${i}`}>
-                <td>{r.name}</td>
+                <th scope="row">{r.name}</th>
                 <td>{r.cohort}</td>
                 <td data-testid={`class-last-${i}`}>
                   {r.last_activity ? r.last_activity.slice(0, 10) : t("admin.class.never")}
@@ -101,7 +101,11 @@ export default function ClassTable() {
                   return (
                     <td key={l.id} data-testid={`class-cell-${i}-${l.id}`}>
                       {mark(c.status)}
-                      {c.flag && <span title={t("admin.class.flag")}>⚡</span>}
+                      {c.flag && (
+                        <span role="img" aria-label={t("admin.class.flag")} title={t("admin.class.flag")}>
+                          ⚡
+                        </span>
+                      )}
                     </td>
                   );
                 })}
