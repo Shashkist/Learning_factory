@@ -15,6 +15,7 @@ from app.content import Lab
 from app.smoke import NOT_SMOKE_SQL
 
 T = db.SCHEMA
+PG_INT_MAX = 2**31 - 1
 
 router = APIRouter(prefix="/api/admin", dependencies=[Depends(current_admin)])
 
@@ -59,6 +60,8 @@ async def build(request: Request, cohort: int | None, flagged: int | None) -> di
     pool = auth._pool(request)
     labs = published(request.app.state.labs)
     lab_ids = [lab.id for lab in labs]
+    if cohort is not None and not 1 <= cohort <= PG_INT_MAX:
+        raise HTTPException(404, "unknown_cohort")  # asyncpg would raise DataError (a 503)
     with db_guard():
         if cohort is not None and not await pool.fetchval(
             f"select 1 from {T}.cohorts c where {NOT_SMOKE_SQL} and c.id = $1", cohort

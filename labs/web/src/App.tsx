@@ -90,6 +90,7 @@ function Student() {
 }
 
 export default function App() {
-  const admin = ["/admin", "/admin/class"].includes(window.location.pathname.replace(/\/+$/, ""));
+  const p = window.location.pathname.replace(/\/+$/, "");
+  const admin = p === "/admin" || p.startsWith("/admin/");
   return <I18nProvider>{admin ? <Admin /> : <Student />}</I18nProvider>;
 }

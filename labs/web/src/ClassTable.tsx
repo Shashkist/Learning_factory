@@ -13,6 +13,14 @@ function mark(status: string): string {
   return status === "none" ? "–" : status;
 }
 
+/** Local date and time as `YYYY-MM-DD HH:MM`: the teacher's day, not the UTC day. */
+function localStamp(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 export default function ClassTable() {
   const { t, lang } = useI18n();
   const [cohort, setCohort] = useState("");
@@ -94,7 +102,7 @@ export default function ClassTable() {
                 <th scope="row">{r.name}</th>
                 <td>{r.cohort}</td>
                 <td data-testid={`class-last-${i}`}>
-                  {r.last_activity ? r.last_activity.slice(0, 10) : t("admin.class.never")}
+                  {r.last_activity ? localStamp(r.last_activity) : t("admin.class.never")}
                 </td>
                 {table.labs.map((l) => {
                   const c = r.cells[l.id];

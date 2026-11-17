@@ -102,7 +102,7 @@
   "admin.class.csv": "הורדת קובץ CSV",
   "admin.class.flag": "הושלם מהר באופן חריג",
   "admin.class.col.name": "תלמיד",
-  "admin.class.col.cohort": "קבוצת לימוד",
+  "admin.class.col.cohort": "קבוצה",
   "admin.class.col.last_activity": "פעילות אחרונה",
   "admin.class.never": "אף פעם",
   "admin.class.empty": "אין תלמידים להצגה.",

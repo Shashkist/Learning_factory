@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from app.classtable import cell_status, csv_text, published
 from app.content import Lab, Task
 
@@ -62,3 +64,29 @@ def test_csv_text_defuses_formulas():
     assert lines[1] == "\"'=HYPERLINK(\"\"x\"\")\",'-c,"
     plain = {"name": "Fake Dana", "cohort": "C", "last_activity": None, "cells": {}}
     assert csv_text({"labs": [], "rows": [plain]}).splitlines()[1] == "Fake Dana,C,"
+
+
+@pytest.mark.parametrize("start", ["=", "+", "-", "@", "\t", "\r"])
+def test_csv_text_defuses_every_formula_start(start: str):
+    row = {"name": f"{start}x", "cohort": "C", "last_activity": None, "cells": {}}
+    out = csv_text({"labs": [], "rows": [row]})
+    assert f"'{start}x" in out
+
+
+@pytest.mark.parametrize("cohort", [0, -1, 2**31])
+def test_out_of_range_cohort_is_unknown_not_a_db_error(cohort: int):
+    import asyncio
+    from types import SimpleNamespace
+
+    from fastapi import HTTPException
+
+    from app.classtable import build
+
+    class NoPool:
+        def __getattr__(self, name):
+            raise AssertionError("the database must not be asked")
+
+    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(pool=NoPool(), labs={})))
+    with pytest.raises(HTTPException) as e:
+        asyncio.run(build(request, cohort, None))  # type: ignore[arg-type]
+    assert (e.value.status_code, e.value.detail) == (404, "unknown_cohort")
