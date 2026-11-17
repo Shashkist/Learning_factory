@@ -2,6 +2,7 @@
 
 One live session per student is enforced by the partial unique index; the row is inserted
 before the container is started, so a losing concurrent start never creates a container."""
+import asyncio
 import logging
 import time
 import uuid
@@ -14,7 +15,7 @@ from pydantic import BaseModel, Field
 from app import admission, db
 from app.auth import Principal, current_student, db_guard
 from app.content import Lab
-from app.runtime import container_name, container_spec, memory_limit_mb
+from app.runtime import LabRuntime, container_name, container_spec, memory_limit_mb
 from app.smoke import is_smoke_member
 
 log = logging.getLogger("lab-manager")
@@ -92,12 +93,24 @@ def _conflict(labs: dict[str, Lab], row: Any) -> HTTPException:
     )
 
 
-READY_TIMEOUT_MAX_S = 55.0  # nginx answers 504 at 60 s for POST /api/sessions (D56)
+# nginx answers 504 at 60 s (its default proxy_read_timeout; labs/deploy/nginx/labs.conf sets none)
+READY_TIMEOUT_MAX_S = 50.0
+CLEANUP_BOUND_S = 5.0  # what is left after a failed start is the janitor's (LF_START_DEADLINE_S)
 
 
-async def wait_ready(runtime: Any, name: str, deadline: float) -> None:
+async def _stamp_request(request: Request) -> None:
+    """Runs before authentication (route dependencies come first), so the start budget counts
+    the auth round trips too."""
+    request.state.started = time.monotonic()
+
+
+def _loop_time(deadline: float) -> float:
+    return asyncio.get_running_loop().time() + (deadline - time.monotonic())
+
+
+async def wait_ready(runtime: LabRuntime, name: str, deadline: float) -> None:
     """Running means the entrypoint copied the skel (ttyd starts after it). Bounded by
-    LF_READY_TIMEOUT_S (default 45, capped below nginx's 60 s, D56) counted from the start of
+    LF_READY_TIMEOUT_S (default 45, capped at 50 s, below nginx's 60 s) counted from the start of
     the request: `deadline` is a time.monotonic() value, so a slow forced end or create/start
     leaves the wait only what is left. A runtime without `wait_ready` is ready at once."""
     waiter = getattr(runtime, "wait_ready", None)
@@ -110,14 +123,16 @@ async def wait_ready(runtime: Any, name: str, deadline: float) -> None:
     await waiter(name, left)
 
 
-@router.post("", status_code=201)
+@router.post("", status_code=201, dependencies=[Depends(_stamp_request)])
 async def start(
     body: StartBody,
     request: Request,
     response: Response,
     p: Annotated[Principal, Depends(current_student)],
 ) -> dict[str, Any]:
-    started = time.monotonic()
+    started = getattr(getattr(request, "state", None), "started", None) or time.monotonic()
+    budget = min(admission.env_num("LF_READY_TIMEOUT_S", 45), READY_TIMEOUT_MAX_S)
+    deadline = started + budget
     state = request.app.state
     labs: dict[str, Lab] = state.labs
     lab = labs.get(body.lab_id)
@@ -128,7 +143,7 @@ async def start(
         raise HTTPException(404, "unknown_lab")  # byte-identical to a missing lab (D54)
     if pool is None:
         raise HTTPException(503, "database unavailable")
-    runtime = state.runtime
+    runtime: LabRuntime = state.runtime
     with db_guard():
         existing = await _live(pool, p.subject)
         if existing is not None:
@@ -142,7 +157,12 @@ async def start(
         ):
             raise HTTPException(503, "capacity_full")
         if existing is not None:
-            await end_session(pool, runtime, existing["id"], "forced")
+            try:
+                async with asyncio.timeout_at(_loop_time(deadline)):
+                    await end_session(pool, runtime, existing["id"], "forced")
+            except TimeoutError:
+                log.error("forced end of the previous session exceeded the start budget")
+                raise HTTPException(502, "start_failed") from None
         try:
             row = await pool.fetchrow(
                 f"insert into {T}.lab_sessions (student, lab_id, status, expires_at) "
@@ -162,19 +182,21 @@ async def start(
             raise _conflict(labs, other) from None
         sid = str(row["id"])
         try:
-            name = str(await runtime.start(container_spec(lab, sid)))
-            await wait_ready(
-                runtime,
-                name,
-                started
-                + min(admission.env_num("LF_READY_TIMEOUT_S", 45), READY_TIMEOUT_MAX_S),
-            )
+            async with asyncio.timeout_at(_loop_time(deadline)):
+                name = str(await runtime.start(container_spec(lab, sid)))
+                await wait_ready(runtime, name, deadline)
         except Exception as exc:
             log.error("starting container of session %s failed (%s)", sid, type(exc).__name__)
-            await remove_container(runtime, sid)
-            deleted = await pool.execute(
-                f"delete from {T}.lab_sessions where id = $1 and status = 'starting'", row["id"]
-            )
+            deleted = ""
+            try:
+                async with asyncio.timeout(CLEANUP_BOUND_S):
+                    await remove_container(runtime, sid)
+                    deleted = await pool.execute(
+                        f"delete from {T}.lab_sessions where id = $1 and status = 'starting'",
+                        row["id"],
+                    )
+            except TimeoutError:  # the janitor's orphan sweep removes what is left
+                log.error("cleanup of session %s exceeded %s s", sid, CLEANUP_BOUND_S)
             if str(deleted).endswith(" 0"):  # ended meanwhile: keep the row, say so
                 raise HTTPException(409, "session_ended") from None
             raise HTTPException(502, "start_failed") from None

@@ -160,3 +160,51 @@ def test_failed_start_of_an_ended_session_is_409(monkeypatch):
     with pytest.raises(HTTPException) as e:
         asyncio.run(go())
     assert e.value.status_code == 409 and removed
+
+
+def test_slow_start_over_budget_answers_502_within_budget_and_removes(monkeypatch):
+    monkeypatch.setenv("LF_READY_TIMEOUT_S", "1")
+    go, pool, removed, HTTPException = _failing_start(monkeypatch, "DELETE 1")
+
+    class Hang:
+        async def start(self, spec):
+            await asyncio.sleep(30)
+            return "x"
+
+        async def remove(self, name):
+            removed.append(name)
+
+    # swap the runtime of the prepared state
+    closure = go.__closure__
+    req = next(c.cell_contents for c in closure if hasattr(c.cell_contents, "app"))
+    req.app.state.runtime = Hang()
+    t0 = time.monotonic()
+    with pytest.raises(HTTPException) as e:
+        asyncio.run(go())
+    assert e.value.status_code == 502 and e.value.detail == "start_failed"
+    assert time.monotonic() - t0 < 2.5
+    assert removed and "status = 'starting'" in pool.sql[0]
+
+
+def test_cleanup_is_bounded_and_still_answers_502(monkeypatch):
+    monkeypatch.setenv("LF_READY_TIMEOUT_S", "1")
+    monkeypatch.setattr(sessions, "CLEANUP_BOUND_S", 0.3)
+    go, pool, removed, HTTPException = _failing_start(monkeypatch, "DELETE 1")
+
+    class Stuck:
+        async def start(self, spec):
+            return "x"
+
+        async def wait_ready(self, name, timeout):
+            raise RuntimeError("gone")
+
+        async def remove(self, name):
+            await asyncio.sleep(30)
+
+    req = next(c.cell_contents for c in go.__closure__ if hasattr(c.cell_contents, "app"))
+    req.app.state.runtime = Stuck()
+    t0 = time.monotonic()
+    with pytest.raises(HTTPException) as e:
+        asyncio.run(go())
+    assert e.value.status_code == 502
+    assert time.monotonic() - t0 < 1.5
