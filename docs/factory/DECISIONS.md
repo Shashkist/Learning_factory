@@ -622,3 +622,9 @@ in force · factory · 2026-11-16
 **Why.** A bare 4-digit marker collides with a random session id in about 1 run in 2,300; the failure looks like a kill bug.
 **Alternatives.** Exclude ttyd by name (misses any other process that carries the id); a fixed session id in the fixture (the fixture is shared by other exams).
 **Revert.** Not needed; the anchored match is strictly more precise.
+
+## D63 · #164 the student page is addressed by an opaque random key, not the id hash
+in force · factory · 2026-11-17
+
+**Decision.** The issue names `GET /api/admin/students/<id_hash>`, but the #163 contract keeps id hashes out of every teacher row (the class table, its CSV), so the class table could not link to such a page. A new migration adds `students.key uuid not null default gen_random_uuid() unique`. The student page and its actions use `/api/admin/students/<key>`; an unknown or malformed key, or a student of the `lf-smoke` cohort, answers 404. Class-table rows (`/api/admin/class`) and the cohort students list (`/api/admin/cohorts/<id>/students`) gain a `key` field, so two students with the same name get distinct links. The #163 exam's exact row-key set is widened to include `key` in an exam-only commit before the code (it still asserts no id hash and no raw id in the body). The CSV stays without keys.
+**Why.** A random key says nothing about the student and cannot be reversed or matched against another system; the id hash is a stable pseudonym that should stay inside the database. **Alternatives.** The id hash in the URL (breaks #163's privacy contract); the row's position (not stable); an HMAC of the id hash (needs the secret on every lookup, no gain over a random column). **Revert.** Drop the column in a new migration and route by id hash; restore the #163 row-key set.
