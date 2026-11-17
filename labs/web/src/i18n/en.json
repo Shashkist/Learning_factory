@@ -93,5 +93,18 @@
   "admin.import.error.duplicate_in_paste": "Same ID as an earlier line.",
   "admin.import.error.already_exists": "This ID is already a student.",
   "admin.import.error.unknown": "This line could not be imported.",
-  "admin.import.too_many": "More than 2,000 lines: nothing was imported. Split the list and import it in parts."
+  "admin.import.too_many": "More than 2,000 lines: nothing was imported. Split the list and import it in parts.",
+  "admin.nav.class": "Class table",
+  "admin.class.title": "Class progress",
+  "admin.class.cohort": "Cohort",
+  "admin.class.all_cohorts": "All cohorts",
+  "admin.class.flagged": "Flagged only",
+  "admin.class.csv": "Download CSV",
+  "admin.class.flag": "Finished unusually fast",
+  "admin.class.col.name": "Student",
+  "admin.class.col.cohort": "Cohort",
+  "admin.class.col.last_activity": "Last activity",
+  "admin.class.never": "Never",
+  "admin.class.empty": "No students to show.",
+  "admin.class.error": "Could not load the class table."
 }
