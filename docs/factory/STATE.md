@@ -4,13 +4,14 @@
 
 ## Now
 
-_Last updated: 2026-11-17 ~06:40 UTC, laptop pass lf-r5k8 (started ~06:00 UTC)._
+_Last updated: 2026-11-17 ~09:35 UTC, laptop pass lf-n4d6 (started ~09:20 UTC)._
 
-- **Pass lf-r5k8 in flight (three lanes):**
-  - **#180** PR #188 (`f/180-runsc-retry`, worktree `C:\projects\lf-180`): exam pushed alone first (CI: exactly the 6 retry cases red, 4 green), then the fix (one retry, one `retrying once` line on stderr, `docker rm -f` + 2 s pause between). CI on the fix running.
-  - **#163** class table (worktree `C:\projects\lf-163`): exam being written (API + web).
-  - **#156** smoke follow-ups (worktree `C:\projects\lf-156`, `f/156-smoke-followups`): exam being written.
-  - **#177** is held by another session (lf-m3q8; exam committed as `410729e` in `C:\projects\lf-177`). Leave it to that claim.
+- **Pass lf-n4d6 in flight (three lanes, all claimed by lf-n4d6):**
+  - **#163** PR #189 (`f/163-class-table`, worktree `C:\projects\lf-163`): exam pushed alone (CI red as expected); code committed locally (491941b API + migration 006, e83488a web); local manager checks green (ruff, mypy, 197 passed). Next: web checks, push, CI, reviewer.
+  - **#156** PR #190 (`f/156-smoke-followups`, worktree `C:\projects\lf-156`): exam pushed alone; implementer writing the code.
+  - **#177** PR #191 (`f/177-start-followups`, worktree `C:\projects\lf-177`): taken over from lf-m3q8 (silent 227 m); exam rebased onto main (cc89d8d) and pushed alone; implementer writing the code.
+  - #180 shipped in #188 (8a2910f) by pass lf-r5k8 and closed.
+- **Laptop (O20, this pass):** ~950 python processes, CPU ~85 %; trivial Bash commands sometimes hang for 2 min and a full local vitest run did not finish in 10 min. Local checks: ruff/mypy/tsc/lint + narrow pytest only; CI runs the full suites.
 - **Laptop (O20 still open):** Bash responds this pass, but ~885 hung `qa-statusline.py` processes, CPU ~50 %. GitHub API/DNS from the laptop drops often (TLS handshake timeouts): wrap every `gh`/`git push` in a retry loop.
 - **Lesson (pass lf-x2v7):** the subagents here have only Bash as a shell; when Bash hangs, they cannot read issues, run tests or commit. Check `echo hi` in Bash at orient before dispatching; if it hangs, stop the pass and raise it.
 - **Production:** `lf-manager:76b0862` (Deploy 43911335654, smoke ok; bundle has the #178 texts); #187 (dashboard only) merged after.
