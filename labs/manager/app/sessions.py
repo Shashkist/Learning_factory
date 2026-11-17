@@ -130,7 +130,9 @@ async def start(
     response: Response,
     p: Annotated[Principal, Depends(current_student)],
 ) -> dict[str, Any]:
-    started = request.state.started
+    # The route dependency stamps the request before authentication; a direct call (the #177
+    # exam calls start() with a bare request) counts from here.
+    started = getattr(getattr(request, "state", None), "started", None) or time.monotonic()
     budget = min(admission.env_num("LF_READY_TIMEOUT_S", 45), READY_TIMEOUT_MAX_S)
     deadline = started + budget
     state = request.app.state
