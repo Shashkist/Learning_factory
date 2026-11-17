@@ -4,7 +4,7 @@
 
 ## Now
 
-_Last updated: 2026-11-17 ~14:15 UTC, laptop pass lf-k7p2 (12:29-14:15 UTC). No issue claimed, no branch in flight._
+_Last updated: 2026-11-17 ~21:35 UTC, laptop pass lf-v5q1 (from 21:27 UTC). In flight: #164 (`f/164-student-page`, worktree `C:\projects\lf-164`), #192 (`f/192-session-start-nits`, `C:\projects\lf-192`), #193 (`f/193-smoke-stop-path`, `C:\projects\lf-193`). Taken over from pass lf-r3m8 (16:26-23:19 local), which claimed them and then ended on an API request timeout with no commits._
 
 - **Pass lf-k7p2 finished the three lanes of lf-n4d6**: #163 (#189), #156 (#190), #177 (#191) merged, deployed, closed. Follow-ups #192 (session start nits) and #193 (smoke stop path).
 - **Next session starts at:** Next 1 (#164).
