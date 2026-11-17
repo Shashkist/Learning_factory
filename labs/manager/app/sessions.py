@@ -2,7 +2,9 @@
 
 One live session per student is enforced by the partial unique index; the row is inserted
 before the container is started, so a losing concurrent start never creates a container."""
+import asyncio
 import logging
+import time
 import uuid
 from typing import Annotated, Any
 
@@ -13,7 +15,7 @@ from pydantic import BaseModel, Field
 from app import admission, db
 from app.auth import Principal, current_student, db_guard
 from app.content import Lab
-from app.runtime import container_name, container_spec, memory_limit_mb
+from app.runtime import LabRuntime, container_name, container_spec, memory_limit_mb
 from app.smoke import is_smoke_member
 
 log = logging.getLogger("lab-manager")
@@ -91,37 +93,64 @@ def _conflict(labs: dict[str, Lab], row: Any) -> HTTPException:
     )
 
 
-READY_TIMEOUT_MAX_S = 55.0  # nginx answers 504 at 60 s for POST /api/sessions (D56)
+# nginx answers 504 at 60 s (its default proxy_read_timeout; labs/deploy/nginx/labs.conf sets none)
+READY_TIMEOUT_MAX_S = 50.0
+CLEANUP_BOUND_S = 5.0  # what is left after a failed start is the janitor's (LF_START_DEADLINE_S)
 
 
-async def wait_ready(runtime: Any, name: str) -> None:
+async def _stamp_request(request: Request) -> None:
+    """Runs before authentication (route dependencies come first), so the start budget counts
+    the auth round trips too."""
+    request.state.started = time.monotonic()
+
+
+def _loop_time(deadline: float) -> float:
+    return asyncio.get_running_loop().time() + (deadline - time.monotonic())
+
+
+async def wait_ready(runtime: LabRuntime, name: str, deadline: float) -> None:
     """Running means the entrypoint copied the skel (ttyd starts after it). Bounded by
-    LF_READY_TIMEOUT_S (default 45, capped below nginx's 60 s, D56). A runtime without
-    `wait_ready` (the fakes) is ready at once."""
+    LF_READY_TIMEOUT_S (default 45, capped at 50 s, below nginx's 60 s) counted from the start of
+    the request: `deadline` is a time.monotonic() value, so a slow forced end or create/start
+    leaves the wait only what is left. A runtime without `wait_ready` is ready at once."""
     waiter = getattr(runtime, "wait_ready", None)
-    if waiter is not None:
-        await waiter(name, min(admission.env_num("LF_READY_TIMEOUT_S", 45), READY_TIMEOUT_MAX_S))
+    if waiter is None:
+        log.warning("runtime %s has no wait_ready; assuming ready", type(runtime).__name__)
+        return
+    left = deadline - time.monotonic()
+    if left <= 0:
+        raise TimeoutError("start budget spent before the readiness wait")
+    await waiter(name, left)
 
 
-@router.post("", status_code=201)
+@router.post("", status_code=201, dependencies=[Depends(_stamp_request)])
 async def start(
     body: StartBody,
     request: Request,
     response: Response,
     p: Annotated[Principal, Depends(current_student)],
 ) -> dict[str, Any]:
+    # The route dependency stamps the request before authentication; a direct call (the #177
+    # exam calls start() with a bare request) counts from here.
+    started = getattr(getattr(request, "state", None), "started", None) or time.monotonic()
+    budget = min(admission.env_num("LF_READY_TIMEOUT_S", 45), READY_TIMEOUT_MAX_S)
+    deadline = started + budget
     state = request.app.state
     labs: dict[str, Lab] = state.labs
     lab = labs.get(body.lab_id)
     if lab is None:
         raise HTTPException(404, "unknown_lab")
     pool = state.pool
-    if lab.status == "internal" and (pool is None or not await _in_smoke_cohort(pool, p.subject)):
-        raise HTTPException(404, "unknown_lab")  # byte-identical to a missing lab (D54)
-    if pool is None:
-        raise HTTPException(503, "database unavailable")
-    runtime = state.runtime
-    with db_guard():
+    runtime: LabRuntime = state.runtime
+    rows: list[Any] = []  # the inserted row, once there is one (what a failure must clean up)
+
+    async def run() -> dict[str, Any]:
+        if lab.status == "internal" and (
+            pool is None or not await _in_smoke_cohort(pool, p.subject)
+        ):
+            raise HTTPException(404, "unknown_lab")  # byte-identical to a missing lab (D54)
+        if pool is None:
+            raise HTTPException(503, "database unavailable")
         existing = await _live(pool, p.subject)
         if existing is not None:
             if existing["lab_id"] == lab.id:
@@ -152,19 +181,9 @@ async def start(
                 response.status_code = 200
                 return _shape(other)
             raise _conflict(labs, other) from None
-        sid = str(row["id"])
-        try:
-            name = str(await runtime.start(container_spec(lab, sid)))
-            await wait_ready(runtime, name)
-        except Exception as exc:
-            log.error("starting container of session %s failed (%s)", sid, type(exc).__name__)
-            await remove_container(runtime, sid)
-            deleted = await pool.execute(
-                f"delete from {T}.lab_sessions where id = $1 and status = 'starting'", row["id"]
-            )
-            if str(deleted).endswith(" 0"):  # ended meanwhile: keep the row, say so
-                raise HTTPException(409, "session_ended") from None
-            raise HTTPException(502, "start_failed") from None
+        rows.append(row)
+        name = str(await runtime.start(container_spec(lab, str(row["id"]))))
+        await wait_ready(runtime, name, deadline)
         marked = await pool.fetchval(
             f"update {T}.lab_sessions set status = 'running', container = $2, "
             "last_heartbeat = now() "
@@ -173,9 +192,41 @@ async def start(
             name,
         )
         if marked is None:  # ended while the container was starting
-            await remove_container(runtime, sid)
+            await remove_container(runtime, str(row["id"]))
             raise HTTPException(409, "session_ended")
-    return _shape({**dict(row), "status": "running"})
+        return _shape({**dict(row), "status": "running"})
+
+    with db_guard():
+        try:
+            # one deadline over the whole start, database calls included; a TimeoutError escaping
+            # would be turned into 503 by db_guard, so it is answered here
+            async with asyncio.timeout_at(_loop_time(deadline)):
+                return await run()
+        except HTTPException:
+            raise
+        except Exception as exc:
+            if not rows and not isinstance(exc, TimeoutError):
+                raise
+            log.error("starting session of lab %s failed (%s)", lab.id, type(exc).__name__)
+            deleted = ""
+            if rows:  # the deadline (if it fired) is over: cleanup has its own bounds
+                row = rows[0]
+                try:  # the row first: it holds the student's slot
+                    async with asyncio.timeout(CLEANUP_BOUND_S):
+                        deleted = await pool.execute(
+                            f"delete from {T}.lab_sessions where id = $1 and status = 'starting'",
+                            row["id"],
+                        )
+                except Exception as err:  # a slow or failed delete never skips the remove
+                    log.error("deleting the starting row failed (%s)", type(err).__name__)
+                try:  # the janitor's orphan sweep removes what is left
+                    async with asyncio.timeout(CLEANUP_BOUND_S):
+                        await remove_container(runtime, str(row["id"]))
+                except Exception as err:
+                    log.error("removing the container failed (%s)", type(err).__name__)
+            if str(deleted).endswith(" 0"):  # ended meanwhile: keep the row, say so
+                raise HTTPException(409, "session_ended") from None
+            raise HTTPException(502, "start_failed") from None
 
 
 @router.get("/current")
