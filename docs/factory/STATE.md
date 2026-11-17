@@ -4,13 +4,12 @@
 
 ## Now
 
-_Last updated: 2026-11-17 ~09:35 UTC, laptop pass lf-n4d6 (started ~09:20 UTC)._
+_Last updated: 2026-11-17 ~12:35 UTC, laptop pass lf-k7p2 (started ~12:29 UTC)._
 
-- **Pass lf-n4d6 in flight (three lanes, all claimed by lf-n4d6):**
-  - **#163** PR #189 (`f/163-class-table`, worktree `C:\projects\lf-163`): exam pushed alone (CI red as expected); code committed locally (491941b API + migration 006, e83488a web); local manager checks green (ruff, mypy, 197 passed). Next: web checks, push, CI, reviewer.
-  - **#156** PR #190 (`f/156-smoke-followups`, worktree `C:\projects\lf-156`): exam pushed alone; implementer writing the code.
-  - **#177** PR #191 (`f/177-start-followups`, worktree `C:\projects\lf-177`): taken over from lf-m3q8 (silent 227 m); exam rebased onto main (cc89d8d) and pushed alone; implementer writing the code.
-  - #180 shipped in #188 (8a2910f) by pass lf-r5k8 and closed.
+- **Pass lf-k7p2 took over the three lanes of lf-n4d6** (silent since ~10:45; all three PRs had green CI, no review). Claims now held by lf-k7p2; reviewers dispatched on all three:
+  - **#163** PR #189 (`f/163-class-table`, worktree `C:\projects\lf-163`, head 9eab633): CI green, in review round 1.
+  - **#156** PR #190 (`f/156-smoke-followups`, worktree `C:\projects\lf-156`, head 544ad33): CI green, in review round 1.
+  - **#177** PR #191 (`f/177-start-followups`, worktree `C:\projects\lf-177`, head f79b944): CI green, in review round 1.
 - **Laptop (O20, this pass):** ~950 python processes, CPU ~85 %; trivial Bash commands sometimes hang for 2 min and a full local vitest run did not finish in 10 min. Local checks: ruff/mypy/tsc/lint + narrow pytest only; CI runs the full suites.
 - **Laptop (O20 still open):** Bash responds this pass, but ~885 hung `qa-statusline.py` processes, CPU ~50 %. GitHub API/DNS from the laptop drops often (TLS handshake timeouts): wrap every `gh`/`git push` in a retry loop.
 - **Lesson (pass lf-x2v7):** the subagents here have only Bash as a shell; when Bash hangs, they cannot read issues, run tests or commit. Check `echo hi` in Bash at orient before dispatching; if it hangs, stop the pass and raise it.
