@@ -14,8 +14,18 @@ import os
 import re
 import sys
 
-from lab_api import COOKIE, Fail, login, start
-from lab_api import request as _request
+from lab_api import (
+    COOKIE,
+    END_TIMEOUT,
+    HTTP_TIMEOUT,
+    STOPPED,
+    Fail,
+    end_session,
+    leave,
+    login,
+    run_stoppable,
+    start,
+)
 
 DEFAULT_BASE = "https://labs.shashkist.com"
 LAB_ID = "hello"
@@ -85,17 +95,26 @@ def run(base: str, student: str, password: str, timeout: float) -> str | None:
     sid = start(base, cookie, LAB_ID)
     print(sid, flush=True)
     failure = None
+    ended = False
+
+    def end(timeout: float = HTTP_TIMEOUT) -> None:
+        nonlocal ended, failure
+        ended = True
+        reason = end_session(base, sid, cookie, timeout)
+        failure = failure or reason
+
+    def stop() -> None:
+        nonlocal failure
+        failure = STOPPED
+        end(END_TIMEOUT)
+
     try:
-        asyncio.run(_terminal(base, sid, cookie, timeout))
+        run_stoppable(_terminal(base, sid, cookie, timeout), stop)
     except Fail as exc:
         failure = str(exc)
     finally:
-        try:
-            end_status, _, _ = _request(base, "POST", f"/api/sessions/{sid}/end", cookie)
-            if end_status not in (200, 204) and failure is None:
-                failure = f"ending the session failed (http {end_status})"
-        except Fail as exc:
-            failure = failure or str(exc)
+        if not ended:
+            end()
     return failure
 
 
@@ -124,6 +143,8 @@ def main(argv: list[str]) -> int:
         failure = str(exc)
     if failure:
         print(f"smoke failed: {failure}", file=sys.stderr)
+        if failure == STOPPED:
+            leave(1)  # do not wait for a worker thread or a websocket close
         return 1
     return 0
 
