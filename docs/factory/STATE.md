@@ -4,13 +4,12 @@
 
 ## Now
 
-_Last updated: 2026-11-17 ~12:35 UTC, laptop pass lf-k7p2 (started ~12:29 UTC)._
+_Last updated: 2026-11-17 ~14:15 UTC, laptop pass lf-k7p2 (12:29-14:15 UTC). No issue claimed, no branch in flight._
 
-- **Pass lf-k7p2 took over the three lanes of lf-n4d6** (silent since ~10:45; all three PRs had green CI, no review). Claims now held by lf-k7p2; reviewers dispatched on all three:
-  - **#163** PR #189 (`f/163-class-table`, worktree `C:\projects\lf-163`, head 9eab633): CI green, in review round 1.
-  - **#156** PR #190 (`f/156-smoke-followups`, worktree `C:\projects\lf-156`, head 544ad33): CI green, in review round 1.
-  - **#177** PR #191 (`f/177-start-followups`, worktree `C:\projects\lf-177`, head f79b944): CI green, in review round 1.
-- **Laptop (O20, this pass):** ~950 python processes, CPU ~85 %; trivial Bash commands sometimes hang for 2 min and a full local vitest run did not finish in 10 min. Local checks: ruff/mypy/tsc/lint + narrow pytest only; CI runs the full suites.
+- **Pass lf-k7p2 finished the three lanes of lf-n4d6**: #163 (#189), #156 (#190), #177 (#191) merged, deployed, closed. Follow-ups #192 (session start nits) and #193 (smoke stop path).
+- **Next session starts at:** Next 1 (#164).
+- **Lesson (this pass):** check a reviewer's "simplify" nit against the exam before forwarding it. Reading `request.state.started` directly broke four #177 exam cases that call `start()` with a bare request.
+- **Laptop (O20, pass lf-n4d6; lf-k7p2 saw Bash responsive, narrow local tests fine):** ~950 python processes, CPU ~85 %; trivial Bash commands sometimes hang for 2 min and a full local vitest run did not finish in 10 min. Local checks: ruff/mypy/tsc/lint + narrow pytest only; CI runs the full suites.
 - **Laptop (O20 still open):** Bash responds this pass, but ~885 hung `qa-statusline.py` processes, CPU ~50 %. GitHub API/DNS from the laptop drops often (TLS handshake timeouts): wrap every `gh`/`git push` in a retry loop.
 - **Lesson (pass lf-x2v7):** the subagents here have only Bash as a shell; when Bash hangs, they cannot read issues, run tests or commit. Check `echo hi` in Bash at orient before dispatching; if it hangs, stop the pass and raise it.
 - **Production:** `lf-manager:76b0862` (Deploy 43911335654, smoke ok; bundle has the #178 texts); #187 (dashboard only) merged after.
@@ -22,12 +21,11 @@ _Last updated: 2026-11-17 ~12:35 UTC, laptop pass lf-k7p2 (started ~12:29 UTC)._
 - **Lesson (D49):** a state commit pushed to `main` while a merge's Deploy is pending makes that Deploy skip; push state after the Deploy.
 - **Repository is public (D43).** Always `git pull --rebase` before a state commit, never `--autostash`.
 - **Known gap (D40):** a cancelled Deploy is not noticed; fix in #85.
-- **Next session starts at:** whatever this pass leaves in flight (see the lanes above), then Next 1.
 
 ## Next (in order)
 
-1. Teacher UI (D59): **#163** class table, **#164** student page, **#165** live sessions + teacher Playwright. Flags/reasons in `task_results` / `lab_runs` (D55); leave out `lf-smoke` everywhere (`app/smoke.py`, D61).
-2. **#177** session start follow-ups (held by lf-m3q8), **#186** busy row Save + open-tasks live region (exam edit first).
+1. Teacher UI (D59): **#164** student page (see the duplicate-names note on #164), **#165** live sessions + teacher Playwright. Flags/reasons in `task_results` / `lab_runs` (D55); leave out `lf-smoke` everywhere (`app/smoke.py`, D61).
+2. **#186** busy row Save + open-tasks live region (exam edit first); **#192** session start nits, **#193** smoke stop path (both p2).
 3. **#167** docker end-to-end browser test against the real manager (split from #131, D60). **#151** kill follow-ups, **#154** Solution tab (D57 b), **#137**, **#126**, **#127**, **#142** (reuse the #153 helpers).
 4. **#98** (p2, D46): cancel superseded PR runs and skip full CI for docs-only pushes; **#155** dashboard cadence.
 5. **#85** deploy follow-ups, **#94**, **#93**; p2 list: #81, #76, #67, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
@@ -40,6 +38,8 @@ _Last updated: 2026-11-17 ~12:35 UTC, laptop pass lf-k7p2 (started ~12:29 UTC)._
 - O16/O7 resolved by D43 (public repository). O12 (back up `.env`), O13 (re-deploy after recreating nginx-proxy3), O5 reopened.
 
 ## Recently done
+
+- 2026-11-17 · Pass lf-k7p2: **3 PRs merged**, all taken over from lf-n4d6 with green CI and no review yet. #163 class table (#189): round 1 approved; should-fix fixed by the manager (an out-of-range cohort id answered 503 via asyncpg `DataError`, now 404; last activity shown in local time, not the UTC day), plus nits; live: `/api/admin/class*` 401, bundle has the texts; Deploy 44092920240. #156 smoke (#190): round 1 blocker, `/end` sent only after `asyncio.run()` shutdown (blocked by a stuck worker thread past `timeout -k 10`) → `run_stoppable` with `loop.add_signal_handler`, shared by terminal.py; round 2 approved; live smoke ran under `timeout -k 10 300 ... | tee`, all `ok`; Deploy 44096636703; leftovers #193. #177 session start (#191): round 1 blocker, one 5 s bound over container remove + row delete (a slow remove kept the slot ~3 min) → row first, separate bounds, one deadline over the whole start; round 2: the nit-5 change broke 4 exam cases (fixed, dae8848), a failed delete skipped the remove (fixed, 76acf13); leftovers #192.
 
 - 2026-11-16 · Pass lf-c4z1: **3 PRs merged.** Incident #182 (#183): main CI's #117 docker exam counted ttyd as a leftover because the session id in ttyd's `-b /s/<id>/term/` ended in `6012`; exam-only fix (marker after a space), approved; D62; Deploy 43901268785 smoke ok. #172 (#181): round 1 approved; should-fix (tab-first spreadsheet paste, 2,000-line limit named before sending) and the stale student list fixed by the manager; live: `/api/admin/*` 401 anonymous, 422 bodies without `input`/`ctx`, bundle has the new text; Deploy 43905910281. #178 (#185, re-sequenced from #184 after #181 merged): exam first (clock-based dates in the #130/#160 exams, new exam), one exam fix (Hebrew pattern matched the countdown), round 1 approved, should-fix (failed show message, focus to the opened task) fixed by the manager. Live: Deploy 43911335654, bundle has the new texts. Leftovers → #186.
 
