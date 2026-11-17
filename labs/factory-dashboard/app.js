@@ -95,10 +95,26 @@ var lastGenerated = null;
 
 // Two sources, two ages: live.json (the laptop, every few seconds while a pass runs) and
 // snapshot.json (GitHub issues, PRs and CI, rebuilt by a workflow on pushes to main and on a timer).
+var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// "17 Nov 00:12" in the viewer's time zone; "" for a missing or broken value.
+function stamp(iso) {
+  var d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  function p(n) { return (n < 10 ? "0" : "") + n; }
+  return d.getDate() + " " + MONTHS[d.getMonth()] + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+}
+
+// "4 min ago (17 Nov 00:12)"
+function agoAt(iso) {
+  var at = stamp(iso);
+  return ago(iso) + (at ? " (" + at + ")" : "");
+}
+
 function showAge() {
   var parts = [];
-  if (lastLive) parts.push("live status " + ago(lastLive.generated_at));
-  if (lastGenerated) parts.push("GitHub data " + ago(lastGenerated));
+  if (lastLive) parts.push("live status " + agoAt(lastLive.generated_at));
+  if (lastGenerated) parts.push("GitHub data " + agoAt(lastGenerated));
   if (parts.length) document.getElementById("updated").textContent = "updated: " + parts.join(" · ");
 }
 
@@ -356,6 +372,10 @@ function laneData(d) {
   return Object.keys(lanes).map(function (k) {
     var l = lanes[k];
     l.last = l.steps.reduce(function (m, x) { return S(x.s.at) > m ? S(x.s.at) : m; }, "");
+    // last update of any kind: a logged step or an agent's own activity on this task
+    l.updated = l.crew.reduce(function (m, n) {
+      return Date.parse(S(n.last)) > (Date.parse(m) || 0) ? S(n.last) : m;
+    }, l.last);
     l.first = l.steps.reduce(function (m, x) { return !m || S(x.s.started) < m ? S(x.s.started) : m; }, "");
     var busy = l.crew.filter(function (n) { return n.state === "busy" || n.state === "thinking"; });
     var openSteps = l.steps.filter(function (x) { return x.s.status === "start" || x.s.status === "wait"; });
@@ -452,7 +472,7 @@ function renderLanes(d, rerender) {
     head.appendChild(el("b", "#" + l.issue + " " + l.title));
     var pr = l.pr;
     head.appendChild(el("span", " " + joined([pr ? "PR #" + S(pr.p.number) + (pr.open ? "" : " merged") : "",
-      l.running ? "working" : "waiting", l.first ? "for " + dur(l.first) : "", l.last ? "last step " + ago(l.last) : ""]), "muted"));
+      l.running ? "working" : "waiting", l.first ? "for " + dur(l.first) : "", l.updated ? "last update " + agoAt(l.updated) : ""]), "muted"));
     lane.appendChild(head);
     var bar = el("div", null, "lane-bar");
     LIVE_STATIONS.forEach(function (st, idx) {
