@@ -4,9 +4,14 @@
 
 ## Now
 
-_Last updated: 2026-11-16 ~22:05 UTC, laptop pass lf-x2v7 (started ~21:55 UTC)._
+_Last updated: 2026-11-17 ~01:55 UTC, laptop pass lf-x2v7 (~21:55 to ~01:55 UTC, no merges)._
 
-- **In flight (pass lf-x2v7, claims held):** #163 class table (`f/163-class-table`, worktree `C:\projects\lf-163`), #180 runsc start retry (`f/180-runsc-retry`, `C:\projects\lf-180`), #177 session start follow-ups (`f/177-start-followups`, `C:\projects\lf-177`). Step: exams being written.
+- **Pass lf-x2v7 stalled on the laptop (O20):** every Git Bash call hung and `uv run pytest` did not finish in 10 min; ~500 hung `qa-statusline.py` processes, CPU 100 %. No PR, nothing pushed except state. Claims released.
+- **Parked lanes (local only, resume them first once O20 is ticked or the laptop is responsive):**
+  - **#177**: worktree `C:\projects\lf-177`, branch `f/177-start-followups` (= `fde396b`). **Uncommitted, never-run** exam `labs/manager/tests/acceptance/test_issue_177_start_followups.py` (13 tests, MockTransport + fake pool, no DB). Run it (expect red: `ConnectError` / elapsed-time bounds), ruff, compare with the issue text (the writer could not read the issue; it kept 404 / `Running: false` = stop at once, per D24 and `test_gone_container_stops_the_wait_at_once`), then commit `test(manager): exam for #177`.
+  - **#180**: worktree `C:\projects\lf-180`, branch `f/180-runsc-retry`. **Uncommitted, never-run** exam `labs/manager/tests/acceptance/test_issue_180_runsc_start_retry.py` (11 tests; real `bootstrap.sh` copy under bash with stub `docker`/`systemctl`/… on PATH; Linux + bash + jq only, so CI-only). Check it against the issue (retry line pattern `retr(y|ied|ying)|try again`, "reloaded exactly once"), collect-only, commit `test(deploy): exam for #180`, push alone first so CI proves it.
+  - **#163**: worktree `C:\projects\lf-163`, branch `f/163-class-table`, nothing written (start the exam over). Reusable: the #172 exam's `_db`/`env` fixtures and helpers (`new_cohort`, `import_ok`, `student_login`, `uniq`); web exams are `labs/web/tests/acceptance/issue-<n>-<slug>.test.tsx`.
+- **Lesson (this pass):** the subagents here have only Bash as a shell; when Bash hangs, they cannot read issues, run tests or commit. Check `echo hi` in Bash at orient before dispatching; if it hangs, stop the pass and raise it.
 - **Production:** `lf-manager:76b0862` (Deploy 43911335654, smoke ok; bundle has the #178 texts), on top of `6a55833` (#181, #172; Deploy 43905910281, smoke ok) and `11eff8a` (#183, #182; Deploy 43901268785, smoke ok).
 - **Lesson (this pass, D62):** a docker exam matcher must not match a bare digit string: the random session id is in ttyd's argv.
 - **Lesson (this pass):** a PR branch cannot be rebased in place (no force-push; exam-integrity refuses merge commits). Merge the lanes in dependency order; when a rebase is needed, push the rebased commits to `<branch>-2` and open a new PR.
@@ -17,7 +22,7 @@ _Last updated: 2026-11-16 ~22:05 UTC, laptop pass lf-x2v7 (started ~21:55 UTC)._
 - **Repository is public (D43).** Always `git pull --rebase` before a state commit, never `--autostash`.
 - **Known gap (D40):** a cancelled Deploy is not noticed; fix in #85.
 - **Laptop network:** DNS to github.com dropped twice for a minute this pass; retry before treating it as an incident.
-- **Next session starts at:** Next 1 (#163; #172 is closed, so the teacher slices are unblocked).
+- **Next session starts at:** the parked lanes above (#177, #180 exams to verify and commit; #163 exam from scratch), then Next 1.
 
 ## Next (in order)
 
