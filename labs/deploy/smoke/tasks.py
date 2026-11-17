@@ -13,6 +13,7 @@ Never prints the password, the cookie, the student id or a traceback.
 import asyncio
 import json
 import os
+import signal
 import sys
 from typing import Any
 
@@ -29,6 +30,14 @@ ANSWER_KEYS = {"correct", "attempts"}
 
 QUIZ_KEYS = {"id", "index", "total", "kind", "title", "state", "question", "options"}
 LANG_KEYS = {"en", "he"}
+
+
+class Stopped(BaseException):
+    """SIGTERM (the stop signal of `timeout`) arrived: unwind so the session is still ended."""
+
+
+def _stop(_signum: int, _frame: Any) -> None:
+    raise Stopped
 
 
 class StepFail(Fail):
@@ -191,17 +200,21 @@ def _run(base: str, student: str, password: str, timeout: float) -> tuple[str, s
         asyncio.run(_steps(base, sid, cookie, timeout))
     except StepFail as exc:
         failure = (exc.step, str(exc))
+    except Stopped:
+        failure = ("stopped", "the smoke was stopped by SIGTERM")
     except Exception as exc:  # noqa: BLE001
         failure = ("terminal", f"unexpected error ({type(exc).__name__})")
-    try:
-        end_status, _, _ = _request(base, "POST", f"/api/sessions/{sid}/end", cookie)
-        if end_status in (200, 204):
-            if failure is None:
-                _ok("end")
-        elif failure is None:
-            failure = ("end", f"ending the session failed (http {end_status})")
-    except Fail as exc:
-        failure = failure or ("end", str(exc))
+    finally:
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)  # a second stop must not skip the end call
+        try:
+            end_status, _, _ = _request(base, "POST", f"/api/sessions/{sid}/end", cookie)
+            if end_status in (200, 204):
+                if failure is None:
+                    _ok("end")
+            elif failure is None:
+                failure = ("end", f"ending the session failed (http {end_status})")
+        except Fail as exc:
+            failure = failure or ("end", str(exc))
     return failure
 
 
@@ -224,10 +237,12 @@ def main(argv: list[str]) -> int:
     if not base.startswith(("http://", "https://")):
         print("BASE_URL must start with http:// or https://", file=sys.stderr)
         return 2
+    if hasattr(signal, "SIGTERM"):
+        signal.signal(signal.SIGTERM, _stop)
     try:
         failure = run(base, student, password, timeout)
-    except Fail as exc:
-        failure = ("login", str(exc))
+    except Stopped:
+        failure = ("stopped", "the smoke was stopped by SIGTERM")
     if failure:
         print(f"smoke failed: {failure[0]}: {failure[1]}", file=sys.stderr)
         return 1

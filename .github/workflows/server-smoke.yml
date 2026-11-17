@@ -136,27 +136,34 @@ jobs:
           class_pw=$(openssl rand -hex 24)
           echo "::add-mask::$class_pw"
           ssh -F "$RUNNER_TEMP/ssh_config" smoke "docker exec -i lf-manager python -m app.cli smoke-student" <<< "$class_pw"
+          SMOKE_ID=990000000000000000000000000001
+          SMOKE_PASSWORD="$class_pw"
+          export SMOKE_ID SMOKE_PASSWORD
+          # Both clients are streamed to the log as they run and bounded below the job limit; the
+          # session ids are read from files afterwards, so they are recorded even when the limit
+          # cuts a smoke off.
           set +e
-          sid=$(SMOKE_ID=990000000000000000000000000001 SMOKE_PASSWORD="$class_pw" python labs/deploy/smoke/terminal.py)
-          st=$?
+          timeout -k 10 300 python labs/deploy/smoke/terminal.py | tee "$RUNNER_TEMP/terminal.out"
+          st=${PIPESTATUS[0]}
           set -e
-          case "$sid" in *[!0-9a-f-]*) sid="" ;; esac
+          sid=$(grep -E -m 1 '^[0-9a-f-]+$' "$RUNNER_TEMP/terminal.out" || true)
           echo "sid=$sid" >> "$GITHUB_OUTPUT"
+          if [ "$st" = 124 ] || [ "$st" = 137 ]; then
+            echo "terminal smoke cut off after 300 s" >&2
+          fi
           if [ "$st" = 0 ] && [ -z "$sid" ]; then
             echo "the client reported success but gave no session id" >&2
             exit 1
           fi
           if [ "$st" = 0 ]; then
             # Same student, same env: the task API (show, check, answer) through the public URL.
-            SMOKE_ID=990000000000000000000000000001
-            SMOKE_PASSWORD="$class_pw"
-            export SMOKE_ID SMOKE_PASSWORD
-            # Streamed to the log as it happens, bounded below the job limit; the session id is read
-            # from the file afterwards, so it is recorded even when the limit cuts the smoke off.
             set +e
             timeout -k 10 300 python labs/deploy/smoke/tasks.py | tee "$RUNNER_TEMP/tasks.out"
             st=${PIPESTATUS[0]}
             set -e
+            if [ "$st" = 124 ] || [ "$st" = 137 ]; then
+              echo "task smoke cut off after 300 s" >&2
+            fi
             tasks_sid=$(sed -n 's/^ok start \([0-9a-f-]*\)$/\1/p' "$RUNNER_TEMP/tasks.out" | head -n 1)
             echo "tasks_sid=$tasks_sid" >> "$GITHUB_OUTPUT"
           fi
