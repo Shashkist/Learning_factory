@@ -130,7 +130,7 @@ async def start(
     response: Response,
     p: Annotated[Principal, Depends(current_student)],
 ) -> dict[str, Any]:
-    started = getattr(getattr(request, "state", None), "started", None) or time.monotonic()
+    started = request.state.started
     budget = min(admission.env_num("LF_READY_TIMEOUT_S", 45), READY_TIMEOUT_MAX_S)
     deadline = started + budget
     state = request.app.state
@@ -139,12 +139,16 @@ async def start(
     if lab is None:
         raise HTTPException(404, "unknown_lab")
     pool = state.pool
-    if lab.status == "internal" and (pool is None or not await _in_smoke_cohort(pool, p.subject)):
-        raise HTTPException(404, "unknown_lab")  # byte-identical to a missing lab (D54)
-    if pool is None:
-        raise HTTPException(503, "database unavailable")
     runtime: LabRuntime = state.runtime
-    with db_guard():
+    rows: list[Any] = []  # the inserted row, once there is one (what a failure must clean up)
+
+    async def run() -> dict[str, Any]:
+        if lab.status == "internal" and (
+            pool is None or not await _in_smoke_cohort(pool, p.subject)
+        ):
+            raise HTTPException(404, "unknown_lab")  # byte-identical to a missing lab (D54)
+        if pool is None:
+            raise HTTPException(503, "database unavailable")
         existing = await _live(pool, p.subject)
         if existing is not None:
             if existing["lab_id"] == lab.id:
@@ -157,12 +161,7 @@ async def start(
         ):
             raise HTTPException(503, "capacity_full")
         if existing is not None:
-            try:
-                async with asyncio.timeout_at(_loop_time(deadline)):
-                    await end_session(pool, runtime, existing["id"], "forced")
-            except TimeoutError:
-                log.error("forced end of the previous session exceeded the start budget")
-                raise HTTPException(502, "start_failed") from None
+            await end_session(pool, runtime, existing["id"], "forced")
         try:
             row = await pool.fetchrow(
                 f"insert into {T}.lab_sessions (student, lab_id, status, expires_at) "
@@ -180,26 +179,9 @@ async def start(
                 response.status_code = 200
                 return _shape(other)
             raise _conflict(labs, other) from None
-        sid = str(row["id"])
-        try:
-            async with asyncio.timeout_at(_loop_time(deadline)):
-                name = str(await runtime.start(container_spec(lab, sid)))
-                await wait_ready(runtime, name, deadline)
-        except Exception as exc:
-            log.error("starting container of session %s failed (%s)", sid, type(exc).__name__)
-            deleted = ""
-            try:
-                async with asyncio.timeout(CLEANUP_BOUND_S):
-                    await remove_container(runtime, sid)
-                    deleted = await pool.execute(
-                        f"delete from {T}.lab_sessions where id = $1 and status = 'starting'",
-                        row["id"],
-                    )
-            except TimeoutError:  # the janitor's orphan sweep removes what is left
-                log.error("cleanup of session %s exceeded %s s", sid, CLEANUP_BOUND_S)
-            if str(deleted).endswith(" 0"):  # ended meanwhile: keep the row, say so
-                raise HTTPException(409, "session_ended") from None
-            raise HTTPException(502, "start_failed") from None
+        rows.append(row)
+        name = str(await runtime.start(container_spec(lab, str(row["id"]))))
+        await wait_ready(runtime, name, deadline)
         marked = await pool.fetchval(
             f"update {T}.lab_sessions set status = 'running', container = $2, "
             "last_heartbeat = now() "
@@ -208,9 +190,41 @@ async def start(
             name,
         )
         if marked is None:  # ended while the container was starting
-            await remove_container(runtime, sid)
+            await remove_container(runtime, str(row["id"]))
             raise HTTPException(409, "session_ended")
-    return _shape({**dict(row), "status": "running"})
+        return _shape({**dict(row), "status": "running"})
+
+    with db_guard():
+        try:
+            # one deadline over the whole start, database calls included; a TimeoutError escaping
+            # would be turned into 503 by db_guard, so it is answered here
+            async with asyncio.timeout_at(_loop_time(deadline)):
+                return await run()
+        except HTTPException:
+            raise
+        except Exception as exc:
+            if not rows and not isinstance(exc, TimeoutError):
+                raise
+            log.error("starting session of lab %s failed (%s)", lab.id, type(exc).__name__)
+            deleted = ""
+            if rows:  # the deadline (if it fired) is over: cleanup has its own bounds
+                row = rows[0]
+                try:  # the row first: it holds the student's slot
+                    async with asyncio.timeout(CLEANUP_BOUND_S):
+                        deleted = await pool.execute(
+                            f"delete from {T}.lab_sessions where id = $1 and status = 'starting'",
+                            row["id"],
+                        )
+                except TimeoutError:
+                    log.error("deleting the starting row exceeded %s s", CLEANUP_BOUND_S)
+                try:  # the janitor's orphan sweep removes what is left
+                    async with asyncio.timeout(CLEANUP_BOUND_S):
+                        await remove_container(runtime, str(row["id"]))
+                except TimeoutError:
+                    log.error("removing the container exceeded %s s", CLEANUP_BOUND_S)
+            if str(deleted).endswith(" 0"):  # ended meanwhile: keep the row, say so
+                raise HTTPException(409, "session_ended") from None
+            raise HTTPException(502, "start_failed") from None
 
 
 @router.get("/current")
