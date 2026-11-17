@@ -217,13 +217,13 @@ async def start(
                             f"delete from {T}.lab_sessions where id = $1 and status = 'starting'",
                             row["id"],
                         )
-                except TimeoutError:
-                    log.error("deleting the starting row exceeded %s s", CLEANUP_BOUND_S)
+                except Exception as err:  # a slow or failed delete never skips the remove
+                    log.error("deleting the starting row failed (%s)", type(err).__name__)
                 try:  # the janitor's orphan sweep removes what is left
                     async with asyncio.timeout(CLEANUP_BOUND_S):
                         await remove_container(runtime, str(row["id"]))
-                except TimeoutError:
-                    log.error("removing the container exceeded %s s", CLEANUP_BOUND_S)
+                except Exception as err:
+                    log.error("removing the container failed (%s)", type(err).__name__)
             if str(deleted).endswith(" 0"):  # ended meanwhile: keep the row, say so
                 raise HTTPException(409, "session_ended") from None
             raise HTTPException(502, "start_failed") from None

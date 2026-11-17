@@ -221,6 +221,18 @@ def test_stuck_row_delete_is_bounded_and_the_container_is_still_removed(monkeypa
     assert removed and time.monotonic() - t0 < 1.5
 
 
+def test_failed_row_delete_still_removes_the_container_and_answers_502(monkeypatch):
+    state, pool, removed = _env(monkeypatch)
+
+    async def broken(sql, *args):
+        raise ConnectionError("database dropped")
+
+    pool.execute = broken
+    e = _answer(state)
+    assert (e.status_code, e.detail) == (502, "start_failed")
+    assert removed
+
+
 def test_db_call_over_the_budget_answers_502_not_503(monkeypatch):
     monkeypatch.setenv("LF_READY_TIMEOUT_S", "0.5")
     state, pool, _ = _env(monkeypatch)
