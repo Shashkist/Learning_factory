@@ -7,6 +7,9 @@ through the public URL, waits for the prompt, types `echo hi`, sees `hi` and end
 
 Prints the session id on stdout; on failure exits non-zero with one reason line on stderr.
 Never prints the password, the cookie or a traceback. Needs the `websockets` package (>=14).
+
+A SIGTERM between the server accepting POST /api/sessions and start() returning leaves that
+session to the janitor (the id is not known yet, so it cannot be ended).
 """
 import asyncio
 import json
@@ -16,14 +19,11 @@ import sys
 
 from lab_api import (
     COOKIE,
-    END_TIMEOUT,
-    HTTP_TIMEOUT,
     STOPPED,
     Fail,
-    end_session,
     leave,
     login,
-    run_stoppable,
+    run_then_end,
     start,
 )
 
@@ -94,27 +94,16 @@ def run(base: str, student: str, password: str, timeout: float) -> str | None:
     cookie = login(base, student, password)
     sid = start(base, cookie, LAB_ID)
     print(sid, flush=True)
-    failure = None
-    ended = False
+    failure: str | None = None
 
-    def end(timeout: float = HTTP_TIMEOUT) -> None:
-        nonlocal ended, failure
-        ended = True
-        reason = end_session(base, sid, cookie, timeout)
+    def on_failure(_step: str, reason: str) -> None:
+        nonlocal failure
         failure = failure or reason
 
-    def stop() -> None:
-        nonlocal failure
-        failure = STOPPED
-        end(END_TIMEOUT)
-
     try:
-        run_stoppable(_terminal(base, sid, cookie, timeout), stop)
+        run_then_end(base, sid, cookie, _terminal(base, sid, cookie, timeout), on_failure)
     except Fail as exc:
         failure = str(exc)
-    finally:
-        if not ended:
-            end()
     return failure
 
 

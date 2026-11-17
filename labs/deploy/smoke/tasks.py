@@ -20,14 +20,10 @@ import sys
 from typing import Any
 
 from lab_api import (
-    END_TIMEOUT,
-    HTTP_TIMEOUT,
-    STOPPED,
     Fail,
-    end_session,
     leave,
     login,
-    run_stoppable,
+    run_then_end,
     start,
 )
 from lab_api import request as _request
@@ -200,31 +196,19 @@ def _run(base: str, student: str, password: str, timeout: float) -> tuple[str, s
         raise StepFail("start", str(exc)) from None
     print(f"ok start {sid}", flush=True)  # a session id (UUID): lets the workflow check the container
     failure: tuple[str, str] | None = None
-    ended = False
 
-    def end(timeout: float = HTTP_TIMEOUT) -> None:
-        nonlocal ended, failure
-        ended = True
-        reason = end_session(base, sid, cookie, timeout)
-        if reason is not None:
-            failure = failure or ("end", reason)
-        elif failure is None:
-            _ok("end")
-
-    def stop() -> None:
+    def on_failure(step: str, reason: str) -> None:
         nonlocal failure
-        failure = ("stopped", STOPPED)
-        end(END_TIMEOUT)
+        failure = failure or (step, reason)
 
     try:
-        run_stoppable(_steps(base, sid, cookie, timeout), stop)
+        run_then_end(base, sid, cookie, _steps(base, sid, cookie, timeout), on_failure)
+        if failure is None:
+            _ok("end")
     except StepFail as exc:
         failure = (exc.step, str(exc))
     except Exception as exc:  # noqa: BLE001
         failure = ("terminal", f"unexpected error ({type(exc).__name__})")
-    finally:
-        if not ended:
-            end()
     return failure
 
 

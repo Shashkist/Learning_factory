@@ -129,7 +129,11 @@ def _sigterm(script: str, lab: FakeLab):
         assert lab.ready.wait(20), "the client never reached the stuck step"
         t0 = time.monotonic()
         proc.send_signal(signal.SIGTERM)
-        proc.send_signal(signal.SIGTERM)  # a second stop is ignored
+        deadline = time.monotonic() + 5
+        while lab.ends() == 0 and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert lab.ends() == 1, "the client did not send /end"
+        proc.send_signal(signal.SIGTERM)  # a second stop, after /end, is ignored
         try:
             _, err = proc.communicate(timeout=10)
         except subprocess.TimeoutExpired:
@@ -162,4 +166,58 @@ def test_terminal_smoke_sigterm_with_a_hung_websocket_ends_the_session_once():
     finally:
         lab.close()
     assert rc != 0 and took < 10
-    assert "Traceback" not in err
+    assert "stopped" in err and "Traceback" not in err
+
+
+def _lab_api():
+    sys.path.insert(0, str(SMOKE))
+    try:
+        import lab_api
+    finally:
+        sys.path.remove(str(SMOKE))
+    return lab_api
+
+
+def _kill_self_later(delay: float = 0.3) -> None:
+    threading.Timer(delay, os.kill, (os.getpid(), signal.SIGTERM)).start()
+
+
+@posix_only
+def test_on_stop_that_raises_does_not_make_the_runner_wait_for_the_stuck_worker():
+    import asyncio
+
+    lab_api = _lab_api()
+    old = signal.getsignal(signal.SIGTERM)
+
+    def boom() -> None:
+        raise RuntimeError("on_stop failed")
+
+    async def stuck() -> None:
+        await asyncio.to_thread(time.sleep, 4)
+
+    try:
+        _kill_self_later()
+        t0 = time.monotonic()
+        lab_api.run_stoppable(stuck(), boom)  # must not raise
+        assert time.monotonic() - t0 < 2
+    finally:
+        signal.signal(signal.SIGTERM, old)
+
+
+@posix_only
+def test_after_a_normal_finish_sigterm_is_ignored_and_the_loop_handler_is_gone():
+    import asyncio
+
+    lab_api = _lab_api()
+    old = signal.getsignal(signal.SIGTERM)
+
+    async def quick() -> None:
+        await asyncio.sleep(0)
+
+    try:
+        lab_api.run_stoppable(quick(), lambda: None)
+        assert signal.getsignal(signal.SIGTERM) == signal.SIG_IGN
+        os.kill(os.getpid(), signal.SIGTERM)  # would kill the test process if it were the default
+        time.sleep(0.1)
+    finally:
+        signal.signal(signal.SIGTERM, old)
