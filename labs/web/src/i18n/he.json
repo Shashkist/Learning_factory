@@ -93,5 +93,18 @@
   "admin.import.error.duplicate_in_paste": "אותה תעודת זהות כמו בשורה קודמת.",
   "admin.import.error.already_exists": "תעודת הזהות כבר רשומה כתלמיד.",
   "admin.import.error.unknown": "לא ניתן לייבא את השורה.",
-  "admin.import.too_many": "יותר מ־2,000 שורות: לא יובא דבר. פצלו את הרשימה וייבאו אותה בחלקים."
+  "admin.import.too_many": "יותר מ־2,000 שורות: לא יובא דבר. פצלו את הרשימה וייבאו אותה בחלקים.",
+  "admin.nav.class": "טבלת כיתה",
+  "admin.class.title": "התקדמות הכיתה",
+  "admin.class.cohort": "קבוצה",
+  "admin.class.all_cohorts": "כל הקבוצות",
+  "admin.class.flagged": "רק מסומנים",
+  "admin.class.csv": "הורדת קובץ CSV",
+  "admin.class.flag": "הושלם מהר באופן חריג",
+  "admin.class.col.name": "תלמיד",
+  "admin.class.col.cohort": "קבוצה",
+  "admin.class.col.last_activity": "פעילות אחרונה",
+  "admin.class.never": "אף פעם",
+  "admin.class.empty": "אין תלמידים להצגה.",
+  "admin.class.error": "לא ניתן לטעון את טבלת הכיתה."
 }

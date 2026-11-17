@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 
+import ClassTable from "./ClassTable";
 import Cohorts from "./Cohorts";
 import { useI18n } from "./i18n";
+import { usePath } from "./router";
 
 type State = "loading" | "admin" | "google" | "none" | "error";
 
@@ -17,6 +19,7 @@ async function getJson(url: string): Promise<{ ok: boolean; body: Record<string,
 export default function Admin() {
   const { t } = useI18n();
   const [state, setState] = useState<State>("loading");
+  const [path, go] = usePath();
 
   useEffect(() => {
     void (async () => {
@@ -40,11 +43,24 @@ export default function Admin() {
         <p>Signed in as admin</p>
         <button onClick={logout}>Log out</button>
         <nav>
-          <a href="/admin" aria-current="page">
-            {t("admin.nav.cohorts")}
-          </a>
+          {[
+            ["/admin", "admin.nav.cohorts"],
+            ["/admin/class", "admin.nav.class"],
+          ].map(([href, key]) => (
+            <a
+              key={href}
+              href={href}
+              aria-current={path === href ? "page" : undefined}
+              onClick={(e) => {
+                e.preventDefault();
+                go(href);
+              }}
+            >
+              {t(key)}
+            </a>
+          ))}
         </nav>
-        <Cohorts />
+        {path === "/admin/class" ? <ClassTable /> : <Cohorts />}
       </main>
     );
   if (state === "google") return <a href="/auth/google/start">Sign in with Google</a>;
