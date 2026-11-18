@@ -20,6 +20,9 @@ COOKIE = "lf_session"
 HTTP_TIMEOUT = 30
 # total deadline of the /end sent on SIGTERM; it must fit in the 10 s of `timeout -k 10`
 END_TIMEOUT = 5
+# total deadline of the /end after a normal finish or an error: a SIGTERM that lands meanwhile is
+# swallowed, so it must fit in the same 10 s (a bit more room: this one decides the result)
+FINAL_END_TIMEOUT = 8
 STOPPED = "the smoke was stopped by SIGTERM"
 # the step name `run_then_end` reports a SIGTERM stop with
 STOP_STEP = "stopped"
@@ -90,7 +93,16 @@ def _end_within(base: str, sid: str, cookie: str, total: float) -> str | None:
     worker = threading.Thread(
         target=lambda: out.append(end_session(base, sid, cookie, total)), daemon=True
     )
-    worker.start()
+    # a thread starts with its creator's signal mask: this one never takes a SIGTERM, even when it
+    # outlives the bound (`_ignore_sigterm` relies on that after the final end)
+    mask = None
+    if hasattr(signal, "pthread_sigmask"):
+        mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGTERM})
+    try:
+        worker.start()
+    finally:
+        if mask is not None:
+            signal.pthread_sigmask(signal.SIG_SETMASK, mask)
     worker.join(total)
     return out[0] if out else "ending the session timed out"
 
@@ -101,18 +113,19 @@ def run_then_end(
 ) -> None:
     """Run `coro`, then end the session once: after it, after an error, or at once on SIGTERM.
 
-    `on_failure(step, reason)` is called with (STOP_STEP, STOPPED) on SIGTERM and with ("end", reason)
-    when the end call fails; the caller keeps the first one. An error of `coro` propagates after
-    the session was ended. After a stop the caller must report and `leave()`.
+    `on_failure(step, reason)` is called with (STOP_STEP, STOPPED) on SIGTERM and with
+    ("end", reason) when the end call fails; the caller keeps the first one. An error of `coro`
+    propagates after the session was ended. After a stop the caller must report and `leave()`.
+    Each end call is bounded as a whole: END_TIMEOUT on a stop, FINAL_END_TIMEOUT otherwise.
     """
     ended = False
 
-    def end(total: float | None) -> None:
+    def end(total: float) -> None:
         nonlocal ended
+        if ended:
+            return
         ended = True
-        reason = end_session(base, sid, cookie) if total is None else _end_within(
-            base, sid, cookie, total
-        )
+        reason = _end_within(base, sid, cookie, total)
         if reason is not None:
             on_failure("end", reason)
 
@@ -123,20 +136,25 @@ def run_then_end(
             end(END_TIMEOUT)
 
     try:
-        run_stoppable(coro, stop)
+        run_stoppable(coro, stop, lambda: end(FINAL_END_TIMEOUT))
     finally:
-        if not ended:
-            end(None)
+        end(FINAL_END_TIMEOUT)  # only if the runner failed before it got there
 
 
-def run_stoppable(coro: Coroutine[Any, Any, None], on_stop: Callable[[], None]) -> None:
+def run_stoppable(
+    coro: Coroutine[Any, Any, None], on_stop: Callable[[], None],
+    on_done: Callable[[], None] | None = None,
+) -> None:
     """Run `coro`; on SIGTERM call `on_stop()` at once, inside the running loop.
 
     Everything after SIGTERM must fit in the 10 s grace of `timeout -k 10`, so the loop is not
     shut down on a stop (that would wait for a worker thread stuck in a 30 s request): the caller
-    reports and ends the process with `leave()`. `on_stop` can never raise. A second SIGTERM is
-    ignored, and so is one after a normal finish (the end call must not be skipped). Where the
-    loop cannot take signal handlers (Windows) this just runs `coro`.
+    reports and ends the process with `leave()`. `on_stop` can never raise. After a normal finish
+    or an error, `on_done()` runs first, still inside the loop; then the loop's executor threads
+    are joined, which can wait for a worker `coro` left behind (a timed-out request, a DNS lookup
+    of a websocket connect), and only then is the loop shut down. A SIGTERM during `on_done` or
+    the join is swallowed, so `on_done` must be bounded to fit in the grace. A second SIGTERM is
+    ignored too. Where the loop cannot take signal handlers (Windows) this just runs `coro`.
     """
 
     async def main() -> bool:
@@ -168,10 +186,17 @@ def run_stoppable(coro: Coroutine[Any, Any, None], on_stop: Callable[[], None]) 
         finally:
             waiter.cancel()
             if not stopped:
-                # join the (idle) executor threads first, so that only this thread can take a
-                # SIGTERM while the loop handler gives way to SIG_IGN
-                await loop.shutdown_default_executor()
-                _ignore_sigterm(loop)
+                try:
+                    if on_done is not None:
+                        on_done()  # before the join below: nothing bounds how long that takes
+                finally:
+                    # join the executor threads, so that only this thread can take a SIGTERM
+                    # while the loop handler gives way to SIG_IGN. They are not always idle: a
+                    # worker `coro` abandoned (still in a request or a DNS lookup) is waited
+                    # for, and a SIGTERM meanwhile is swallowed, which is harmless once
+                    # `on_done` has ended the session.
+                    await loop.shutdown_default_executor()
+                    _ignore_sigterm(loop)
 
     runner = asyncio.Runner()
     stopped = False
@@ -187,7 +212,8 @@ def _ignore_sigterm(loop: asyncio.AbstractEventLoop) -> None:
 
     `remove_signal_handler` restores the default before SIG_IGN can be set, so SIGTERM is blocked
     in this thread meanwhile: one that arrives then stays pending and is dropped once ignored. The
-    caller has joined the executor threads, so no other smoke thread is there to take it instead.
+    caller has joined the executor threads, and the worker of an end call blocks SIGTERM, so no
+    other smoke thread is there to take it instead.
     """
     if not hasattr(signal, "SIGTERM"):
         return
