@@ -4,8 +4,20 @@ import ClassTable from "./ClassTable";
 import Cohorts from "./Cohorts";
 import { useI18n } from "./i18n";
 import { usePath } from "./router";
+import StudentPage from "./StudentPage";
 
 type State = "loading" | "admin" | "google" | "none" | "error";
+
+/** The opaque student key (D63) of `/admin/students/<key>`, or null for any other path. */
+function studentKey(path: string): string | null {
+  const m = /^\/admin\/students\/([^/]+)$/.exec(path);
+  if (!m) return null;
+  try {
+    return decodeURIComponent(m[1]);
+  } catch {
+    return null; // a malformed %-escape is not a student
+  }
+}
 
 async function getJson(url: string): Promise<{ ok: boolean; body: Record<string, unknown> }> {
   try {
@@ -36,6 +48,7 @@ export default function Admin() {
     window.location.reload();
   };
 
+  const student = studentKey(path);
   if (state === "loading") return <p>Loading</p>;
   if (state === "admin")
     return (
@@ -60,7 +73,13 @@ export default function Admin() {
             </a>
           ))}
         </nav>
-        {path === "/admin/class" ? <ClassTable /> : <Cohorts />}
+        {student !== null ? (
+          <StudentPage key={student} studentKey={student} go={go} />
+        ) : path === "/admin/class" ? (
+          <ClassTable open={(key) => go(`/admin/students/${encodeURIComponent(key)}`)} />
+        ) : (
+          <Cohorts />
+        )}
       </main>
     );
   if (state === "google") return <a href="/auth/google/start">Sign in with Google</a>;

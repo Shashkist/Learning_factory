@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useI18n } from "./i18n";
 
 type Cell = { status: string; flag: boolean };
-type Row = { name: string; cohort: string; last_activity: string | null; cells: Record<string, Cell> };
+type Row = { key?: string; name: string; cohort: string; last_activity: string | null; cells: Record<string, Cell> };
 type Lab = { id: string; title: { en: string; he: string } };
 type Table = { labs: Lab[]; rows: Row[] };
 type Cohort = { id: number; name: string };
@@ -21,7 +21,7 @@ function localStamp(iso: string): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-export default function ClassTable() {
+export default function ClassTable({ open }: { open?: (key: string) => void } = {}) {
   const { t, lang } = useI18n();
   const [cohort, setCohort] = useState("");
   const [flagged, setFlagged] = useState(false);
@@ -99,7 +99,22 @@ export default function ClassTable() {
           <tbody>
             {table.rows.map((r, i) => (
               <tr key={i} data-testid={`class-row-${i}`}>
-                <th scope="row">{r.name}</th>
+                <th scope="row">
+                  {r.key ? (
+                    <a
+                      href={`/admin/students/${encodeURIComponent(r.key)}`}
+                      onClick={(e) => {
+                        if (!open || !r.key) return; // no handler: a normal link
+                        e.preventDefault();
+                        open(r.key);
+                      }}
+                    >
+                      {r.name}
+                    </a>
+                  ) : (
+                    r.name
+                  )}
+                </th>
                 <td>{r.cohort}</td>
                 <td data-testid={`class-last-${i}`}>
                   {r.last_activity ? localStamp(r.last_activity) : t("admin.class.never")}

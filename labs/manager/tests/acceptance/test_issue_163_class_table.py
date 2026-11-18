@@ -14,13 +14,15 @@ GET /api/admin/class[?cohort=<id>][&flagged=1]   (admin only: no session 401, st
     "labs": [{"id": "cls-a", "title": {"en": "...", "he": "..."}}, ...],
     "rows": [
       {"name": "Fake Name", "cohort": "<cohort name>", "last_activity": "<ISO 8601>" | null,
+       "key": "<uuid>",
        "cells": {"cls-a": {"status": "done" | "<n>/<m>" | "none", "flag": true | false}, ...}},
       ...
     ]
   }
 - `labs`: the published labs only (not draft, not internal), ordered by module, then lesson.
   `cells` has one entry for every lab in `labs`, for every row.
-- A row never carries an id, an id hash or any other key that identifies the student by number.
+- A row never carries an id, an id hash or any other key that identifies the student by number,
+  except `key`: an opaque random uuid (D63, #164) that is neither the id hash nor the raw id.
   Rows are ordered by cohort name, then student name.
 - status: "done" when the student has a lab_completions row for the lab; else "<n>/<m>" with
   n = distinct task ids passed (task_results.passed_at set) that are still in lab.yaml (never
@@ -551,7 +553,10 @@ def test_the_rows_carry_no_id_hash_and_no_raw_id(env, admin):
     assert s.hash not in resp.text
     assert s.raw not in resp.text
     assert not re.search(r"[0-9a-f]{64}", resp.text)
-    assert set(row_for(admin, cid, s)) == {"name", "cohort", "last_activity", "cells"}
+    row = row_for(admin, cid, s)
+    assert set(row) == {"name", "cohort", "last_activity", "cells", "key"}
+    assert re.fullmatch(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", row["key"])
+    assert row["key"] not in (s.hash, s.raw)  # D63: an opaque key, not the id hash
 
 
 def test_rows_are_ordered_by_name_within_a_cohort(env, admin):
