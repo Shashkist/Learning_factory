@@ -75,7 +75,7 @@
   "admin.import.summary": "תלמידים שנוספו:",
   "admin.import.row_added": "נוסף",
   "admin.import.line": "שורה",
-  "admin.error.load": "לא ניתן לטעון את הקבוצות.",
+  "admin.error.load": "לא ניתן לטעון את הדף. נסו שוב.",
   "admin.error.save": "השמירה נכשלה. בדקו את הערכים ונסו שוב.",
   "lab.open.one": "משימה אחת עדיין פתוחה",
   "lab.open.many": "משימות עדיין פתוחות",
