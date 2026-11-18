@@ -62,7 +62,22 @@ if (Test-Path $Lock) {
 # worktree: never start a second one next to it.
 function Get-ManagerProcs { @(Get-CimInstance Win32_Process -Filter "Name='claude.exe'" | Where-Object { $_.CommandLine -like '*manager of the Learning Factory*' }) }
 $alive = @(Get-ManagerProcs)   # @() here too: PS 5.1 unwraps a one-item array returned from a function, and a lone CimInstance has no .Count
-if ($alive.Count -gt 0) { Log "skip: a manager is still running (pid $($alive.ProcessId -join ','))"; Publish-Live; exit 0 }
+if ($alive.Count -gt 0) {
+    # An orphan: its runner is gone (Task Scheduler's own time limit killed it once), so nothing bounds
+    # it any more. One waited 17 h for a stalled subagent (2026-11-17/18). The lock above is 3 h, so a
+    # manager seen here with no runner and older than that is stopped; its work stays in the worktrees.
+    $runners = @(Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -like '*factory-poll.ps1*' })
+    $old = @($alive | Where-Object { $_.CreationDate -lt (Get-Date).AddHours(-3) })
+    if ($runners.Count -eq 0 -and $old.Count -gt 0) {
+        foreach ($p in $alive) { & taskkill.exe /PID $p.ProcessId /T /F 2>$null | Out-Null }
+        Log "stopped: orphaned manager (pid $($alive.ProcessId -join ',')) had no runner and started over 3 h ago"
+        Notify 'Learning Factory: orphaned pass stopped' 'A manager outlived its runner for over 3 hours and was stopped. The next pass resumes from STATE.md.' 'orphan'
+        & python $Progress pass-end --result timeout 2>$null | Out-Null
+        Publish-Live -Force
+        exit 0
+    }
+    Log "skip: a manager is still running (pid $($alive.ProcessId -join ','))"; Publish-Live; exit 0
+}
 
 # One-time owner notification when the observability page goes live (owner request, 2026-11-14).
 $DashFlag = Join-Path $StateDir 'dashboard-notified'
@@ -169,7 +184,7 @@ Stop after about $PassMinutes minutes of work or 3 merged PRs, and update docs/f
         $env:LF_PROGRESS_FILE = $progressFile        # hooks record only when this is set
         # Headless claude stops background subagents 10 min after the manager's last turn; pass 9 lost an
         # implementer mid-fix that way. Wait for them: the awake-time limit below still bounds the pass.
-        $env:CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS = '0'
+        $env:CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS = '3600000'   # 60 min: long enough for a slow implementer, never forever
         $extra = if (Test-Path $hooks) { @('--settings', $hooks) } else { @() }
         & $claude -p $p --model $model --permission-mode auto @extra *>&1 | Out-File -Encoding utf8 $out
     } -ArgumentList $Worktree, $Claude, $Model, $prompt, $runLog, $env:LF_PROGRESS_FILE, $HooksFile
