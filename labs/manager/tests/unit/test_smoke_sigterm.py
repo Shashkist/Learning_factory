@@ -43,11 +43,13 @@ def _read_frame(rfile) -> bytes | None:
 class FakeLab:
     """Login, start, a hand-made ttyd WebSocket, and a task API whose show request is held.
 
-    The /end reply is held too (until `end_release`, at most 3 s, below END_TIMEOUT = 5), so a
-    test can send a second SIGTERM while the client is surely still waiting for it.
+    The /end reply is held too (until `end_release`, by default at most 3 s, below END_TIMEOUT = 5),
+    so a test can send a second SIGTERM while the client is surely still waiting for it.
     """
 
-    def __init__(self, answer_hi: bool = True, hold_show: float = 20) -> None:
+    def __init__(
+        self, answer_hi: bool = True, hold_show: float = 20, hold_end: float = 3
+    ) -> None:
         self.calls: list[str] = []
         self.lock = threading.Lock()
         self.ready = threading.Event()
@@ -84,7 +86,7 @@ class FakeLab:
                     self._send(200, b"{}")
                 elif self.path.endswith("/end"):
                     outer.end_seen.set()
-                    outer.end_release.wait(3)
+                    outer.end_release.wait(hold_end)
                     self._send(200, b"{}")
                 else:
                     self._send(200, b"{}")
@@ -263,3 +265,54 @@ def test_after_a_normal_finish_sigterm_is_ignored_before_the_runner_closes(monke
         time.sleep(0.1)
     finally:
         signal.signal(signal.SIGTERM, old)
+
+
+@pytest.mark.parametrize("fails", [False, True], ids=["normal-finish", "error"])
+def test_a_held_final_end_still_returns_within_its_bound(monkeypatch, fails):
+    """#199: the /end after a normal finish or an error is bounded as a whole, like on a stop."""
+    import asyncio
+
+    lab_api = _lab_api()
+    # SIGTERM is swallowed while the final /end runs: it must fit in the 10 s of `timeout -k 10`
+    assert lab_api.FINAL_END_TIMEOUT < 10
+    monkeypatch.setattr(lab_api, "FINAL_END_TIMEOUT", 1)
+    old = signal.getsignal(signal.SIGTERM)
+    failures: list[tuple[str, str]] = []
+    lab = FakeLab(hold_end=10)  # the reply comes only when the test releases it (or after 10 s)
+
+    async def finish() -> None:
+        await asyncio.sleep(0)
+        if fails:
+            raise lab_api.Fail("the lab broke")
+
+    try:
+        t0 = time.monotonic()
+        try:
+            lab_api.run_then_end(
+                lab.base, SID, "x", finish(), lambda *f: failures.append(f)
+            )
+        except lab_api.Fail:
+            assert fails
+        took = time.monotonic() - t0
+        assert lab.end_seen.is_set() and lab.ends() == 1, lab.calls
+    finally:
+        lab.close()
+        signal.signal(signal.SIGTERM, old)
+    assert took < 3, took
+    assert failures == [("end", "ending the session timed out")]
+
+
+@posix_only
+def test_the_worker_of_an_end_call_never_takes_a_sigterm(monkeypatch):
+    """#199: the final /end may outlive its bound; its thread must not take the SIGTERM that
+    `_ignore_sigterm` keeps away from the default action."""
+    lab_api = _lab_api()
+    masks: list[set] = []
+
+    def end_session(*_a, **_k) -> None:
+        masks.append(signal.pthread_sigmask(signal.SIG_BLOCK, set()))
+
+    monkeypatch.setattr(lab_api, "end_session", end_session)
+    assert lab_api._end_within("http://127.0.0.1:9", SID, "x", 5) is None
+    assert signal.SIGTERM in masks[0]
+    assert signal.SIGTERM not in signal.pthread_sigmask(signal.SIG_BLOCK, set())
