@@ -8,8 +8,9 @@ through the public URL, waits for the prompt, types `echo hi`, sees `hi` and end
 Prints the session id on stdout; on failure exits non-zero with one reason line on stderr.
 Never prints the password, the cookie or a traceback. Needs the `websockets` package (>=14).
 
-A SIGTERM between the server accepting POST /api/sessions and start() returning leaves that
-session to the janitor (the id is not known yet, so it cannot be ended).
+A SIGTERM before the stop handler is installed (during login and start, up to opening the
+terminal) kills the process at once: a session the server already started is left to the
+janitor (its id may not be known yet, so it cannot be ended).
 """
 import asyncio
 import json

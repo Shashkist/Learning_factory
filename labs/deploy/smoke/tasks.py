@@ -10,8 +10,9 @@ end. Prints one `ok <step>` line per step.
 On failure exits 1 with `smoke failed: <step>: <reason>` on stderr; the session is always ended.
 Never prints the password, the cookie, the student id or a traceback.
 
-A SIGTERM between the server accepting POST /api/sessions and start() returning leaves that
-session to the janitor (the id is not known yet, so it cannot be ended).
+A SIGTERM before the stop handler is installed (during login and start, up to the first step)
+kills the process at once: a session the server already started is left to the janitor (its id
+may not be known yet, so it cannot be ended).
 """
 import asyncio
 import json
@@ -20,6 +21,7 @@ import sys
 from typing import Any
 
 from lab_api import (
+    STOP_STEP,
     Fail,
     leave,
     login,
@@ -234,7 +236,7 @@ def main(argv: list[str]) -> int:
     failure = run(base, student, password, timeout)
     if failure:
         print(f"smoke failed: {failure[0]}: {failure[1]}", file=sys.stderr)
-        if failure[0] == "stopped":
+        if failure[0] == STOP_STEP:
             leave(1)  # do not wait for a worker thread stuck in a request
         return 1
     return 0

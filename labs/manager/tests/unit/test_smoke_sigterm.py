@@ -1,4 +1,5 @@
 """SIGTERM while a request or the terminal is stuck (#156): /end once, inside the grace."""
+
 import base64
 import hashlib
 import http.server
@@ -40,13 +41,19 @@ def _read_frame(rfile) -> bytes | None:
 
 
 class FakeLab:
-    """Login, start, a hand-made ttyd WebSocket, and a task API whose show request is held."""
+    """Login, start, a hand-made ttyd WebSocket, and a task API whose show request is held.
+
+    The /end reply is held too (until `end_release`, at most 3 s, below END_TIMEOUT = 5), so a
+    test can send a second SIGTERM while the client is surely still waiting for it.
+    """
 
     def __init__(self, answer_hi: bool = True, hold_show: float = 20) -> None:
         self.calls: list[str] = []
         self.lock = threading.Lock()
         self.ready = threading.Event()
         self.release = threading.Event()
+        self.end_seen = threading.Event()
+        self.end_release = threading.Event()
         outer = self
 
         class Handler(http.server.BaseHTTPRequestHandler):
@@ -74,6 +81,10 @@ class FakeLab:
                 elif self.path.endswith("/show"):
                     outer.ready.set()
                     outer.release.wait(hold_show)
+                    self._send(200, b"{}")
+                elif self.path.endswith("/end"):
+                    outer.end_seen.set()
+                    outer.end_release.wait(3)
                     self._send(200, b"{}")
                 else:
                     self._send(200, b"{}")
@@ -113,6 +124,7 @@ class FakeLab:
 
     def close(self) -> None:
         self.release.set()
+        self.end_release.set()
         self.server.shutdown()
         self.server.server_close()
 
@@ -123,17 +135,22 @@ def _sigterm(script: str, lab: FakeLab):
     env["SMOKE_TIMEOUT"] = "60"
     proc = subprocess.Popen(
         [sys.executable, str(SMOKE / script), lab.base],
-        env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        env=env,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
     try:
         assert lab.ready.wait(20), "the client never reached the stuck step"
         t0 = time.monotonic()
         proc.send_signal(signal.SIGTERM)
-        deadline = time.monotonic() + 5
-        while lab.ends() == 0 and time.monotonic() < deadline:
-            time.sleep(0.02)
-        assert lab.ends() == 1, "the client did not send /end"
-        proc.send_signal(signal.SIGTERM)  # a second stop, after /end, is ignored
+        assert lab.end_seen.wait(5), "the client did not send /end"
+        # the /end reply is held: the client is still waiting for it when the second stop lands
+        assert proc.poll() is None, "the client exited before the /end reply"
+        proc.send_signal(signal.SIGTERM)
+        time.sleep(0.3)
+        assert proc.poll() is None, "a second SIGTERM during /end killed the client"
+        lab.end_release.set()
         try:
             _, err = proc.communicate(timeout=10)
         except subprocess.TimeoutExpired:
@@ -153,7 +170,7 @@ def test_sigterm_during_a_stuck_task_request_ends_the_session_once_within_the_gr
         assert lab.ends() == 1, lab.calls
     finally:
         lab.close()
-    assert rc != 0 and took < 10
+    assert rc == 1 and took < 10, (rc, took)
     assert "stopped" in err and "Traceback" not in err
 
 
@@ -165,7 +182,7 @@ def test_terminal_smoke_sigterm_with_a_hung_websocket_ends_the_session_once():
         assert lab.ends() == 1, lab.calls
     finally:
         lab.close()
-    assert rc != 0 and took < 10
+    assert rc == 1 and took < 10, (rc, took)
     assert "stopped" in err and "Traceback" not in err
 
 
@@ -183,17 +200,26 @@ def _kill_self_later(delay: float = 0.3) -> None:
 
 
 @posix_only
-def test_on_stop_that_raises_does_not_make_the_runner_wait_for_the_stuck_worker():
+def test_on_stop_that_raises_does_not_make_the_runner_wait_for_the_stuck_worker(monkeypatch):
     import asyncio
 
     lab_api = _lab_api()
     old = signal.getsignal(signal.SIGTERM)
+    runners: list[asyncio.Runner] = []
+    real_run = asyncio.Runner.run
+
+    def run(self, coro, **kwargs):
+        runners.append(self)
+        return real_run(self, coro, **kwargs)
+
+    monkeypatch.setattr(asyncio.Runner, "run", run)
+    unstick = threading.Event()
 
     def boom() -> None:
         raise RuntimeError("on_stop failed")
 
     async def stuck() -> None:
-        await asyncio.to_thread(time.sleep, 4)
+        await asyncio.to_thread(unstick.wait, 4)
 
     try:
         _kill_self_later()
@@ -201,22 +227,38 @@ def test_on_stop_that_raises_does_not_make_the_runner_wait_for_the_stuck_worker(
         lab_api.run_stoppable(stuck(), boom)  # must not raise
         assert time.monotonic() - t0 < 2
     finally:
+        # a stop leaves the loop open (the process leaves at once); clean it up for the next tests
+        unstick.set()
+        for runner in runners:
+            runner.close()
+        signal.set_wakeup_fd(-1)
         signal.signal(signal.SIGTERM, old)
 
 
 @posix_only
-def test_after_a_normal_finish_sigterm_is_ignored_and_the_loop_handler_is_gone():
+def test_after_a_normal_finish_sigterm_is_ignored_before_the_runner_closes(monkeypatch):
     import asyncio
 
     lab_api = _lab_api()
     old = signal.getsignal(signal.SIGTERM)
+    at_close: list[object] = []
+    real_close = asyncio.Runner.close
+
+    def close(self) -> None:
+        # the runner closes the loop, which may wait for a worker: SIGTERM must be ignored by then
+        at_close.append(signal.getsignal(signal.SIGTERM))
+        real_close(self)
+
+    monkeypatch.setattr(asyncio.Runner, "close", close)
 
     async def quick() -> None:
         await asyncio.sleep(0)
 
     try:
         lab_api.run_stoppable(quick(), lambda: None)
+        assert at_close == [signal.SIG_IGN]
         assert signal.getsignal(signal.SIGTERM) == signal.SIG_IGN
+        assert signal.SIGTERM not in signal.pthread_sigmask(signal.SIG_BLOCK, set())
         os.kill(os.getpid(), signal.SIGTERM)  # would kill the test process if it were the default
         time.sleep(0.1)
     finally:

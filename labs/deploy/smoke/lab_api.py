@@ -21,6 +21,8 @@ HTTP_TIMEOUT = 30
 # total deadline of the /end sent on SIGTERM; it must fit in the 10 s of `timeout -k 10`
 END_TIMEOUT = 5
 STOPPED = "the smoke was stopped by SIGTERM"
+# the step name `run_then_end` reports a SIGTERM stop with
+STOP_STEP = "stopped"
 
 
 class Fail(Exception):
@@ -99,7 +101,7 @@ def run_then_end(
 ) -> None:
     """Run `coro`, then end the session once: after it, after an error, or at once on SIGTERM.
 
-    `on_failure(step, reason)` is called with ("stopped", ...) on SIGTERM and with ("end", reason)
+    `on_failure(step, reason)` is called with (STOP_STEP, STOPPED) on SIGTERM and with ("end", reason)
     when the end call fails; the caller keeps the first one. An error of `coro` propagates after
     the session was ended. After a stop the caller must report and `leave()`.
     """
@@ -116,7 +118,7 @@ def run_then_end(
 
     def stop() -> None:
         try:
-            on_failure("stopped", STOPPED)
+            on_failure(STOP_STEP, STOPPED)
         finally:
             end(END_TIMEOUT)
 
@@ -166,14 +168,10 @@ def run_stoppable(coro: Coroutine[Any, Any, None], on_stop: Callable[[], None]) 
         finally:
             waiter.cancel()
             if not stopped:
-                # remove the loop handler (that restores the default) and ignore at once: there
-                # must be no gap in which a SIGTERM kills the process before /end
-                try:
-                    loop.remove_signal_handler(signal.SIGTERM)
-                except (NotImplementedError, AttributeError, ValueError, RuntimeError):
-                    pass
-                if hasattr(signal, "SIGTERM"):
-                    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+                # join the (idle) executor threads first, so that only this thread can take a
+                # SIGTERM while the loop handler gives way to SIG_IGN
+                await loop.shutdown_default_executor()
+                _ignore_sigterm(loop)
 
     runner = asyncio.Runner()
     stopped = False
@@ -182,6 +180,29 @@ def run_stoppable(coro: Coroutine[Any, Any, None], on_stop: Callable[[], None]) 
     finally:
         if not stopped:
             runner.close()
+
+
+def _ignore_sigterm(loop: asyncio.AbstractEventLoop) -> None:
+    """Replace the loop's SIGTERM handler with SIG_IGN, leaving no moment for the default action.
+
+    `remove_signal_handler` restores the default before SIG_IGN can be set, so SIGTERM is blocked
+    in this thread meanwhile: one that arrives then stays pending and is dropped once ignored. The
+    caller has joined the executor threads, so no other smoke thread is there to take it instead.
+    """
+    if not hasattr(signal, "SIGTERM"):
+        return
+    mask = None
+    if hasattr(signal, "pthread_sigmask"):
+        mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGTERM})
+    try:
+        try:
+            loop.remove_signal_handler(signal.SIGTERM)
+        except (NotImplementedError, AttributeError, ValueError, RuntimeError):
+            pass
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    finally:
+        if mask is not None:
+            signal.pthread_sigmask(signal.SIG_SETMASK, mask)
 
 
 def leave(code: int) -> None:
