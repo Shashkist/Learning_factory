@@ -237,12 +237,17 @@ def test_every_end_reason_the_app_writes_is_allowed_by_the_schema():
         for m in re.finditer(r"end_reason in \(([^)]*)\)", f.read_text(encoding="utf-8"))
     ]
     allowed = set(re.findall(r"'(\w+)'", checks[-1]))
-    used = set()
-    for f in (root / "app").glob("*.py"):
+    used, computed = set(), set()
+    for f in (root / "app").rglob("*.py"):
         text = f.read_text(encoding="utf-8")
         used |= set(re.findall(r"end_reason = '(\w+)'", text))
         used |= set(re.findall(r"end_session\([^)]*?,\s*[\"'](\w+)[\"']\s*\)", text, re.S))
-    assert used and used <= allowed, used - allowed
+        # reasons computed in SQL (the janitor's `case ... end as reason`, passed to end_session)
+        for case in re.findall(r"\bcase\b(.*?)\bend as reason\b", text, re.S):
+            computed |= set(re.findall(r"\b(?:then|else)\s+'(\w+)'", case))
+    assert computed, "the janitor's `case ... end as reason` was not found"
+    used |= computed
+    assert used <= allowed, used - allowed
 
 
 def test_slow_start_over_budget_answers_502_within_budget_and_removes(monkeypatch):
