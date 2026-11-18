@@ -209,8 +209,8 @@ async def start(
             if not rows and not isinstance(exc, TimeoutError):
                 raise
             log.error("starting session of lab %s failed (%s)", lab.id, type(exc).__name__)
-            deleted = ""
-            if rows:  # the deadline (if it fired) is over: cleanup has its own bounds
+            ended_meanwhile = False
+            if rows:  # the deadline (if it fired) is over: cleanup has two 5 s bounds (D24)
                 row = rows[0]
                 try:  # the row first: it holds the student's slot
                     async with asyncio.timeout(CLEANUP_BOUND_S):
@@ -218,31 +218,25 @@ async def start(
                             f"delete from {T}.lab_sessions where id = $1 and status = 'starting'",
                             row["id"],
                         )
-                except Exception as err:  # a slow or failed delete never skips the remove
-                    log.error("deleting the starting row failed (%s)", type(err).__name__)
+                        if str(deleted).endswith(" 0"):
+                            # not 'starting' any more: the final update committed before the
+                            # deadline cancelled it (end the live row; 'orphan' is the janitor's
+                            # reason for a live row without a container), or it was ended meanwhile
+                            ended_now = await pool.fetchval(
+                                f"update {T}.lab_sessions set status = 'ended', ended_at = now(), "
+                                f"end_reason = 'orphan' where id = $1 and {LIVE} returning id",
+                                row["id"],
+                            )
+                            ended_meanwhile = ended_now is None
+                except Exception as err:  # a slow or failed row step never skips the remove
+                    log.error("cleaning up the session row failed (%s)", type(err).__name__)
                 try:  # the janitor's orphan sweep removes what is left
                     async with asyncio.timeout(CLEANUP_BOUND_S):
                         await remove_container(runtime, str(row["id"]))
                 except Exception as err:
                     log.error("removing the container failed (%s)", type(err).__name__)
-            if rows and str(deleted).endswith(" 0"):
-                # not 'starting' any more: ended meanwhile (keep the row, say so), or the final
-                # update committed before the deadline cancelled it, so the row is live
-                try:
-                    async with asyncio.timeout(CLEANUP_BOUND_S):
-                        status = await pool.fetchval(
-                            f"select status from {T}.lab_sessions where id = $1", rows[0]["id"]
-                        )
-                        if status not in (None, "ended"):
-                            await end_session(pool, runtime, rows[0]["id"], "start_failed")
-                            status = "live"
-                except Exception as err:
-                    log.error(
-                        "checking the session after a failed start failed (%s)", type(err).__name__
-                    )
-                    status = "live"
-                if status in (None, "ended"):
-                    raise HTTPException(409, "session_ended") from None
+            if ended_meanwhile:
+                raise HTTPException(409, "session_ended") from None
             raise HTTPException(502, "start_failed") from None
 
 
