@@ -4,15 +4,15 @@
 
 ## Now
 
-_Last updated: 2026-11-18 ~21:35 UTC, laptop pass lf-r3m8. Took over #164 from lf-a9t4 (silent 137 min). Pass lf-a9t4 shipped #192 (#194) and #193 (#195); both closed. In flight: **#164** (`f/164-student-page`, worktree `C:\projects\lf-164`, draft PR #197: exam proven red only for missing code (37 manager + 29 web cases), code being written); **#199** smoke stop follow-ups (`f/199-smoke-stop-followups`, worktree `C:\projects\lf-199`); **#198** session start cleanup (`f/198-session-start-cleanup`, worktree `C:\projects\lf-198`; D24 amendment due with it)._
+_Last updated: 2026-11-18 ~23:55 UTC, laptop pass lf-f7q2. Took over #164 from lf-r3m8 (its pass hit the runner's 110 min limit) and shipped it: #197 merged, Deploy 44423607701 green, #164 closed with live evidence. In flight: **#165** live sessions (`f/165-live-sessions`, worktree `C:\projects\lf-165`, draft PR #207: exam committed (33 manager + 44 web cases), code being written); **#205** teacher Playwright flows split from #165 (D65; `f/205-teacher-playwright`, worktree `C:\projects\lf-205`, PR #206, web job green, review round 1 running)._
 
-- **Pass lf-k7p2 finished the three lanes of lf-n4d6**: #163 (#189), #156 (#190), #177 (#191) merged, deployed, closed. Follow-ups #192 (session start nits) and #193 (smoke stop path).
-- **Next session starts at:** Next 1 (#164).
+- **Next session starts at:** the in-flight PRs #206 and #207 (CI, review, merge, deploy), then Next 1.
+- **Lesson (this pass):** a pass killed by the runner time limit can leave a green, reviewed PR behind; check the PR's CI merge ref against what landed on main since (here #200 was already in it and #201 touched disjoint files), then merge without a re-run.
 - **Lesson (this pass):** check a reviewer's "simplify" nit against the exam before forwarding it. Reading `request.state.started` directly broke four #177 exam cases that call `start()` with a bare request.
 - **Laptop (O20, pass lf-n4d6; lf-k7p2 saw Bash responsive, narrow local tests fine):** ~950 python processes, CPU ~85 %; trivial Bash commands sometimes hang for 2 min and a full local vitest run did not finish in 10 min. Local checks: ruff/mypy/tsc/lint + narrow pytest only; CI runs the full suites.
 - **Laptop (O20 still open):** Bash responds this pass, but ~885 hung `qa-statusline.py` processes, CPU ~50 %. GitHub API/DNS from the laptop drops often (TLS handshake timeouts): wrap every `gh`/`git push` in a retry loop.
 - **Lesson (pass lf-x2v7):** the subagents here have only Bash as a shell; when Bash hangs, they cannot read issues, run tests or commit. Check `echo hi` in Bash at orient before dispatching; if it hangs, stop the pass and raise it.
-- **Production:** `lf-manager:76b0862` (Deploy 43911335654, smoke ok; bundle has the #178 texts); #187 (dashboard only) merged after.
+- **Production:** `lf-manager:95a13af` (Deploy 44423607701, smoke ok; bundle has the #164 student page).
 - **Lesson (D62):** a docker exam matcher must not match a bare digit string: the random session id is in ttyd's argv.
 - **Lesson:** a PR branch cannot be rebased in place (no force-push; exam-integrity refuses merge commits). Merge the lanes in dependency order; when a rebase is needed, push the rebased commits to `<branch>-2` and open a new PR.
 - **Laptop load:** the web suite fails random tests on timeouts under load; `npx vitest run --maxWorkers=2` is reliable. CI is the judge.
@@ -24,7 +24,7 @@ _Last updated: 2026-11-18 ~21:35 UTC, laptop pass lf-r3m8. Took over #164 from l
 
 ## Next (in order)
 
-1. Teacher UI (D59): **#164** student page (see the duplicate-names note on #164), **#165** live sessions + teacher Playwright. Flags/reasons in `task_results` / `lab_runs` (D55); leave out `lf-smoke` everywhere (`app/smoke.py`, D61).
+1. Teacher UI (D59): **#165** live sessions, **#205** teacher Playwright flows (D65), then **#204** student page follow-ups. Flags/reasons in `task_results` / `lab_runs` (D55); leave out `lf-smoke` everywhere (`app/smoke.py`, D61).
 2. **#186** busy row Save + open-tasks live region (exam edit first); **#192** session start nits, **#193** smoke stop path (both p2).
 3. **#167** docker end-to-end browser test against the real manager (split from #131, D60). **#151** kill follow-ups, **#154** Solution tab (D57 b), **#137**, **#126**, **#127**, **#142** (reuse the #153 helpers).
 4. **#98** (p2, D46): cancel superseded PR runs and skip full CI for docs-only pushes; **#155** dashboard cadence.
@@ -38,6 +38,8 @@ _Last updated: 2026-11-18 ~21:35 UTC, laptop pass lf-r3m8. Took over #164 from l
 - O16/O7 resolved by D43 (public repository). O12 (back up `.env`), O13 (re-deploy after recreating nginx-proxy3), O5 reopened.
 
 ## Recently done
+
+- 2026-11-18 · Pass lf-f7q2: #164 student page (#197; taken over green and approved from lf-r3m8, should-fix fixed in 24accb5; live: the three `/api/admin/students/<key>` routes 401 anonymous, bundle has the page; Deploy 44423607701). Pass lf-r3m8 shipped #198 (#200) and #199 (#201) before its time limit.
 
 - 2026-11-17 · Pass lf-k7p2: **3 PRs merged**, all taken over from lf-n4d6 with green CI and no review yet. #163 class table (#189): round 1 approved; should-fix fixed by the manager (an out-of-range cohort id answered 503 via asyncpg `DataError`, now 404; last activity shown in local time, not the UTC day), plus nits; live: `/api/admin/class*` 401, bundle has the texts; Deploy 44092920240. #156 smoke (#190): round 1 blocker, `/end` sent only after `asyncio.run()` shutdown (blocked by a stuck worker thread past `timeout -k 10`) → `run_stoppable` with `loop.add_signal_handler`, shared by terminal.py; round 2 approved; live smoke ran under `timeout -k 10 300 ... | tee`, all `ok`; Deploy 44096636703; leftovers #193. #177 session start (#191): round 1 blocker, one 5 s bound over container remove + row delete (a slow remove kept the slot ~3 min) → row first, separate bounds, one deadline over the whole start; round 2: the nit-5 change broke 4 exam cases (fixed, dae8848), a failed delete skipped the remove (fixed, 76acf13); leftovers #192.
 
