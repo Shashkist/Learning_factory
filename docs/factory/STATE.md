@@ -4,7 +4,7 @@
 
 ## Now
 
-_Last updated: 2026-11-17 ~21:35 UTC, laptop pass lf-v5q1 (from 21:27 UTC). In flight: #164 (`f/164-student-page`, worktree `C:\projects\lf-164`), #192 (`f/192-session-start-nits`, `C:\projects\lf-192`), #193 (`f/193-smoke-stop-path`, `C:\projects\lf-193`). Taken over from pass lf-r3m8 (16:26-23:19 local), which claimed them and then ended on an API request timeout with no commits._
+_Last updated: 2026-11-18 ~19:15 UTC, laptop pass lf-a9t4. In flight (taken over from lf-v5q1, which stopped ~21:40 UTC on 11-17 without a state note): #192 PR #194 (CI green, review round 1 running), #193 PR #195 (opened this pass from the pushed branch, CI running), #164 (`f/164-student-page`, worktree `C:\projects\lf-164`; local commit dcf4cbe widens the #163 exam (D63); #164 exam being written)._
 
 - **Pass lf-k7p2 finished the three lanes of lf-n4d6**: #163 (#189), #156 (#190), #177 (#191) merged, deployed, closed. Follow-ups #192 (session start nits) and #193 (smoke stop path).
 - **Next session starts at:** Next 1 (#164).
