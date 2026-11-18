@@ -212,7 +212,7 @@ def test_row_step_shares_one_bound_and_the_answer_stays_under_nginx(monkeypatch)
     state, pool, removed = _env(monkeypatch, "DELETE 0")
 
     async def slow_delete(sql, *args):
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(0.25)
         return "DELETE 0"
 
     async def slow_end(sql, *args):
@@ -221,7 +221,9 @@ def test_row_step_shares_one_bound_and_the_answer_stays_under_nginx(monkeypatch)
     pool.execute, pool.fetchval = slow_delete, slow_end
     t0 = time.monotonic()
     assert _answer(state).status_code == 502
-    assert removed and time.monotonic() - t0 < 0.3 + 0.3 + 0.4  # two bounds, not three
+    # The removal is instant, so only the row step's one 0.3 s bound may elapse. A separate bound
+    # for the update would take at least 0.25 + 0.3 s (sleeps never end early), above the limit.
+    assert removed and time.monotonic() - t0 < 0.3 + 0.2
 
 
 def test_every_end_reason_the_app_writes_is_allowed_by_the_schema():
