@@ -1,4 +1,4 @@
-﻿import asyncio
+import asyncio
 import time
 
 import httpx
@@ -91,7 +91,7 @@ def test_gone_container_stops_the_wait_at_once():
 
 class _Pool:
     def __init__(self, deleted):
-        self.deleted, self.sql = deleted, []
+        self.deleted, self.sql, self.status = deleted, [], "ended"
 
     async def fetchrow(self, sql, *a):
         return {
@@ -104,6 +104,15 @@ class _Pool:
     async def execute(self, sql, *args):
         self.sql.append(sql)
         return self.deleted
+
+    async def fetchval(self, sql, *args):
+        self.sql.append(sql)
+        if "set status = 'ended'" in sql:  # ends only a live row, like `where ... and LIVE`
+            if self.status not in ("starting", "running"):
+                return None
+            self.status = "ended"
+            return args[0]
+        return self.status
 
 
 class _RT:
@@ -175,6 +184,63 @@ def test_failed_start_removes_container_deletes_starting_row_502(monkeypatch):
 def test_failed_start_of_an_ended_session_is_409(monkeypatch):
     state, _, removed = _env(monkeypatch, "DELETE 0")
     assert _answer(state).status_code == 409 and removed
+
+
+def test_committed_final_update_is_ended_and_answers_502_not_409(monkeypatch):
+    state, pool, removed = _env(monkeypatch, "DELETE 0")
+    pool.status = "running"  # the deadline cancelled the update after the server committed it
+    e = _answer(state)
+    assert (e.status_code, e.detail) == (502, "start_failed")
+    assert pool.status == "ended" and removed == ["lab-11111111-1111-1111-1111-111111111111"]
+    assert any("end_reason = 'orphan'" in q for q in pool.sql)  # an allowed reason (migration 003)
+
+
+def test_failed_end_after_delete_0_answers_502_and_still_removes(monkeypatch):
+    state, pool, removed = _env(monkeypatch, "DELETE 0")
+
+    async def broken(sql, *args):
+        raise ConnectionError("database dropped")
+
+    pool.fetchval = broken
+    e = _answer(state)
+    assert (e.status_code, e.detail) == (502, "start_failed")
+    assert removed
+
+
+def test_row_step_shares_one_bound_and_the_answer_stays_under_nginx(monkeypatch):
+    monkeypatch.setattr(sessions, "CLEANUP_BOUND_S", 0.3)
+    state, pool, removed = _env(monkeypatch, "DELETE 0")
+
+    async def slow_delete(sql, *args):
+        await asyncio.sleep(0.2)
+        return "DELETE 0"
+
+    async def slow_end(sql, *args):
+        await asyncio.sleep(30)
+
+    pool.execute, pool.fetchval = slow_delete, slow_end
+    t0 = time.monotonic()
+    assert _answer(state).status_code == 502
+    assert removed and time.monotonic() - t0 < 0.3 + 0.3 + 0.4  # two bounds, not three
+
+
+def test_every_end_reason_the_app_writes_is_allowed_by_the_schema():
+    import re
+    from pathlib import Path
+
+    root = Path(sessions.__file__).resolve().parents[1]
+    checks = [  # the newest migration that sets the constraint wins
+        m.group(1)
+        for f in sorted((root / "migrations").glob("*.sql"))
+        for m in re.finditer(r"end_reason in \(([^)]*)\)", f.read_text(encoding="utf-8"))
+    ]
+    allowed = set(re.findall(r"'(\w+)'", checks[-1]))
+    used = set()
+    for f in (root / "app").glob("*.py"):
+        text = f.read_text(encoding="utf-8")
+        used |= set(re.findall(r"end_reason = '(\w+)'", text))
+        used |= set(re.findall(r"end_session\([^)]*?,\s*[\"'](\w+)[\"']\s*\)", text, re.S))
+    assert used and used <= allowed, used - allowed
 
 
 def test_slow_start_over_budget_answers_502_within_budget_and_removes(monkeypatch):
@@ -296,3 +362,24 @@ def test_route_slow_forced_end_answers_502_within_the_budget(monkeypatch):
     assert r.status_code == 502 and r.json()["detail"] == "start_failed"
     assert time.monotonic() - t0 < 1 + 0.5
     assert not pool.sql  # nothing inserted, nothing to delete
+
+
+def test_route_stamps_the_request_before_authentication(monkeypatch):
+    monkeypatch.setenv("LF_READY_TIMEOUT_S", "5")
+    seen = []
+
+    class R(_RT):
+        async def wait_ready(self, name, timeout):
+            seen.append(timeout)
+
+    client, _, _ = _client(monkeypatch, R([]))
+
+    async def slow_student():
+        from types import SimpleNamespace
+
+        await asyncio.sleep(0.3)
+        return SimpleNamespace(subject="s", kind="student")
+
+    client.app.dependency_overrides[sessions.current_student] = slow_student
+    client.post("/api/sessions", json={"lab_id": "l"})
+    assert seen and seen[0] < 5 - 0.25  # the 0.3 s of auth came out of the wait
