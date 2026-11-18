@@ -249,3 +249,24 @@ def test_an_unknown_flag_is_a_404(api):
     assert client.post(f"/api/admin/students/{KEY}/flags/x/dismiss").status_code == 404
     flag_path = f"/api/admin/students/{KEY}/flags/{lab_flag_id(SID)}/dismiss"
     assert client.post(flag_path).status_code == 404  # fetchval finds no row of this student
+
+
+def test_a_patch_updates_only_the_fields_sent(api):
+    client, pool = api
+    writes = []
+
+    async def execute(sql, *args):
+        writes.append((sql, args))
+
+    pool.execute = execute
+    url = f"/api/admin/students/{KEY}"
+    assert client.patch(url, json={"note": "  x  ", "disabled": True}).status_code == 200
+    assert client.patch(url, json={"access_until": None}).status_code == 200
+    assert client.patch(url, json={"note": "   "}).status_code == 200
+    assert client.patch(url, json={}).status_code == 200
+    assert writes == [
+        ("update learning_factory.students set note = $2, disabled = $3 where id_hash = $1",
+         ("h", "x", True)),
+        ("update learning_factory.students set access_until = $2 where id_hash = $1", ("h", None)),
+        ("update learning_factory.students set note = $2 where id_hash = $1", ("h", None)),
+    ]
