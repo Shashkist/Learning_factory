@@ -1,7 +1,7 @@
 """Class table (D59, slice 2 of #11): students down the side, published labs across the top.
 
-Read-only. Rows carry the name and the cohort name only, never an id or a hash. The smoke
-cohort (D61) is left out of every query here.
+Read-only. Rows carry the name, the cohort name and the opaque student key (D63), never an id
+or a hash. The smoke cohort (D61) is left out of every query here.
 """
 import csv
 import io
@@ -68,7 +68,7 @@ async def build(request: Request, cohort: int | None, flagged: int | None) -> di
         ):
             raise HTTPException(404, "unknown_cohort")
         students = await pool.fetch(
-            f"select s.id_hash, s.name, c.name as cohort from {T}.students s "
+            f"select s.id_hash, s.key, s.name, c.name as cohort from {T}.students s "
             f"join {T}.cohorts c on c.id = s.cohort_id where {NOT_SMOKE_SQL} "
             "and ($1::int is null or c.id = $1) order by c.name, s.name, s.id_hash",
             cohort,
@@ -123,6 +123,7 @@ async def build(request: Request, cohort: int | None, flagged: int | None) -> di
         rows.append(
             {
                 "name": s["name"],
+                "key": str(s["key"]),
                 "cohort": s["cohort"],
                 "last_activity": at.isoformat() if at else None,
                 "cells": cells,

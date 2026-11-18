@@ -219,12 +219,13 @@ async def list_students(cohort_id: int, request: Request) -> list[dict[str, Any]
     with db_guard():
         await _one(pool, cohort_id)
         rows = await pool.fetch(
-            f"select name, note, disabled, access_until from {T}.students "
+            f"select key, name, note, disabled, access_until from {T}.students "
             "where cohort_id = $1 order by name",
             cohort_id,
         )
     return [
         {
+            "key": str(r["key"]),
             "name": r["name"],
             "note": r["note"],
             "disabled": r["disabled"],
