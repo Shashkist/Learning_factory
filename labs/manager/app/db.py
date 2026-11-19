@@ -1,8 +1,12 @@
 """Database layer: plain asyncpg, plain SQL migrations. The DSN is never logged."""
 import os
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
 import asyncpg
+from fastapi import HTTPException
 
 MIGRATIONS_DIR = Path(__file__).resolve().parent.parent / "migrations"
 SCHEMA = "learning_factory"
@@ -76,3 +80,49 @@ async def migrate(dsn: str) -> list[str]:
     finally:
         await conn.close()
     return applied
+
+
+class BoundedPool:
+    """A pool for request paths: waiting for a free connection is limited by
+    `POOL_ACQUIRE_TIMEOUT` (read at call time), then the request answers 503 `db_busy` instead
+    of hanging until nginx cuts the client off. Same fetch/execute/acquire surface as asyncpg's."""
+
+    def __init__(self, pool: Any) -> None:
+        self._pool = pool
+
+    @asynccontextmanager
+    async def acquire(self) -> AsyncIterator[Any]:
+        try:
+            conn = await self._pool.acquire(timeout=POOL_ACQUIRE_TIMEOUT)
+        except TimeoutError:
+            raise HTTPException(
+                503,
+                {"code": "db_busy", "message": "The database is busy. Try again in a moment."},
+            ) from None
+        try:
+            yield conn
+        finally:
+            await self._pool.release(conn)
+
+    async def _run(self, method: str, *args: Any) -> Any:
+        if not hasattr(self._pool, "acquire"):  # a stand-in pool with only fetch*/execute
+            return await getattr(self._pool, method)(*args)
+        async with self.acquire() as conn:
+            return await getattr(conn, method)(*args)
+
+    async def fetch(self, *args: Any) -> Any:
+        return await self._run("fetch", *args)
+
+    async def fetchrow(self, *args: Any) -> Any:
+        return await self._run("fetchrow", *args)
+
+    async def fetchval(self, *args: Any) -> Any:
+        return await self._run("fetchval", *args)
+
+    async def execute(self, *args: Any) -> Any:
+        return await self._run("execute", *args)
+
+
+def bounded(pool: Any) -> Any:
+    """`pool` as a BoundedPool (None and an already bounded pool pass through)."""
+    return pool if pool is None or isinstance(pool, BoundedPool) else BoundedPool(pool)

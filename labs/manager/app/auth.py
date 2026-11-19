@@ -311,7 +311,7 @@ def _pool(request: HTTPConnection) -> Any:
     pool = getattr(request.app.state, "pool", None)
     if pool is None:
         raise HTTPException(503, "database unavailable")
-    return pool
+    return db.bounded(pool)
 
 
 async def _start_session(pool: Any, response: Response, kind: str, subject: str) -> None:

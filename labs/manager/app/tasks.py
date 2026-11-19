@@ -102,17 +102,18 @@ def _detail(lab: Lab, task: Task, row: Any) -> dict[str, Any]:
 class _Ctx:
     def __init__(self, request: Request, sid: uuid.UUID, student: str, lab: Lab, current: Any):
         self.request, self.sid, self.student, self.lab = request, sid, student, lab
-        # A bare request (tests, internal callers) has no state: start the clock here.
-        state = getattr(request, "state", None)
-        self.started = getattr(state, "started", None) or time.monotonic()
+        self._bare_started = time.monotonic()  # a bare request (tests, callers) has no state
         self.current: str | None = current
         self.pool = request.app.state.pool
 
     def task(self, task_id: str | None) -> Task | None:
         return next((t for t in self.lab.tasks if t.id == task_id), None)
 
-    def result(self, task: Task, code: str = "setup_timeout") -> Awaitable[Any]:
-        return _result(self, task, code)
+    @property
+    def started(self) -> float:
+        """The request start (set by `_start`); a bare request: when this context was built."""
+        state = getattr(self.request, "state", None)
+        return getattr(state, "started", None) or self._bare_started
 
 
 async def _start(request: Request) -> None:
@@ -226,8 +227,7 @@ async def _record_shown(ctx: _Ctx, task: Task, bound: float = DB_STEP_BOUND_S) -
 def _left(ctx: _Ctx) -> float:
     """Seconds of the request budget still unspent."""
     now = time.monotonic()
-    state = getattr(getattr(ctx, "request", None), "state", None)
-    started = getattr(state, "started", None) or getattr(ctx, "started", None)
+    started = getattr(ctx, "started", None)
     return REQUEST_BUDGET_S - (now - (started or now))  # bare: from now
 
 
@@ -355,7 +355,7 @@ async def current_task(ctx: Annotated[_Ctx, Depends(_ctx)]) -> dict[str, Any]:
     task = ctx.task(ctx.current)
     if task is None:
         raise HTTPException(404, "no_current_task")
-    return _detail(ctx.lab, task, await ctx.result(task))
+    return _detail(ctx.lab, task, await _result(ctx, task))
 
 
 @router.post("/current/{action}")

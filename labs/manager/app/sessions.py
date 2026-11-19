@@ -149,7 +149,7 @@ async def start(
     lab = labs.get(body.lab_id)
     if lab is None:
         raise HTTPException(404, "unknown_lab")
-    pool = state.pool
+    pool = db.bounded(state.pool)
     runtime: LabRuntime = state.runtime
     rows: list[Any] = []  # the inserted row, once there is one (what a failure must clean up)
 
@@ -255,7 +255,7 @@ async def current(
     if request.app.state.pool is None:
         raise HTTPException(503, "database unavailable")
     with db_guard():
-        row = await _live(request.app.state.pool, p.subject)
+        row = await _live(db.bounded(request.app.state.pool), p.subject)
     if row is None:
         raise HTTPException(404, "no_session")
     return _shape(row)
@@ -276,7 +276,7 @@ async def heartbeat(
     if request.app.state.pool is None:
         raise HTTPException(503, "database unavailable")
     with db_guard():
-        found = await request.app.state.pool.fetchval(
+        found = await db.bounded(request.app.state.pool).fetchval(
             # active time (the SQL form of app.flags.covered_seconds): the gap since the
             # previous beat counts, as fractional seconds, unless it is a long silence
             f"update {T}.lab_sessions set last_heartbeat = now(), active_seconds = active_seconds"
@@ -298,7 +298,7 @@ async def end(
     session_id: str, request: Request, p: Annotated[Principal, Depends(current_student)]
 ) -> Response:
     sid = _session_id(session_id)
-    pool = request.app.state.pool
+    pool = db.bounded(request.app.state.pool)
     if pool is None:
         raise HTTPException(503, "database unavailable")
     with db_guard():

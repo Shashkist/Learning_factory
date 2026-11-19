@@ -58,7 +58,7 @@ def csv_text(table: dict[str, Any]) -> str:
 
 async def build(request: Request, cohort: int | None, flagged: int | None) -> dict[str, Any]:
     pool = auth._pool(request)
-    labs = published(request.app.state.labs)
+    labs = published(getattr(request.app.state, "labs", {}))
     lab_ids = [lab.id for lab in labs]
     if cohort is not None and not 1 <= cohort <= PG_INT_MAX:
         raise HTTPException(404, "unknown_cohort")  # asyncpg would raise DataError (a 503)

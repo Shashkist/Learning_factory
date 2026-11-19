@@ -8,6 +8,35 @@ from app.content import Lab, Task
 from app.runtime import exec_command
 
 
+def _pool_answering(value):
+    """A pool whose connection runs a transaction and answers every fetchval with `value`."""
+
+    class Conn:
+        def transaction(self):
+            return self
+
+        async def start(self):
+            pass
+
+        async def commit(self):
+            pass
+
+        async def execute(self, sql):
+            pass
+
+        async def fetchval(self, sql, *args):
+            return value
+
+    class Pool:
+        async def acquire(self, timeout=None):
+            return Conn()
+
+        async def release(self, conn, timeout=None):
+            pass
+
+    return Pool()
+
+
 @pytest.mark.parametrize(
     "script,cmd",
     [
@@ -144,31 +173,8 @@ def test_navigation_is_refused_when_the_current_task_changed_before_the_lock(mon
         ran.append(task)
         return {"ok": True}
 
-    class Conn:
-        def transaction(self):
-            return self
-
-        async def start(self):
-            pass
-
-        async def commit(self):
-            pass
-
-        async def execute(self, sql):
-            pass
-
-        async def fetchval(self, sql, sid):
-            return "03-net"  # another request already moved the session on
-
-    class Pool:
-        async def acquire(self, timeout=None):
-            return Conn()
-
-        async def release(self, conn, timeout=None):
-            pass
-
     monkeypatch.setattr(tasks, "_do_show", fake_show)
-    ctx = SimpleNamespace(sid=uuid.uuid4(), pool=Pool())
+    ctx = SimpleNamespace(sid=uuid.uuid4(), pool=_pool_answering("03-net"))  # moved on already
     with pytest.raises(HTTPException) as err:
         asyncio.run(tasks._show(ctx, "04-last", moving_from="02-files"))
     assert err.value.status_code == 409 and err.value.detail == "task_changed"
@@ -286,29 +292,6 @@ def test_a_fail_hint_is_cut_and_a_missing_item_fails(monkeypatch):
 def test_an_error_counts_no_attempt(monkeypatch):
     go, _, counted, ctx = _check(monkeypatch, "", exit_ok=False, reason="error")
 
-    class Conn:
-        def transaction(self):
-            return self
-
-        async def start(self):
-            pass
-
-        async def commit(self):
-            pass
-
-        async def execute(self, sql):
-            pass
-
-        async def fetchval(self, sql, *args):
-            return 3
-
-    class Pool:
-        async def acquire(self, timeout=None):
-            return Conn()
-
-        async def release(self, conn, timeout=None):
-            pass
-
-    ctx.pool = Pool()
+    ctx.pool = _pool_answering(3)
     body = go()
     assert body["reason"] == "error" and body["attempts"] == 3 and counted == []
