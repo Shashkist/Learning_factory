@@ -58,6 +58,7 @@
   "lab.error.setup_failed": "The task could not be set up. Try again.",
   "lab.error.setup_timeout": "Setting up the task took too long. Try again.",
   "lab.error.check_timeout": "The check took too long. Try again.",
+  "lab.error.db_busy": "The service is busy right now. Try again in a moment.",
   "lab.error.task_changed": "The task changed. Try again.",
   "lab.no_next": "This is the last task. Pass it to finish the lab.",
   "lab.preparing": "Preparing your lab...",

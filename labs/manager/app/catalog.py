@@ -39,7 +39,7 @@ async def catalog(
     request: Request, p: Annotated[Principal, Depends(current_student)]
 ) -> list[dict[str, Any]]:
     state = request.app.state
-    pool = state.pool
+    pool = db.bounded(state.pool)
     if pool is None:
         raise HTTPException(503, "database unavailable")
     with db_guard():

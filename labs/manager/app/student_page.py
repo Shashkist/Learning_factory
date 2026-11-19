@@ -217,7 +217,7 @@ async def _student(pool: Any, key: str) -> Row:
 
 
 async def _page(request: Request, pool: Any, key: str) -> dict[str, Any]:
-    labs = published(request.app.state.labs)
+    labs = published(getattr(request.app.state, "labs", {}))
     ids = [lab.id for lab in labs]
     s = await _student(pool, key)
     h = s["id_hash"]
@@ -264,7 +264,7 @@ async def edit_student(key: str, request: Request) -> dict[str, Any]:
 @router.post("/{key}/flags/{flag_id}/dismiss")
 async def dismiss_flag(key: str, flag_id: str, request: Request) -> dict[str, Any]:
     pool = auth._pool(request)
-    ids = [lab.id for lab in published(request.app.state.labs)]
+    ids = [lab.id for lab in published(getattr(request.app.state, "labs", {}))]
     with db_guard():
         s = await _student(pool, key)
         parsed = parse_flag_id(flag_id)

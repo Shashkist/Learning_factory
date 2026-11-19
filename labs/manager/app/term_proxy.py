@@ -156,7 +156,8 @@ async def ws_proxy(session: str, websocket: WebSocket) -> None:
         await authorize(websocket, session, principal)
         sid = uuid.UUID(session)
     except HTTPException as exc:
-        await _refuse(websocket, exc.status_code, str(exc.detail))
+        detail = exc.detail["code"] if isinstance(exc.detail, dict) else str(exc.detail)
+        await _refuse(websocket, exc.status_code, detail)
         return
     address, target = _target(websocket, sid)
     wanted = list(websocket.scope.get("subprotocols") or [])

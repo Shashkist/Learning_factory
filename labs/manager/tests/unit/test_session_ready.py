@@ -392,3 +392,22 @@ def test_route_stamps_the_request_before_authentication(monkeypatch):
     client.app.dependency_overrides[sessions.current_student] = slow_student
     client.post("/api/sessions", json={"lab_id": "l"})
     assert seen and seen[0] < 5 - 0.25  # the 0.3 s of auth came out of the wait
+
+
+def test_db_busy_after_the_insert_still_cleans_up_and_answers_503(monkeypatch):
+    from fastapi import HTTPException
+
+    class Ready(_RT):
+        async def wait_ready(self, name, timeout):
+            pass
+
+    state, pool, removed = _env(monkeypatch, "DELETE 1", runtime=Ready([]))
+    removed = state.runtime.removed
+
+    async def busy(sql, *args):  # the final 'running' update: the pool is exhausted
+        raise HTTPException(503, {"code": "db_busy", "message": "busy"})
+
+    pool.fetchval = busy
+    e = _answer(state)
+    assert e.status_code == 503 and e.detail["code"] == "db_busy"
+    assert removed and "status = 'starting'" in pool.sql[0]  # the row deleted, container removed
