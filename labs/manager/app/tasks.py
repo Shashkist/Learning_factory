@@ -9,6 +9,7 @@ import logging
 import math
 import os
 import re
+import time
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -21,7 +22,7 @@ from app import db
 from app.auth import Principal, current_student, db_guard
 from app.content import LANGS, Lab, Task, parse_check_output
 from app.flags import fast_lab_reason, fast_task_reason
-from app.runtime import container_name
+from app.runtime import KILL_BOUND_S, container_name
 from app.term_proxy import authorize
 
 log = logging.getLogger("lab-manager")
@@ -31,6 +32,8 @@ T = db.SCHEMA
 SETUP_TIMEOUT_MAX_S = 40.0
 DEFAULT_SETUP_TIMEOUT_S = 40.0
 DB_STEP_BOUND_S = 8.0  # the database step after the setup, pool acquire included
+DB_SERVER_BOUND_S = 5.0  # lock_timeout and statement_timeout inside that step: the clean path
+REQUEST_BUDGET_S = 55.0  # one show/navigate request, from the start of its dependencies
 CHECK_TIMEOUT_S = 20.0  # spec section 7
 SLOT_WAIT_S = 5.0  # waiting for an exec slot, on top of the setup timeout
 
@@ -99,6 +102,7 @@ def _detail(lab: Lab, task: Task, row: Any) -> dict[str, Any]:
 class _Ctx:
     def __init__(self, request: Request, sid: uuid.UUID, student: str, lab: Lab, current: Any):
         self.request, self.sid, self.student, self.lab = request, sid, student, lab
+        self.started = getattr(request.state, "started", None) or time.monotonic()
         self.current: str | None = current
         self.pool = request.app.state.pool
 
@@ -115,8 +119,16 @@ class _Ctx:
             )
 
 
+def _start(request: Request) -> None:
+    """Resolved before the auth dependencies: the request's deadline starts here."""
+    request.state.started = time.monotonic()
+
+
 async def _ctx(
-    session: str, request: Request, p: Annotated[Principal, Depends(current_student)]
+    session: str,
+    request: Request,
+    _s: Annotated[None, Depends(_start)],
+    p: Annotated[Principal, Depends(current_student)],
 ) -> _Ctx:
     row = await authorize(request, session, p)
     sid = uuid.UUID(session)
@@ -160,6 +172,42 @@ async def _show(ctx: _Ctx, task: Task, moving_from: str | None = None) -> dict[s
         return await _do_show(ctx, task)
 
 
+async def _record_shown(ctx: _Ctx, task: Task) -> Any:
+    """The database step after the setup, hard-bounded by DB_STEP_BOUND_S: on any failure the
+    connection is terminated (the server rolls back) instead of awaiting a ROLLBACK."""
+    conn = None
+    try:
+        async with asyncio.timeout(DB_STEP_BOUND_S):
+            conn = await ctx.pool.acquire(timeout=DB_STEP_BOUND_S)
+            tx = conn.transaction()
+            await tx.start()
+            ms = int(DB_SERVER_BOUND_S * 1000)
+            await conn.execute(f"set local lock_timeout = '{ms}ms'")
+            await conn.execute(f"set local statement_timeout = '{ms}ms'")
+            row = await conn.fetchrow(
+                f"insert into {T}.task_results (student, lab_id, session_id, task_id, shown_at) "
+                "values ($1, $2, $3, $4, now()) on conflict (session_id, task_id) "
+                "do update set shown_at = coalesce(task_results.shown_at, now()) "
+                "returning shown_at, passed_at",
+                ctx.student,
+                ctx.lab.id,
+                ctx.sid,
+                task.id,
+            )
+            await conn.execute(
+                f"update {T}.lab_sessions set current_task = $2 where id = $1", ctx.sid, task.id
+            )
+            await tx.commit()
+            return row
+    except BaseException:
+        if conn is not None:
+            conn.terminate()
+        raise
+    finally:
+        if conn is not None:
+            await ctx.pool.release(conn)
+
+
 async def _do_show(ctx: _Ctx, task: Task) -> dict[str, Any]:
     """Run the setup (hands-on), then record shown_at (first time only) and the current task."""
     if task.kind == "hands-on":
@@ -171,9 +219,17 @@ async def _do_show(ctx: _Ctx, task: Task) -> dict[str, Any]:
             raise HTTPException(
                 504, {"code": "setup_timeout", "message": "The server is busy; try again."}
             ) from None
+        left = REQUEST_BUDGET_S - (time.monotonic() - ctx.started)
+        budget = min(setup_timeout(), left - KILL_BOUND_S - DB_STEP_BOUND_S)
+        if budget <= 0:
+            _EXECS.release()
+            log.error("setup of %s in session %s had no time left", task.id, ctx.sid)
+            raise HTTPException(
+                504, {"code": "setup_timeout", "message": "The server is busy; try again."}
+            )
         try:
             res = await ctx.request.app.state.runtime.exec_script(
-                container_name(ctx.sid), script, setup_timeout()
+                container_name(ctx.sid), script, budget
             )
         except Exception as exc:
             log.error("setup of %s in session %s failed (%s)", task.id, ctx.sid, type(exc).__name__)
@@ -192,25 +248,8 @@ async def _do_show(ctx: _Ctx, task: Task) -> dict[str, Any]:
             raise HTTPException(
                 502, {"code": "setup_failed", "message": "The task could not be set up."}
             )
-    with db_guard():
-        async with asyncio.timeout(DB_STEP_BOUND_S):  # TimeoutError: db_guard answers 503
-            async with ctx.pool.acquire() as conn, conn.transaction():
-                ms = int(DB_STEP_BOUND_S * 1000)
-                await conn.execute(f"set local lock_timeout = '{ms}ms'")
-                row = await conn.fetchrow(
-                    f"insert into {T}.task_results "
-                    "(student, lab_id, session_id, task_id, shown_at) "
-                    "values ($1, $2, $3, $4, now()) on conflict (session_id, task_id) "
-                    "do update set shown_at = coalesce(task_results.shown_at, now()) "
-                    "returning shown_at, passed_at",
-                    ctx.student,
-                    ctx.lab.id,
-                    ctx.sid,
-                    task.id,
-                )
-                await conn.execute(
-                    f"update {T}.lab_sessions set current_task = $2 where id = $1", ctx.sid, task.id
-                )
+    with db_guard():  # a TimeoutError here is answered 503 by db_guard
+        row = await _record_shown(ctx, task)
     ctx.current = task.id
     return _detail(ctx.lab, task, row)
 
