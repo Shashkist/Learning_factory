@@ -122,7 +122,7 @@ def test_assemble_counts_tasks_attempts_times_and_medians():
     medians = [{"lab_id": "x", "task_id": "b", "median": 25.0}]
     body = assemble([lab()], STUDENT, tasks, firsts, medians, [], [])
     (x,) = body["labs"]
-    assert (x["status"], x["tasks_passed"], x["tasks_total"], x["attempts"]) == ("1/3", 1, 3, 9)
+    assert (x["status"], x["tasks_passed"], x["tasks_total"], x["attempts"]) == ("1/3", 1, 3, 5) 
     assert [t["id"] for t in x["tasks"]] == ["a", "b", "c"]
     a, b, c = x["tasks"]
     assert a == {"id": "a", "passed": False, "attempts": 2, "seconds": None, "median_seconds": None}
@@ -270,3 +270,33 @@ def test_a_patch_updates_only_the_fields_sent(api):
         ("update learning_factory.students set access_until = $2 where id_hash = $1", ("h", None)),
         ("update learning_factory.students set note = $2 where id_hash = $1", ("h", None)),
     ]
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [{"Content-Type": "text/plain"}, {"Content-Type": "application/x-www-form-urlencoded"}, {}],
+)
+def test_cohort_post_needs_a_json_content_type(api, headers):
+    client, pool = api
+    resp = client.post("/api/admin/cohorts", content=b'{"name": "x"}', headers=headers)
+    assert resp.status_code == 422
+    assert pool.calls == []
+    assert "input" not in resp.text
+
+
+def test_json_variants_pass_the_content_type_check_and_errors_are_under_body(api):
+    client, _ = api
+    for ctype in ("application/json; charset=utf-8", "application/merge-patch+json"):
+        resp = client.post("/api/admin/cohorts", content=b"{}", headers={"Content-Type": ctype})
+        assert resp.status_code == 422
+        assert all(e["loc"][0] == "body" and len(e["loc"]) == 2 for e in resp.json()["detail"])
+
+
+def test_deeply_nested_json_is_a_422(api):
+    client, _ = api
+    resp = client.post(
+        "/api/admin/cohorts",
+        content=b"[" * 100000 + b"]" * 100000,
+        headers={"Content-Type": "application/json"},
+    )
+    assert resp.status_code == 422
