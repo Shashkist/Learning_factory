@@ -189,3 +189,15 @@ jobs:
             flag="--bootstrap"
           fi
           python "$script" "$base" "$HEAD_SHA" $flag
+
+  # Factory tooling tests (progress, crew, issue lock, guard). A job of their
+  # own: code from the PR never runs before the exam-integrity check above, and
+  # a failing tooling test cannot hide that check's verdict (#249).
+  tooling:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Unit tests for the factory tooling in scripts/
+        run: uvx pytest scripts -q
