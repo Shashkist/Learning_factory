@@ -1,11 +1,16 @@
+import io
 import json
+import os
 import subprocess
 import sys
+import threading
+import time
 from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent))
+import _hook_io  # noqa: E402
 import factory_progress as fp  # noqa: E402
 
 
@@ -219,3 +224,28 @@ def test_publish_cli_accepts_force_and_min_age(monkeypatch, tmp_path):
     fp.main(["publish", "--key", "k", "--host", "h", "--force"])
     fp.main(["publish", "--key", "k", "--host", "h", "--min-age", "50"])
     assert seen == [(True, None), (False, 50.0)]
+
+
+def test_hook_exits_when_stdin_never_closes(tmp_path):
+    env = {**os.environ, "LF_PROGRESS_FILE": str(tmp_path / "ev.jsonl"), "LF_HOOK_STDIN_TIMEOUT": "1"}
+    p = subprocess.Popen([sys.executable, str(Path(fp.__file__)), "hook"], stdin=subprocess.PIPE, env=env)
+    t0 = time.time()
+    try:
+        assert p.wait(timeout=5) == 0
+    finally:
+        p.kill()
+        p.stdin.close()
+    assert time.time() - t0 < 5
+    assert not (tmp_path / "ev.jsonl").exists()
+
+
+def test_read_stdin_returns_payload_and_none_on_timeout(monkeypatch):
+    monkeypatch.setattr(sys, "stdin", io.StringIO("abc"))
+    assert _hook_io.read_stdin(1) == "abc"
+
+    class Never:
+        def read(self):
+            threading.Event().wait(3)
+            return ""
+    monkeypatch.setattr(sys, "stdin", Never())
+    assert _hook_io.read_stdin(0.2) is None

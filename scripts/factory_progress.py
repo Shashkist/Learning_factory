@@ -31,6 +31,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import types
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -269,10 +270,24 @@ def cmd_add(a: argparse.Namespace) -> None:
             "status": a.status, "detail": clean(detail)})
 
 
+def _hook_io() -> types.ModuleType:
+    """The hook-only helpers, imported lazily: some callers load this file by path (#51 exam),
+    so scripts/ is not on sys.path for them."""
+    here = str(Path(__file__).resolve().parent)
+    if here not in sys.path:
+        sys.path.insert(0, here)
+    import _hook_io
+
+    return _hook_io
+
+
 def cmd_hook() -> None:
     if not os.environ.get("LF_PROGRESS_FILE"):
         return  # not a factory run: record nothing
-    ev = hook_event(json.loads(sys.stdin.read() or "{}"))
+    raw = _hook_io().read_stdin()
+    if raw is None:
+        return  # stdin never closed (parent gone): record nothing, never fail the caller
+    ev = hook_event(json.loads(raw or "{}"))
     if ev:
         append(ev)
 
@@ -373,4 +388,6 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    if sys.argv[1:2] == ["hook"]:
+        _hook_io().start_watchdog(0)  # a hook must never outlive its caller; exiting 0 never blocks it
     sys.exit(main())
