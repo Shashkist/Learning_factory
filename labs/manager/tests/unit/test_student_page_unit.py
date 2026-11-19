@@ -122,7 +122,7 @@ def test_assemble_counts_tasks_attempts_times_and_medians():
     medians = [{"lab_id": "x", "task_id": "b", "median": 25.0}]
     body = assemble([lab()], STUDENT, tasks, firsts, medians, [], [])
     (x,) = body["labs"]
-    assert (x["status"], x["tasks_passed"], x["tasks_total"], x["attempts"]) == ("1/3", 1, 3, 9)
+    assert (x["status"], x["tasks_passed"], x["tasks_total"], x["attempts"]) == ("1/3", 1, 3, 5) 
     assert [t["id"] for t in x["tasks"]] == ["a", "b", "c"]
     a, b, c = x["tasks"]
     assert a == {"id": "a", "passed": False, "attempts": 2, "seconds": None, "median_seconds": None}
@@ -270,3 +270,23 @@ def test_a_patch_updates_only_the_fields_sent(api):
         ("update learning_factory.students set access_until = $2 where id_hash = $1", ("h", None)),
         ("update learning_factory.students set note = $2 where id_hash = $1", ("h", None)),
     ]
+
+
+def test_medians_query_is_limited_to_the_labs_the_student_touched(api):
+    client, pool = api
+    seen = []
+
+    async def fetch(sql, *args):
+        from app import student_page
+
+        seen.append((sql, args))
+        if sql == student_page._TASKS_SQL:
+            return [{"lab_id": "x", "task_id": "a", "passed": True, "attempts": 1}]
+        return []
+
+    pool.fetch = fetch
+    assert client.get(f"/api/admin/students/{KEY}").status_code == 200
+    from app import student_page
+
+    assert [a for q, a in seen if q == student_page._MEDIANS_SQL] == [(["x"],)]
+    assert "any($1)" in student_page._MEDIANS_SQL

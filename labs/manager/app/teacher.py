@@ -9,7 +9,15 @@ from datetime import date
 from typing import Annotated, Any, NamedTuple
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import AfterValidator, BaseModel, BeforeValidator, Field, field_validator
+from fastapi.exceptions import RequestValidationError
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    BeforeValidator,
+    Field,
+    ValidationError,
+    field_validator,
+)
 
 from app import auth, db
 from app.auth import current_admin, db_guard
@@ -18,6 +26,24 @@ from app.smoke import NOT_SMOKE_SQL, is_smoke_cohort
 T = db.SCHEMA
 
 router = APIRouter(prefix="/api/admin", dependencies=[Depends(current_admin)])
+
+
+async def read_body[M: BaseModel](request: Request, model: type[M]) -> M:
+    """The JSON body as `model`, read inside the handler so the admin check comes first.
+
+    FastAPI judges a declared body before the router dependencies run, which would answer 422 to
+    an anonymous request. The 422 handler keeps only type, location and message.
+    """
+    try:
+        data = await request.json()
+    except ValueError:
+        raise RequestValidationError(
+            [{"type": "json_invalid", "loc": ("body",), "msg": "JSON decode error"}]
+        ) from None
+    try:
+        return model.model_validate(data)
+    except ValidationError as exc:
+        raise RequestValidationError(exc.errors()) from None
 
 
 def printable(value: str) -> bool:
@@ -109,7 +135,8 @@ async def list_cohorts(request: Request) -> list[dict[str, Any]]:
 
 
 @router.post("/cohorts", status_code=201)
-async def create_cohort(body: NewCohort, request: Request) -> dict[str, Any]:
+async def create_cohort(request: Request) -> dict[str, Any]:
+    body = await read_body(request, NewCohort)
     pool = auth._pool(request)
     pw_hash = await auth.hash_password_bounded(body.password)
     with db_guard():
@@ -122,7 +149,8 @@ async def create_cohort(body: NewCohort, request: Request) -> dict[str, Any]:
 
 
 @router.patch("/cohorts/{cohort_id}")
-async def edit_cohort(cohort_id: int, body: CohortEdit, request: Request) -> dict[str, Any]:
+async def edit_cohort(cohort_id: int, request: Request) -> dict[str, Any]:
+    body = await read_body(request, CohortEdit)
     pool = auth._pool(request)
     with db_guard():
         await _one(pool, cohort_id)  # before any argon2 work
@@ -186,7 +214,8 @@ def check_lines(lines: list[Line]) -> dict[int, dict[str, Any]]:
 
 
 @router.post("/cohorts/{cohort_id}/import")
-async def import_students(cohort_id: int, body: ImportBody, request: Request) -> dict[str, Any]:
+async def import_students(cohort_id: int, request: Request) -> dict[str, Any]:
+    body = await read_body(request, ImportBody)
     pool = auth._pool(request)
     secret = os.environ.get("LF_ID_SECRET")
     if not secret:

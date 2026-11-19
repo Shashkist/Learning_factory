@@ -9,16 +9,15 @@ import uuid
 from collections.abc import Iterable, Mapping
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Request
-from fastapi.exceptions import RequestValidationError
-from pydantic import BaseModel, Field, StrictBool, ValidationError, field_validator
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field, StrictBool, field_validator
 
 from app import auth, db
 from app.auth import current_admin, db_guard
 from app.classtable import cell_status, published
 from app.content import Lab
 from app.smoke import NOT_SMOKE_SQL
-from app.teacher import Day
+from app.teacher import Day, read_body
 
 T = db.SCHEMA
 MAX_NOTE = 1000
@@ -110,8 +109,9 @@ def assemble(
                 "status": cell_status(lab, passed, lab.id in done_ids),
                 "tasks_passed": len(passed & set(order)),
                 "tasks_total": len(lab.tasks),
-                "attempts": sum(
-                    int(r["attempts"]) for (lid, _), r in by_task.items() if lid == lab.id
+                "attempts": sum(  # only tasks still in lab.yaml: equals the task rows shown
+                    int(r["attempts"]) for (lid, tid), r in by_task.items()
+                    if lid == lab.id and tid in order
                 ),
                 "tasks": [
                     {
@@ -216,12 +216,14 @@ async def _page(request: Request, pool: Any, key: str) -> dict[str, Any]:
     ids = [lab.id for lab in labs]
     s = await _student(pool, key)
     h = s["id_hash"]
+    tasks = await pool.fetch(_TASKS_SQL, h, ids)
+    touched = sorted({r["lab_id"] for r in tasks})  # medians only for the labs this student ran
     return assemble(
         labs,
         s,
-        await pool.fetch(_TASKS_SQL, h, ids),
+        tasks,
         await pool.fetch(_FIRSTS_SQL, h, ids),
-        await pool.fetch(_MEDIANS_SQL, ids),
+        await pool.fetch(_MEDIANS_SQL, touched),
         await pool.fetch(_DONE_SQL, h, ids),
         await pool.fetch(_FLAGS_SQL, h, ids),
     )
@@ -235,16 +237,11 @@ async def student_page(key: str, request: Request) -> dict[str, Any]:
 
 
 @router.patch("/{key}")
-async def edit_student(
-    key: str, request: Request, body: Annotated[Any, Body()] = None
-) -> dict[str, Any]:
+async def edit_student(key: str, request: Request) -> dict[str, Any]:
     pool = auth._pool(request)
     with db_guard():
-        s = await _student(pool, key)  # an unknown key is a 404 before the body is judged
-    try:
-        edit = StudentEdit.model_validate(body)
-    except ValidationError as exc:
-        raise RequestValidationError(exc.errors()) from None
+        s = await _student(pool, key)  # an unknown key is a 404 before the body is read
+    edit = await read_body(request, StudentEdit)
     fields: dict[str, Any] = {}
     if "note" in edit.model_fields_set:
         fields["note"] = clean_note(edit.note)
