@@ -91,7 +91,9 @@ jobs:
         run: |
           # Strict (#243): no exit-5 pass and no --allow-empty. If a marker rename
           # left no docker exam to run, the job fails instead of going green.
-          uv run pytest tests/acceptance -q --confcutdir=tests -o addopts="" -m docker --junitxml=docker-acceptance.xml
+          # Stop pytest (SIGINT) before the 30-minute job limit, so it still prints
+          # the failures so far and writes the report; the step then fails (124).
+          timeout -s INT -k 60 26m uv run pytest tests/acceptance -q --confcutdir=tests -o addopts="" -m docker --junitxml=docker-acceptance.xml
           python3 ../../scripts/ci/junit_gate.py docker-acceptance.xml
 
   image-term:
