@@ -395,7 +395,18 @@ def _triggers(wf: dict) -> dict:
 def test_workflow_runs_every_15_minutes():
     # D71 (#155) supersedes D12's 3 h: the repository is public, Actions minutes are free.
     crons = [s["cron"] for s in _triggers(_workflow())["schedule"]]
-    assert "*/15 * * * *" in crons
+    assert "7,22,37,52 * * * *" in crons
+
+
+def test_schedule_avoids_the_busy_quarter_hours():
+    # D73 (#155): same 15-minute cadence, but never at minute 0, 15, 30 or 45.
+    crons = [s["cron"] for s in _triggers(_workflow())["schedule"]]
+    assert crons
+    for cron in crons:
+        assert re.fullmatch(r"\d+(,\d+)*", cron.split()[0]), cron
+        minutes = {int(m) for m in cron.split()[0].split(",")}
+        assert len(minutes) == 4
+        assert not minutes & {0, 15, 30, 45}
 
 
 def test_workflow_runs_on_push_to_main():

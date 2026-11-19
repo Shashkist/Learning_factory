@@ -356,7 +356,7 @@ def test_workflow_keeps_the_d71_triggers():
     on = wf().get("on", wf().get(True))
     assert set(on) == {"schedule", "push", "workflow_dispatch"}
     assert on["push"]["branches"] == ["main"]
-    assert on["schedule"] == [{"cron": "*/15 * * * *"}]
+    assert on["schedule"] == [{"cron": "7,22,37,52 * * * *"}]
 
 
 def test_workflow_publish_is_guarded_to_main():
