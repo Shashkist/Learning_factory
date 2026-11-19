@@ -392,9 +392,10 @@ def _triggers(wf: dict) -> dict:
     return wf.get("on", wf.get(True))
 
 
-def test_workflow_runs_every_3_hours():
+def test_workflow_runs_every_15_minutes():
+    # D71 (#155) supersedes D12's 3 h: the repository is public, Actions minutes are free.
     crons = [s["cron"] for s in _triggers(_workflow())["schedule"]]
-    assert "0 */3 * * *" in crons
+    assert "*/15 * * * *" in crons
 
 
 def test_workflow_runs_on_push_to_main():
