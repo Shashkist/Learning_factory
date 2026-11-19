@@ -6,15 +6,18 @@ The code handles all three already; these cases keep it so.
      setup runs again, 200 with the current task), whatever `from` says, even a stale one.
   2. A Previous retry whose target is the first task: the session is on 01-quiz, the body is
      {"from": "02-files"} -> 200 with 01-quiz, nothing runs, nothing moves (a no-op, not 409).
+  2b. The -1 "unknown task" marker at that boundary: on 01-quiz, Previous or Next with a `from`
+     that is no task of the lab is 409 `task_changed` (D75), never the retry no-op.
   3. Two Previous requests with the same `from` at once: the move is applied once. The per-session
      lock is never waited for, so the loser answers either the no-op 200 (the move had been
      applied) or 409 `setup_running` (the lock was held); never 409 `task_changed`, never a
-     second move back.
+     second move back (D75, amended for #255). The setup is slowed so the two requests overlap.
 
 Same fixtures as the #9, #222 and #251 exams (engine lab: 01-quiz, 02-files, 03-net, 04-last).
 Database tests need LF_TEST_DATABASE_URL and skip locally without it (CI fails on any skip).
 """
 # ruff: noqa: F811
+import asyncio
 import concurrent.futures
 
 import pytest
@@ -81,13 +84,35 @@ def test_that_retry_repeated_still_never_moves_or_runs_anything(env):
     assert current(client, sid).json()["id"] == "01-quiz"
 
 
+@pytest.mark.parametrize("action", ["previous", "next"])
+def test_an_unknown_from_on_the_first_task_is_409_task_changed_not_a_retry(env, action):
+    client, _, sid = env.owner()
+    show(client, sid, "01-quiz")
+    env.runtime.execs.clear()
+    shown = env.shown_at(sid, "01-quiz")
+    resp = move(client, sid, action, "no-such-task")
+    assert resp.status_code == 409, resp.text
+    assert resp.json() == {"detail": "task_changed"}
+    assert env.runtime.execs == []
+    assert current(client, sid).json()["id"] == "01-quiz"
+    assert env.shown_at(sid, "01-quiz") == shown
+    assert env.shown_at(sid, "02-files") is None
+
+
 # ------------------------------------------------------------------ 3. concurrent double Previous
 
 
-def test_two_concurrent_previous_with_the_same_from_move_back_once(env):
+def test_two_concurrent_previous_with_the_same_from_move_back_once(env, monkeypatch):
     client, _, sid = env.owner()
     show(client, sid, "03-net")
     env.runtime.execs.clear()
+    fast = env.runtime.exec_script
+
+    async def slow_exec_script(*args, **kwargs):
+        await asyncio.sleep(0.3)  # hold the move open so the second request overlaps it
+        return await fast(*args, **kwargs)
+
+    monkeypatch.setattr(env.runtime, "exec_script", slow_exec_script)
     with concurrent.futures.ThreadPoolExecutor(2) as pool:
         results = list(pool.map(lambda _: move(client, sid, "previous", "03-net"), range(2)))
     for resp in results:
