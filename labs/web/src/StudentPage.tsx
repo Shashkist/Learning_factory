@@ -1,6 +1,7 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { useI18n } from "./i18n";
+import { localStamp } from "./localStamp";
 
 type Flag = { id: string; scope: "task" | "lab"; task_id: string | null; reason: string; dismissed_at: string | null };
 type Task = { id: string; passed: boolean; attempts: number; seconds: number | null; median_seconds: number | null };
@@ -53,6 +54,8 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
   const [saveFailed, setSaveFailed] = useState(false);
   const [note, setNote] = useState("");
   const [until, setUntil] = useState("");
+  const [pending, setPending] = useState<string[]>([]); // ids of the writes in flight
+  const focusFlag = useRef<string | null>(null);
   const url = `/api/admin/students/${encodeURIComponent(studentKey)}`;
 
   useEffect(() => {
@@ -78,8 +81,11 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
   }, [url]);
 
   /** Send a change; the page shows what the server answers, the typed values stay on failure. */
-  const write = async (method: string, path: string, body?: object): Promise<Student | null> => {
+  const write = async (id: string, method: string, path: string, body?: object): Promise<Student | null> => {
+    if (pending.includes(id)) return null;
+    setPending((p) => [...p, id]);
     const next = await call(path, method, body);
+    setPending((p) => p.filter((x) => x !== id));
     setSaveFailed(next === null);
     if (next) setStudent({ ...next }); // a fresh object: always re-render with the answer
     return next;
@@ -87,14 +93,17 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
 
   const saveNote = async (e: FormEvent) => {
     e.preventDefault();
-    const next = await write("PATCH", url, { note });
-    if (next) setNote(next.note ?? "");
+    const sent = note;
+    const next = await write("note", "PATCH", url, { note: sent });
+    // a late answer must not overwrite text typed since Save was clicked
+    if (next) setNote((cur) => (cur === sent ? (next.note ?? "") : cur));
   };
 
   const extend = async (e: FormEvent) => {
     e.preventDefault();
-    const next = await write("PATCH", url, { access_until: until || null });
-    if (next) setUntil(next.access_until ?? "");
+    const sent = until;
+    const next = await write("access", "PATCH", url, { access_until: sent || null });
+    if (next) setUntil((cur) => (cur === sent ? (next.access_until ?? "") : cur));
   };
 
   const back = (
@@ -109,7 +118,13 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
     </a>
   );
 
-  if (load === "loading") return null;
+  if (load === "loading")
+    return (
+      <section>
+        {back}
+        <p>{t("admin.student.loading")}</p>
+      </section>
+    );
   if (load === "not_found")
     return (
       <section>
@@ -136,7 +151,7 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
       </p>
       {saveFailed && <p role="alert">{t("admin.error.save")}</p>}
       {student.disabled && <p>{t("admin.student.disabled_notice")}</p>}
-      <button onClick={() => void write("PATCH", url, { disabled: !student.disabled })}>
+      <button disabled={pending.includes("disabled")} onClick={() => void write("disabled", "PATCH", url, { disabled: !student.disabled })}>
         {t(student.disabled ? "admin.student.enable" : "admin.student.disable")}
       </button>
       <form onSubmit={saveNote}>
@@ -144,14 +159,14 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
           {t("admin.student.note")}
           <textarea value={note} maxLength={1000} onChange={(e) => setNote(e.target.value)} />
         </label>
-        <button type="submit">{t("admin.student.save_note")}</button>
+        <button type="submit" disabled={pending.includes("note")}>{t("admin.student.save_note")}</button>
       </form>
       <form onSubmit={extend}>
         <label>
           {t("admin.student.access")}
           <input type="date" value={until} onChange={(e) => setUntil(e.target.value)} />
         </label>
-        <button type="submit">{t("admin.student.extend")}</button>
+        <button type="submit" disabled={pending.includes("access")}>{t("admin.student.extend")}</button>
       </form>
       {student.labs.map((lab) => (
         <article key={lab.id} data-testid={`student-lab-${lab.id}`}>
@@ -181,18 +196,37 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
           ) : (
             <ul>
               {lab.flags.map((f) => (
-                <li key={f.id} data-testid={`student-flag-${f.id}`}>
+                <li
+                  key={f.id}
+                  data-testid={`student-flag-${f.id}`}
+                  tabIndex={-1}
+                  ref={(el) => {
+                    if (el && focusFlag.current === f.id) {
+                      focusFlag.current = null;
+                      el.focus();
+                    }
+                  }}
+                >
                   <span role="img" aria-label={t("admin.class.flag")}>
                     ⚡
                   </span>{" "}
                   <bdi>{f.reason}</bdi>{" "}
                   {f.dismissed_at ? (
-                    <span>{t("admin.student.dismissed")}</span>
+                    <>
+                      <span>{t("admin.student.dismissed")}</span>{" "}
+                      <bdi dir="ltr">{localStamp(f.dismissed_at)}</bdi>
+                    </>
                   ) : (
                     <button
-                      onClick={() =>
-                        void write("POST", `${url}/flags/${encodeURIComponent(f.id)}/dismiss`)
-                      }
+                      disabled={pending.includes(`flag-${f.id}`)}
+                      onClick={() => {
+                        focusFlag.current = f.id;
+                        void write(`flag-${f.id}`, "POST", `${url}/flags/${encodeURIComponent(f.id)}/dismiss`).then(
+                          (r) => {
+                            if (!r) focusFlag.current = null;
+                          },
+                        );
+                      }}
                     >
                       {t("admin.student.dismiss")}
                     </button>

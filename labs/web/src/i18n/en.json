@@ -108,6 +108,7 @@
   "admin.class.empty": "No students to show.",
   "admin.class.error": "Could not load the class table.",
   "admin.student.back": "Back to the class table",
+  "admin.student.loading": "Loading the student…",
   "admin.student.note": "Teacher note",
   "admin.student.save_note": "Save note",
   "admin.student.disable": "Disable student",

@@ -82,7 +82,7 @@ export default function Admin() {
         ) : path === "/admin/live" ? (
           <LiveSessions open={(key) => go(`/admin/students/${encodeURIComponent(key)}`)} />
         ) : (
-          <Cohorts />
+          <Cohorts open={(key) => go(`/admin/students/${encodeURIComponent(key)}`)} />
         )}
       </main>
     );
