@@ -6,13 +6,14 @@ import en from "./i18n/en.json";
 
 type Call = { url: string; method: string };
 
-function backend(hang: string[] = []) {
+function backend(hang: string[] = [], held: Record<string, Promise<Response>> = {}) {
   const calls: Call[] = [];
   vi.spyOn(globalThis, "fetch").mockImplementation((async (url: RequestInfo | URL, init?: RequestInit) => {
     const u = String(url);
     const method = (init?.method ?? "GET").toUpperCase();
     calls.push({ url: u, method });
     if (hang.includes(`${method} ${u}`)) return new Promise<Response>(() => {});
+    if (`${method} ${u}` in held) return held[`${method} ${u}`];
     const body =
       u === "/api/admin/cohorts" && method === "GET"
         ? [
@@ -109,5 +110,19 @@ describe("a row's Save is disabled while another request runs (#186)", () => {
     expect(rowSave(7).disabled).toBe(true);
     fireEvent.click(rowSave(8));
     expect(calls.filter((c) => c.method === "PATCH")).toHaveLength(1);
+  });
+
+  test.each([
+    ["succeeds", { ok: true, status: 200, json: async () => ({ id: 7, name: "Fake group", access_until: "2027-03-01" }) }],
+    ["fails", { ok: false, status: 500, json: async () => ({ detail: "boom" }) }],
+  ])("every Save is enabled again once a row's save %s", async (_, answer) => {
+    let finish: (r: Response) => void = () => {};
+    backend([], { "PATCH /api/admin/cohorts/7": new Promise<Response>((resolve) => (finish = resolve)) });
+    await mount();
+    fireEvent.click(rowSave(7));
+    await waitFor(() => expect(rowSave(8).disabled).toBe(true));
+    finish(answer as unknown as Response);
+    await waitFor(() => expect(rowSave(7).disabled).toBe(false));
+    expect(rowSave(8).disabled).toBe(false);
   });
 });
