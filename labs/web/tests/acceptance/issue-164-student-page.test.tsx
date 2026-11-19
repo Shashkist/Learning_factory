@@ -45,7 +45,8 @@
  *                           (admin.student.time) and the median (admin.student.median) as numbers
  *                           (a null `seconds` shows "–", an en dash).
  *   flags                   data-testid="student-flag-<flag id>" inside its lab, showing the reason
- *                           as sent. A live flag (dismissed_at null) has a button
+ *                           as sent for a flag without structured fields (the flags below have none;
+ *                           with them the text is built per language, see the #216 exam). A live flag (dismissed_at null) has a button
  *                           admin.student.dismiss -> POST .../flags/<flag id>/dismiss; a dismissed
  *                           one shows admin.student.dismissed and has no such button. A lab without
  *                           flags shows admin.student.no_flags.
@@ -69,6 +70,7 @@ const LANGS = ["en", "he"] as const;
 
 type Reply = { status: number; body?: unknown } | "network";
 type Calls = { url: string; method: string; body?: string }[];
+// reason_code, seconds and threshold are the structured fields of #216; none of the flags here has them
 type Flag = { id: string; scope: string; task_id: string | null; reason: string; dismissed_at: string | null };
 type Student = {
   key: string; name: string; cohort: string; note: string | null; disabled: boolean;
@@ -311,7 +313,7 @@ describe.each(LANGS)("the student page in %s", (lang) => {
     expect(screen.getByTestId("student-task-linux-1-03-three").textContent).toContain("–");
   });
 
-  test("a live flag shows its reason and a dismiss button; a lab without flags says so", async () => {
+  test("a live flag without structured fields shows its reason as sent and a dismiss button; a lab without flags says so", async () => {
     backend();
     at(lang);
     await pageEl();

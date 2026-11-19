@@ -133,6 +133,9 @@ def assemble(
                         "scope": f["scope"],
                         "task_id": f["task_id"],
                         "reason": f["fast_reason"] or "",
+                        "reason_code": f["fast_code"],
+                        "seconds": f["fast_seconds"],
+                        "threshold": f["fast_threshold"],
                         "dismissed_at": f["flag_dismissed_at"].isoformat()
                         if f["flag_dismissed_at"]
                         else None,
@@ -193,10 +196,12 @@ from firsts where secs is not null group by lab_id, task_id
 _DONE_SQL = f"select lab_id from {T}.lab_completions where student = $1 and lab_id = any($2)"
 
 _FLAGS_SQL = (
-    "select 'task' as scope, lab_id, session_id, task_id, fast_reason, flag_dismissed_at "
+    "select 'task' as scope, lab_id, session_id, task_id, fast_reason, "
+    "fast_code, fast_seconds, fast_threshold, flag_dismissed_at "
     f"from {T}.task_results where student = $1 and lab_id = any($2) and fast_flag "
     "union all "
-    "select 'lab', lab_id, session_id, null, fast_reason, flag_dismissed_at "
+    "select 'lab', lab_id, session_id, null, fast_reason, "
+    "fast_code, fast_seconds, fast_threshold, flag_dismissed_at "
     f"from {T}.lab_runs where student = $1 and lab_id = any($2) and fast_flag"
 )
 

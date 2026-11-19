@@ -1,6 +1,7 @@
 """Fast-work flags and active time (D37, spec section 8): pure functions, no database."""
 from collections.abc import Iterable
 from statistics import median
+from typing import Any
 
 DEFAULT_MIN_TASK_SECONDS = 20
 MEDIAN_MIN_PRIORS = 5
@@ -39,19 +40,48 @@ def fast_lab_reason(
     """Under `fast_lab_min` minutes, or under 30 % of the median of at least 5 earlier students.
 
     Returns the teacher-facing sentence, or None when the lab is not fast."""
-    if repeat:
+    detail = fast_lab_detail(active_seconds, fast_lab_min, prior_active_seconds, repeat)
+    if detail is None:
         return None
     spent = f"lab finished in {int(active_seconds)} s of active time"
-    if fast_lab_min is not None and active_seconds < fast_lab_min * 60:
+    if detail["code"] == "fast_lab_min":
         return f"{spent}, under the {fast_lab_min} min minimum"
+    return (
+        f"{spent}, under {round(MEDIAN_FRACTION * 100)} % of the class median "
+        f"({detail['threshold']:.0f} s)"
+    )
+
+
+def fast_task_detail(
+    task_id: str,
+    kind: str,
+    seconds: float,
+    min_task_seconds: float = DEFAULT_MIN_TASK_SECONDS,
+    repeat: bool = False,
+) -> dict[str, Any] | None:
+    """The structured twin of `fast_task_reason`: code, whole seconds and the limit."""
+    if fast_task_reason(task_id, kind, seconds, min_task_seconds, repeat) is None:
+        return None
+    return {"code": "fast_task", "seconds": int(seconds), "threshold": min_task_seconds}
+
+
+def fast_lab_detail(
+    active_seconds: float,
+    fast_lab_min: float | None = None,
+    prior_active_seconds: Iterable[float] = (),
+    repeat: bool = False,
+) -> dict[str, Any] | None:
+    """The rule itself (the minimum wins when both hold); `fast_lab_reason` words it."""
+    if repeat:
+        return None
+    seconds = int(active_seconds)
+    if fast_lab_min is not None and active_seconds < fast_lab_min * 60:
+        return {"code": "fast_lab_min", "seconds": seconds, "threshold": fast_lab_min * 60}
     priors = list(prior_active_seconds)
     if len(priors) >= MEDIAN_MIN_PRIORS:
         typical = median(priors)
         if active_seconds < MEDIAN_FRACTION * typical:
-            return (
-                f"{spent}, under {round(MEDIAN_FRACTION * 100)} % of the class median "
-                f"({typical:.0f} s)"
-            )
+            return {"code": "fast_lab_median", "seconds": seconds, "threshold": typical}
     return None
 
 

@@ -139,3 +139,17 @@ test("a malformed escape in the student path is not a student page", async () =>
   expect(calls.some((c) => c.url.startsWith("/api/admin/students/"))).toBe(false);
   expect(screen.queryByTestId("student-page")).toBeNull();
 });
+
+test("in Hebrew a flag's task id is isolated left-to-right inside the translated sentence", async () => {
+  window.localStorage.setItem("lf-lang", "he");
+  const flag = {
+    id: "f1", scope: "task", task_id: "02-two", reason: "stored sentence", dismissed_at: null,
+    reason_code: "fast_task", seconds: 9, threshold: 20,
+  };
+  serve(() => ({ status: 200, body: student({ labs: [{ ...student().labs[0], flags: [flag] }] }) }));
+  page();
+  const row = await screen.findByTestId("student-flag-f1");
+  const ids = [...row.querySelectorAll('bdi[dir="ltr"]')].map((b) => b.textContent);
+  expect(ids).toContain("02-two");
+  expect(row.textContent).not.toContain("stored sentence");
+});
