@@ -211,11 +211,9 @@ async def start(
             # would be turned into 503 by db_guard, so it is answered here
             async with asyncio.timeout_at(_loop_time(deadline)):
                 return await run()
-        except HTTPException:
-            raise
         except Exception as exc:
             if not rows and not isinstance(exc, TimeoutError):
-                raise
+                raise  # before the insert there is nothing to clean up (HTTPException included)
             log.error("starting session of lab %s failed (%s)", lab.id, type(exc).__name__)
             ended_meanwhile = False
             if rows:  # the deadline (if it fired) is over: cleanup has two 5 s bounds (D24)
@@ -245,6 +243,8 @@ async def start(
                     log.error("removing the container failed (%s)", type(err).__name__)
             if ended_meanwhile:
                 raise HTTPException(409, "session_ended") from None
+            if isinstance(exc, HTTPException):  # e.g. db_busy: cleaned up, answered as it was
+                raise exc
             raise HTTPException(502, "start_failed") from None
 
 
