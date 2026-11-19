@@ -144,9 +144,28 @@ def test_navigation_is_refused_when_the_current_task_changed_before_the_lock(mon
         ran.append(task)
         return {"ok": True}
 
-    class Pool:
+    class Conn:
+        def transaction(self):
+            return self
+
+        async def start(self):
+            pass
+
+        async def commit(self):
+            pass
+
+        async def execute(self, sql):
+            pass
+
         async def fetchval(self, sql, sid):
             return "03-net"  # another request already moved the session on
+
+    class Pool:
+        async def acquire(self, timeout=None):
+            return Conn()
+
+        async def release(self, conn, timeout=None):
+            pass
 
     monkeypatch.setattr(tasks, "_do_show", fake_show)
     ctx = SimpleNamespace(sid=uuid.uuid4(), pool=Pool())
@@ -267,9 +286,28 @@ def test_a_fail_hint_is_cut_and_a_missing_item_fails(monkeypatch):
 def test_an_error_counts_no_attempt(monkeypatch):
     go, _, counted, ctx = _check(monkeypatch, "", exit_ok=False, reason="error")
 
-    class Pool:
+    class Conn:
+        def transaction(self):
+            return self
+
+        async def start(self):
+            pass
+
+        async def commit(self):
+            pass
+
+        async def execute(self, sql):
+            pass
+
         async def fetchval(self, sql, *args):
             return 3
+
+    class Pool:
+        async def acquire(self, timeout=None):
+            return Conn()
+
+        async def release(self, conn, timeout=None):
+            pass
 
     ctx.pool = Pool()
     body = go()

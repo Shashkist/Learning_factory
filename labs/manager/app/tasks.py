@@ -111,14 +111,8 @@ class _Ctx:
     def task(self, task_id: str | None) -> Task | None:
         return next((t for t in self.lab.tasks if t.id == task_id), None)
 
-    async def result(self, task: Task) -> Any:
-        with db_guard():
-            return await self.pool.fetchrow(
-                f"select shown_at, passed_at from {T}.task_results "
-                "where session_id = $1 and task_id = $2",
-                self.sid,
-                task.id,
-            )
+    def result(self, task: Task, code: str = "setup_timeout") -> Awaitable[Any]:
+        return _result(self, task, code)
 
 
 async def _start(request: Request) -> None:
@@ -168,9 +162,9 @@ async def _show(ctx: _Ctx, task: Task, moving_from: str | None = None) -> dict[s
     request changed it before this one got the lock, answer 409 and run nothing."""
     async with _session_lock(ctx.sid, "setup_running"):
         if moving_from is not None:
-            now = await _within(
+            now = await _bounded(
                 ctx,
-                lambda: ctx.pool.fetchval(
+                lambda conn: conn.fetchval(
                     f"select current_task from {T}.lab_sessions where id = $1", ctx.sid
                 ),
             )
@@ -189,7 +183,7 @@ async def _step(ctx: _Ctx, bound: float) -> AsyncIterator[Any]:
     deadline = time.monotonic() + bound
     try:
         async with asyncio.timeout(bound):
-            conn = await ctx.pool.acquire(timeout=bound)
+            conn = await ctx.pool.acquire(timeout=min(bound, db.POOL_ACQUIRE_TIMEOUT))
             tx = conn.transaction()
             await tx.start()
             ms = max(1, int(min(DB_SERVER_BOUND_S, bound) * 1000))
@@ -204,7 +198,8 @@ async def _step(ctx: _Ctx, bound: float) -> AsyncIterator[Any]:
     finally:
         if conn is not None:
             try:
-                await ctx.pool.release(conn, timeout=max(0.1, deadline - time.monotonic()))
+                left = max(0.1, deadline - time.monotonic())
+                await ctx.pool.release(conn, timeout=min(bound, left))
             except Exception as exc:  # the pool drops a connection it cannot reset
                 log.error("releasing a connection failed (%s)", type(exc).__name__)
 
@@ -231,27 +226,47 @@ async def _record_shown(ctx: _Ctx, task: Task, bound: float = DB_STEP_BOUND_S) -
 def _left(ctx: _Ctx) -> float:
     """Seconds of the request budget still unspent."""
     now = time.monotonic()
-    return REQUEST_BUDGET_S - (now - (getattr(ctx, "started", None) or now))  # bare: from now
+    state = getattr(getattr(ctx, "request", None), "state", None)
+    started = getattr(state, "started", None) or getattr(ctx, "started", None)
+    return REQUEST_BUDGET_S - (now - (started or now))  # bare: from now
 
 
-def _step_bound(ctx: _Ctx) -> float:
-    """The bound of one database step; no time left is the same JSON 504 as a slow setup."""
+def _step_bound(ctx: _Ctx, code: str = "setup_timeout") -> float:
+    """The bound of one database step; no time left is a JSON 504 (`code`: show or check)."""
     left = _left(ctx)
     if left <= 0:
-        raise _timeout_error()
+        raise _timeout_error(code=code)
     return min(DB_STEP_BOUND_S, left)
 
 
-async def _within(ctx: _Ctx, call: Callable[[], Awaitable[Any]]) -> Any:
-    """A single database read bounded by the time left in the request."""
-    bound = _step_bound(ctx)
-    with db_guard():
-        async with asyncio.timeout(bound):
-            return await call()
+async def _bounded(
+    ctx: _Ctx, call: Callable[[Any], Awaitable[Any]], code: str = "setup_timeout"
+) -> Any:
+    """A single database read through the bounded step: bounded acquire, terminate on a timed-out
+    read, bounded release."""
+    bound = _step_bound(ctx, code)
+    with db_guard():  # a TimeoutError here is answered 503 by db_guard
+        async with _step(ctx, bound) as conn:
+            return await call(conn)
 
 
-def _timeout_error(message: str = "The server is busy; try again.") -> HTTPException:
-    return HTTPException(504, {"code": "setup_timeout", "message": message})
+async def _result(ctx: _Ctx, task: Task, code: str = "setup_timeout") -> Any:
+    return await _bounded(
+        ctx,
+        lambda conn: conn.fetchrow(
+            f"select shown_at, passed_at from {T}.task_results "
+            "where session_id = $1 and task_id = $2",
+            ctx.sid,
+            task.id,
+        ),
+        code,
+    )
+
+
+def _timeout_error(
+    message: str = "The server is busy; try again.", code: str = "setup_timeout"
+) -> HTTPException:
+    return HTTPException(504, {"code": code, "message": message})
 
 
 async def _do_show(ctx: _Ctx, task: Task) -> dict[str, Any]:
@@ -304,11 +319,13 @@ async def _do_show(ctx: _Ctx, task: Task) -> dict[str, Any]:
 
 @router.get("")
 async def task_list(ctx: Annotated[_Ctx, Depends(_ctx)]) -> dict[str, Any]:
-    with db_guard():
-        rows = await ctx.pool.fetch(
+    rows = await _bounded(
+        ctx,
+        lambda conn: conn.fetch(
             f"select task_id, shown_at, passed_at from {T}.task_results where session_id = $1",
             ctx.sid,
-        )
+        ),
+    )
     by_id = {r["task_id"]: r for r in rows}
     return {
         "lab_id": ctx.lab.id,
@@ -415,7 +432,7 @@ async def _count_attempt(ctx: _Ctx, task: Task, passed: bool) -> int:
     """One atomic increment; `passed_at` only on the first pass, never cleared. The first pass
     also sets the task's fast flag and may complete the lab, in the same transaction."""
     attempts = None
-    bound = _step_bound(ctx)
+    bound = _step_bound(ctx, "check_timeout")
     with db_guard():  # a TimeoutError here is answered 503 by db_guard
         async with _step(ctx, bound) as conn:
             # lock order: task row, then session row (as in _do_show). The session lock
@@ -465,11 +482,12 @@ async def _count_attempt(ctx: _Ctx, task: Task, passed: bool) -> int:
                 if first_pass:
                     await _complete(conn, ctx)
     if attempts is None:
-        status = await _within(
+        status = await _bounded(
             ctx,
-            lambda: ctx.pool.fetchval(
+            lambda conn: conn.fetchval(
                 f"select status from {T}.lab_sessions where id = $1", ctx.sid
             ),
+            "check_timeout",
         )
         if status != "running":
             raise HTTPException(410, "session_ended")
@@ -483,7 +501,7 @@ async def _gradable(ctx: _Ctx, task_id: str, kind: str) -> Task:
         raise HTTPException(404, "unknown_task")
     if task.kind != kind:
         raise HTTPException(409, "wrong_task_kind")
-    row = await _within(ctx, lambda: ctx.result(task))
+    row = await _result(ctx, task, "check_timeout")
     if row is None or row["shown_at"] is None:
         raise HTTPException(409, "task_not_shown")
     return task
@@ -534,13 +552,14 @@ async def check_task(task_id: str, ctx: Annotated[_Ctx, Depends(_ctx)]) -> dict[
         ]
         passed = res.passed and all(i["passed"] for i in items)
         if reason == "error":  # the server's failure, not the student's: no attempt
-            attempts = await _within(
+            attempts = await _bounded(
                 ctx,
-                lambda: ctx.pool.fetchval(
+                lambda conn: conn.fetchval(
                     f"select attempts from {T}.task_results where session_id = $1 and task_id = $2",
                     ctx.sid,
                     task.id,
                 ),
+                "check_timeout",
             )
             attempts = int(attempts or 0)
         else:

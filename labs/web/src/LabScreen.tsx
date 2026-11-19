@@ -41,6 +41,7 @@ const GONE = new Set(["no_session", "session_ended"]);
 const ACTION_ERRORS: Record<string, string> = {
   setup_failed: "lab.error.setup_failed",
   setup_timeout: "lab.error.setup_timeout",
+  check_timeout: "lab.error.check_timeout",
 };
 const RETRY_MS = 2000;
 const RETRY_MAX = 30;
