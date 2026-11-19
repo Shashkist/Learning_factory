@@ -50,6 +50,9 @@ def flag(scope, lab_id, task_id=None, session=SID, dismissed=None, reason="why")
         "session_id": session,
         "task_id": task_id,
         "fast_reason": reason,
+        "fast_code": None,
+        "fast_seconds": None,
+        "fast_threshold": None,
         "flag_dismissed_at": dismissed,
     }
 
@@ -164,7 +167,8 @@ def test_assemble_flags_task_order_then_lab_and_dismissed_timestamp():
     got = body["labs"][0]["flags"]
     assert [f["id"] for f in got] == [f"task-{SID}-a", f"task-{other}-c", f"lab-{SID}"]
     assert got[0] == {
-        "id": f"task-{SID}-a", "scope": "task", "task_id": "a", "reason": "", "dismissed_at": None,
+        "id": f"task-{SID}-a", "scope": "task", "task_id": "a", "reason": "",
+        "reason_code": None, "seconds": None, "threshold": None, "dismissed_at": None,
     }
     assert got[1]["dismissed_at"] == "2026-11-18T10:00:00+00:00"
     assert got[2]["scope"] == "lab" and got[2]["task_id"] is None

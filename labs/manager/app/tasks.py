@@ -21,7 +21,7 @@ from pydantic import BaseModel, StrictInt
 from app import db
 from app.auth import Principal, current_student, db_guard
 from app.content import LANGS, Lab, Task, parse_check_output
-from app.flags import fast_lab_reason, fast_task_reason
+from app.flags import fast_lab_detail, fast_lab_reason, fast_task_detail, fast_task_reason
 from app.runtime import KILL_BOUND_S, container_name
 from app.term_proxy import authorize
 
@@ -413,10 +413,12 @@ async def _complete(conn: Any, ctx: _Ctx) -> None:
         )
         priors = [r["active_seconds"] for r in rows]
     reason = fast_lab_reason(active, ctx.lab.fast_lab_min, priors, repeat=not first)
+    detail = fast_lab_detail(active, ctx.lab.fast_lab_min, priors, repeat=not first) or {}
     fast = reason is not None
     await conn.execute(
         f"insert into {T}.lab_runs (student, lab_id, session_id, first_completion, "
-        "active_seconds, fast_flag, fast_reason) values ($1, $2, $3, $4, $5, $6, $7) "
+        "active_seconds, fast_flag, fast_reason, fast_code, fast_seconds, fast_threshold) "
+        "values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) "
         "on conflict (session_id) do nothing",
         ctx.student,
         ctx.lab.id,
@@ -425,6 +427,9 @@ async def _complete(conn: Any, ctx: _Ctx) -> None:
         math.ceil(active),  # whole seconds, never below the session's own total
         fast,
         reason,
+        detail.get("code"),
+        detail.get("seconds"),
+        detail.get("threshold"),
     )
 
 
@@ -454,7 +459,7 @@ async def _count_attempt(ctx: _Ctx, task: Task, passed: bool) -> int:
             attempts = None
             if old is not None:
                 first_pass = passed and old["passed_at"] is None
-                fast, reason = False, None
+                fast, reason, detail = False, None, {}
                 if first_pass:
                     repeat = await conn.fetchval(
                         f"select exists (select 1 from {T}.lab_completions "
@@ -467,17 +472,29 @@ async def _count_attempt(ctx: _Ctx, task: Task, passed: bool) -> int:
                         task.id, task.kind, secs, task.min_task_seconds, repeat
                     )
                     fast = reason is not None
+                    detail = (
+                        fast_task_detail(
+                            task.id, task.kind, secs, task.min_task_seconds, repeat
+                        )
+                        or {}
+                    )
                 attempts = await conn.fetchval(
                     f"update {T}.task_results set attempts = attempts + 1, "
                     "passed_at = case when $3 then now() else passed_at end, "
                     "fast_flag = case when $3 then $4 else fast_flag end, "
-                    "fast_reason = case when $3 then $5 else fast_reason end "
+                    "fast_reason = case when $3 then $5 else fast_reason end, "
+                    "fast_code = case when $3 then $6 else fast_code end, "
+                    "fast_seconds = case when $3 then $7 else fast_seconds end, "
+                    "fast_threshold = case when $3 then $8 else fast_threshold end "
                     "where session_id = $1 and task_id = $2 returning attempts",
                     ctx.sid,
                     task.id,
                     first_pass,
                     fast,
                     reason,
+                    detail.get("code"),
+                    detail.get("seconds"),
+                    detail.get("threshold"),
                 )
                 if first_pass:
                     await _complete(conn, ctx)
