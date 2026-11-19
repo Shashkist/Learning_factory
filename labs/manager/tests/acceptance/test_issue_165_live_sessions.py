@@ -71,7 +71,7 @@ REPO_ROOT = next(
 )
 OWNER_SQL = REPO_ROOT / "labs" / "deploy" / "db" / "001-create-schema-and-role.sql"
 
-LABS = {"live-a": 1, "live-b": 2}
+LABS = {"live-a": 5, "live-b": 6}
 
 
 def write_content(root: Path) -> Path:
