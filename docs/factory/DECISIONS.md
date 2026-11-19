@@ -707,3 +707,11 @@ in force · factory · 2026-11-19
 **Check.** If there is still no scheduled run within ~2 hours of the merge, the next step is an external `workflow_dispatch` (the laptop poller while it runs, or a server crontab with an owner-installed dispatch-only token: an OWNER.md item), or accepting push-only freshness.
 **Alternatives.** External dispatch now (needs an owner token); push-only freshness (stale while the factory is idle).
 **Revert.** Set the cron back to `*/15 * * * *` in `factory-dashboard.yml` and in the #18/#19 exam cases.
+
+## D74 · #236: one exam case corrected after the build; the acquire limit is per wait
+in force · factory · 2026-11-19
+
+**Exam correction (recorded, not hidden).** The implementer of #236 found one exam case that could not pass without breaking #217: `GET /api/admin/students/abc` in the admin-reads list expected 503 `db_busy`, but `student_page._student` refuses a malformed key with 404 before any read. The manager changed the case to a well-formed UUID key and **rewrote the unpushed branch** so the corrected exam commit comes before the code commits (exam-integrity refuses an exam change after code). So the exam was corrected *after* the code was written, and the history shows it first. The assertion is not weaker: the same `abc` URL stays in the guard-route list, where the auth read comes first. Reviewer of #244 confirmed the change is legitimate. Next time: send such a case back to the exam writer before the implementer starts, or record it like this one.
+**Acquire limit is per wait.** `db.bounded` limits each wait for a pool connection to `POOL_ACQUIRE_TIMEOUT` (10 s), not the whole request. Routes with many reads in a row (student page, class table) could in theory pass nginx's 60 s while the pool stays exhausted; the task routes cannot (`REQUEST_BUDGET_S`). Accepted for now: an exhausted pool is already the exception (checks bounded, `command_timeout` 50 s), and each of those reads is short. A per-request deadline is #245.
+**Test-only fallback.** `BoundedPool` uses a pool without `acquire` directly (old fakes in unit tests and the #177 exam). No production pool takes that path; removing it is #245.
+**Revert.** Drop `db.bounded` from the routes (each goes back to waiting on the pool); the exam case change stays (it matches #217).
