@@ -4,6 +4,8 @@
 
 ## Now
 
+_Live: laptop pass **lf-m7c2** (started ~16:55 UTC). #243 closed (#246, #247 merged; main CI d549cf2 green, Deploy success). In flight: **#249** PR #252 (review round 2), **#251** PR #253 (CI + review), **#245** implementer in `C:\projects\lf-245` (exam 2010562)._
+
 _Last updated: 2026-11-19 ~16:52 UTC, laptop pass **lf-r5t9** stopped at 3 merged PRs (#244, #248, #250) after ~55 minutes. Claim on #243 released with a parked note; its PRs #246 and #247 are green and approved._
 
 - **Resume here, in this order:**
