@@ -715,3 +715,26 @@ in force · factory · 2026-11-19
 **Acquire limit is per wait.** `db.bounded` limits each wait for a pool connection to `POOL_ACQUIRE_TIMEOUT` (10 s), not the whole request. Routes with many reads in a row (student page, class table) could in theory pass nginx's 60 s while the pool stays exhausted; the task routes cannot (`REQUEST_BUDGET_S`). Accepted for now: an exhausted pool is already the exception (checks bounded, `command_timeout` 50 s), and each of those reads is short. A per-request deadline is #245.
 **Test-only fallback.** `BoundedPool` uses a pool without `acquire` directly (old fakes in unit tests and the #177 exam). No production pool takes that path; removing it is #245.
 **Revert.** Drop `db.bounded` from the routes (each goes back to waiting on the pool); the exam case change stays (it matches #217).
+
+## D75 · #222: Next/Skip carry `from`, the task the student moves from
+in force · factory · 2026-11-19
+
+**Decision.** `POST /api/sessions/{sid}/tasks/current/next|skip` takes an optional body `{"from": "<task id>"}`. Current == `from`: move as before. Current == the task right after `from` (the move already happened): no-op, 200 with the current task, no setup run. Anything else: 409 `task_changed` (the lab screen already re-reads the current task on it, #160). No body: the old relative move (older exams and clients). The check and the move run under the session lock.
+**Why `from` and not the target.** The lab screen knows the task on screen, not the next one; a target would need another read before every move. An idempotency key would need a table of seen keys; `from` needs no storage.
+**Alternatives.** Target task id; an idempotency-key header with a stored result.
+**Revert.** Ignore the body in `navigate` (relative moves again); the web field is harmless.
+
+## D76 · #230 split: the progress hook is bounded now, the guard hook waits for the owner (D35)
+in force · factory · 2026-11-19
+
+**Decision.** `scripts/_hook_io.py` gives hooks a bounded stdin read (10 s) and a 30 s whole-process watchdog. The progress hook uses both and exits 0 on a timeout (it must never block its caller). The guard hook is owner infrastructure (D35: a factory run cannot edit it, and the guard itself refused the edit), so its half is OWNER.md O21. Recommended there: **fail closed** (exit 2) on a stdin timeout, because a live parent always sends the payload at once, so a timeout means a dead or broken parent and denying costs nothing; keep fail-open on malformed JSON.
+**Found on the way.** `factory_progress.py` is also loaded by file path (the #51 dashboard exam), so hook-only imports are lazy, and `dashboard-ci.yml` now runs on changes to the progress script. CI does not run `scripts/test_*.py` at all: #249.
+**Revert.** Drop the `_hook_io` calls from `cmd_hook` and the `__main__` block.
+
+## D77 · #155: GitHub's scheduler does not deliver; push freshness now, an external dispatch is the owner's choice (follows D73)
+in force · factory · 2026-11-19
+
+**Evidence.** After #242 (14:48 UTC, cron `7,22,37,52 * * * *`) no scheduled Factory dashboard run happened by 16:47 UTC (8 slots missed); the last one was 02:27 UTC. Push runs work: every push to main publishes.
+**Decision.** Accept push-only freshness as the supported state: while the factory works it pushes to main many times an hour (state, merges), and each push publishes. The cron stays as a best-effort extra. A time-keeping dispatch needs owner infrastructure either way (the laptop runner is D35-protected; a server crontab needs a dispatch-only token), so it is the optional owner item O22, and #155 waits there.
+**Alternatives.** A dispatch loop inside the factory pass (stops when the pass stops: the idle time is exactly when it lags); a self-hosted runner (more moving parts on the shared server).
+**Revert.** Nothing to revert; with O22 done, close #155 once a dispatched run shows up every ~15 minutes.

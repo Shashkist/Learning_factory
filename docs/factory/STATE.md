@@ -4,14 +4,20 @@
 
 ## Now
 
-_Last updated: 2026-11-19 ~16:12 UTC, laptop pass **lf-r5t9** running: #236 shipped (#244, Deploy 44562434496, smoke ok); in flight #243 (PRs #246 CI gate, #247 exam), #222 (implementer, worktree `C:\projects\lf-222`), #230 (PR #248, progress hook half; guard half = O21)._
+_Last updated: 2026-11-19 ~16:52 UTC, laptop pass **lf-r5t9** stopped at 3 merged PRs (#244, #248, #250) after ~55 minutes. Claim on #243 released with a parked note; its PRs #246 and #247 are green and approved._
+
+- **Resume here, in this order:**
+  1. **#243: merge #246, then #247, then close #243 by hand** (neither PR body says "Closes"). **#246** (CI-only: strict docker gate, `junit_gate.py` has no `--allow-empty`, docker exams under `timeout -s INT -k 60 26m`): round 2's only blocker was a ruff error in `scripts/ci/test_junit_gate.py`, fixed in 211c2be, **CI all green at 211c2be**; the reviewer approved everything else. **#247** (exam-only: job timeout 20..69 min pinned, every exam timeout <= job limit minus 10 min, builds 900 s, bootstrap 1200 s): **approved round 2, CI green at 009af5d.** Both are based on 40b4c28; main moved since by #248 (`scripts/`, `dashboard-ci.yml`), #250 (`tasks.py`, `LabScreen.tsx`, exams) and docs, all disjoint, so merge without a rerun, one at a time. Evidence for the close: the next main CI docker job (309 docker exams, no skips, under 26 min) and the new exam in the manager job. Worktrees `C:\projects\lf-243`, `C:\projects\lf-243e` (merge without `--delete-branch`, then `git push origin --delete`).
+  2. **#245** (request deadline on multi-read routes, drop the test-only pool fallback), **#251** (Previous sends `from` too, drop `populate_by_name`; same `tasks.py`/`LabScreen.tsx`, D75), **#249** (CI runs the `scripts/` tests; CI-only).
+  3. Parked for the owner: **#230** guard half = **O21** (progress half shipped in #248); **#155** = optional **O22** (D77: GitHub's scheduler dropped 8 of 8 off-minute slots; push-only freshness is the supported state).
+- **Lesson (pass lf-r5t9):** the factory guard (D35) blocks any Bash command that *names* a protected path together with a write verb, even inside a heredoc that only writes a PR body, a DECISIONS entry or this file. Write such prose with the file tool and pass `--body-file`. A subagent hit the same wall editing the guard for #230: issues that touch the guard are owner work, so split them at pick time.
+- **Lesson (pass lf-r5t9):** `factory_progress.py` is also loaded by file path (`spec_from_file_location`, the #51 dashboard exam), so `scripts/` is not on `sys.path` there. A new top-level sibling import broke 42 exam cases, and the PR's CI stayed green only because `dashboard-ci.yml` did not watch `scripts/`. Hook-only imports are lazy now, and the path filter covers the script.
+- **Lesson (pass lf-r5t9):** run `uvx ruff check scripts/ci` before pushing a change there. Exam-integrity runs it first, and a lint error hides the tests (#246 round 2).
+- **Lesson (pass lf-r5t9):** a Python heredoc in Bash that builds a regex with escaped backslashes wrote control characters into the file. Write such files with the file tool.
+- **Production:** `717c89e` (Deploy 44569347145: deploy + smoke success; the live bundle sends `{from: <task id>}` with Next/Skip).
 
 _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
-- **Resume here, in this order:**
-  1. **#236 PR #244** (bounded pool acquire on every request path, 503 `db_busy`, en/he wording): exam a2abbc6 first, then web, manager and two round-1 fix commits. **Review round 2 approved, CI all green at 9a24cd2.** Base is 3dedfd7; main has moved since by #241 (`ci.yml`), #242 (dashboard workflow + its exam) and docs only, all disjoint from #244's files, so squash-merge without a rerun. Then Deploy + smoke (expect start/terminal/check ok; no `db_busy` in normal use), close #236. Follow-ups in **#245** (request deadline on multi-read routes, drop the test-only pool fallback, start-path 409 noise). Exam correction after the build is recorded in D74. Worktree `C:\projects\lf-236`.
-  2. **#155 (PR #242 merged 14:48 UTC, issue kept open on purpose):** cron is now `7,22,37,52 * * * *` (D73). No scheduled run yet at 15:07 or 15:22 UTC. Check `gh run list --workflow factory-dashboard.yml --event schedule`: if a run shows up near :07/:22/:37/:52, close #155 with its run id. If none by ~17:00 UTC, take D73's next step (external `workflow_dispatch`: laptop poller, or a server crontab with an owner-installed dispatch-only token = OWNER.md item) or accept push-only freshness, and record it.
-  3. **#243** (new, p2): exam pins the docker job timeout (closes the last #228 criterion, exam-only PR, D19), per-test docker timeouts under the 30-minute job limit, strict docker gate (no exit-5 / `--allow-empty`; CI-only PR).
 - **Lesson (this pass):** when an implementer finds an exam case that is wrong, the exam can only change *before* the code commits (exam integrity). On an unpushed branch the manager can rebuild it (amend the exam commit, cherry-pick the code), but say so in the PR body and DECISIONS (D74); the reviewer read the reflog and caught a body that said "before any code commit". Cheaper: send the case back to the exam writer before the implementer starts.
 - **Lesson (this pass):** a new limit that raises `HTTPException` inside a block with `except HTTPException: raise` skips that block's cleanup. Grep for `except HTTPException` around any new raise site (#244 round 1 blocker: a `db_busy` after the start insert left a container and a 'starting' row).
 - **Lesson (this pass):** the docker job ran the 309 docker exams twice (`pytest -m docker` collects `tests/` incl. acceptance, then the gate step). Running unit only in the first step cut the job from ~17 to ~9-10 minutes (#241).
@@ -35,7 +41,6 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 - **Laptop (O20, pass lf-n4d6; lf-k7p2 saw Bash responsive, narrow local tests fine):** ~950 python processes, CPU ~85 %; trivial Bash commands sometimes hang for 2 min and a full local vitest run did not finish in 10 min. Local checks: ruff/mypy/tsc/lint + narrow pytest only; CI runs the full suites.
 - **Laptop (O20 still open):** Bash responds this pass, but ~885 hung `qa-statusline.py` processes, CPU ~50 %. GitHub API/DNS from the laptop drops often (TLS handshake timeouts): wrap every `gh`/`git push` in a retry loop.
 - **Lesson (pass lf-x2v7):** the subagents here have only Bash as a shell; when Bash hangs, they cannot read issues, run tests or commit. Check `echo hi` in Bash at orient before dispatching; if it hangs, stop the pass and raise it.
-- **Production:** `de5e584` (Deploy 44549921062: manager unchanged since 162be97, new `lf-lab-term` image from #239; smoke ok: terminal through the production path, container gone after).
 - **Lesson (D62):** a docker exam matcher must not match a bare digit string: the random session id is in ttyd's argv.
 - **Lesson:** a PR branch cannot be rebased in place (no force-push; exam-integrity refuses merge commits). Merge the lanes in dependency order; when a rebase is needed, push the rebased commits to `<branch>-2` and open a new PR.
 - **Laptop load:** the web suite fails random tests on timeouts under load; `npx vitest run --maxWorkers=2` is reliable. CI is the judge.
@@ -47,15 +52,17 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
 ## Next (in order)
 
-1. See Now: merge **#244** (#236), then evidence for **#155**, then **#243**.
-2. **#222** idempotent Next/Skip (same `tasks.py` and `LabScreen.tsx` as #244: start after #244 merges), **#245** request deadline + pool fallback, **#230** hook processes never exit, **#186** busy row Save + open-tasks live region (exam edit first); **#192** session start nits, **#193** smoke stop path (both p2).
+1. See Now: merge **#246** then **#247**, close **#243**.
+2. **#245** request deadline + pool fallback, **#251** Previous idempotent (both `tasks.py`: one after the other), **#249** scripts tests in CI, **#186** busy row Save + open-tasks live region (exam edit first); **#192** session start nits, **#193** smoke stop path (both p2).
 3. **#167** docker end-to-end browser test against the real manager (split from #131, D60). **#151** kill follow-ups, **#154** Solution tab (D57 b), **#137**, **#126**, **#127**, **#142** (reuse the #153 helpers).
 4. **#98** (p2, D46): cancel superseded PR runs and skip full CI for docs-only pushes.
 5. **#85** deploy follow-ups, **#94**, **#93**; p2 list: #81, #76, #67, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
 
-- **O19 (new, read only):** the break-glass admin login steps, needed only if Google sign-in breaks: since #99 a password admin session is refused at once while Google is configured.
+- **O21 (new):** bound the guard hook's stdin read, the guard half of #230 (ready-to-apply plan in OWNER.md; fail closed).
+- **O22 (new, optional):** a time-keeping dispatch of the dashboard workflow (#155, D77), or "skip" for push-only freshness.
+- **O19 (read only):** the break-glass admin login steps, needed only if Google sign-in breaks: since #99 a password admin session is refused at once while Google is configured.
 - **O18 (optional since #110):** re-save `LF_GOOGLE_CLIENT_ID` / `LF_GOOGLE_CLIENT_SECRET` without the byte-order mark, then do the **first real Google sign-in**.
 - **O17:** read Linux 1 (en + he) and publish it (`status: published`). #106 added 75 wrong-answer cases and fixed the chmod check (D48).
 - O16/O7 resolved by D43 (public repository). O12 (back up `.env`), O13 (re-deploy after recreating nginx-proxy3), O5 reopened.
