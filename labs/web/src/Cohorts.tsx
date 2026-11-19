@@ -29,8 +29,10 @@ function CohortRow({
   cohort,
   onSave,
   open,
+  busy,
 }: {
   cohort: Cohort;
+  busy: boolean;
   onSave: (id: number, body: object) => Promise<boolean>;
   open?: (key: string) => void;
 }) {
@@ -76,7 +78,7 @@ function CohortRow({
           {t("admin.cohorts.edit.access")}
           <input type="date" value={until} onChange={(e) => setUntil(e.target.value)} />
         </label>
-        <button type="submit">{t("admin.cohorts.save")}</button>
+        <button type="submit" disabled={busy}>{t("admin.cohorts.save")}</button>
       </form>
       <button type="button" onClick={() => void show()}>
         {t("admin.students.show")}
@@ -198,7 +200,7 @@ export default function Cohorts({ open }: { open?: (key: string) => void } = {})
       {cohorts && cohorts.length > 0 && (
         <ul>
           {cohorts.map((c) => (
-            <CohortRow key={`${c.id}-${c.name}-${c.access_until}-${c.students}`} cohort={c} onSave={saveCohort} open={open} />
+            <CohortRow key={`${c.id}-${c.name}-${c.access_until}-${c.students}`} cohort={c} onSave={saveCohort} open={open} busy={busy} />
           ))}
         </ul>
       )}
