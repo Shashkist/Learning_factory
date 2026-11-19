@@ -24,7 +24,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[4]
 IMAGE_DIR = REPO_ROOT / "labs" / "images" / "term"
 TAG = "lf-lab-term:exam"
-BUILD_TIMEOUT = 1500
+BUILD_TIMEOUT = 900  # single image build; well under the 30 min docker job limit (#243)
 TAIL_LINES = 20
 
 
