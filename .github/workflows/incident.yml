@@ -8,6 +8,7 @@ on:
 # The Deploy and Smoke workflows must be named exactly `Deploy` and `Server smoke`.
 permissions:
   actions: read
+  contents: read
   issues: write
 
 jobs:
@@ -28,19 +29,24 @@ jobs:
       RUN_ID: ${{ github.event.workflow_run.id }}
       RUN_EVENT: ${{ github.event.workflow_run.event }}
     steps:
+      # A broken gate must never hide an incident: checkout and the gate fail open (raise).
       - uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          persist-credentials: false
       - name: Decide whether to raise
         id: gate
         run: |
           previous=none
           if [ "$WF_NAME" = "Factory dashboard" ] && [ "$RUN_EVENT" = "schedule" ]; then
-            previous=$(gh run list --workflow "$WF_NAME" --event schedule --limit 5 --json databaseId,conclusion \
-              | jq -r --arg id "$RUN_ID" '[.[] | select((.databaseId | tostring) != $id)][0].conclusion // "none"') || previous=none
+            previous=$(gh run list --workflow "$WF_NAME" --event schedule --limit 20 --json databaseId,conclusion \
+              | jq -r --arg id "$RUN_ID" '[.[] | select(.databaseId < ($id | tonumber) and (.conclusion | IN("", "cancelled", "skipped") | not))][0].conclusion // "none"') || previous=none
           fi
-          decision=$(python3 scripts/incident_gate.py --workflow "$WF_NAME" --event "$RUN_EVENT" --previous "${previous:-none}")
+          decision=$(python3 scripts/incident_gate.py --workflow "$WF_NAME" --event "$RUN_EVENT" --previous "${previous:-none}") || decision=raise
           echo "decision=$decision" >> "$GITHUB_OUTPUT"
       - name: Comment on or open the incident issue
-        if: steps.gate.outputs.decision == 'raise'
+        # fail open: a gate step that died before writing its decision still raises
+        if: ${{ !cancelled() && (steps.gate.outputs.decision == 'raise' || steps.gate.outputs.decision == '') }}
         run: |
           title="Incident: $WF_NAME failed"
           existing=$(gh issue list --state open --label type:incident --json number,title             | jq -r --arg t "$title" '[.[] | select(.title == $t)][0].number // empty')
