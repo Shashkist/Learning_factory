@@ -11,7 +11,7 @@ import os
 import re
 import time
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import Annotated, Any
 
@@ -168,20 +168,23 @@ async def _show(ctx: _Ctx, task: Task, moving_from: str | None = None) -> dict[s
     request changed it before this one got the lock, answer 409 and run nothing."""
     async with _session_lock(ctx.sid, "setup_running"):
         if moving_from is not None:
-            with db_guard():
-                now = await ctx.pool.fetchval(
+            now = await _within(
+                ctx,
+                lambda: ctx.pool.fetchval(
                     f"select current_task from {T}.lab_sessions where id = $1", ctx.sid
-                )
+                ),
+            )
             if now != moving_from:
                 raise HTTPException(409, "task_changed")
         return await _do_show(ctx, task)
 
 
-async def _record_shown(ctx: _Ctx, task: Task, bound: float = DB_STEP_BOUND_S) -> Any:
-    """The database step after the setup, hard-bounded by `bound` (at most DB_STEP_BOUND_S): on
-    any failure the connection is terminated (the server rolls back) instead of awaiting a
-    ROLLBACK. The release is bounded by the same deadline and its failure never turns a
-    committed change into an error."""
+@asynccontextmanager
+async def _step(ctx: _Ctx, bound: float) -> AsyncIterator[Any]:
+    """One database transaction hard-bounded by `bound` (at most DB_STEP_BOUND_S): acquire, the
+    body, COMMIT. On any failure the connection is terminated (the server rolls back) instead of
+    awaiting a ROLLBACK. The release has its own deadline from the same step and its failure
+    never turns a committed change into an error."""
     conn = None
     deadline = time.monotonic() + bound
     try:
@@ -189,24 +192,11 @@ async def _record_shown(ctx: _Ctx, task: Task, bound: float = DB_STEP_BOUND_S) -
             conn = await ctx.pool.acquire(timeout=bound)
             tx = conn.transaction()
             await tx.start()
-            ms = int(DB_SERVER_BOUND_S * 1000)
+            ms = max(1, int(min(DB_SERVER_BOUND_S, bound) * 1000))
             await conn.execute(f"set local lock_timeout = '{ms}ms'")
             await conn.execute(f"set local statement_timeout = '{ms}ms'")
-            row = await conn.fetchrow(
-                f"insert into {T}.task_results (student, lab_id, session_id, task_id, shown_at) "
-                "values ($1, $2, $3, $4, now()) on conflict (session_id, task_id) "
-                "do update set shown_at = coalesce(task_results.shown_at, now()) "
-                "returning shown_at, passed_at",
-                ctx.student,
-                ctx.lab.id,
-                ctx.sid,
-                task.id,
-            )
-            await conn.execute(
-                f"update {T}.lab_sessions set current_task = $2 where id = $1", ctx.sid, task.id
-            )
+            yield conn
             await tx.commit()
-            return row
     except BaseException:
         if conn is not None:
             conn.terminate()
@@ -219,10 +209,45 @@ async def _record_shown(ctx: _Ctx, task: Task, bound: float = DB_STEP_BOUND_S) -
                 log.error("releasing a connection failed (%s)", type(exc).__name__)
 
 
+async def _record_shown(ctx: _Ctx, task: Task, bound: float = DB_STEP_BOUND_S) -> Any:
+    """The database step after the setup: shown_at (first time only) and the current task."""
+    async with _step(ctx, bound) as conn:
+        row = await conn.fetchrow(
+            f"insert into {T}.task_results (student, lab_id, session_id, task_id, shown_at) "
+            "values ($1, $2, $3, $4, now()) on conflict (session_id, task_id) "
+            "do update set shown_at = coalesce(task_results.shown_at, now()) "
+            "returning shown_at, passed_at",
+            ctx.student,
+            ctx.lab.id,
+            ctx.sid,
+            task.id,
+        )
+        await conn.execute(
+            f"update {T}.lab_sessions set current_task = $2 where id = $1", ctx.sid, task.id
+        )
+    return row
+
+
 def _left(ctx: _Ctx) -> float:
     """Seconds of the request budget still unspent."""
     now = time.monotonic()
     return REQUEST_BUDGET_S - (now - (getattr(ctx, "started", None) or now))  # bare: from now
+
+
+def _step_bound(ctx: _Ctx) -> float:
+    """The bound of one database step; no time left is the same JSON 504 as a slow setup."""
+    left = _left(ctx)
+    if left <= 0:
+        raise _timeout_error()
+    return min(DB_STEP_BOUND_S, left)
+
+
+async def _within(ctx: _Ctx, call: Callable[[], Awaitable[Any]]) -> Any:
+    """A single database read bounded by the time left in the request."""
+    bound = _step_bound(ctx)
+    with db_guard():
+        async with asyncio.timeout(bound):
+            return await call()
 
 
 def _timeout_error(message: str = "The server is busy; try again.") -> HTTPException:
@@ -389,9 +414,10 @@ async def _complete(conn: Any, ctx: _Ctx) -> None:
 async def _count_attempt(ctx: _Ctx, task: Task, passed: bool) -> int:
     """One atomic increment; `passed_at` only on the first pass, never cleared. The first pass
     also sets the task's fast flag and may complete the lab, in the same transaction."""
+    attempts = None
+    bound = _step_bound(ctx)
     with db_guard():  # a TimeoutError here is answered 503 by db_guard
-        bound = min(DB_STEP_BOUND_S, _left(ctx))
-        async with asyncio.timeout(bound), ctx.pool.acquire() as conn, conn.transaction():
+        async with _step(ctx, bound) as conn:
             # lock order: task row, then session row (as in _do_show). The session lock
             # serialises completions per session (two tasks passing at once each see the
             # other's commit) and keeps End-lab from slipping in between.
@@ -439,10 +465,12 @@ async def _count_attempt(ctx: _Ctx, task: Task, passed: bool) -> int:
                 if first_pass:
                     await _complete(conn, ctx)
     if attempts is None:
-        with db_guard():
-            status = await ctx.pool.fetchval(
+        status = await _within(
+            ctx,
+            lambda: ctx.pool.fetchval(
                 f"select status from {T}.lab_sessions where id = $1", ctx.sid
-            )
+            ),
+        )
         if status != "running":
             raise HTTPException(410, "session_ended")
         raise HTTPException(409, "task_not_shown")
@@ -455,7 +483,7 @@ async def _gradable(ctx: _Ctx, task_id: str, kind: str) -> Task:
         raise HTTPException(404, "unknown_task")
     if task.kind != kind:
         raise HTTPException(409, "wrong_task_kind")
-    row = await ctx.result(task)
+    row = await _within(ctx, lambda: ctx.result(task))
     if row is None or row["shown_at"] is None:
         raise HTTPException(409, "task_not_shown")
     return task
@@ -506,12 +534,14 @@ async def check_task(task_id: str, ctx: Annotated[_Ctx, Depends(_ctx)]) -> dict[
         ]
         passed = res.passed and all(i["passed"] for i in items)
         if reason == "error":  # the server's failure, not the student's: no attempt
-            with db_guard():
-                attempts = await ctx.pool.fetchval(
+            attempts = await _within(
+                ctx,
+                lambda: ctx.pool.fetchval(
                     f"select attempts from {T}.task_results where session_id = $1 and task_id = $2",
                     ctx.sid,
                     task.id,
-                )
+                ),
+            )
             attempts = int(attempts or 0)
         else:
             attempts = await _count_attempt(ctx, task, passed)

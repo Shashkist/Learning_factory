@@ -242,3 +242,89 @@ def test_sql_end_reason_literals_are_allowed():
     src = Path(sessions.__file__).read_text(encoding="utf-8")
     written = set(re.findall(r"end_reason = '([a-z_]+)'", src))
     assert "orphan" in written and written <= sessions.END_REASONS
+
+
+def _attempt_ctx(spent=0.0):
+    return SimpleNamespace(
+        pool=None,
+        student="s",
+        sid="x",
+        lab=SimpleNamespace(id="l"),
+        started=time.monotonic() - spent,
+    )
+
+
+class _AttemptConn(_Commit):
+    async def fetchrow(self, *a):
+        return None  # no shown row: the step ends at once, no attempt
+
+    async def fetchval(self, *a):
+        return "running"
+
+
+def test_count_attempt_with_a_hanging_acquire_returns_within_the_bound(monkeypatch):
+    monkeypatch.setattr(tasks, "DB_STEP_BOUND_S", 0.2)
+    ctx = _attempt_ctx()
+    ctx.pool = _Pool(hang_acquire=True)
+    t0 = time.monotonic()
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(tasks._count_attempt(ctx, SimpleNamespace(id="t"), True))
+    assert exc.value.status_code == 503 and time.monotonic() - t0 < 1
+    assert ctx.pool.acquire_timeout == 0.2
+
+
+class _CountConn(_AttemptConn):
+    async def fetchrow(self, *a):
+        return {"passed_at": None, "secs": 5}
+
+    async def fetchval(self, *a):
+        return 3
+
+
+def test_count_attempt_survives_a_failing_release_after_commit(monkeypatch):
+    monkeypatch.setattr(tasks, "fast_task_reason", lambda *a: None)
+    ctx = _attempt_ctx()
+    ctx.pool = _Pool(_CountConn())
+    ctx.pool.fail_release = True
+    assert asyncio.run(tasks._count_attempt(ctx, SimpleNamespace(id="t"), False)) == 3
+    assert ctx.pool.release_timeout <= tasks.DB_STEP_BOUND_S
+
+
+def test_count_attempt_terminates_the_connection_when_the_bound_fires(monkeypatch):
+    monkeypatch.setattr(tasks, "DB_STEP_BOUND_S", 0.2)
+    ctx = _attempt_ctx()
+    ctx.pool = _Pool()  # its statements hang
+    t0 = time.monotonic()
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(tasks._count_attempt(ctx, SimpleNamespace(id="t"), True))
+    assert exc.value.status_code == 503 and time.monotonic() - t0 < 1
+    assert ctx.pool.conn.terminated
+
+
+def test_count_attempt_with_no_time_left_is_the_json_504_and_touches_no_pool():
+    ctx = _attempt_ctx(tasks.REQUEST_BUDGET_S + 1)
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(tasks._count_attempt(ctx, SimpleNamespace(id="t"), True))
+    assert exc.value.status_code == 504 and exc.value.detail["code"] == "setup_timeout"
+
+
+def test_gradable_read_is_bounded_by_the_time_left():
+    ctx = _attempt_ctx(tasks.REQUEST_BUDGET_S + 1)
+    task = SimpleNamespace(id="t", kind="quiz")
+    ctx.task = lambda _id: task
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(tasks._gradable(ctx, "t", "quiz"))
+    assert exc.value.status_code == 504 and exc.value.detail["code"] == "setup_timeout"
+
+
+def test_the_pool_is_created_with_the_pool_command_timeout(monkeypatch):
+    from app import db
+
+    seen = {}
+
+    async def fake_create_pool(dsn, **kw):
+        seen.update(kw)
+
+    monkeypatch.setattr(db.asyncpg, "create_pool", fake_create_pool)
+    asyncio.run(db.create_pool("postgresql://x"))
+    assert seen["command_timeout"] == db.POOL_COMMAND_TIMEOUT
