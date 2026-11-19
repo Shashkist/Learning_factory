@@ -723,6 +723,7 @@ in force · factory · 2026-11-19
 **Why `from` and not the target.** The lab screen knows the task on screen, not the next one; a target would need another read before every move. An idempotency key would need a table of seen keys; `from` needs no storage.
 **Alternatives.** Target task id; an idempotency-key header with a stored result.
 **Revert.** Ignore the body in `navigate` (relative moves again); the web field is harmless.
+**Amended (#255, pass lf-v6k1).** Two concurrent moves with the same `from`: one moves, and the other answers either the retry no-op (200 with the current task) or 409 `setup_running` when it meets the per-session lock (the lock is never waited for; the lab screen treats `setup_running` as busy). Never `task_changed`, never a second move. A `from` that is no task of the lab is always 409 `task_changed`, also on the first task.
 **Amended by #251 (PR #254).** Previous takes the same body: current == `from` moves back; current == the task right *before* `from` is the no-op; anything else is 409 `task_changed`; `from` on the first task stays 409 `no_previous_task`. Restart ignores the body. The move body no longer has `populate_by_name`, so `{"from_": ...}` is ignored (relative move). The lab screen sends `from` with every move except Restart.
 
 ## D76 · #230 split: the progress hook is bounded now, the guard hook waits for the owner (D35)
