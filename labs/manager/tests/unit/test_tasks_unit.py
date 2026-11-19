@@ -24,7 +24,7 @@ def test_exec_command(script, cmd):
 
 @pytest.mark.parametrize(
     "raw,want",
-    [(None, 50.0), ("", 50.0), ("abc", 50.0), ("0", 50.0), ("-5", 50.0), ("7", 7.0)],
+    [(None, 40.0), ("", 40.0), ("abc", 40.0), ("0", 40.0), ("-5", 40.0), ("7", 7.0)],
 )
 def test_setup_timeout(monkeypatch, raw, want):
     if raw is None:

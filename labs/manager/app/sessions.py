@@ -24,6 +24,11 @@ T = db.SCHEMA
 LIVE_STATUSES = admission.LIVE_STATUSES
 LIVE = admission.LIVE
 
+# Equals the CHECK constraint on lab_sessions.end_reason (migrations/003_session_lifecycle.sql)
+END_REASONS = frozenset(
+    {"student", "forced", "heartbeat", "time_limit", "access_expired", "orphan"}
+)
+
 router = APIRouter(prefix="/api/sessions")
 
 
@@ -52,6 +57,8 @@ async def remove_container(runtime: Any, session_id: Any) -> None:
 
 async def end_session(pool: Any, runtime: Any, session_id: Any, reason: str) -> bool:
     """End a live session and remove its container; False when it was not live."""
+    if reason not in END_REASONS:
+        raise ValueError(f"unknown end reason: {reason!r}")
     ended = await pool.fetchval(
         f"update {T}.lab_sessions set status = 'ended', ended_at = now(), end_reason = $2 "
         f"where id = $1 and {LIVE} returning id",

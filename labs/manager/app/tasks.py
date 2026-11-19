@@ -26,7 +26,11 @@ from app.term_proxy import authorize
 
 log = logging.getLogger("lab-manager")
 T = db.SCHEMA
-DEFAULT_SETUP_TIMEOUT_S = 50.0  # below nginx's default proxy_read_timeout (60 s)
+# Worst case of one task show must stay below nginx's proxy_read_timeout (60 s):
+# SLOT_WAIT_S + SETUP_TIMEOUT_MAX_S + runtime.KILL_BOUND_S + DB_STEP_BOUND_S
+SETUP_TIMEOUT_MAX_S = 40.0
+DEFAULT_SETUP_TIMEOUT_S = 40.0
+DB_STEP_BOUND_S = 8.0  # the database step after the setup, pool acquire included
 CHECK_TIMEOUT_S = 20.0  # spec section 7
 SLOT_WAIT_S = 5.0  # waiting for an exec slot, on top of the setup timeout
 
@@ -49,7 +53,9 @@ def setup_timeout() -> float:
         value = float(os.environ.get("LF_SETUP_TIMEOUT_S", ""))
     except ValueError:
         return DEFAULT_SETUP_TIMEOUT_S
-    return value if value > 0 else DEFAULT_SETUP_TIMEOUT_S
+    if not value > 0:  # also nan
+        return DEFAULT_SETUP_TIMEOUT_S
+    return min(value, SETUP_TIMEOUT_MAX_S)
 
 
 def _read(lab: Lab, task: Task, name: str) -> str:
@@ -187,20 +193,24 @@ async def _do_show(ctx: _Ctx, task: Task) -> dict[str, Any]:
                 502, {"code": "setup_failed", "message": "The task could not be set up."}
             )
     with db_guard():
-        async with ctx.pool.acquire() as conn, conn.transaction():
-            row = await conn.fetchrow(
-                f"insert into {T}.task_results (student, lab_id, session_id, task_id, shown_at) "
-                "values ($1, $2, $3, $4, now()) on conflict (session_id, task_id) "
-                "do update set shown_at = coalesce(task_results.shown_at, now()) "
-                "returning shown_at, passed_at",
-                ctx.student,
-                ctx.lab.id,
-                ctx.sid,
-                task.id,
-            )
-            await conn.execute(
-                f"update {T}.lab_sessions set current_task = $2 where id = $1", ctx.sid, task.id
-            )
+        async with asyncio.timeout(DB_STEP_BOUND_S):  # TimeoutError: db_guard answers 503
+            async with ctx.pool.acquire() as conn, conn.transaction():
+                ms = int(DB_STEP_BOUND_S * 1000)
+                await conn.execute(f"set local lock_timeout = '{ms}ms'")
+                row = await conn.fetchrow(
+                    f"insert into {T}.task_results "
+                    "(student, lab_id, session_id, task_id, shown_at) "
+                    "values ($1, $2, $3, $4, now()) on conflict (session_id, task_id) "
+                    "do update set shown_at = coalesce(task_results.shown_at, now()) "
+                    "returning shown_at, passed_at",
+                    ctx.student,
+                    ctx.lab.id,
+                    ctx.sid,
+                    task.id,
+                )
+                await conn.execute(
+                    f"update {T}.lab_sessions set current_task = $2 where id = $1", ctx.sid, task.id
+                )
     ctx.current = task.id
     return _detail(ctx.lab, task, row)
 
