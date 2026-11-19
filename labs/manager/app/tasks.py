@@ -113,7 +113,7 @@ class _Ctx:
 
     @property
     def started(self) -> float:
-        """The request start: `_start` copies the middleware's; else the request clock; else bare."""
+        """The request start: `_start` copies the middleware's; else the request clock."""
         state = getattr(self.request, "state", None)
         return getattr(state, "started", None) or db._request_started.get() or self._bare_started
 
