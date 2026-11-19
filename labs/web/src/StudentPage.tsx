@@ -57,11 +57,8 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
   const [pending, setPending] = useState<string[]>([]); // ids of the writes in flight
   const focusFlag = useRef<string | null>(null); // flag item to focus after its dismiss succeeded
   const focusButton = useRef<string | null>(null); // flag whose Dismiss button to focus after a failure
-  const started = useRef(0); // sequence number of the last write sent
-  const applied = useRef(0); // sequence number of the newest answer shown
-  const inflight = useRef(0); // writes sent and not yet answered
-  const stale = useRef(false); // an answer was dropped as out of order: the page may miss its change
-  const wantFocus = useRef<string | null>(null); // dismissed flag whose own answer was dropped
+  const queue = useRef<Promise<unknown>>(Promise.resolve()); // tail of the writes: one request at a time
+  const queued = useRef<string[]>([]); // ids of the writes queued or in flight
   const url = `/api/admin/students/${encodeURIComponent(studentKey)}`;
 
   useEffect(() => {
@@ -86,35 +83,19 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
     };
   }, [url]);
 
-  /** Show a page body unless a newer one is already shown. Returns whether it was shown. */
-  const show = (seq: number, next: Student): boolean => {
-    if (seq < applied.current) return false;
-    applied.current = seq;
+  /** Replace the page with a server answer. */
+  const show = (next: Student) => {
     const open = new Set<string>();
     for (const lab of next.labs) for (const f of lab.flags) if (!f.dismissed_at) open.add(`flag-${f.id}`);
     setFailed((f) => f.filter((x) => !x.startsWith("flag-") || open.has(x)));
     if (focusButton.current && !open.has(`flag-${focusButton.current}`)) focusButton.current = null;
     setStudent({ ...next }); // a fresh object: always re-render with the answer
-    return true;
-  };
-
-  /** Once no write is in flight, re-read the student if an answer was dropped on the way. */
-  const settleStale = async () => {
-    if (!stale.current || inflight.current > 0) return;
-    stale.current = false;
-    const seq = ++started.current;
-    const next = await call(url, "GET");
-    if (!next || !show(seq, next)) return;
-    const f = wantFocus.current;
-    wantFocus.current = null;
-    if (f && next.labs.some((l) => l.flags.some((x) => x.id === f && x.dismissed_at))) focusFlag.current = f;
   };
 
   /**
-   * Send a change. The page shows the answer of the newest write only. An older answer that lands late
-   * is dropped, but it may be the only one carrying its change, so the page re-reads the student once
-   * the writes are done. Returns the body when it was shown, null on failure or when it was dropped.
-   * `onOk` runs when this write's own answer is shown.
+   * Send a change. All writes go through one queue, one request at a time in click order, so each answer
+   * is the newest server state and replaces the page. Returns the body, or null on failure.
+   * `onOk` runs when this write's own answer is shown; a failed write does not stop the queue.
    */
   const write = async (
     id: string,
@@ -124,28 +105,23 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
     onOk?: () => void,
     onFail?: () => void,
   ): Promise<Student | null> => {
-    if (pending.includes(id)) return null;
-    const seq = ++started.current;
-    inflight.current++;
+    if (queued.current.includes(id)) return null;
+    queued.current.push(id);
     setPending((p) => [...p, id]);
-    const next = await call(path, method, body);
-    inflight.current--;
+    const run = queue.current.then(() => call(path, method, body));
+    queue.current = run;
+    const next = await run;
+    queued.current = queued.current.filter((x) => x !== id);
     setPending((p) => p.filter((x) => x !== id));
     if (!next) {
       onFail?.();
       setFailed((f) => (f.includes(id) ? f : [...f, id]));
-      void settleStale();
       return null;
     }
     setFailed((f) => f.filter((x) => x !== id));
-    const shown = show(seq, next);
-    if (shown) onOk?.();
-    else {
-      stale.current = true;
-      if (id.startsWith("flag-")) wantFocus.current = id.slice(5);
-    }
-    void settleStale();
-    return shown ? next : null;
+    show(next);
+    onOk?.();
+    return next;
   };
 
   const saveNote = async (e: FormEvent) => {
