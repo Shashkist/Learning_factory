@@ -34,6 +34,8 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from _hook_io import read_stdin, start_watchdog
+
 SCHEMA = 1
 STATIONS = ("plan", "exam", "build", "check", "ship")
 STATUSES = ("start", "done", "fail", "wait", "skip", "stopped")
@@ -272,7 +274,10 @@ def cmd_add(a: argparse.Namespace) -> None:
 def cmd_hook() -> None:
     if not os.environ.get("LF_PROGRESS_FILE"):
         return  # not a factory run: record nothing
-    ev = hook_event(json.loads(sys.stdin.read() or "{}"))
+    raw = read_stdin()
+    if raw is None:
+        return  # stdin never closed (parent gone): record nothing, never fail the caller
+    ev = hook_event(json.loads(raw or "{}"))
     if ev:
         append(ev)
 
@@ -373,4 +378,6 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    if sys.argv[1:2] == ["hook"]:
+        start_watchdog(0)  # a hook must never outlive its caller; exiting 0 never blocks it
     sys.exit(main())
