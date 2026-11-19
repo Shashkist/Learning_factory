@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { useI18n } from "./i18n";
+import { localStamp } from "./localStamp";
 
 type Cell = { status: string; flag: boolean };
 type Row = { key?: string; name: string; cohort: string; last_activity: string | null; cells: Record<string, Cell> };
@@ -11,14 +12,6 @@ type Cohort = { id: number; name: string };
 function mark(status: string): string {
   if (status === "done") return "✓";
   return status === "none" ? "–" : status;
-}
-
-/** Local date and time as `YYYY-MM-DD HH:MM`: the teacher's day, not the UTC day. */
-function localStamp(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 export default function ClassTable({ open }: { open?: (key: string) => void } = {}) {

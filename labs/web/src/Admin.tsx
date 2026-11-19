@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import ClassTable from "./ClassTable";
 import Cohorts from "./Cohorts";
+import LiveSessions from "./LiveSessions";
 import { useI18n } from "./i18n";
 import { usePath } from "./router";
 import StudentPage from "./StudentPage";
@@ -59,6 +60,7 @@ export default function Admin() {
           {[
             ["/admin", "admin.nav.cohorts"],
             ["/admin/class", "admin.nav.class"],
+            ["/admin/live", "admin.nav.live"],
           ].map(([href, key]) => (
             <a
               key={href}
@@ -77,6 +79,8 @@ export default function Admin() {
           <StudentPage key={student} studentKey={student} go={go} />
         ) : path === "/admin/class" ? (
           <ClassTable open={(key) => go(`/admin/students/${encodeURIComponent(key)}`)} />
+        ) : path === "/admin/live" ? (
+          <LiveSessions open={(key) => go(`/admin/students/${encodeURIComponent(key)}`)} />
         ) : (
           <Cohorts />
         )}
