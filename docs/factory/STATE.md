@@ -4,16 +4,20 @@
 
 ## Now
 
-_Last updated: 2026-11-19 ~12:35 UTC, laptop pass **lf-r6t4** running (claims: #216, #224, #229)._
+_Last updated: 2026-11-19 ~14:15 UTC, laptop pass **lf-r6t4** stopped at 3 merged PRs (no claims held; #228 parked with an approved, green PR)._
 
-- **In flight (lf-r6t4):**
-  1. **#216** (translated flag reasons): implementer running in `C:\projects\lf-216` on `f/216-flag-reasons` (exam 757217c). Its `labs/web/node_modules` is a junction to `C:\projects\lf-204\labs\web
-ode_modules`; remove it before deleting either worktree.
-  2. **#224** (check path bounds, `check_timeout`): implementer running in `C:\projects\lf-224` on `f/224-check-path-bounds` (exam e578628).
-  3. **#229** (scheduled dashboard failure is not a p0): exam writer running in `C:\projects\lf-229` on `f/229-dashboard-incident-noise`.
-- **#155** was closed by the merge of #226 (09:12 UTC), but no *scheduled* Factory dashboard run had appeared by 12:30 UTC (push runs fine). Check `gh run list --workflow factory-dashboard.yml --event schedule`; if still none, reopen #155.
-- **Lesson (this pass):** main CI went red on two pushes in a row (3764e13, 6570baf) with nothing wrong in the code: the Ubuntu archive mirror stopped answering, the `lf-lab-term` build hung, and ten exam modules each waited 1500 s for it (70-84 min, 87-136 errors). Re-running only the failed job was enough (incident #227); the hardening is #228. When every docker error is the same build timeout, look at the runner's `apt` lines before the code.
-- **Lesson (this pass):** the exam writers took ~55 minutes each on the loaded laptop (O20). Budget: a lane started after ~30 minutes into a pass does not reach a PR in the same pass; start the exam writers in the first 10 minutes.
+- **Resume here, in this order:**
+  1. **#228 PR #239** (lab image built once per test session, bounded apt and ttyd download): exam a38c931 first, then two Dockerfile commits. **Review round 2 approved, CI all green (docker included: the shared `lab_image.py` helper worked across the ten docker exams).** Squash-merge it first (main moved only by state commits since), check Deploy + smoke, then **keep #228 open** for its last part: the docker job's `timeout-minutes` (above ~20, well below 70) as its own `ci.yml` PR (D19). Same PR: the docker job runs the docker-marked exams twice (`pytest -m docker`, then the acceptance gate; reviewer nit 7), so set the timeout with that in mind or drop the duplicate run. Round 2 nits, not done: the `lab_image.py` docstring still says "the same ImageBuildFailed"; a non-build error (no docker binary) loses its type name in the message. Worktree `C:\projects\lf-228`.
+  2. **#155 reopened:** no scheduled Factory dashboard run since #226 merged (09:12 → 13:29 UTC). Before #226, the `0 */3` cron fired only every 6-9 hours. Options in the issue comment; cheapest first: move the cron off busy minutes (`7,22,37,52 * * * *`).
+  3. **#236** (new, p2): pool acquire limit on every request path, including `auth.current_principal` and `term_proxy.authorize`, which run before every Check (D72).
+- **Lesson (this pass):** `scripts/ci/**` counts as the CI surface. A PR that adds an exam and a new script under `scripts/ci/` is refused by exam integrity, even when the script has nothing to do with CI's judging (#231 → #233). Put helper scripts for other workflows in `scripts/`.
+- **Lesson (this pass):** put any filter in front of an alarm on a fail-open path: `|| decision=raise`, and treat an empty step output as raise (#229 review).
+- **Lesson (this pass):** text tests cannot see direction. A task id inside a Hebrew sentence rendered as `two-02` while `textContent` was right; isolate ids with `<bdi dir="ltr">` and assert the element (#216 review).
+- **Lesson (this pass):** two approved PRs that touch the same file (#232 and #234, both `tasks.py` and the i18n files) still merge in about 30 minutes: merge one, rebase the other into `<branch>-2`, rerun CI. A trial rebase in a throwaway worktree tells you beforehand whether it will be clean.
+- **Lesson (this pass):** `gh pr merge --delete-branch` fails when the branch is checked out in another worktree, and that leaves the remote branch behind too. Merge without the flag, then `git push origin --delete <branch>`.
+- **Laptop (this pass):** Bash stayed responsive the whole time. Plain `uv run pytest` / `uv run mypy` fail with "Access is denied"; `uv run python -m pytest` / `python -m mypy` work. Exam writers took 2-3 minutes, implementers 2-12 minutes.
+- **Lesson (pass lf-j8w3):** main CI went red on two pushes in a row (3764e13, 6570baf) with nothing wrong in the code: the Ubuntu archive mirror stopped answering, the `lf-lab-term` build hung, and ten exam modules each waited 1500 s for it (70-84 min, 87-136 errors). Re-running only the failed job was enough (incident #227); the hardening is #228. When every docker error is the same build timeout, look at the runner's `apt` lines before the code.
+- **Lesson (pass lf-j8w3):** the exam writers took ~55 minutes each on the loaded laptop (O20). Budget: a lane started after ~30 minutes into a pass does not reach a PR in the same pass; start the exam writers in the first 10 minutes.
 - **Laptop (O20):** ~1,080 processes (148 `cygwin-console-helper`, 240 `conhost`), CPU 97 %. Bash calls hung for minutes, even `ls`; PowerShell stayed usable. In PowerShell 5.1, `gh --jq` with embedded double quotes is mangled: use `--json ... | ConvertFrom-Json`.
 - **Lesson (this pass, #219):** answers to two overlapping writes are snapshots taken by concurrent handlers; ordering them on the client by send time is wrong in one direction or the other. Serialize the writes instead (D68).
 - **Lesson (this pass, #218):** a unit test that builds a bare `SimpleNamespace` request broke on `request.state` again (same as #177). Read request attributes with `getattr(request, "state", None)` in shared helpers.
@@ -26,7 +30,7 @@ ode_modules`; remove it before deleting either worktree.
 - **Laptop (O20, pass lf-n4d6; lf-k7p2 saw Bash responsive, narrow local tests fine):** ~950 python processes, CPU ~85 %; trivial Bash commands sometimes hang for 2 min and a full local vitest run did not finish in 10 min. Local checks: ruff/mypy/tsc/lint + narrow pytest only; CI runs the full suites.
 - **Laptop (O20 still open):** Bash responds this pass, but ~885 hung `qa-statusline.py` processes, CPU ~50 %. GitHub API/DNS from the laptop drops often (TLS handshake timeouts): wrap every `gh`/`git push` in a retry loop.
 - **Lesson (pass lf-x2v7):** the subagents here have only Bash as a shell; when Bash hangs, they cannot read issues, run tests or commit. Check `echo hi` in Bash at orient before dispatching; if it hangs, stop the pass and raise it.
-- **Production:** `lf-manager:6570baf` (Deploy 44487685452, smoke ok start/show/check-fail/check-pass/quiz-show/end).
+- **Production:** `lf-manager:162be97` (Deploy 44540807730, migration 008 applied, smoke ok start/terminal/show/check-fail/fix/check-pass/quiz-show/answer-wrong/answer-right/end).
 - **Lesson (D62):** a docker exam matcher must not match a bare digit string: the random session id is in ttyd's argv.
 - **Lesson:** a PR branch cannot be rebased in place (no force-push; exam-integrity refuses merge commits). Merge the lanes in dependency order; when a rebase is needed, push the rebased commits to `<branch>-2` and open a new PR.
 - **Laptop load:** the web suite fails random tests on timeouts under load; `npx vitest run --maxWorkers=2` is reliable. CI is the judge.
@@ -38,8 +42,8 @@ ode_modules`; remove it before deleting either worktree.
 
 ## Next (in order)
 
-1. See Now: **#226** (#155), **#216**, **#224** (all have their exams). Flags/reasons in `task_results` / `lab_runs` (D55); leave out `lf-smoke` everywhere (`app/smoke.py`, D61). Optional: a refresh/poll on the live sessions page (#165 round 1 nit 6, not filed).
-2. **#222** idempotent Next/Skip (after #224: same `tasks.py` and `LabScreen.tsx`), **#228** docker exam image build once / fail fast, **#229** dashboard incident noise (before or with #226's first day), **#186** busy row Save + open-tasks live region (exam edit first); **#192** session start nits, **#193** smoke stop path (both p2).
+1. See Now: **#239** (#228), then #228's `ci.yml` timeout PR; **#155** schedule fix.
+2. **#222** idempotent Next/Skip (now unblocked: #224 shipped; same `tasks.py` and `LabScreen.tsx`), **#236** pool acquire limit everywhere, **#230** hook processes never exit, **#186** busy row Save + open-tasks live region (exam edit first); **#192** session start nits, **#193** smoke stop path (both p2).
 3. **#167** docker end-to-end browser test against the real manager (split from #131, D60). **#151** kill follow-ups, **#154** Solution tab (D57 b), **#137**, **#126**, **#127**, **#142** (reuse the #153 helpers).
 4. **#98** (p2, D46): cancel superseded PR runs and skip full CI for docs-only pushes; **#155** dashboard cadence.
 5. **#85** deploy follow-ups, **#94**, **#93**; p2 list: #81, #76, #67, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
@@ -52,6 +56,8 @@ ode_modules`; remove it before deleting either worktree.
 - O16/O7 resolved by D43 (public repository). O12 (back up `.env`), O13 (re-deploy after recreating nginx-proxy3), O5 reopened.
 
 ## Recently done
+
+- 2026-11-19 · Pass lf-r6t4: **3 PRs merged, one parked approved.** #229 (#233, re-sequenced from #231 because exam integrity refuses an exam together with `scripts/ci/**`; round 1: the previous-run lookup could pick a newer, still-running run, and a broken gate dropped every incident; fixed to fail open, round 2 approved). #224 (#234, round 1 approved; item 3 decided in D72, follow-up #236; Deploy 44532309355 smoke ok through check and answer, bundle has the check_timeout text). #216 (#237, re-sequenced from #232 after #234; round 1 blocker: the task id rendered reversed inside a Hebrew sentence, fixed with an LTR-isolated slot and a test; round 2 approved). Incidents #235 and #240 (Ubuntu mirror outages two and three of the day, each fixed by re-running the docker job; #240 hit #237's merge, so its Deploy came after the rerun); #228 raised to p1, exam + Dockerfile in PR #239, approved and green. #155 reopened (no scheduled runs).
 
 - 2026-11-19 · Pass lf-j8w3: **0 PRs merged, the line fixed, three lanes started.** Found main CI red on 3764e13 and 6570baf from an Ubuntu mirror outage during the image build (incident #227, re-run green, hardening #228); then Deploy 44487685452 shipped #223 (smoke ok through show and check) and #220 was closed with that evidence (the previous pass lf-v3k8 had merged #219, #221, #223 and was stopped at its time limit before the deploy). #155 → PR #226 (D71, supersedes D12's cadence). Exams for #216 (757217c) and #224 (e578628) pushed; implementers not started (time).
 - 2026-11-19 · Pass lf-v3k8: **3 PRs merged.** #204 (#219, D68 write queue, four review rounds), #217 (#221, content-type check after the body moved into the handler, D69), #220 (#223, two rounds, leftovers #224/#222, D70). Stopped by the 110-minute limit before #223's deploy.
