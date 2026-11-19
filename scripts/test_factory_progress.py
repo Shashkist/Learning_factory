@@ -249,3 +249,8 @@ def test_read_stdin_returns_payload_and_none_on_timeout(monkeypatch):
             return ""
     monkeypatch.setattr(sys, "stdin", Never())
     assert _hook_io.read_stdin(0.2) is None
+
+
+def test_throwaway_red_check_249():
+    # Throwaway: proves CI runs scripts/ tests (#249). Dropped in the next commit.
+    assert False
