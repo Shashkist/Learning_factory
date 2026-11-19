@@ -40,20 +40,16 @@ def fast_lab_reason(
     """Under `fast_lab_min` minutes, or under 30 % of the median of at least 5 earlier students.
 
     Returns the teacher-facing sentence, or None when the lab is not fast."""
-    if repeat:
+    detail = fast_lab_detail(active_seconds, fast_lab_min, prior_active_seconds, repeat)
+    if detail is None:
         return None
     spent = f"lab finished in {int(active_seconds)} s of active time"
-    if fast_lab_min is not None and active_seconds < fast_lab_min * 60:
+    if detail["code"] == "fast_lab_min":
         return f"{spent}, under the {fast_lab_min} min minimum"
-    priors = list(prior_active_seconds)
-    if len(priors) >= MEDIAN_MIN_PRIORS:
-        typical = median(priors)
-        if active_seconds < MEDIAN_FRACTION * typical:
-            return (
-                f"{spent}, under {round(MEDIAN_FRACTION * 100)} % of the class median "
-                f"({typical:.0f} s)"
-            )
-    return None
+    return (
+        f"{spent}, under {round(MEDIAN_FRACTION * 100)} % of the class median "
+        f"({detail['threshold']:.0f} s)"
+    )
 
 
 def fast_task_detail(
@@ -75,15 +71,18 @@ def fast_lab_detail(
     prior_active_seconds: Iterable[float] = (),
     repeat: bool = False,
 ) -> dict[str, Any] | None:
-    """The structured twin of `fast_lab_reason`; the minimum wins when both rules hold."""
-    priors = list(prior_active_seconds)
-    if fast_lab_reason(active_seconds, fast_lab_min, priors, repeat) is None:
+    """The rule itself (the minimum wins when both hold); `fast_lab_reason` words it."""
+    if repeat:
         return None
+    seconds = int(active_seconds)
     if fast_lab_min is not None and active_seconds < fast_lab_min * 60:
-        code, threshold = "fast_lab_min", fast_lab_min * 60
-    else:
-        code, threshold = "fast_lab_median", median(priors)
-    return {"code": code, "seconds": int(active_seconds), "threshold": threshold}
+        return {"code": "fast_lab_min", "seconds": seconds, "threshold": fast_lab_min * 60}
+    priors = list(prior_active_seconds)
+    if len(priors) >= MEDIAN_MIN_PRIORS:
+        typical = median(priors)
+        if active_seconds < MEDIAN_FRACTION * typical:
+            return {"code": "fast_lab_median", "seconds": seconds, "threshold": typical}
+    return None
 
 
 def is_fast_lab(

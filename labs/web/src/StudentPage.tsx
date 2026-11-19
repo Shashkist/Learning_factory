@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useRef, useState, type FormEvent } from "react";
 
 import { useI18n } from "./i18n";
 import { localStamp } from "./localStamp";
@@ -165,10 +165,16 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
     if (!code || !REASON_CODES.includes(code) || f.seconds == null || f.threshold == null) return f.reason;
     if (code === "fast_task" && !f.task_id) return f.reason;
     const threshold = code === "fast_lab_min" ? f.threshold / 60 : f.threshold;
-    return t(`admin.student.reason.${code}`)
-      .split("{task}").join(f.task_id ?? "")
-      .split("{seconds}").join(String(Math.round(f.seconds)))
-      .split("{threshold}").join(String(Math.round(threshold)));
+    const fill = (text: string) =>
+      text.split("{seconds}").join(String(Math.round(f.seconds ?? 0))).split("{threshold}").join(String(Math.round(threshold)));
+    // the task id is isolated left-to-right, or "02-two" shows as "two-02" inside a Hebrew sentence
+    const parts = t(`admin.student.reason.${code}`).split("{task}");
+    return parts.map((text, i) => (
+      <Fragment key={i}>
+        {i > 0 && <bdi dir="ltr">{f.task_id}</bdi>}
+        {fill(text)}
+      </Fragment>
+    ));
   };
   const mark = (id: string) => (failed.includes(id) ? { "aria-invalid": true, "aria-describedby": "student-write-error" } : {});
   const part = (id: string) =>
