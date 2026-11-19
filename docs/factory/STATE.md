@@ -4,9 +4,9 @@
 
 ## Now
 
-_Last updated: 2026-11-19 ~04:45 UTC, laptop pass **lf-p5r9** stopped at its time limit with 2 merged PRs (#215, #218). One lane parked: **#204**, claim held by lf-p5r9 (goes stale after 90 min; continue the branch, do not restart it)._
+_Last updated: 2026-11-19 ~05:05 UTC, laptop pass **lf-v3k8** running (took over #204 from lf-p5r9, which stopped at its time limit)._
 
-- **Next session starts at:** **#204** PR #219 on `f/204-student-page-followups` (worktree `C:\projects\lf-204`, node_modules installed). Three review rounds done; round 3 blocker: overlapping writes can still leave the page out of step with the server. Do **D68**: one client-side queue for the student page writes; drop the seq/stale/re-fetch code from 86c4cd0/5789dde; unit tests for both answer orders and a failed write mid-queue (src/, not the exam). New commits on the branch (no force-push), CI, one review round, merge, deploy, live check (bundle has `admin.student.loading` text), close #204. The PR comment on #219 has the round summary. Then Next 1.
+- **In flight (lf-v3k8):** **#204** PR #219, D68 write queue being built in `C:\projects\lf-204`. **#217** exam being written in `C:\projects\lf-217` (`f/217-student-page-api`).
 - **Lesson (this pass, #219):** answers to two overlapping writes are snapshots taken by concurrent handlers; ordering them on the client by send time is wrong in one direction or the other. Serialize the writes instead (D68).
 - **Lesson (this pass, #218):** a unit test that builds a bare `SimpleNamespace` request broke on `request.state` again (same as #177). Read request attributes with `getattr(request, "state", None)` in shared helpers.
 
