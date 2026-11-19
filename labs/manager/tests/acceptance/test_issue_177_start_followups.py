@@ -150,6 +150,13 @@ class Pool:
         self.new_id = uuid.uuid4()
         self.sql: list[str] = []
 
+    # asyncpg's pool hands out a connection; here the connection is the pool itself.
+    async def acquire(self, timeout=None):
+        return self
+
+    async def release(self, conn, timeout=None):
+        pass
+
     async def fetchrow(self, sql, *args):
         self.sql.append(sql)
         if sql.lstrip().startswith("insert into"):
