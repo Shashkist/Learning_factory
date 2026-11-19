@@ -4,7 +4,10 @@
 
 ## Now
 
-_Last updated: 2026-11-19 ~01:45 UTC, laptop pass **lf-m3x8** running. Lanes: **#209** incident (main CI run 44424592435: `test_access_until_today_is_still_valid` read `TODAY` at import before midnight UTC and logged in after it → 403; exam-only fix in **PR #212**, `f/209-midnight-login-test`). **#165** round 1 fixes pushed to **PR #210** (dbeb829: local HH:MM, End disabled while in flight, 404 drops the row, Hebrew 'תלמיד'; exam 90/90 + unit tests locally), waiting for CI then review round 2._
+_Last updated: 2026-11-19 ~02:50 UTC, laptop pass **lf-m3x8** stopped at 3 merged PRs (#212, #213, #210). Nothing in flight, no claims held, no open feature branches._
+
+- **Next session starts at:** Next 1 (#204 student page follow-ups), with #214 (p2, exam-only, small) as a parallel lane.
+- **Lesson (this pass, #209):** an exam that checks the exact boundary of today must read the clock at test time and again after the request; a module-level `TODAY` read before midnight UTC failed a login at 00:04 UTC. Web exams with UTC fixture dates now run under a pinned `TZ=UTC` (`labs/web/vite.config.ts`, guard `src/tz.test.ts`), since pages show local time.
 
 - **Next session starts at:** #165: send the round 1 findings to an implementer on `f/165-live-sessions-2` (new commits, no force-push), wait for CI, review round 2, merge, deploy, live check (`/api/admin/live` 401 anonymous, bundle has `/admin/live`), close #165. Then Next 1.
 - **Lesson (this pass):** grep an exam's fake `lab.yaml` for `module`/`lesson` against `MODULE_LESSONS` in `app/content.py` before CI: a lesson outside its module's range makes the loader drop the lab silently (#145, again in #207).
@@ -13,7 +16,7 @@ _Last updated: 2026-11-19 ~01:45 UTC, laptop pass **lf-m3x8** running. Lanes: **
 - **Laptop (O20, pass lf-n4d6; lf-k7p2 saw Bash responsive, narrow local tests fine):** ~950 python processes, CPU ~85 %; trivial Bash commands sometimes hang for 2 min and a full local vitest run did not finish in 10 min. Local checks: ruff/mypy/tsc/lint + narrow pytest only; CI runs the full suites.
 - **Laptop (O20 still open):** Bash responds this pass, but ~885 hung `qa-statusline.py` processes, CPU ~50 %. GitHub API/DNS from the laptop drops often (TLS handshake timeouts): wrap every `gh`/`git push` in a retry loop.
 - **Lesson (pass lf-x2v7):** the subagents here have only Bash as a shell; when Bash hangs, they cannot read issues, run tests or commit. Check `echo hi` in Bash at orient before dispatching; if it hangs, stop the pass and raise it.
-- **Production:** `lf-manager:b5d4b06` (Deploy 44433908405, smoke all ok).
+- **Production:** `lf-manager:a66b518` (Deploy 44446481637, smoke ok).
 - **Lesson (D62):** a docker exam matcher must not match a bare digit string: the random session id is in ttyd's argv.
 - **Lesson:** a PR branch cannot be rebased in place (no force-push; exam-integrity refuses merge commits). Merge the lanes in dependency order; when a rebase is needed, push the rebased commits to `<branch>-2` and open a new PR.
 - **Laptop load:** the web suite fails random tests on timeouts under load; `npx vitest run --maxWorkers=2` is reliable. CI is the judge.
@@ -25,8 +28,8 @@ _Last updated: 2026-11-19 ~01:45 UTC, laptop pass **lf-m3x8** running. Lanes: **
 
 ## Next (in order)
 
-1. Teacher UI: **#165** (PR #210, round 1 fixes), then **#204** student page follow-ups (it also carries the #206 round 2 fake-backend nits). Flags/reasons in `task_results` / `lab_runs` (D55); leave out `lf-smoke` everywhere (`app/smoke.py`, D61).
-2. **#211** smoke stop test nits (p2, tests only), **#202** bounded task setup, **#186** busy row Save + open-tasks live region (exam edit first); **#192** session start nits, **#193** smoke stop path (both p2).
+1. Teacher UI: **#204** student page follow-ups (it also carries the #206 round 2 fake-backend nits); **#214** smoke-student exam midnight window (exam-only). Flags/reasons in `task_results` / `lab_runs` (D55); leave out `lf-smoke` everywhere (`app/smoke.py`, D61). Optional: a refresh/poll on the live sessions page (#165 round 1 nit 6, not filed).
+2. **#202** bounded task setup, **#186** busy row Save + open-tasks live region (exam edit first); **#192** session start nits, **#193** smoke stop path (both p2).
 3. **#167** docker end-to-end browser test against the real manager (split from #131, D60). **#151** kill follow-ups, **#154** Solution tab (D57 b), **#137**, **#126**, **#127**, **#142** (reuse the #153 helpers).
 4. **#98** (p2, D46): cancel superseded PR runs and skip full CI for docs-only pushes; **#155** dashboard cadence.
 5. **#85** deploy follow-ups, **#94**, **#93**; p2 list: #81, #76, #67, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
@@ -39,6 +42,8 @@ _Last updated: 2026-11-19 ~01:45 UTC, laptop pass **lf-m3x8** running. Lanes: **
 - O16/O7 resolved by D43 (public repository). O12 (back up `.env`), O13 (re-deploy after recreating nginx-proxy3), O5 reopened.
 
 ## Recently done
+
+- 2026-11-19 · Pass lf-m3x8: **3 PRs merged, three lanes.** Incident #209 (#212): main CI 44424592435 failed `test_access_until_today_is_still_valid`: module-level `TODAY` read at 23:59:33 UTC, login at 00:04:21 UTC → 403; exam-only fix reads the date at test time and re-checks after the login; approved round 1; main CI 44441454225 green; related ~1 s window in the smoke-student exam → #214. #211 smoke stop test nits (#213; approved round 1; Linux CI ran the edited tests, none skipped). #165 live sessions (#210): round 1 fixes (local HH:MM, End disabled in flight, 404 drops the row, 'תלמיד'), round 2 approved; its should-fix (exams failed outside UTC-9..+3) fixed by pinning TZ=UTC for vitest, and only a `no_session` 404 drops a row; Deploy 44446481637; live: `/api/admin/live` + end 401 anonymous (404 before), bundle has the page.
 
 - 2026-11-19 · Pass lf-f7q2: **3 PRs merged.** #205 teacher Playwright flows (#206; split from #165 by D65; round 1 blockers: the fake accepted only 9-digit ids where the real rule takes 1-32, so the bad-line check only failed against the fake, and a flag check ran before the table loaded; round 2 approved; nits → #204). #203 smoke stop follow-ups (#208; the new order test fails under the mutation; approved in round 1, also checked on a loaded Linux container; nits → #211). #165: exam proven red in CI, code written, re-sequenced #207 → #210 (the exam's fake labs had lessons outside module 1's range).
 - 2026-11-18 · Pass lf-f7q2: #164 student page (#197; taken over green and approved from lf-r3m8, should-fix fixed in 24accb5; live: the three `/api/admin/students/<key>` routes 401 anonymous, bundle has the page; Deploy 44423607701). Pass lf-r3m8 shipped #198 (#200) and #199 (#201) before its time limit.
