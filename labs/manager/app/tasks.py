@@ -33,7 +33,7 @@ SETUP_TIMEOUT_MAX_S = 40.0
 DEFAULT_SETUP_TIMEOUT_S = 40.0
 DB_STEP_BOUND_S = 8.0  # the database step after the setup, pool acquire included
 DB_SERVER_BOUND_S = 5.0  # lock_timeout and statement_timeout inside that step: the clean path
-REQUEST_BUDGET_S = 55.0  # one show/navigate request, from the start of its dependencies
+REQUEST_BUDGET_S = db.REQUEST_DEADLINE_S  # alias only: the routes read db.REQUEST_DEADLINE_S
 CHECK_TIMEOUT_S = 20.0  # spec section 7
 SLOT_WAIT_S = 5.0  # waiting for an exec slot, on top of the setup timeout
 
@@ -232,8 +232,8 @@ async def _record_shown(ctx: _Ctx, task: Task, bound: float = DB_STEP_BOUND_S) -
 def _left(ctx: _Ctx) -> float:
     """Seconds of the request budget still unspent."""
     now = time.monotonic()
-    started = getattr(ctx, "started", None)
-    return REQUEST_BUDGET_S - (now - (started or now))  # bare: from now
+    started = getattr(ctx, "started", None) or db._request_started.get() or now
+    return db.REQUEST_DEADLINE_S - (now - started)  # the one request clock, read at request time
 
 
 def _step_bound(ctx: _Ctx, code: str = "setup_timeout") -> float:
