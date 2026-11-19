@@ -4,7 +4,9 @@
 
 ## Now
 
-_Last updated: 2026-11-19 ~17:55 UTC, laptop pass **lf-m7c2** stopped at 4 merged PRs (#246, #247, #252, #254) after ~60 minutes. Closed #243, #249, #251 with evidence. #245 parked after review round 1 (claim released, plan in the PR #256 comment and D79)._
+_In flight: 2026-11-19 ~18:05 UTC, laptop pass **lf-v6k1** holds #245 (`f/245-request-deadline-2`, worktree `C:\projects\lf-245b`: exam amended to LIMIT 2.0 + round-1 code cherry-picked, implementer on round-2 fixes), #255 (`f/255-previous-exam-gaps`, `C:\projects\lf-255`, exam writer) and #186 (`f/186-busy-save-live-region`, `C:\projects\lf-186`, exam writer). Nit 6 of #245 → #257._
+
+_Previous: 2026-11-19 ~17:55 UTC, laptop pass **lf-m7c2** stopped at 4 merged PRs (#246, #247, #252, #254) after ~60 minutes. Closed #243, #249, #251 with evidence. #245 parked after review round 1 (claim released, plan in the PR #256 comment and D79)._
 
 - **Resume here, in this order:**
   1. **#245 round 2** (PR #256, branch `f/245-request-deadline`, worktree `C:\projects\lf-245`; CI all green at 175fd0c, review: changes requested). Plan (D79): rebuild as **`f/245-request-deadline-2`** from origin/main: (a) cherry-pick the exam commit 2010562 and amend it only to set `LIMIT = 2.0` (was 0.4) in `test_issue_245_request_deadline.py`; (b) cherry-pick the code commit 175fd0c; (c) one new code commit: `BoundedPool._run` passes the time left (capped at `POOL_COMMAND_TIMEOUT`) as asyncpg `timeout=` and maps an expiry to 503 `db_busy`; **issue item 3**: the `session_ended` 409 in `sessions.py` (~:203) skips the start cleanup, with a unit test; a one-line comment on why the outer `wait_for` stays (fakes ignore `timeout`). Open a new PR (Closes #245), close #256, round 2 to a reviewer. Nit 6 (two 55 s clocks, `tasks.REQUEST_BUDGET_S` vs `db.REQUEST_DEADLINE_S`) → a follow-up issue.
