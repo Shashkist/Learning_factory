@@ -51,11 +51,14 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
   const { t, lang } = useI18n();
   const [student, setStudent] = useState<Student | null>(null);
   const [load, setLoad] = useState<Load>("loading");
-  const [saveFailed, setSaveFailed] = useState(false);
+  const [failed, setFailed] = useState<string[]>([]); // ids of the writes whose last try failed
   const [note, setNote] = useState("");
   const [until, setUntil] = useState("");
   const [pending, setPending] = useState<string[]>([]); // ids of the writes in flight
-  const focusFlag = useRef<string | null>(null);
+  const focusFlag = useRef<string | null>(null); // flag item to focus after its dismiss succeeded
+  const focusButton = useRef<string | null>(null); // flag whose Dismiss button to focus after a failure
+  const started = useRef(0); // sequence number of the last write sent
+  const applied = useRef(0); // sequence number of the newest answer shown
   const url = `/api/admin/students/${encodeURIComponent(studentKey)}`;
 
   useEffect(() => {
@@ -80,14 +83,34 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
     };
   }, [url]);
 
-  /** Send a change; the page shows what the server answers, the typed values stay on failure. */
-  const write = async (id: string, method: string, path: string, body?: object): Promise<Student | null> => {
+  /**
+   * Send a change. The page shows the answer of the newest write only: an older answer that lands late
+   * is dropped. Returns the body when it was shown, null on failure or when it was superseded.
+   * `onOk` runs on any success, before the page re-renders.
+   */
+  const write = async (
+    id: string,
+    method: string,
+    path: string,
+    body?: object,
+    onOk?: () => void,
+    onFail?: () => void,
+  ): Promise<Student | null> => {
     if (pending.includes(id)) return null;
+    const seq = ++started.current;
     setPending((p) => [...p, id]);
     const next = await call(path, method, body);
     setPending((p) => p.filter((x) => x !== id));
-    setSaveFailed(next === null);
-    if (next) setStudent({ ...next }); // a fresh object: always re-render with the answer
+    if (!next) {
+      onFail?.();
+      setFailed((f) => (f.includes(id) ? f : [...f, id]));
+      return null;
+    }
+    setFailed((f) => f.filter((x) => x !== id));
+    onOk?.();
+    if (seq < applied.current) return null;
+    applied.current = seq;
+    setStudent({ ...next }); // a fresh object: always re-render with the answer
     return next;
   };
 
@@ -122,7 +145,7 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
     return (
       <section>
         {back}
-        <p>{t("admin.student.loading")}</p>
+        <p role="status">{t("admin.student.loading")}</p>
       </section>
     );
   if (load === "not_found")
@@ -149,7 +172,7 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
       <p>
         <bdi>{student.cohort}</bdi> · {t("admin.student.cohort_access")}: <bdi>{student.cohort_access_until}</bdi>
       </p>
-      {saveFailed && <p role="alert">{t("admin.error.save")}</p>}
+      {failed.length > 0 && <p role="alert">{t("admin.error.save")}</p>}
       {student.disabled && <p>{t("admin.student.disabled_notice")}</p>}
       <button disabled={pending.includes("disabled")} onClick={() => void write("disabled", "PATCH", url, { disabled: !student.disabled })}>
         {t(student.disabled ? "admin.student.enable" : "admin.student.disable")}
@@ -218,12 +241,24 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
                     </>
                   ) : (
                     <button
+                      ref={(el) => {
+                        if (el && focusButton.current === f.id) {
+                          focusButton.current = null;
+                          el.focus();
+                        }
+                      }}
                       disabled={pending.includes(`flag-${f.id}`)}
                       onClick={() => {
-                        focusFlag.current = f.id;
-                        void write(`flag-${f.id}`, "POST", `${url}/flags/${encodeURIComponent(f.id)}/dismiss`).then(
-                          (r) => {
-                            if (!r) focusFlag.current = null;
+                        void write(
+                          `flag-${f.id}`,
+                          "POST",
+                          `${url}/flags/${encodeURIComponent(f.id)}/dismiss`,
+                          undefined,
+                          () => {
+                            focusFlag.current = f.id;
+                          },
+                          () => {
+                            focusButton.current = f.id;
                           },
                         );
                       }}

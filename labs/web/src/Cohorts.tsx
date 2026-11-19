@@ -91,15 +91,15 @@ function CohortRow({
                 <a
                   href={`/admin/students/${encodeURIComponent(s.key)}`}
                   onClick={(e) => {
-                    if (!open || !s.key) return;
+                    if (!open || !s.key || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button !== 0) return;
                     e.preventDefault();
                     open(s.key);
                   }}
                 >
-                  {s.name}
+                  <bdi>{s.name}</bdi>
                 </a>
               ) : (
-                s.name
+                <bdi>{s.name}</bdi>
               )}
               {s.note ? ` ${s.note}` : ""}
               {s.disabled ? ` ${t("admin.students.disabled")}` : ""}
