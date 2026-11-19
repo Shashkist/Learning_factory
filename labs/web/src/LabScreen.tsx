@@ -479,13 +479,17 @@ export default function LabScreen({
           role="tabpanel"
           aria-labelledby={`lab-tab-${tab}`}
         >
+          {!done && (
+            <p role="status">
+              {open
+                ? open.length === 1
+                  ? t("lab.open.one")
+                  : `${open.length} ${t("lab.open.many")}`
+                : ""}
+            </p>
+          )}
           {open ? (
             <div>
-              <p role="status">
-                {open.length === 1
-                  ? t("lab.open.one")
-                  : `${open.length} ${t("lab.open.many")}`}
-              </p>
               <ul>
                 {open.map((o) => (
                   <li key={o.id}>
