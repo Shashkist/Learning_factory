@@ -698,3 +698,12 @@ in force · factory · 2026-11-19
 **Why (measured risk).** The pool has 5 connections and a 50 s `command_timeout` (D70). The only known way to hold all five for long is checks stuck behind a lock, and those are now bounded. Other routes are single short reads at class scale; when the pool is exhausted they wait until nginx answers 504 at 60 s, which is a bad message but loses no data. A shared helper over every route is a separate ~300-line change with its own error code and wording.
 **Alternatives.** Fold all routes into #224 (over the PR budget, a second review surface); a pool subclass with a default acquire timeout (one change, but every route's error handling changes at once without tests).
 **Revert.** Drop `POOL_ACQUIRE_TIMEOUT` from the task routes; close #236 as won't-do.
+
+## D73 · Dashboard cron off the busy minutes (amends D71)
+in force · factory · 2026-11-19
+
+**Decision.** The Factory dashboard schedule moves from `*/15 * * * *` to `7,22,37,52 * * * *` (#155, reopened). Same cadence, off the quarter hours. Push and manual dispatch triggers stay.
+**Why.** After #226 (09:12 UTC) no scheduled run happened in 4+ hours, and before it the `0 */3` cron fired only every 6-9 hours. GitHub's documentation says scheduled runs at the start of an hour (and other busy minutes) are the most likely to be delayed or dropped. This is the cheapest option and needs no secret.
+**Check.** If there is still no scheduled run within ~2 hours of the merge, the next step is an external `workflow_dispatch` (the laptop poller while it runs, or a server crontab with an owner-installed dispatch-only token: an OWNER.md item), or accepting push-only freshness.
+**Alternatives.** External dispatch now (needs an owner token); push-only freshness (stale while the factory is idle).
+**Revert.** Set the cron back to `*/15 * * * *` in `factory-dashboard.yml` and in the #18/#19 exam cases.
