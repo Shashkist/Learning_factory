@@ -49,13 +49,12 @@ def id_hash(raw: str) -> str:
 
 
 def tomorrows() -> set[dt.date]:
-    """Tomorrow in UTC or in local time (the runner's time zone may differ from UTC).
+    """Tomorrow in UTC: the CLI stores the UTC date + 1 (access dates are UTC).
 
-    The CLI stores tomorrow in UTC at the moment it runs. A test reads this set
-    both before and after the run and accepts the union, so a run that crosses
-    midnight UTC cannot fail the check (#214).
+    A test reads this set both before and after the run and accepts the union,
+    so a run that crosses midnight UTC cannot fail the check (#214).
     """
-    return {dt.datetime.now(dt.UTC).date() + DAY, dt.date.today() + DAY}
+    return {dt.datetime.now(dt.UTC).date() + DAY}
 
 
 def run_cli(
