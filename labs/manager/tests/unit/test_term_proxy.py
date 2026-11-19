@@ -212,3 +212,22 @@ def test_websocket_like_ttyd_waits_for_the_json_init_then_streams(ctx):
         assert ws.receive_bytes() == b"1title"
         assert ws.receive_bytes() == b"2{}"
         assert ws.receive_bytes() == b"0echo hi\r"
+
+
+def test_websocket_refusal_for_a_coded_detail_sends_the_code(monkeypatch):
+    import asyncio
+
+    from fastapi import HTTPException
+
+    sent = []
+
+    async def refuse(websocket, status, detail):
+        sent.append((status, detail))
+
+    async def busy(conn):
+        raise HTTPException(503, {"code": "db_busy", "message": "busy"})
+
+    monkeypatch.setattr("app.term_proxy._refuse", refuse)
+    monkeypatch.setattr("app.term_proxy.auth.current_principal", busy)
+    asyncio.run(term_proxy.ws_proxy("x", object()))
+    assert sent == [(503, "db_busy")]

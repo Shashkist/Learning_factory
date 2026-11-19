@@ -85,7 +85,9 @@ async def migrate(dsn: str) -> list[str]:
 class BoundedPool:
     """A pool for request paths: waiting for a free connection is limited by
     `POOL_ACQUIRE_TIMEOUT` (read at call time), then the request answers 503 `db_busy` instead
-    of hanging until nginx cuts the client off. Same fetch/execute/acquire surface as asyncpg's."""
+    of hanging until nginx cuts the client off. `acquire()` is only an async context manager
+    (`async with`): no `await pool.acquire()`, no `release`. fetch/fetchrow/fetchval/execute are
+    as asyncpg's."""
 
     def __init__(self, pool: Any) -> None:
         self._pool = pool
