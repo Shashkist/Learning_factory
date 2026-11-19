@@ -169,10 +169,10 @@ jobs:
         with:
           fetch-depth: 0
       - uses: astral-sh/setup-uv@v5
-      - name: Lint the check scripts, test all factory tooling (scripts/)
+      - name: Lint and unit tests for the check scripts
         run: |
           uvx ruff check scripts/ci
-          uvx pytest scripts -q
+          uvx pytest scripts/ci -q
       - name: Exam integrity per commit
         env:
           BASE_REF: ${{ github.base_ref }}
@@ -189,3 +189,15 @@ jobs:
             flag="--bootstrap"
           fi
           python "$script" "$base" "$HEAD_SHA" $flag
+
+  # Factory tooling tests (progress, crew, issue lock, guard). A job of their
+  # own: code from the PR never runs before the exam-integrity check above, and
+  # a failing tooling test cannot hide that check's verdict (#249).
+  tooling:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Unit tests for the factory tooling in scripts/
+        run: uvx pytest scripts -q
