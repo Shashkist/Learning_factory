@@ -723,6 +723,7 @@ in force · factory · 2026-11-19
 **Why `from` and not the target.** The lab screen knows the task on screen, not the next one; a target would need another read before every move. An idempotency key would need a table of seen keys; `from` needs no storage.
 **Alternatives.** Target task id; an idempotency-key header with a stored result.
 **Revert.** Ignore the body in `navigate` (relative moves again); the web field is harmless.
+**Amended by #251 (PR #254).** Previous takes the same body: current == `from` moves back; current == the task right *before* `from` is the no-op; anything else is 409 `task_changed`; `from` on the first task stays 409 `no_previous_task`. Restart ignores the body. The move body no longer has `populate_by_name`, so `{"from_": ...}` is ignored (relative move). The lab screen sends `from` with every move except Restart.
 
 ## D76 · #230 split: the progress hook is bounded now, the guard hook waits for the owner (D35)
 in force · factory · 2026-11-19
@@ -738,3 +739,10 @@ in force · factory · 2026-11-19
 **Decision.** Accept push-only freshness as the supported state: while the factory works it pushes to main many times an hour (state, merges), and each push publishes. The cron stays as a best-effort extra. A time-keeping dispatch needs owner infrastructure either way (the laptop runner is D35-protected; a server crontab needs a dispatch-only token), so it is the optional owner item O22, and #155 waits there.
 **Alternatives.** A dispatch loop inside the factory pass (stops when the pass stops: the idle time is exactly when it lags); a self-hosted runner (more moving parts on the shared server).
 **Revert.** Nothing to revert; with O22 done, close #155 once a dispatched run shows up every ~15 minutes.
+
+## D78 · #251: one exam case corrected after CI; tooling tests in a job of their own (#249)
+in force · factory · 2026-11-19
+
+**Exam correction (recorded, not hidden).** The #251 exam case `test_many_repeats_never_move_back_past_the_target` reaches 04-last (which has a setup) and then asserted the setups seen were only `["03-net"]`, without clearing the exec log first, as every other case in the file does. CI (PR #253) failed it with `['04-last', '03-net'] == ['03-net']`; the server ran 03-net's setup exactly once over four repeats, the behaviour the case pins. The manager rebuilt the branch as `f/251-previous-idempotent-2` (PR #254): the exam commit gains one `env.runtime.execs.clear()` after reaching 04-last, the assertion is unchanged, and the exam commit stays strictly before the code commits. The reviewer of #253 found the cause. Same pattern as D74; the exam writer could not run the DB cases locally. Exam gaps found on the way (Restart with a body, a retry whose target is the first task, a concurrent double Previous) are a follow-up issue.
+**Tooling tests job (#249).** `uvx pytest scripts -q` runs in its own CI job `tooling`, not inside `exam-integrity`: there, code from the PR (`scripts/test_*.py`, a `scripts/conftest.py`, which exam integrity does not count as CI surface) would run before the check in the same job and could change what it runs (`$GITHUB_PATH`, `$GITHUB_ENV`), and a failing tooling test would skip the check and hide its verdict. `exam-integrity` keeps only `scripts/ci` (CI surface) before the check.
+**Revert.** Drop the `tooling` job; the exam case change stays (it matches the file's own pattern).
