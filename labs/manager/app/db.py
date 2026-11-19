@@ -1,7 +1,10 @@
 """Database layer: plain asyncpg, plain SQL migrations. The DSN is never logged."""
+import asyncio
 import os
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +22,22 @@ COMMAND_TIMEOUT = 60
 POOL_COMMAND_TIMEOUT = 50
 # The longest a request-path read waits for a free pool connection (seconds), below nginx's 60 s.
 POOL_ACQUIRE_TIMEOUT = 10.0
+# The longest a whole request may wait for the database (seconds), below nginx's 60 s. Read when
+# the request runs. It caps every wait for a connection, so a route that reads several times
+# cannot add up per-wait limits past it.
+REQUEST_DEADLINE_S = 55.0
+_request_started: ContextVar[float | None] = ContextVar("lf_request_started", default=None)
+
+
+def mark_request_start() -> None:
+    """Start the request clock (once per HTTP request, before any dependency runs)."""
+    _request_started.set(time.monotonic())
+
+
+def _db_busy() -> HTTPException:
+    return HTTPException(
+        503, {"code": "db_busy", "message": "The database is busy. Try again in a moment."}
+    )
 
 
 class MigrationsMissing(RuntimeError):
@@ -90,25 +109,28 @@ class BoundedPool:
     as asyncpg's."""
 
     def __init__(self, pool: Any) -> None:
+        if not hasattr(pool, "acquire"):
+            raise TypeError("BoundedPool needs a pool with acquire()")
         self._pool = pool
 
     @asynccontextmanager
     async def acquire(self) -> AsyncIterator[Any]:
+        wait = POOL_ACQUIRE_TIMEOUT
+        started = _request_started.get()
+        if started is not None:
+            wait = min(wait, started + REQUEST_DEADLINE_S - time.monotonic())
+        if wait <= 0:
+            raise _db_busy()
         try:
-            conn = await self._pool.acquire(timeout=POOL_ACQUIRE_TIMEOUT)
+            conn = await asyncio.wait_for(self._pool.acquire(timeout=wait), wait)
         except TimeoutError:
-            raise HTTPException(
-                503,
-                {"code": "db_busy", "message": "The database is busy. Try again in a moment."},
-            ) from None
+            raise _db_busy() from None
         try:
             yield conn
         finally:
             await self._pool.release(conn)
 
     async def _run(self, method: str, *args: Any) -> Any:
-        if not hasattr(self._pool, "acquire"):  # a stand-in pool with only fetch*/execute
-            return await getattr(self._pool, method)(*args)
         async with self.acquire() as conn:
             return await getattr(conn, method)(*args)
 

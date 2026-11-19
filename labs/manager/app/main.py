@@ -126,6 +126,21 @@ app = FastAPI(
     redoc_url="/redoc" if _DOCS else None,
     openapi_url="/openapi.json" if _DOCS else None,
 )
+
+
+class _RequestClock:
+    """Start the request clock before routing, so the deadline covers the auth reads too."""
+
+    def __init__(self, inner):  # type: ignore[no-untyped-def]
+        self.inner = inner
+
+    async def __call__(self, scope, receive, send):  # type: ignore[no-untyped-def]
+        if scope["type"] == "http":
+            db.mark_request_start()
+        await self.inner(scope, receive, send)
+
+
+app.add_middleware(_RequestClock)
 app.include_router(auth.router)
 app.include_router(google_auth.router)
 app.include_router(catalog.router)
