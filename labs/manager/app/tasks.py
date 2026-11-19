@@ -16,7 +16,7 @@ from contextlib import asynccontextmanager
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, ConfigDict, Field, StrictInt
+from pydantic import BaseModel, Field, StrictInt
 
 from app import db
 from app.auth import Principal, current_student, db_guard
@@ -364,9 +364,8 @@ async def current_task(ctx: Annotated[_Ctx, Depends(_ctx)]) -> dict[str, Any]:
 
 
 class _Move(BaseModel):
-    """Optional body of Next/Skip: the task the student moves from (#222)."""
+    """Optional body of Next/Skip/Previous: the task the student moves from (#222)."""
 
-    model_config = ConfigDict(populate_by_name=True)
     from_: str | None = Field(None, alias="from")
 
 
@@ -378,10 +377,10 @@ async def navigate(
     if action not in offsets:
         raise HTTPException(404, "unknown_action")
     here = ctx.lab.tasks.index(_current(ctx))
-    frm = body.from_ if body is not None and offsets[action] == 1 else None
+    frm = body.from_ if body is not None and offsets[action] != 0 else None
     if frm is not None and frm != ctx.lab.tasks[here].id:
         src = ctx.task(frm)
-        after = ctx.lab.tasks.index(src) + 1 if src is not None else -1
+        after = ctx.lab.tasks.index(src) + offsets[action] if src is not None else -1
         if after != here:
             raise HTTPException(409, "task_changed")
         # the move was already applied (a retry): the lock decides, the answer is the current task
