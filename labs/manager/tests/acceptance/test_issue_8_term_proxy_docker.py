@@ -36,6 +36,7 @@ import uuid
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
+import lab_image
 import pytest
 
 pytestmark = pytest.mark.docker
@@ -43,7 +44,6 @@ pytestmark = pytest.mark.docker
 REPO_ROOT = next(
     p for p in Path(__file__).resolve().parents if (p / "labs").is_dir() or (p / ".git").exists()
 )
-IMAGE_DIR = REPO_ROOT / "labs" / "images" / "term"
 OWNER_SQL = REPO_ROOT / "labs" / "deploy" / "db" / "001-create-schema-and-role.sql"
 SCHEMA = "learning_factory"
 APP_ROLE = "lf_app"
@@ -116,13 +116,7 @@ def network():
 
 @pytest.fixture(scope="module")
 def image() -> str:
-    env = os.environ.get("LF_LAB_TERM_IMAGE")
-    if env:
-        return env
-    assert (IMAGE_DIR / "Dockerfile").is_file(), "labs/images/term/Dockerfile is missing"
-    tag = "lf-lab-term:exam"
-    docker("build", "-t", tag, str(IMAGE_DIR), timeout=1500)
-    return tag
+    return lab_image.ensure_lab_image()
 
 
 def _run_as(dsn: str, fn):

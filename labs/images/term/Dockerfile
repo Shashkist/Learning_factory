@@ -9,7 +9,9 @@ ARG TTYD_SHA256=8a217c968aba172e0dbf3f34447218dc015bc4d5e59bf51db2f2cd12b7be4f55
 
 # ubuntu:24.04 is minimized: man pages are excluded by dpkg and /usr/bin/man is a stub.
 # sudo is installed, but there is deliberately no sudoers entry for student.
-RUN rm -f /etc/dpkg/dpkg.cfg.d/excludes \
+# apt retries and times out instead of hanging when a mirror stops answering (#227, #235).
+RUN printf 'Acquire::Retries "3";\nAcquire::http::Timeout "30";\n' > /etc/apt/apt.conf.d/80-lf-retries \
+ && rm -f /etc/dpkg/dpkg.cfg.d/excludes \
  && if dpkg-divert --list /usr/bin/man | grep -q .; then \
       dpkg-divert --quiet --remove --rename /usr/bin/man; \
     fi \
@@ -20,7 +22,7 @@ RUN rm -f /etc/dpkg/dpkg.cfg.d/excludes \
  && apt-get install -y --no-install-recommends --reinstall \
       coreutils findutils grep sed tar gzip bash util-linux passwd procps \
  && rm -rf /var/lib/apt/lists/* \
- && curl -fsSL -o /usr/local/bin/ttyd \
+ && curl -fsSL --retry 3 --max-time 120 -o /usr/local/bin/ttyd \
       "https://github.com/tsl0922/ttyd/releases/download/${TTYD_VERSION}/ttyd.x86_64" \
  && echo "${TTYD_SHA256}  /usr/local/bin/ttyd" | sha256sum -c - \
  && chmod 0755 /usr/local/bin/ttyd \
