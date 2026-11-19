@@ -183,6 +183,12 @@ class FakePool:
     def __init__(self):
         self.calls: list[str] = []
 
+    async def acquire(self, timeout=None):  # an asyncpg pool: the connection answers the queries
+        return self
+
+    async def release(self, conn, timeout=None):
+        pass
+
     async def fetchrow(self, sql, *args):
         self.calls.append(sql)
         if args and args[0] == KEY:

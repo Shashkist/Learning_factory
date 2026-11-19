@@ -1,7 +1,10 @@
 """Database layer: plain asyncpg, plain SQL migrations. The DSN is never logged."""
+import asyncio
 import os
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +22,22 @@ COMMAND_TIMEOUT = 60
 POOL_COMMAND_TIMEOUT = 50
 # The longest a request-path read waits for a free pool connection (seconds), below nginx's 60 s.
 POOL_ACQUIRE_TIMEOUT = 10.0
+# The longest a whole request may wait for the database (seconds), below nginx's 60 s. Read when
+# the request runs. It caps every wait for a connection and every statement, so a route that
+# reads several times cannot add up per-wait limits past it.
+REQUEST_DEADLINE_S = 55.0
+_request_started: ContextVar[float | None] = ContextVar("lf_request_started", default=None)
+
+
+def mark_request_start() -> None:
+    """Start the request clock (once per HTTP request, before any dependency runs)."""
+    _request_started.set(time.monotonic())
+
+
+def _db_busy() -> HTTPException:
+    return HTTPException(
+        503, {"code": "db_busy", "message": "The database is busy. Try again in a moment."}
+    )
 
 
 class MigrationsMissing(RuntimeError):
@@ -85,32 +104,58 @@ async def migrate(dsn: str) -> list[str]:
 class BoundedPool:
     """A pool for request paths: waiting for a free connection is limited by
     `POOL_ACQUIRE_TIMEOUT` (read at call time), then the request answers 503 `db_busy` instead
-    of hanging until nginx cuts the client off. `acquire()` is only an async context manager
+    of hanging until nginx cuts the client off. The request deadline also cuts each statement
+    (same 503). `acquire()` is only an async context manager
     (`async with`): no `await pool.acquire()`, no `release`. fetch/fetchrow/fetchval/execute are
     as asyncpg's."""
 
     def __init__(self, pool: Any) -> None:
+        if not hasattr(pool, "acquire"):
+            raise TypeError("BoundedPool needs a pool with acquire()")
         self._pool = pool
 
     @asynccontextmanager
     async def acquire(self) -> AsyncIterator[Any]:
+        wait = POOL_ACQUIRE_TIMEOUT
+        started = _request_started.get()
+        if started is not None:
+            wait = min(wait, started + REQUEST_DEADLINE_S - time.monotonic())
+        if wait <= 0:
+            raise _db_busy()
         try:
-            conn = await self._pool.acquire(timeout=POOL_ACQUIRE_TIMEOUT)
+            # wait_for stays around acquire(timeout=) because test fakes ignore `timeout`
+            conn = await asyncio.wait_for(self._pool.acquire(timeout=wait), wait)
         except TimeoutError:
-            raise HTTPException(
-                503,
-                {"code": "db_busy", "message": "The database is busy. Try again in a moment."},
-            ) from None
+            raise _db_busy() from None
+        # release gets its own floor: a cancelled statement needs a moment to be reset, and
+        # asyncpg would otherwise reuse the (possibly tiny) acquire wait
+        release_wait = max(wait, 1.0)
         try:
             yield conn
-        finally:
-            await self._pool.release(conn)
+        except BaseException:
+            try:  # the exception already on its way (db_busy included) is the answer
+                await self._pool.release(conn, timeout=release_wait)
+            except TimeoutError:
+                pass
+            raise
+        try:
+            await self._pool.release(conn, timeout=release_wait)
+        except TimeoutError:
+            raise _db_busy() from None
 
     async def _run(self, method: str, *args: Any) -> Any:
-        if not hasattr(self._pool, "acquire"):  # a stand-in pool with only fetch*/execute
-            return await getattr(self._pool, method)(*args)
         async with self.acquire() as conn:
-            return await getattr(conn, method)(*args)
+            budget: float = POOL_COMMAND_TIMEOUT
+            started = _request_started.get()
+            if started is not None:
+                budget = min(budget, started + REQUEST_DEADLINE_S - time.monotonic())
+            if budget <= 0:
+                raise _db_busy()
+            try:  # the statement may not outlive the request deadline
+                async with asyncio.timeout(budget):
+                    return await getattr(conn, method)(*args)
+            except TimeoutError:
+                raise _db_busy() from None
 
     async def fetch(self, *args: Any) -> Any:
         return await self._run("fetch", *args)

@@ -143,6 +143,12 @@ class _Pool:
         self.calls = 0
         self.error = error
 
+    async def acquire(self, timeout=None):  # an asyncpg pool: the connection answers the queries
+        return self
+
+    async def release(self, conn, timeout=None):
+        pass
+
     async def fetchrow(self, *args: object) -> None:
         self.calls += 1
         if self.error:

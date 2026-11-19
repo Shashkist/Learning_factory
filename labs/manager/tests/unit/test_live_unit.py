@@ -18,6 +18,12 @@ class Pool:
         self.rows, self.found, self.ended = list(rows), found, ended
         self.sql: list[str] = []
 
+    async def acquire(self, timeout=None):  # an asyncpg pool: the connection answers the queries
+        return self
+
+    async def release(self, conn, timeout=None):
+        pass
+
     async def fetch(self, sql, *args):
         self.sql.append(sql)
         return self.rows
