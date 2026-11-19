@@ -169,10 +169,10 @@ jobs:
         with:
           fetch-depth: 0
       - uses: astral-sh/setup-uv@v5
-      - name: Lint and unit tests for the check scripts
+      - name: Lint the check scripts, test all factory tooling (scripts/)
         run: |
           uvx ruff check scripts/ci
-          uvx pytest scripts/ci -q
+          uvx pytest scripts -q
       - name: Exam integrity per commit
         env:
           BASE_REF: ${{ github.base_ref }}
