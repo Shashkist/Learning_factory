@@ -216,14 +216,12 @@ async def _page(request: Request, pool: Any, key: str) -> dict[str, Any]:
     ids = [lab.id for lab in labs]
     s = await _student(pool, key)
     h = s["id_hash"]
-    tasks = await pool.fetch(_TASKS_SQL, h, ids)
-    touched = sorted({r["lab_id"] for r in tasks})  # medians only for the labs this student ran
     return assemble(
         labs,
         s,
-        tasks,
+        await pool.fetch(_TASKS_SQL, h, ids),
         await pool.fetch(_FIRSTS_SQL, h, ids),
-        await pool.fetch(_MEDIANS_SQL, touched),
+        await pool.fetch(_MEDIANS_SQL, ids),
         await pool.fetch(_DONE_SQL, h, ids),
         await pool.fetch(_FLAGS_SQL, h, ids),
     )

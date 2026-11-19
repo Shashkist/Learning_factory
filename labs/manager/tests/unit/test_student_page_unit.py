@@ -272,21 +272,31 @@ def test_a_patch_updates_only_the_fields_sent(api):
     ]
 
 
-def test_medians_query_is_limited_to_the_labs_the_student_touched(api):
+@pytest.mark.parametrize(
+    "headers",
+    [{"Content-Type": "text/plain"}, {"Content-Type": "application/x-www-form-urlencoded"}, {}],
+)
+def test_cohort_post_needs_a_json_content_type(api, headers):
     client, pool = api
-    seen = []
+    resp = client.post("/api/admin/cohorts", content=b'{"name": "x"}', headers=headers)
+    assert resp.status_code == 422
+    assert pool.calls == []
+    assert "input" not in resp.text
 
-    async def fetch(sql, *args):
-        from app import student_page
 
-        seen.append((sql, args))
-        if sql == student_page._TASKS_SQL:
-            return [{"lab_id": "x", "task_id": "a", "passed": True, "attempts": 1}]
-        return []
+def test_json_variants_pass_the_content_type_check_and_errors_are_under_body(api):
+    client, _ = api
+    for ctype in ("application/json; charset=utf-8", "application/merge-patch+json"):
+        resp = client.post("/api/admin/cohorts", content=b"{}", headers={"Content-Type": ctype})
+        assert resp.status_code == 422
+        assert all(e["loc"][0] == "body" and len(e["loc"]) == 2 for e in resp.json()["detail"])
 
-    pool.fetch = fetch
-    assert client.get(f"/api/admin/students/{KEY}").status_code == 200
-    from app import student_page
 
-    assert [a for q, a in seen if q == student_page._MEDIANS_SQL] == [(["x"],)]
-    assert "any($1)" in student_page._MEDIANS_SQL
+def test_deeply_nested_json_is_a_422(api):
+    client, _ = api
+    resp = client.post(
+        "/api/admin/cohorts",
+        content=b"[" * 100000 + b"]" * 100000,
+        headers={"Content-Type": "application/json"},
+    )
+    assert resp.status_code == 422

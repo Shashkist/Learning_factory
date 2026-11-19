@@ -34,16 +34,24 @@ async def read_body[M: BaseModel](request: Request, model: type[M]) -> M:
     FastAPI judges a declared body before the router dependencies run, which would answer 422 to
     an anonymous request. The 422 handler keeps only type, location and message.
     """
+    ctype = request.headers.get("content-type", "").split(";")[0].strip().lower()
+    main, _, sub = ctype.partition("/")
+    if main != "application" or not (sub == "json" or sub.endswith("+json")):
+        raise _body_error("json_invalid", "JSON content type required")
     try:
         data = await request.json()
-    except ValueError:
-        raise RequestValidationError(
-            [{"type": "json_invalid", "loc": ("body",), "msg": "JSON decode error"}]
-        ) from None
+    except (ValueError, RecursionError):
+        raise _body_error("json_invalid", "JSON decode error") from None
     try:
         return model.model_validate(data)
     except ValidationError as exc:
-        raise RequestValidationError(exc.errors()) from None
+        raise RequestValidationError(
+            [{**e, "loc": ("body", *e["loc"])} for e in exc.errors()]
+        ) from None
+
+
+def _body_error(kind: str, msg: str) -> RequestValidationError:
+    return RequestValidationError([{"type": kind, "loc": ("body",), "msg": msg}])
 
 
 def printable(value: str) -> bool:
