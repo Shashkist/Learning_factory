@@ -279,9 +279,17 @@ def test_expired_cohort_gets_403_access_expired(env):
 
 
 def test_access_until_today_is_still_valid(env):
-    cohort = env.cohort(TODAY)
-    raw, _ = env.student(cohort)
-    assert login(env.client, raw).status_code == 200
+    # "Today" is read here, not from the module-level TODAY: a run that loads
+    # this module before midnight UTC and logs in after it gave 403 (#209).
+    # If the date still changes between setup and login, try once more.
+    for _ in range(2):
+        today = dt.datetime.now(dt.UTC).date()
+        cohort = env.cohort(today)
+        raw, _ = env.student(cohort)
+        status = login(env.client, raw).status_code
+        if dt.datetime.now(dt.UTC).date() == today:
+            break
+    assert status == 200
 
 
 def test_student_override_extends_access_past_expired_cohort_date(env):
