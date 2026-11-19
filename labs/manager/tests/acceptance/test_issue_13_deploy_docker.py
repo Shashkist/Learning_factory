@@ -62,7 +62,7 @@ def stack(tmp_path_factory):
         if not tag:
             tag = f"lf-exam13-manager:{run_id}"
             _docker("build", "-f", str(DOCKERFILE), "-t", tag, str(REPO_ROOT / "labs"),
-                    timeout=1800, check=True)
+                    timeout=900, check=True)  # under the 30 min docker job limit (#243)
         _docker("network", "create", net, check=True)
 
         # throw-away certificate at the exact paths labs.conf names

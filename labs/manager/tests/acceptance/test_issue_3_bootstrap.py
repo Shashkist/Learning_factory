@@ -469,7 +469,7 @@ def _bootstrap(env: dict[str, str], unset: tuple[str, ...] = ()) -> subprocess.C
     for k in unset:
         cmd += ["-u", k]
     cmd += [f"{k}={v}" for k, v in env.items()] + ["bash", str(SCRIPT)]
-    return _run(cmd, timeout=1500)
+    return _run(cmd, timeout=1200)  # under the 30 min docker job limit (#243)
 
 
 def _last_line(res: subprocess.CompletedProcess) -> str:

@@ -268,7 +268,8 @@ def manager_image() -> str:
     if preset:
         return preset
     tag = f"lf-manager-exam-{uuid.uuid4().hex[:8]}"
-    r = _docker("build", "-f", str(DOCKERFILE), "-t", tag, str(REPO_ROOT / "labs"), timeout=1800)
+    # under the 30 min docker job limit (#243)
+    r = _docker("build", "-f", str(DOCKERFILE), "-t", tag, str(REPO_ROOT / "labs"), timeout=900)
     assert r.returncode == 0, r.stderr[-2000:]
     return tag
 
