@@ -327,6 +327,21 @@ describe("lab complete", () => {
   });
 });
 
+/*
+ * Issue #186, items 2 and 3. DOM contract for the open-tasks view: the "N tasks still open" line
+ * (en["lab.open.one"], or `${n} ${en["lab.open.many"]}`) sits in ONE live region (role="status" or
+ * aria-live) that holds that line only; the task buttons (and their list) are outside every live
+ * region. The view is located by the count line and the task buttons, never by a status region
+ * that holds the titles.
+ */
+const countLine = () =>
+  screen.queryByText(EN["lab.open.one"]) ?? screen.queryByText(new RegExp(`^[0-9]+ ${EN["lab.open.many"]}$`));
+const liveOf = (el: Element) => el.closest('[role="status"], [aria-live]');
+const viewGone = () => {
+  expect(screen.queryByText(EN["lab.open.one"])).toBeNull();
+  expect(screen.queryByText(new RegExp(`${EN["lab.open.many"]}$`))).toBeNull();
+};
+
 describe("open tasks view", () => {
   const openRoutes = {
     [`GET ${API}/tasks/current`]: ok(
@@ -347,9 +362,7 @@ describe("open tasks view", () => {
     fireEvent.click(btn(EN["lab.next"]));
     expect(await screen.findByText(EN["lab.open.one"])).toBeTruthy();
     fireEvent.click(btn(EN["lab.previous"]));
-    await waitFor(() =>
-      expect(screen.queryByText(EN["lab.open.one"])).toBeNull(),
-    );
+    await waitFor(viewGone);
   });
 
   test("a click on an open task opens it", async () => {
@@ -364,7 +377,7 @@ describe("open tasks view", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Alpha" }));
     const heading = await screen.findByRole("heading", { name: "Alpha" });
     expect(n(calls, "POST", `${API}/tasks/a/show`)).toBe(1);
-    expect(screen.queryByText(EN["lab.open.one"])).toBeNull();
+    viewGone();
     await waitFor(() => expect(document.activeElement).toBe(heading));
   });
 
@@ -386,6 +399,57 @@ describe("open tasks view", () => {
     fireEvent.click(alpha);
     await waitFor(() => expect((alpha as HTMLButtonElement).disabled).toBe(true));
     expect(n(calls, "POST", `${API}/tasks/a/show`)).toBe(1);
+  });
+
+  test("the live region holds the count line only; the task buttons are outside it", async () => {
+    backend(openRoutes);
+    await open();
+    fireEvent.click(btn(EN["lab.next"]));
+    const line = await screen.findByText(EN["lab.open.one"]);
+    const live = liveOf(line);
+    expect(live).not.toBeNull();
+    expect(within(live as HTMLElement).queryAllByRole("button")).toEqual([]);
+    expect((live as HTMLElement).textContent).toBe(EN["lab.open.one"]);
+    const alpha = screen.getByRole("button", { name: "Alpha" });
+    expect(liveOf(alpha)).toBeNull();
+  });
+
+  test("with several open tasks the live region holds the plural count line, no buttons", async () => {
+    backend({
+      ...openRoutes,
+      [`GET ${API}/tasks`]: ok({
+        tasks: [
+          { id: "a", state: "shown", title: { en: "Alpha", he: "א" } },
+          { id: "b", state: "shown", title: { en: "Beta", he: "ב" } },
+        ],
+      }),
+    });
+    await open();
+    fireEvent.click(btn(EN["lab.next"]));
+    const line = await screen.findByText(`2 ${EN["lab.open.many"]}`);
+    expect(countLine()).toBe(line);
+    const live = liveOf(line) as HTMLElement;
+    expect(live).not.toBeNull();
+    expect(within(live).queryAllByRole("button")).toEqual([]);
+    for (const name of ["Alpha", "Beta"]) expect(liveOf(screen.getByRole("button", { name }))).toBeNull();
+  });
+
+  test("while one show is pending the other open-task buttons are disabled", async () => {
+    backend({
+      ...openRoutes,
+      [`GET ${API}/tasks`]: ok({
+        tasks: [
+          { id: "a", state: "shown", title: { en: "Alpha", he: "א" } },
+          { id: "b", state: "shown", title: { en: "Beta", he: "ב" } },
+        ],
+      }),
+      [`POST ${API}/tasks/a/show`]: "hang",
+    });
+    await open();
+    fireEvent.click(btn(EN["lab.next"]));
+    fireEvent.click(await screen.findByRole("button", { name: "Alpha" }));
+    const beta = screen.getByRole("button", { name: "Beta" }) as HTMLButtonElement;
+    await waitFor(() => expect(beta.disabled).toBe(true));
   });
 
   test("a failed re-read of the list says the list could not be loaded", async () => {
