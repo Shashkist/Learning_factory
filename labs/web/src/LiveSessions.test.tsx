@@ -84,3 +84,12 @@ test("a 404 on End drops the stale row without an alert", async () => {
   await waitFor(() => expect(screen.queryAllByTestId(/^live-row-/)).toHaveLength(1));
   expect(screen.queryByRole("alert")).toBeNull();
 });
+
+test("a 404 that is not no_session keeps the row and shows the error", async () => {
+  serve(() => ({ ok: false, status: 404, json: async () => ({ detail: "Not Found" }) }) as Response);
+  await screen.findByTestId("live-table");
+  fireEvent.click(screen.getByTestId("live-end-0"));
+  confirmRow0();
+  expect((await screen.findByRole("alert")).textContent).toContain(EN["admin.live.end_error"]);
+  expect(screen.queryAllByTestId(/^live-row-/)).toHaveLength(2);
+});

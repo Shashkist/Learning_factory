@@ -14,6 +14,14 @@ type Sess = {
   last_heartbeat: string | null;
 };
 
+async function gone(r: Response): Promise<boolean> {
+  try {
+    return ((await r.json()) as { detail?: unknown }).detail === "no_session";
+  } catch {
+    return false;
+  }
+}
+
 export default function LiveSessions({ open }: { open: (key: string) => void }) {
   const { t, lang } = useI18n();
   const [rows, setRows] = useState<Sess[] | null>(null);
@@ -45,9 +53,9 @@ export default function LiveSessions({ open }: { open: (key: string) => void }) 
         method: "POST",
         credentials: "same-origin",
       });
-      // 404: the session already ended (the student, the janitor or another
-      // tab), so the row is stale either way.
-      if (!r.ok && r.status !== 404) throw new Error(String(r.status));
+      // 404 no_session: the session already ended (the student, the janitor
+      // or another tab), so the row is stale. Any other failure keeps the row.
+      if (!r.ok && !(r.status === 404 && (await gone(r)))) throw new Error(String(r.status));
       setRows((all) => (all ?? []).filter((s) => s.id !== id));
     } catch {
       setEndFailed(true);
