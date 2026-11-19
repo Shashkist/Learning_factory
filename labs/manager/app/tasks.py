@@ -391,7 +391,7 @@ async def navigate(
     if target < 0:
         raise HTTPException(409, "no_previous_task")
     return await _show(
-        ctx, ctx.lab.tasks[target], moving_from=ctx.lab.tasks[here].id, repeat_ok=frm is not None
+        ctx, ctx.lab.tasks[target], moving_from=ctx.lab.tasks[here].id, repeat_ok=False
     )
 
 
