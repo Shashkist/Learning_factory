@@ -13,6 +13,8 @@ COMMAND_TIMEOUT = 60
 # Request-serving pool only: below nginx's 60 s read timeout, so a stuck query fails with a
 # JSON error before the client is cut off. Migrations (`connect`) keep the longer bound.
 POOL_COMMAND_TIMEOUT = 50
+# The longest a request-path read waits for a free pool connection (seconds), below nginx's 60 s.
+POOL_ACQUIRE_TIMEOUT = 10.0
 
 
 class MigrationsMissing(RuntimeError):
