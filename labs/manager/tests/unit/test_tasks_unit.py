@@ -295,3 +295,32 @@ def test_an_error_counts_no_attempt(monkeypatch):
     ctx.pool = _pool_answering(3)
     body = go()
     assert body["reason"] == "error" and body["attempts"] == 3 and counted == []
+
+
+def test_a_repeated_move_is_answered_from_the_current_task_and_runs_nothing(monkeypatch):
+    import asyncio
+    import uuid
+    from types import SimpleNamespace
+
+    from fastapi import HTTPException
+
+    ran = []
+
+    async def fake_show(ctx, task):
+        ran.append(task)
+        return {"ran": True}
+
+    async def fake_result(ctx, task):
+        return None
+
+    monkeypatch.setattr(tasks, "_do_show", fake_show)
+    monkeypatch.setattr(tasks, "_result", fake_result)
+    monkeypatch.setattr(tasks, "_detail", lambda lab, task, row: {"id": task.id})
+    ctx = SimpleNamespace(sid=uuid.uuid4(), lab=None, pool=_pool_answering("03-net"))
+    target = SimpleNamespace(id="03-net")
+    got = asyncio.run(tasks._show(ctx, target, moving_from="02-files", repeat_ok=True))
+    assert got == {"id": "03-net"} and ran == []
+    other = SimpleNamespace(id="04-last")
+    with pytest.raises(HTTPException) as err:
+        asyncio.run(tasks._show(ctx, other, moving_from="02-files", repeat_ok=True))
+    assert err.value.detail == "task_changed" and ran == []

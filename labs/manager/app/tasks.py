@@ -16,7 +16,7 @@ from contextlib import asynccontextmanager
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, StrictInt
+from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 from app import db
 from app.auth import Principal, current_student, db_guard
@@ -156,11 +156,14 @@ async def _session_lock(sid: uuid.UUID, busy: str) -> AsyncIterator[None]:
             del _LOCKS[sid]
 
 
-async def _show(ctx: _Ctx, task: Task, moving_from: str | None = None) -> dict[str, Any]:
+async def _show(
+    ctx: _Ctx, task: Task, moving_from: str | None = None, repeat_ok: bool = False
+) -> dict[str, Any]:
     """Serialised per session: a second show while one runs gets 409 and runs nothing.
 
     `moving_from` (navigation): the current task the target was computed from; if another
-    request changed it before this one got the lock, answer 409 and run nothing."""
+    request changed it before this one got the lock, answer 409 and run nothing. `repeat_ok`:
+    if the current task already is the target the move was applied (a retry): answer only."""
     async with _session_lock(ctx.sid, "setup_running"):
         if moving_from is not None:
             now = await _bounded(
@@ -170,6 +173,8 @@ async def _show(ctx: _Ctx, task: Task, moving_from: str | None = None) -> dict[s
                 ),
             )
             if now != moving_from:
+                if repeat_ok and now == task.id:
+                    return _detail(ctx.lab, task, await _result(ctx, task))
                 raise HTTPException(409, "task_changed")
         return await _do_show(ctx, task)
 
@@ -358,18 +363,37 @@ async def current_task(ctx: Annotated[_Ctx, Depends(_ctx)]) -> dict[str, Any]:
     return _detail(ctx.lab, task, await _result(ctx, task))
 
 
+class _Move(BaseModel):
+    """Optional body of Next/Skip: the task the student moves from (#222)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+    from_: str | None = Field(None, alias="from")
+
+
 @router.post("/current/{action}")
-async def navigate(action: str, ctx: Annotated[_Ctx, Depends(_ctx)]) -> dict[str, Any]:
+async def navigate(
+    action: str, ctx: Annotated[_Ctx, Depends(_ctx)], body: _Move | None = None
+) -> dict[str, Any]:
     offsets = {"next": 1, "skip": 1, "previous": -1, "restart": 0}
     if action not in offsets:
         raise HTTPException(404, "unknown_action")
     here = ctx.lab.tasks.index(_current(ctx))
+    frm = body.from_ if body is not None and offsets[action] == 1 else None
+    if frm is not None and frm != ctx.lab.tasks[here].id:
+        src = ctx.task(frm)
+        after = ctx.lab.tasks.index(src) + 1 if src is not None else -1
+        if after != here:
+            raise HTTPException(409, "task_changed")
+        # the move was already applied (a retry): the lock decides, the answer is the current task
+        return await _show(ctx, ctx.lab.tasks[here], moving_from=frm, repeat_ok=True)
     target = here + offsets[action]
     if target >= len(ctx.lab.tasks):
         raise HTTPException(409, "no_next_task")
     if target < 0:
         raise HTTPException(409, "no_previous_task")
-    return await _show(ctx, ctx.lab.tasks[target], moving_from=ctx.lab.tasks[here].id)
+    return await _show(
+        ctx, ctx.lab.tasks[target], moving_from=ctx.lab.tasks[here].id, repeat_ok=frm is not None
+    )
 
 
 @router.post("/{task_id}/show")
