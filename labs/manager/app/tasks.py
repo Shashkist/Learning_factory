@@ -102,7 +102,9 @@ def _detail(lab: Lab, task: Task, row: Any) -> dict[str, Any]:
 class _Ctx:
     def __init__(self, request: Request, sid: uuid.UUID, student: str, lab: Lab, current: Any):
         self.request, self.sid, self.student, self.lab = request, sid, student, lab
-        self.started = getattr(request.state, "started", None) or time.monotonic()
+        # A bare request (tests, internal callers) has no state: start the clock here.
+        state = getattr(request, "state", None)
+        self.started = getattr(state, "started", None) or time.monotonic()
         self.current: str | None = current
         self.pool = request.app.state.pool
 
