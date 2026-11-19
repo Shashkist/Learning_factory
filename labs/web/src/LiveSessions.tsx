@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { useI18n } from "./i18n";
+import { localStamp } from "./localStamp";
 
 type Sess = {
   id: string;
@@ -18,6 +19,7 @@ export default function LiveSessions({ open }: { open: (key: string) => void }) 
   const [rows, setRows] = useState<Sess[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [asking, setAsking] = useState<string[]>([]); // ids with an open confirm
+  const [pending, setPending] = useState<string[]>([]); // ids with an End request in flight
   const [endFailed, setEndFailed] = useState(false);
 
   useEffect(() => {
@@ -34,17 +36,23 @@ export default function LiveSessions({ open }: { open: (key: string) => void }) 
     setAsking((a) => (on ? [...a, id] : a.filter((x) => x !== id)));
 
   const end = async (id: string) => {
+    if (pending.includes(id)) return;
     setEndFailed(false);
+    setPending((p) => [...p, id]);
     ask(id, false);
     try {
       const r = await fetch(`/api/admin/live/${encodeURIComponent(id)}/end`, {
         method: "POST",
         credentials: "same-origin",
       });
-      if (!r.ok) throw new Error(String(r.status));
+      // 404: the session already ended (the student, the janitor or another
+      // tab), so the row is stale either way.
+      if (!r.ok && r.status !== 404) throw new Error(String(r.status));
       setRows((all) => (all ?? []).filter((s) => s.id !== id));
     } catch {
       setEndFailed(true);
+    } finally {
+      setPending((p) => p.filter((x) => x !== id));
     }
   };
 
@@ -80,9 +88,9 @@ export default function LiveSessions({ open }: { open: (key: string) => void }) 
                 </td>
                 <td>{s.cohort}</td>
                 <td>{s.lab_title ? s.lab_title[lang] : s.lab_id}</td>
-                <td data-testid={`live-started-${i}`}>{s.started_at.slice(0, 10)}</td>
+                <td data-testid={`live-started-${i}`}>{localStamp(s.started_at)}</td>
                 <td data-testid={`live-heartbeat-${i}`}>
-                  {s.last_heartbeat ? s.last_heartbeat.slice(0, 10) : t("admin.live.no_heartbeat")}
+                  {s.last_heartbeat ? localStamp(s.last_heartbeat) : t("admin.live.no_heartbeat")}
                 </td>
                 <td>
                   {asking.includes(s.id) ? (
@@ -91,7 +99,11 @@ export default function LiveSessions({ open }: { open: (key: string) => void }) 
                       <button onClick={() => ask(s.id, false)}>{t("admin.live.cancel")}</button>
                     </>
                   ) : (
-                    <button data-testid={`live-end-${i}`} onClick={() => ask(s.id, true)}>
+                    <button
+                      data-testid={`live-end-${i}`}
+                      disabled={pending.includes(s.id)}
+                      onClick={() => ask(s.id, true)}
+                    >
                       {t("admin.live.end")}
                     </button>
                   )}
