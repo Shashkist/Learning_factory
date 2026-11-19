@@ -80,13 +80,39 @@ def test_setup_timeout_junk_falls_back_to_the_default(monkeypatch, value):
 # ---- end reasons -------------------------------------------------------------------------
 
 
-def _newest_migration_reasons() -> set[str]:
-    for path in sorted(MIGRATIONS.glob("*.sql"), reverse=True):
+def _newest_migration_reasons(migrations: Path = MIGRATIONS) -> set[str]:
+    """Reasons of the newest migration that mentions end_reason. If that migration states the
+    constraint in a form this parser does not understand, fail (never fall back to an older
+    migration, which would hide the newer constraint)."""
+    for path in sorted(migrations.glob("*.sql"), reverse=True):
         sql = path.read_text(encoding="utf-8")
+        if not re.search(r"end_reason", sql, re.IGNORECASE):
+            continue
         found = re.search(r"end_reason\s+in\s*\(([^)]*)\)", sql, re.IGNORECASE)
-        if found:
-            return set(re.findall(r"'([^']*)'", found.group(1)))
+        assert found, (
+            f"{path.name} mentions end_reason but its constraint is not in the "
+            "`end_reason in ('a', 'b')` form this exam can read; teach the exam the new form"
+        )
+        reasons = set(re.findall(r"'([^']*)'", found.group(1)))
+        assert reasons, f"{path.name}: end_reason constraint lists no reasons"
+        return reasons
     raise AssertionError("no migration defines the end_reason constraint")
+
+
+def test_end_reason_parser_fails_on_a_newer_migration_it_cannot_parse(tmp_path):
+    (tmp_path / "003_a.sql").write_text(
+        "alter table t add column end_reason text check (end_reason in ('a', 'b'));"
+    )
+    assert _newest_migration_reasons(tmp_path) == {"a", "b"}
+    (tmp_path / "004_b.sql").write_text(
+        "alter table t drop constraint c, add check (end_reason = any(array['a', 'c']));"
+    )
+    with pytest.raises(AssertionError, match="004_b.sql"):
+        _newest_migration_reasons(tmp_path)
+    unrelated = "-- unrelated" + chr(10) + "alter table t add column x int;"
+    (tmp_path / "005_c.sql").write_text(unrelated)
+    with pytest.raises(AssertionError, match="004_b.sql"):
+        _newest_migration_reasons(tmp_path)
 
 
 def test_end_reasons_is_a_frozenset_equal_to_the_newest_migration_constraint():
