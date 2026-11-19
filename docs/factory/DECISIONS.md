@@ -690,3 +690,11 @@ in force · factory · 2026-11-19
 **Cost.** ~96 runs a day of ~1 minute each, plus one SSH connection per publish (ControlMaster, 3 retries 20 s apart). The server refuses bursts of new SSH connections (#26); a publish that lands next to a Deploy may retry once. Accepted risk (review of #226): `incident.yml` opens a p0 incident for any failed dashboard run, so a transient failure now has 12 times the chances; #229 raises it only after two failed scheduled runs in a row.
 **Alternatives.** Every 30 minutes (half the SSH traffic, still stale enough to notice); publish from the laptop poller (no runner, but only while the laptop is on).
 **Revert.** Set the cron back to `0 */3 * * *` in `factory-dashboard.yml` and in the #18/#19 exam cases.
+
+## D72 · #224 item 3: acquire limit on the task routes now, every other route in #236 (amends D70)
+in force · factory · 2026-11-19
+
+**Decision.** #224 adds `db.POOL_ACQUIRE_TIMEOUT` (10 s) and uses it on the task routes only (check/answer path, `task_list`, `current_task`, the navigation guard), through the bounded step. Auth, sessions and the admin routes keep waiting on the pool without their own acquire limit until #236.
+**Why (measured risk).** The pool has 5 connections and a 50 s `command_timeout` (D70). The only known way to hold all five for long is checks stuck behind a lock, and those are now bounded. Other routes are single short reads at class scale; when the pool is exhausted they wait until nginx answers 504 at 60 s, which is a bad message but loses no data. A shared helper over every route is a separate ~300-line change with its own error code and wording.
+**Alternatives.** Fold all routes into #224 (over the PR budget, a second review surface); a pool subclass with a default acquire timeout (one change, but every route's error handling changes at once without tests).
+**Revert.** Drop `POOL_ACQUIRE_TIMEOUT` from the task routes; close #236 as won't-do.
