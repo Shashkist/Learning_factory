@@ -327,7 +327,9 @@ export default function LabScreen({
   const step = (action: string) =>
     run(async () => {
       try {
-        show(await call<Task>("POST", `${base}/current/${action}`));
+        // Next and Skip carry the task on screen, so a retry of an applied move is a no-op (#222).
+        const from = action === "next" || action === "skip" ? { from: task.id } : undefined;
+        show(await call<Task>("POST", `${base}/current/${action}`, from));
       } catch (e) {
         if (!(e instanceof Failure)) throw e;
         if (e.detail === "task_changed") {
