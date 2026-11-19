@@ -209,9 +209,13 @@ describe.each(LANGS)("the open-tasks view lets the student open a task (%s)", (l
   });
   const openView = (states: string[], extra: Record<string, Handler> = {}) =>
     reachEnd(lang, { [`GET ${API}/tasks`]: list(states), ...extra });
+  // The view: the nearest element around the open-task buttons that also holds the count line (#186: the
+  // live region holds the count line only, so the view is no longer the status region).
   const region = async () => {
-    await screen.findByText(d["lab.open.many"], { exact: false });
-    return screen.getAllByRole("status").find((e) => (e.textContent ?? "").includes(title(2))) as HTMLElement;
+    const line = await screen.findByText(d["lab.open.many"], { exact: false });
+    let el: HTMLElement | null = (await screen.findByRole("button", { name: title(2) })).parentElement;
+    while (el && !el.contains(line)) el = el.parentElement;
+    return el as HTMLElement;
   };
 
   test("each open task title is a button, and passed tasks are not listed", async () => {
