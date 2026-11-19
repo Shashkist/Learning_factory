@@ -673,3 +673,11 @@ in force · factory · 2026-11-19
 **Why.** One aggregate over `task_results` for a class of a few dozen students costs milliseconds; a teacher writes a few times a minute. Correct numbers matter more.
 **Alternatives.** Medians only for touched labs (wrong numbers); a cached or materialised median per lab (complexity with no load to justify it); an index on `task_results (lab, task, passed_at)` if the query ever shows up in the logs.
 **Revert.** Pass the student's lab ids to `_MEDIANS_SQL` again, and amend D64.
+
+## D70 · #220 items 7 and 8: pool command timeout now, acquire timeouts and idempotent moves later
+in force · factory · 2026-11-19
+
+**Decision.** #220 ships the pool-wide `command_timeout` at 50 s (`POOL_COMMAND_TIMEOUT`, below nginx's 60 s read timeout; migrations keep 60 s on their own connection) and bounds every database step and read on the task show and check paths by the request budget (bounded acquire, `lock_timeout`/`statement_timeout`, terminate on failure, bounded release whose errors are swallowed after COMMIT). The pool-wide wait for a free connection on all other routes is **not** changed in #220: it moves to #224 with the strict cap of the check-path single reads and the check-timeout wording. Item 8 (a Next/Skip retried after a committed-but-503 answer skips one more task) moves to #222: the lab screen sends the target task and the server treats a repeat as a no-op.
+**Why.** Each part is one reviewable PR; the task paths were the ones with a known way to exceed nginx's timeout. Other routes are single short reads at class scale.
+**Alternatives.** One PR for all of it (over the ~400-line budget, more review rounds); a pool subclass with a default acquire timeout (touches every route at once).
+**Revert.** Set the pool back to `COMMAND_TIMEOUT`; close #222/#224 as won't-do.
