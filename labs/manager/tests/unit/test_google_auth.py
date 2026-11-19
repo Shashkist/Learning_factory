@@ -21,6 +21,12 @@ class FakePool:
         self.row = {"kind": kind, "subject": subject}
         self.inserted: list[tuple[Any, ...]] = []
 
+    async def acquire(self, timeout=None):  # an asyncpg pool: the connection answers the queries
+        return self
+
+    async def release(self, conn, timeout=None):
+        pass
+
     async def execute(self, sql: str, *args: Any) -> None:
         if sql.startswith("insert"):
             self.inserted.append(args)

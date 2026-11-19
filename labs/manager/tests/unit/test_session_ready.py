@@ -94,6 +94,12 @@ class _Pool:
     def __init__(self, deleted):
         self.deleted, self.sql, self.status = deleted, [], "ended"
 
+    async def acquire(self, timeout=None):  # an asyncpg pool: the connection answers the queries
+        return self
+
+    async def release(self, conn, timeout=None):
+        pass
+
     async def fetchrow(self, sql, *a):
         return {
             "id": "11111111-1111-1111-1111-111111111111",
