@@ -209,9 +209,13 @@ describe.each(LANGS)("the open-tasks view lets the student open a task (%s)", (l
   });
   const openView = (states: string[], extra: Record<string, Handler> = {}) =>
     reachEnd(lang, { [`GET ${API}/tasks`]: list(states), ...extra });
+  // The view: the nearest element around the open-task buttons that also holds the count line (#186: the
+  // live region holds the count line only, so the view is no longer the status region).
   const region = async () => {
-    await screen.findByText(d["lab.open.many"], { exact: false });
-    return screen.getAllByRole("status").find((e) => (e.textContent ?? "").includes(title(2))) as HTMLElement;
+    const line = await screen.findByText(d["lab.open.many"], { exact: false });
+    let el: HTMLElement | null = (await screen.findByRole("button", { name: title(2) })).parentElement;
+    while (el && !el.contains(line)) el = el.parentElement;
+    return el as HTMLElement;
   };
 
   test("each open task title is a button, and passed tasks are not listed", async () => {
@@ -235,6 +239,19 @@ describe.each(LANGS)("the open-tasks view lets the student open a task (%s)", (l
     expect(screen.queryByText(d["lab.complete"], { exact: false })).toBeNull();
     expect(count(calls, "POST", `${API}/tasks/t2/show`)).toBe(0);
     expect(count(calls, "POST", `${API}/tasks/current/previous`)).toBe(0);
+  });
+
+  test("with one open task, clicking it opens it and the singular count line is gone too (#186)", async () => {
+    const calls = await openView(["passed", "shown", "passed", "passed"], {
+      [`POST ${API}/tasks/t2/show`]: ok(shownTask(2)),
+    });
+    await screen.findByText(d["lab.open.one"], { exact: false });
+    fireEvent.click(await screen.findByRole("button", { name: title(2) }));
+    await waitFor(() => expect(count(calls, "POST", `${API}/tasks/t2/show`)).toBe(1));
+    expect(await screen.findByRole("heading", { name: title(2) })).toBeTruthy();
+    await waitFor(() => expect(screen.queryByText(d["lab.open.one"], { exact: false })).toBeNull());
+    expect(screen.queryByText(d["lab.open.many"], { exact: false })).toBeNull();
+    expect(screen.queryByText(d["lab.complete"], { exact: false })).toBeNull();
   });
 
   test("a failed show keeps the open-tasks view and says so in an alert", async () => {
