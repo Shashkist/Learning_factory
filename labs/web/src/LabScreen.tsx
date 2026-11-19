@@ -352,9 +352,10 @@ export default function LabScreen({
           return;
         }
         const rest = list.tasks.filter((x) => x.state !== "passed");
-        if (rest.length)
+        if (rest.length) {
           setOpen(rest.map((x) => ({ id: x.id, title: x.title })));
-        else setDone(true);
+          setDone(false);
+        } else setDone(true);
       }
     });
   const check = () =>
@@ -489,7 +490,6 @@ export default function LabScreen({
             </p>
           )}
           {open ? (
-            <div>
               <ul>
                 {open.map((o) => (
                   <li key={o.id}>
@@ -509,7 +509,6 @@ export default function LabScreen({
                   </li>
                 ))}
               </ul>
-            </div>
           ) : done ? (
             <p role="status">
               {t("lab.complete")} {toLabs}

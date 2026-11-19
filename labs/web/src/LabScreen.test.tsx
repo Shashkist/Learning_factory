@@ -353,6 +353,24 @@ describe("open tasks view", () => {
     }),
   };
 
+  test("Next from the complete screen into open tasks replaces the complete line with the count", async () => {
+    backend({
+      ...openRoutes,
+      [`GET ${API}/tasks`]: [
+        ok({ tasks: [{ id: "a", state: "passed", title: { en: "Alpha", he: "א" } }] }),
+        ok({ tasks: [{ id: "a", state: "shown", title: { en: "Alpha", he: "א" } }] }),
+      ],
+    });
+    await open();
+    fireEvent.click(btn(EN["lab.next"]));
+    expect(await screen.findByText(EN["lab.complete"], { exact: false })).toBeTruthy();
+    fireEvent.click(btn(EN["lab.next"]));
+    await waitFor(() =>
+      expect(screen.getByRole("status").textContent).toBe(EN["lab.open.one"]),
+    );
+    expect(screen.queryByText(EN["lab.complete"], { exact: false })).toBeNull();
+  });
+
   test("clears after Previous", async () => {
     backend({
       ...openRoutes,
