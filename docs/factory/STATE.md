@@ -4,7 +4,9 @@
 
 ## Now
 
-_Last updated: 2026-11-19 ~15:35 UTC, laptop pass **lf-q3m8** stopped at 3 merged PRs (no claims held; #236 parked with an approved, green PR; #155 waiting for evidence)._
+_Last updated: 2026-11-19 ~16:12 UTC, laptop pass **lf-r5t9** running: #236 shipped (#244, Deploy 44562434496, smoke ok); in flight #243 (PRs #246 CI gate, #247 exam), #222 (implementer, worktree `C:\projects\lf-222`), #230 (PR #248, progress hook half; guard half = O21)._
+
+_Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
 - **Resume here, in this order:**
   1. **#236 PR #244** (bounded pool acquire on every request path, 503 `db_busy`, en/he wording): exam a2abbc6 first, then web, manager and two round-1 fix commits. **Review round 2 approved, CI all green at 9a24cd2.** Base is 3dedfd7; main has moved since by #241 (`ci.yml`), #242 (dashboard workflow + its exam) and docs only, all disjoint from #244's files, so squash-merge without a rerun. Then Deploy + smoke (expect start/terminal/check ok; no `db_busy` in normal use), close #236. Follow-ups in **#245** (request deadline on multi-read routes, drop the test-only pool fallback, start-path 409 noise). Exam correction after the build is recorded in D74. Worktree `C:\projects\lf-236`.
