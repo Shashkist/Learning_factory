@@ -1,4 +1,4 @@
-﻿import type { Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
 import { json } from "./fake-backend";
 
@@ -14,6 +14,19 @@ type Student = {
 
 const LAB = { id: "linux-basics", title: { en: "Linux basics", he: "יסודות לינוקס" } };
 const COHORT_ACCESS = "2027-01-31";
+export const DANA = "6f1c2b0e-4d1a-4c57-9a43-0a1b2c3d4e5f"; // the opaque student key is a uuid (D63)
+export const NOA = "0b9e7a64-8c2d-4f10-b7a5-1d2e3f405162";
+export const FLAG = "task-3c9d1f52-7a8b-4e60-a1c2-5b6d7e8f9012-t1"; // task-<session uuid>-<task id> (D64)
+
+// app/auth.py: spaces removed, then leading zeros; valid when 1..32 ASCII digits are left.
+const validId = (raw: string) => /^\d{1,32}$/.test(raw.replace(/\s+/g, "").replace(/^0+/, ""));
+// app/teacher.py split_lines: at the first comma, or at the first tab when it comes before any comma.
+function splitLine(raw: string): [string, string] {
+  const sep = raw.split(",", 1)[0].includes("\t") ? "\t" : ",";
+  const at = raw.indexOf(sep);
+  const [id, name] = at < 0 ? [raw, ""] : [raw.slice(0, at), raw.slice(at + 1)];
+  return [id, name.replace(/\t+/g, " ").trim()];
+}
 
 // The /api/admin/* calls the teacher UI makes, answered from memory with the shapes of
 // app/teacher.py (cohorts, import), the class table (#163) and the student page (#164).
@@ -28,15 +41,15 @@ export async function fakeAdminBackend(page: Page) {
   ];
   const students: Student[] = [
     {
-      key: "k-dana",
+      key: DANA,
       name: "Dana",
       cohort: 1,
       note: null,
       disabled: false,
       access_until: null,
-      flags: [{ id: "f1", reason: "task t1 in 3 s", dismissed_at: null }],
+      flags: [{ id: FLAG, reason: "task t1 in 3 s", dismissed_at: null }],
     },
-    { key: "k-noa", name: "Noa", cohort: 2, note: null, disabled: false, access_until: null, flags: [] },
+    { key: NOA, name: "Noa", cohort: 2, note: null, disabled: false, access_until: null, flags: [] },
   ];
   const cohortName = (id: number) => cohorts.find((c) => c.id === id)?.name ?? "";
   const live = (s: Student) => s.flags.some((f) => !f.dismissed_at);
@@ -78,18 +91,18 @@ export async function fakeAdminBackend(page: Page) {
       case key === "POST /api/admin/cohorts": {
         const id = cohorts.length + 1;
         cohorts.push({ id, name: String(body?.name), access_until: String(body?.access_until) });
-        return json(route, cohorts[id - 1], 201);
+        return json(route, { ...cohorts[id - 1], students: 0 }, 201);
       }
       case /^POST \/api\/admin\/cohorts\/\d+\/import$/.test(key): {
         const cohort = Number(url.pathname.split("/")[4]);
         const rows = String(body?.text)
           .split("\n")
-          .map((l, i) => ({ l: l.trim(), line: i + 1 }))
-          .filter((x) => x.l)
+          .map((l, i) => ({ l, line: i + 1 }))
+          .filter((x) => x.l.trim())
           .map(({ l, line }) => {
-            const [id, name] = l.split(",").map((p) => p.trim());
-            if (!/^\d{9}$/.test(id)) return { line, status: "error", code: "invalid_id", message: "invalid id" };
-            students.push({ key: `k-${id}`, name, cohort, note: null, disabled: false, access_until: null, flags: [] });
+            const [id, name] = splitLine(l);
+            if (!validId(id)) return { line, status: "error", code: "invalid_id", message: "the ID is not valid." };
+            students.push({ key: `00000000-0000-4000-8000-${String(students.length).padStart(12, "0")}`, name, cohort, note: null, disabled: false, access_until: null, flags: [] });
             return { line, status: "added" };
           });
         return json(route, { added: rows.filter((r) => r.status === "added").length, rows });
@@ -116,7 +129,8 @@ export async function fakeAdminBackend(page: Page) {
       }
       case !!student && req.method() === "POST" && !!stu?.[3]: {
         const flag = student!.flags.find((f) => f.id === stu![3]);
-        if (flag) flag.dismissed_at = "2026-11-19T10:00:00Z";
+        if (!flag) return json(route, { detail: "not_found" }, 404);
+        flag.dismissed_at = "2026-11-19T10:00:00Z";
         return json(route, detail(student!));
       }
       default:
