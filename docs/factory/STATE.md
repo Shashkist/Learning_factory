@@ -4,19 +4,25 @@
 
 ## Now
 
-_Live: laptop pass **lf-m7c2** (started ~16:55 UTC). #243 closed (#246, #247 merged; main CI d549cf2 green, Deploy success). In flight: **#249** PR #252 (review round 2), **#251** PR #253 (CI + review), **#245** implementer in `C:\projects\lf-245` (exam 2010562)._
-
-_Last updated: 2026-11-19 ~16:52 UTC, laptop pass **lf-r5t9** stopped at 3 merged PRs (#244, #248, #250) after ~55 minutes. Claim on #243 released with a parked note; its PRs #246 and #247 are green and approved._
+_Last updated: 2026-11-19 ~17:55 UTC, laptop pass **lf-m7c2** stopped at 4 merged PRs (#246, #247, #252, #254) after ~60 minutes. Closed #243, #249, #251 with evidence. #245 parked after review round 1 (claim released, plan in the PR #256 comment and D79)._
 
 - **Resume here, in this order:**
-  1. **#243: merge #246, then #247, then close #243 by hand** (neither PR body says "Closes"). **#246** (CI-only: strict docker gate, `junit_gate.py` has no `--allow-empty`, docker exams under `timeout -s INT -k 60 26m`): round 2's only blocker was a ruff error in `scripts/ci/test_junit_gate.py`, fixed in 211c2be, **CI all green at 211c2be**; the reviewer approved everything else. **#247** (exam-only: job timeout 20..69 min pinned, every exam timeout <= job limit minus 10 min, builds 900 s, bootstrap 1200 s): **approved round 2, CI green at 009af5d.** Both are based on 40b4c28; main moved since by #248 (`scripts/`, `dashboard-ci.yml`), #250 (`tasks.py`, `LabScreen.tsx`, exams) and docs, all disjoint, so merge without a rerun, one at a time. Evidence for the close: the next main CI docker job (309 docker exams, no skips, under 26 min) and the new exam in the manager job. Worktrees `C:\projects\lf-243`, `C:\projects\lf-243e` (merge without `--delete-branch`, then `git push origin --delete`).
-  2. **#245** (request deadline on multi-read routes, drop the test-only pool fallback), **#251** (Previous sends `from` too, drop `populate_by_name`; same `tasks.py`/`LabScreen.tsx`, D75), **#249** (CI runs the `scripts/` tests; CI-only).
-  3. Parked for the owner: **#230** guard half = **O21** (progress half shipped in #248); **#155** = optional **O22** (D77: GitHub's scheduler dropped 8 of 8 off-minute slots; push-only freshness is the supported state).
+  1. **#245 round 2** (PR #256, branch `f/245-request-deadline`, worktree `C:\projects\lf-245`; CI all green at 175fd0c, review: changes requested). Plan (D79): rebuild as **`f/245-request-deadline-2`** from origin/main: (a) cherry-pick the exam commit 2010562 and amend it only to set `LIMIT = 2.0` (was 0.4) in `test_issue_245_request_deadline.py`; (b) cherry-pick the code commit 175fd0c; (c) one new code commit: `BoundedPool._run` passes the time left (capped at `POOL_COMMAND_TIMEOUT`) as asyncpg `timeout=` and maps an expiry to 503 `db_busy`; **issue item 3**: the `session_ended` 409 in `sessions.py` (~:203) skips the start cleanup, with a unit test; a one-line comment on why the outer `wait_for` stays (fakes ignore `timeout`). Open a new PR (Closes #245), close #256, round 2 to a reviewer. Nit 6 (two 55 s clocks, `tasks.REQUEST_BUDGET_S` vs `db.REQUEST_DEADLINE_S`) → a follow-up issue.
+  2. **#255** (Previous exam gaps: Restart with a body, retry onto the first task, double Previous; exam-only, passes on today's code), **#186** busy row Save + open-tasks live region, then Next below.
+  3. Parked for the owner: **#230** guard half = **O21**; **#155** = optional **O22** (D77).
+- **Lesson (pass lf-m7c2):** a reviewer caught that running PR-controlled tests (`scripts/test_*.py`) in the *same job* as the exam-integrity check, before it, lets a PR change what the check runs (`$GITHUB_PATH`/`$GITHUB_ENV`) and lets a failing test hide the check's verdict. New test runs go in their own job (`tooling`, D78).
+- **Lesson (pass lf-m7c2):** exam writers cannot run DB cases locally, so a copied case can be wrong in a way only CI shows (#251: a test started on a task with a setup and never cleared the exec log). Fix it by rebuilding the branch as `-2` (exam commit amended, code cherry-picked, identical code confirmed with `git range-diff`) and record it (D78). When briefing an exam writer for DB cases, ask it to re-read every copied case for state left by its own setup steps.
+- **Lesson (pass lf-m7c2):** `git revert` in this repo opens a signing prompt and fails non-interactively; a following `git commit --amend` then silently amends the *previous* commit. To drop a throwaway commit, `git checkout <good-sha> -- <file>` and commit.
+- **Lesson (pass lf-m7c2):** a PR body with "Closes #n" closes the issue at merge, so `gh issue close --comment` then fails and the evidence comment is lost; post it with `gh issue comment` instead.
+- **Lesson (pass lf-m7c2):** `gh pr checks <n> --watch` exits 1 right away with "no checks reported" if it starts before a fresh push registers its runs; wait ~20 s first.
+- **Production:** `4a09a33` (Deploy 44579967233: deploy + smoke success; the live bundle sends `{from: <task id>}` with every move except Restart).
+
+_Previous pass (lf-r5t9, ~16:52 UTC) notes below._
+
 - **Lesson (pass lf-r5t9):** the factory guard (D35) blocks any Bash command that *names* a protected path together with a write verb, even inside a heredoc that only writes a PR body, a DECISIONS entry or this file. Write such prose with the file tool and pass `--body-file`. A subagent hit the same wall editing the guard for #230: issues that touch the guard are owner work, so split them at pick time.
 - **Lesson (pass lf-r5t9):** `factory_progress.py` is also loaded by file path (`spec_from_file_location`, the #51 dashboard exam), so `scripts/` is not on `sys.path` there. A new top-level sibling import broke 42 exam cases, and the PR's CI stayed green only because `dashboard-ci.yml` did not watch `scripts/`. Hook-only imports are lazy now, and the path filter covers the script.
 - **Lesson (pass lf-r5t9):** run `uvx ruff check scripts/ci` before pushing a change there. Exam-integrity runs it first, and a lint error hides the tests (#246 round 2).
 - **Lesson (pass lf-r5t9):** a Python heredoc in Bash that builds a regex with escaped backslashes wrote control characters into the file. Write such files with the file tool.
-- **Production:** `717c89e` (Deploy 44569347145: deploy + smoke success; the live bundle sends `{from: <task id>}` with Next/Skip).
 
 _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
@@ -54,8 +60,8 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
 ## Next (in order)
 
-1. See Now: merge **#246** then **#247**, close **#243**.
-2. **#245** request deadline + pool fallback, **#251** Previous idempotent (both `tasks.py`: one after the other), **#249** scripts tests in CI, **#186** busy row Save + open-tasks live region (exam edit first); **#192** session start nits, **#193** smoke stop path (both p2).
+1. See Now: **#245** round 2 (rebuild as `-2`, D79).
+2. **#255** Previous exam gaps (exam-only), **#186** busy row Save + open-tasks live region (exam edit first); **#192** session start nits, **#193** smoke stop path (both p2).
 3. **#167** docker end-to-end browser test against the real manager (split from #131, D60). **#151** kill follow-ups, **#154** Solution tab (D57 b), **#137**, **#126**, **#127**, **#142** (reuse the #153 helpers).
 4. **#98** (p2, D46): cancel superseded PR runs and skip full CI for docs-only pushes.
 5. **#85** deploy follow-ups, **#94**, **#93**; p2 list: #81, #76, #67, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
