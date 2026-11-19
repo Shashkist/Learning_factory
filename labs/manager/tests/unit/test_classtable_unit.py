@@ -83,6 +83,9 @@ def test_out_of_range_cohort_is_unknown_not_a_db_error(cohort: int):
     from app.classtable import build
 
     class NoPool:
+        async def acquire(self, timeout=None):
+            raise AssertionError("the database must not be asked")
+
         def __getattr__(self, name):
             raise AssertionError("the database must not be asked")
 

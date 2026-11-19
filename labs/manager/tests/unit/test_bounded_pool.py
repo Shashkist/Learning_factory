@@ -50,9 +50,26 @@ def test_bounded_passes_none_and_does_not_wrap_twice():
     assert db.bounded(None) is None and db.bounded(pool) is pool
 
 
-def test_a_stand_in_pool_without_acquire_is_used_directly():
+def test_a_stand_in_pool_without_acquire_is_refused():
     class Plain:
         async def fetchval(self, *a):
             return "x"
 
-    assert asyncio.run(db.BoundedPool(Plain()).fetchval("q")) == "x"
+    with pytest.raises(TypeError):
+        db.BoundedPool(Plain())
+
+
+def test_the_request_deadline_caps_the_wait_and_an_expired_one_is_db_busy(monkeypatch):
+    monkeypatch.setattr(db, "REQUEST_DEADLINE_S", 2.0)
+    pool = _Pool()
+
+    async def go():
+        db.mark_request_start()
+        await db.BoundedPool(pool).fetchval("q")
+        monkeypatch.setattr(db, "REQUEST_DEADLINE_S", -1.0)
+        await db.BoundedPool(pool).fetchval("q")
+
+    with pytest.raises(HTTPException) as e:
+        asyncio.run(go())
+    assert len(pool.timeouts) == 1 and 0 < pool.timeouts[0] <= 2.0
+    assert e.value.status_code == 503 and e.value.detail["code"] == "db_busy"

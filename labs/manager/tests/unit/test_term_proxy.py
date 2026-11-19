@@ -26,6 +26,12 @@ class FakePool:
         self.status = "running"
         self.disabled = False
 
+    async def acquire(self, timeout=None):  # an asyncpg pool: the connection answers the queries
+        return self
+
+    async def release(self, conn, timeout=None):
+        pass
+
     async def fetchrow(self, sql: str, *args: Any) -> Any:
         if "auth_sessions" in sql:
             if args[0] == auth._token_hash("good"):
