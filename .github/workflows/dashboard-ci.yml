@@ -8,6 +8,8 @@ on:
       - ".github/workflows/dashboard-ci.yml"
       - ".github/workflows/factory-dashboard.yml"
       - "scripts/ci/junit_gate.py"
+      - "scripts/factory_progress.py"
+      - "scripts/_hook_io.py"
   push:
     branches: [main]
     paths:
@@ -16,6 +18,8 @@ on:
       - ".github/workflows/dashboard-ci.yml"
       - ".github/workflows/factory-dashboard.yml"
       - "scripts/ci/junit_gate.py"
+      - "scripts/factory_progress.py"
+      - "scripts/_hook_io.py"
 
 permissions:
   contents: read
