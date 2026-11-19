@@ -49,8 +49,12 @@ def id_hash(raw: str) -> str:
 
 
 def tomorrows() -> set[dt.date]:
-    """Tomorrow in UTC or in local time (the run may straddle midnight)."""
-    return {dt.datetime.now(dt.UTC).date() + DAY, dt.date.today() + DAY}
+    """Tomorrow in UTC: the CLI stores the UTC date + 1 (access dates are UTC).
+
+    A test reads this set both before and after the run and accepts the union,
+    so a run that crosses midnight UTC cannot fail the check (#214).
+    """
+    return {dt.datetime.now(dt.UTC).date() + DAY}
 
 
 def run_cli(
@@ -272,10 +276,12 @@ def env(_db, monkeypatch):
 
 
 def test_first_run_creates_the_cohort_and_the_student(env):
+    before = tomorrows()
     env.smoke()
+    allowed = before | tomorrows()
     cohorts = env.cohorts()
     assert len(cohorts) == 1
-    assert cohorts[0]["access_until"] in tomorrows()
+    assert cohorts[0]["access_until"] in allowed
     students = env.student()
     assert len(students) == 1
     assert students[0]["name"] == SMOKE_NAME
@@ -332,8 +338,10 @@ def test_a_rerun_moves_access_until_to_tomorrow(env):
 
     env.sql(age)
     assert env.login(env.other_client()).status_code == 403  # expired
+    before = tomorrows()
     env.smoke()
-    assert env.cohorts()[0]["access_until"] in tomorrows()
+    allowed = before | tomorrows()
+    assert env.cohorts()[0]["access_until"] in allowed
     assert env.login(env.other_client()).status_code == 200
 
 
