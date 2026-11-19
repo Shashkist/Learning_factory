@@ -4,14 +4,18 @@
 
 ## Now
 
-_In flight: 2026-11-19 ~18:05 UTC, laptop pass **lf-v6k1** holds #245 (`f/245-request-deadline-2`, worktree `C:\projects\lf-245b`: exam amended to LIMIT 2.0 + round-1 code cherry-picked, implementer on round-2 fixes), #255 (`f/255-previous-exam-gaps`, `C:\projects\lf-255`, exam writer) and #186 (`f/186-busy-save-live-region`, `C:\projects\lf-186`, exam writer). Nit 6 of #245 → #257._
+_Last updated: 2026-11-19 ~19:20 UTC, laptop pass **lf-v6k1** stopped at 3 merged PRs (#258, #262, #265) after ~80 minutes. Closed #255, #186, #245 with evidence. No claims held, nothing in flight. New follow-ups: #257 (one request clock), #263 (Previous race ordering), #264 (live region present before its text)._
 
-_Previous: 2026-11-19 ~17:55 UTC, laptop pass **lf-m7c2** stopped at 4 merged PRs (#246, #247, #252, #254) after ~60 minutes. Closed #243, #249, #251 with evidence. #245 parked after review round 1 (claim released, plan in the PR #256 comment and D79)._
+- **Resume here, in this order:** the Next list below, starting with **#263** and **#264** (small, exam-first) and **#257**.
+- Parked for the owner: **#230** guard half = **O21**; **#155** = optional **O22** (D77).
+- **Lesson (pass lf-v6k1):** exam integrity counts `labs/web/src/*.test.tsx` as *code* (only `labs/*/tests/**` outside `tests/unit/` is the exam). A PR whose `src/` tests come before an edit to `tests/acceptance/**` fails "changes the exam after non-test code". Order: acceptance edits first, then `src/` tests, then code. Run `python scripts/ci/exam_integrity.py origin/main HEAD` before every push.
+- **Lesson (pass lf-v6k1):** when an issue says "exam edit first: the #N exam ...", brief the exam writer with the exact file under `tests/acceptance/`. The #186 exam writer edited only `src/LabScreen.test.tsx`, and the conflict surfaced at the implementer (7 old exam cases red), costing a rebuild.
+- **Lesson (pass lf-v6k1):** passing asyncpg's `timeout=` to statements broke ~30 test fakes without keyword arguments (four in an exam the PR could not edit); `asyncio.timeout` around the statement gives the same bound. Also, asyncpg's `release` reuses the acquire timeout: if that wait is shortened, give release its own floor (D79).
+- **Lesson (pass lf-v6k1):** never link one worktree's `node_modules` to another's with a junction: `git worktree remove --force` follows the junction and empties the target. `C:\projects\lf-178\labs\web\node_modules` is empty since this pass (old, shipped worktree; `npm ci` there if it is ever reused). Give each worktree its own `npm ci` (~25 s), and tell reviewers not to create worktrees.
+- **Lesson (pass lf-v6k1):** a green PR whose code shares routes with an exam merged just before it (#245 pool deadline vs the new #255 task-route exam) was rebuilt as `-3` and re-run (~12 min) rather than merged on the old CI.
+- **Production:** `8e54a6a` (Deploy 44595946699: deploy + smoke success; `/api/health` 200 database ok; live bundle has the count-only `role="status"` line).
 
-- **Resume here, in this order:**
-  1. **#245 round 2** (PR #256, branch `f/245-request-deadline`, worktree `C:\projects\lf-245`; CI all green at 175fd0c, review: changes requested). Plan (D79): rebuild as **`f/245-request-deadline-2`** from origin/main: (a) cherry-pick the exam commit 2010562 and amend it only to set `LIMIT = 2.0` (was 0.4) in `test_issue_245_request_deadline.py`; (b) cherry-pick the code commit 175fd0c; (c) one new code commit: `BoundedPool._run` passes the time left (capped at `POOL_COMMAND_TIMEOUT`) as asyncpg `timeout=` and maps an expiry to 503 `db_busy`; **issue item 3**: the `session_ended` 409 in `sessions.py` (~:203) skips the start cleanup, with a unit test; a one-line comment on why the outer `wait_for` stays (fakes ignore `timeout`). Open a new PR (Closes #245), close #256, round 2 to a reviewer. Nit 6 (two 55 s clocks, `tasks.REQUEST_BUDGET_S` vs `db.REQUEST_DEADLINE_S`) → a follow-up issue.
-  2. **#255** (Previous exam gaps: Restart with a body, retry onto the first task, double Previous; exam-only, passes on today's code), **#186** busy row Save + open-tasks live region, then Next below.
-  3. Parked for the owner: **#230** guard half = **O21**; **#155** = optional **O22** (D77).
+_Previous: 2026-11-19 ~17:55 UTC, laptop pass **lf-m7c2** stopped at 4 merged PRs (#246, #247, #252, #254) after ~60 minutes. Closed #243, #249, #251 with evidence._
 - **Lesson (pass lf-m7c2):** a reviewer caught that running PR-controlled tests (`scripts/test_*.py`) in the *same job* as the exam-integrity check, before it, lets a PR change what the check runs (`$GITHUB_PATH`/`$GITHUB_ENV`) and lets a failing test hide the check's verdict. New test runs go in their own job (`tooling`, D78).
 - **Lesson (pass lf-m7c2):** exam writers cannot run DB cases locally, so a copied case can be wrong in a way only CI shows (#251: a test started on a task with a setup and never cleared the exec log). Fix it by rebuilding the branch as `-2` (exam commit amended, code cherry-picked, identical code confirmed with `git range-diff`) and record it (D78). When briefing an exam writer for DB cases, ask it to re-read every copied case for state left by its own setup steps.
 - **Lesson (pass lf-m7c2):** `git revert` in this repo opens a signing prompt and fails non-interactively; a following `git commit --amend` then silently amends the *previous* commit. To drop a throwaway commit, `git checkout <good-sha> -- <file>` and commit.
@@ -62,11 +66,10 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
 ## Next (in order)
 
-1. See Now: **#245** round 2 (rebuild as `-2`, D79).
-2. **#255** Previous exam gaps (exam-only), **#186** busy row Save + open-tasks live region (exam edit first); **#192** session start nits, **#193** smoke stop path (both p2).
+1. **#263** Previous race: pin the `repeat_ok` no-op ordering and a forced overlap (exam-only, DB cases; D75 amended). **#264** live region present before its text + #178 exam header (exam edit first). **#257** one request clock (task routes read `db.REQUEST_DEADLINE_S`; touches `tasks.py`, so not in parallel with #263's code reading).
+2. **#98** (p2, D46): this pass pushed 6 docs-only state commits and each ran the full ~12-minute CI; cancel superseded runs and skip full CI for docs-only pushes.
 3. **#167** docker end-to-end browser test against the real manager (split from #131, D60). **#151** kill follow-ups, **#154** Solution tab (D57 b), **#137**, **#126**, **#127**, **#142** (reuse the #153 helpers).
-4. **#98** (p2, D46): cancel superseded PR runs and skip full CI for docs-only pushes.
-5. **#85** deploy follow-ups, **#94**, **#93**; p2 list: #81, #76, #67, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
+4. **#85** deploy follow-ups, **#94**, **#93**; p2 list: #81, #76, #67, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
 
@@ -79,6 +82,7 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
 ## Recently done
 
+- 2026-11-19 · Pass lf-v6k1: **3 PRs merged, 3 issues closed.** #258 → **#255** (exam-only, Previous gaps; review round 1: unknown `from` on the first task and a forced overlap added, D75 amended; round 2 approved; main CI 1527 exam cases, no skips). #262 → **#186** (busy rows disable Save; live region holds the count only; branch rebuilt twice: commit order for exam integrity, then round-1 asks (singular case in the #178 exam, re-enable test); D80; Deploy 44593159664, live bundle checked). #265 → **#245** (one deadline per request incl. statements via `asyncio.timeout`, release floor keeps `db_busy`, `session_ended` skips the start cleanup; replaces #256/#261; rebased after #258 so the #255 exam ran against it; Deploy 44595946699, smoke ok). New: #257, #263, #264.
 - 2026-11-19 · Pass lf-q3m8: **3 PRs merged, one parked approved.** #239 (#228 image built once, merged first; main CI green). #241 (#228 docker job `timeout-minutes: 30`, docker exams run once: job 17 → ~10 min; review round 1 approved; the timeout's exam moved to #243 under D19) → **#228 closed** (Deploy 44549921062, smoke ok on the new term image). #242 (#155 cron off the quarter hours, D73; round 1 approved; issue kept open until a scheduled run is seen). #236 → PR #244 (exam case corrected after the build, D74; round 1 blocker on start cleanup fixed and verified with a test that fails on the old code; round 2 approved, CI green), parked. New: #243, #245.
 - 2026-11-19 · Pass lf-r6t4: **3 PRs merged, one parked approved.** #229 (#233, re-sequenced from #231 because exam integrity refuses an exam together with `scripts/ci/**`; round 1: the previous-run lookup could pick a newer, still-running run, and a broken gate dropped every incident; fixed to fail open, round 2 approved). #224 (#234, round 1 approved; item 3 decided in D72, follow-up #236; Deploy 44532309355 smoke ok through check and answer, bundle has the check_timeout text). #216 (#237, re-sequenced from #232 after #234; round 1 blocker: the task id rendered reversed inside a Hebrew sentence, fixed with an LTR-isolated slot and a test; round 2 approved). Incidents #235 and #240 (Ubuntu mirror outages two and three of the day, each fixed by re-running the docker job; #240 hit #237's merge, so its Deploy came after the rerun); #228 raised to p1, exam + Dockerfile in PR #239, approved and green. #155 reopened (no scheduled runs).
 
