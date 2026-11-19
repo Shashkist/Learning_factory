@@ -3,7 +3,6 @@
 Static tests run everywhere. Docker tests run in the CI `docker` job (gVisor runsc registered).
 The image under test is $LF_LAB_TERM_IMAGE if set, else built from labs/images/term.
 """
-import os
 import re
 import subprocess
 import time
@@ -12,6 +11,7 @@ import urllib.request
 import uuid
 from pathlib import Path
 
+import lab_image
 import pytest
 
 REPO_ROOT = next(
@@ -152,13 +152,7 @@ def _docker(*args: str, timeout: int = 600, check: bool = True) -> subprocess.Co
 
 @pytest.fixture(scope="module")
 def image() -> str:
-    env = os.environ.get("LF_LAB_TERM_IMAGE")
-    if env:
-        return env
-    assert DOCKERFILE.is_file(), f"{DOCKERFILE} is missing, cannot build the image"
-    tag = "lf-lab-term:exam"
-    _docker("build", "-t", tag, str(IMAGE_DIR), timeout=1500)
-    return tag
+    return lab_image.ensure_lab_image()
 
 
 def _start(image: str, request, base_path: str) -> str:

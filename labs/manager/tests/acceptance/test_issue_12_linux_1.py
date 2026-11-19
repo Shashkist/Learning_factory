@@ -49,6 +49,7 @@ import time
 import uuid
 from pathlib import Path
 
+import lab_image
 import pytest
 
 REPO_ROOT = next(
@@ -58,7 +59,6 @@ CONTENT_ROOT = REPO_ROOT / "labs" / "content"
 LAB_DIR = CONTENT_ROOT / "linux" / "linux-1"
 LAB_ID = "linux-1"
 LAB_KEY = "linux/linux-1"
-IMAGE_DIR = REPO_ROOT / "labs" / "images" / "term"
 OWNER_MD = REPO_ROOT / "docs" / "factory" / "OWNER.md"
 
 TASKS = [
@@ -332,13 +332,7 @@ def runtime_flag(docker_available):
 
 @pytest.fixture(scope="module")
 def image(docker_available):
-    env = os.environ.get("LF_LAB_TERM_IMAGE")
-    if env:
-        return env
-    assert (IMAGE_DIR / "Dockerfile").is_file(), "labs/images/term/Dockerfile is missing"
-    tag = "lf-lab-term:exam"
-    _docker("build", "-t", tag, str(IMAGE_DIR), timeout=1500)
-    return tag
+    return lab_image.ensure_lab_image()
 
 
 @pytest.fixture
