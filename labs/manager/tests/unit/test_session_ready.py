@@ -223,7 +223,8 @@ def test_row_step_shares_one_bound_and_the_answer_stays_under_nginx(monkeypatch)
     t0 = time.monotonic()
     assert _answer(state).status_code == 502
     # The removal is instant, so only the row step's one 0.3 s bound may elapse. A separate bound
-    # for the update would take at least 0.25 + 0.3 s (sleeps never end early), above the limit.
+    # for the update would take at least 0.25 + 0.3 s (sleeps end at most one clock tick
+    # early), above the limit.
     assert removed and time.monotonic() - t0 < 0.3 + 0.2
 
 

@@ -18,6 +18,7 @@ log = logging.getLogger("lab-manager")
 MB = 1024 * 1024
 DEFAULT_DOCKER_HOST = "unix:///var/run/docker.sock"
 _TIMEOUT = 60.0
+KILL_BOUND_S = 5.0  # longest kill of a timed-out script
 MAX_OUTPUT = 256 * 1024  # the exam reassembles 200 KiB, so not the 64 KiB asked for
 TRUNCATED = b"\n[output truncated]\n"
 
@@ -246,7 +247,7 @@ class DockerRuntime:
                 raise  # a timeout inside the exec (e.g. connecting) is a failure, not a slow script
             if ids:  # returns only once the script has stopped, so the session lock outlives it
                 try:
-                    async with asyncio.timeout(min(5.0, max(3.0, timeout * 0.2))):
+                    async with asyncio.timeout(min(KILL_BOUND_S, max(3.0, timeout * 0.2))):
                         await self._kill(name, exec_command(script), ids[0])
                 except Exception as exc:  # the lock is released anyway; class only, no data
                     log.error("killing a timed-out script failed (%s)", type(exc).__name__)
