@@ -14,7 +14,8 @@
  *    skew learned by an earlier screen.
  *
  * New wording the implementation must add (t() has no interpolation, so the screen builds the count text):
- *   open tasks: English text matching /(\d+) tasks? still open/i; Hebrew: any status/alert text containing N.
+ *   open tasks: English text matching /(\d+) tasks? still open/i; Hebrew: any status/alert text containing N
+ *   (for N = 1 the Hebrew singular line lab.open.one, which spells "one" instead of the digit; #186).
  *   lab.error.end_failed: English matching /could not be ended|ending .* failed|failed to end/i.
  */
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -208,7 +209,11 @@ describe.each(LANGS)("lab complete only when every task is passed (%s)", (lang) 
     else
       await waitFor(() =>
         expect(
-          screen.queryAllByRole("status").concat(screen.queryAllByRole("alert")).some((e) => (e.textContent ?? "").includes(String(open))),
+          screen
+            .queryAllByRole("status")
+            .concat(screen.queryAllByRole("alert"))
+            // the Hebrew singular line spells "one" (lab.open.one) instead of the digit (#186)
+            .some((e) => (e.textContent ?? "").includes(open === 1 ? d["lab.open.one"] : String(open))),
         ).toBe(true),
       );
     expect(screen.queryByText(d["lab.complete"], { exact: false })).toBeNull();
