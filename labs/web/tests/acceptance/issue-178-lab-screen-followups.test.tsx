@@ -9,7 +9,8 @@
  *    contain the lab.error.load text, the screen must not claim completion, and End still works.
  * 3. OPEN TASKS ARE LINKS. In the "N tasks still open" view each open task title is a button (accessible
  *    name = the task title in the current language). Clicking it sends POST .../tasks/{id}/show (once) and
- *    opens that task: its title is the task heading and the open-tasks view is gone.
+ *    opens that task: its title is the task heading and the open-tasks view is gone. "View is gone" covers
+ *    both count lines: the plural (`lab.open.many`) and the singular (`lab.open.one`, #186, #264).
  */
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
