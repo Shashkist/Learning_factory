@@ -23,8 +23,8 @@ POOL_COMMAND_TIMEOUT = 50
 # The longest a request-path read waits for a free pool connection (seconds), below nginx's 60 s.
 POOL_ACQUIRE_TIMEOUT = 10.0
 # The longest a whole request may wait for the database (seconds), below nginx's 60 s. Read when
-# the request runs. It caps every wait for a connection, so a route that reads several times
-# cannot add up per-wait limits past it.
+# the request runs. It caps every wait for a connection and every statement, so a route that
+# reads several times cannot add up per-wait limits past it.
 REQUEST_DEADLINE_S = 55.0
 _request_started: ContextVar[float | None] = ContextVar("lf_request_started", default=None)
 
@@ -104,7 +104,8 @@ async def migrate(dsn: str) -> list[str]:
 class BoundedPool:
     """A pool for request paths: waiting for a free connection is limited by
     `POOL_ACQUIRE_TIMEOUT` (read at call time), then the request answers 503 `db_busy` instead
-    of hanging until nginx cuts the client off. `acquire()` is only an async context manager
+    of hanging until nginx cuts the client off. The request deadline also cuts each statement
+    (same 503). `acquire()` is only an async context manager
     (`async with`): no `await pool.acquire()`, no `release`. fetch/fetchrow/fetchval/execute are
     as asyncpg's."""
 
@@ -126,10 +127,21 @@ class BoundedPool:
             conn = await asyncio.wait_for(self._pool.acquire(timeout=wait), wait)
         except TimeoutError:
             raise _db_busy() from None
+        # release gets its own floor: a cancelled statement needs a moment to be reset, and
+        # asyncpg would otherwise reuse the (possibly tiny) acquire wait
+        release_wait = max(wait, 1.0)
         try:
             yield conn
-        finally:
-            await self._pool.release(conn)
+        except BaseException:
+            try:  # the exception already on its way (db_busy included) is the answer
+                await self._pool.release(conn, timeout=release_wait)
+            except TimeoutError:
+                pass
+            raise
+        try:
+            await self._pool.release(conn, timeout=release_wait)
+        except TimeoutError:
+            raise _db_busy() from None
 
     async def _run(self, method: str, *args: Any) -> Any:
         async with self.acquire() as conn:

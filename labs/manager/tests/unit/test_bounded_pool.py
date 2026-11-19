@@ -21,7 +21,7 @@ class _Pool:
             raise TimeoutError
         return _Conn()
 
-    async def release(self, conn):
+    async def release(self, conn, timeout=None):
         self.released.append(conn)
 
 
@@ -97,3 +97,26 @@ def test_a_statement_slower_than_the_time_left_is_db_busy_within_the_deadline(mo
         asyncio.run(go())
     assert time.monotonic() - t0 < 2
     assert e.value.status_code == 503 and e.value.detail["code"] == "db_busy"
+
+
+def test_a_release_that_times_out_is_db_busy_and_keeps_one_already_on_its_way():
+    class StuckRelease(_Pool):
+        async def release(self, conn, timeout=None):
+            self.timeouts.append(("release", timeout))
+            raise TimeoutError
+
+    async def plain():
+        async with db.BoundedPool(StuckRelease()).acquire():
+            pass
+
+    with pytest.raises(HTTPException) as e:
+        asyncio.run(plain())
+    assert e.value.status_code == 503 and e.value.detail["code"] == "db_busy"
+
+    async def raising():
+        async with db.BoundedPool(StuckRelease()).acquire():
+            raise HTTPException(404, "gone")
+
+    with pytest.raises(HTTPException) as e2:
+        asyncio.run(raising())
+    assert e2.value.status_code == 404
