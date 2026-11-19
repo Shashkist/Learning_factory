@@ -18,6 +18,7 @@ from app import (
     db,
     google_auth,
     janitor,
+    live,
     sessions,
     student_page,
     tasks,
@@ -133,6 +134,7 @@ app.include_router(tasks.router)
 app.include_router(teacher.router)
 app.include_router(classtable.router)
 app.include_router(student_page.router)
+app.include_router(live.router)
 app.include_router(term_proxy.router)
 
 
