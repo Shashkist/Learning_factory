@@ -35,6 +35,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
 
+import lab_image
 import pytest
 
 REPO_ROOT = next(
@@ -495,13 +496,7 @@ def _serve(host: str) -> ThreadingHTTPServer:
 
 @pytest.fixture(scope="module")
 def image() -> str:
-    env = os.environ.get("LF_LAB_TERM_IMAGE")
-    if env:
-        return env
-    assert (IMAGE_DIR / "Dockerfile").is_file(), "lab image Dockerfile missing"
-    tag = "lf-lab-term:exam"
-    _docker("build", "-t", tag, str(IMAGE_DIR), timeout=1500)
-    return tag
+    return lab_image.ensure_lab_image()
 
 
 @pytest.fixture(scope="module")

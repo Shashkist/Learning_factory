@@ -24,6 +24,7 @@ import uuid
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
+import lab_image
 import pytest
 
 pytestmark = pytest.mark.docker
@@ -82,13 +83,7 @@ def network():
 
 @pytest.fixture(scope="module")
 def image() -> str:
-    env = os.environ.get("LF_LAB_TERM_IMAGE")
-    if env:
-        return env
-    assert (IMAGE_DIR / "Dockerfile").is_file(), "labs/images/term/Dockerfile is missing"
-    tag = "lf-lab-term:exam"
-    docker("build", "-t", tag, str(IMAGE_DIR), timeout=1500)
-    return tag
+    return lab_image.ensure_lab_image()
 
 
 @pytest.fixture(scope="module")
