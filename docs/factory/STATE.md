@@ -4,12 +4,14 @@
 
 ## Now
 
-_Last updated: 2026-11-19 ~08:40 UTC, laptop pass **lf-j8w3** stopped at its time limit (no claims held)._
+_Last updated: 2026-11-19 ~12:35 UTC, laptop pass **lf-r6t4** running (claims: #216, #224, #229)._
 
-- **Resume here, in this order:**
-  1. **#155 PR #226** (dashboard every 15 min, D71): exam commit first, then the workflow, then a ruff fix to the exam comment (8b7c1c2). **Review round 1 approved** (no blockers; should-fix accepted in D71 → #229; nits: comment-only exam commit after the workflow, cron offset to dodge :00/:15 delays, both left). CI on 8b7c1c2: exam-integrity, web, dashboard green; manager and docker were still running at 08:35 UTC. When all are green, squash-merge (D71 is already on main). Then check that the Factory dashboard runs on the schedule (`gh run list --workflow factory-dashboard.yml --event schedule`) and close #155.
-  2. **#216** (translated flag reasons): exam 757217c pushed on `f/216-flag-reasons` (worktree `C:\projects\lf-216`); the contract is in the issue comment. Next: implementer. Its `labs/web/node_modules` is a junction to `C:\projects\lf-204\labs\web\node_modules`; remove it before deleting either worktree.
-  3. **#224** (check path bounds, `check_timeout`): exam e578628 pushed on `f/224-check-path-bounds` (worktree `C:\projects\lf-224`, run `npm ci` in `labs/web` first, its web exam has never run). Next: implementer. Runs beside #216: there is no overlap except `i18n/en.json` and `he.json`.
+- **In flight (lf-r6t4):**
+  1. **#216** (translated flag reasons): implementer running in `C:\projects\lf-216` on `f/216-flag-reasons` (exam 757217c). Its `labs/web/node_modules` is a junction to `C:\projects\lf-204\labs\web
+ode_modules`; remove it before deleting either worktree.
+  2. **#224** (check path bounds, `check_timeout`): implementer running in `C:\projects\lf-224` on `f/224-check-path-bounds` (exam e578628).
+  3. **#229** (scheduled dashboard failure is not a p0): exam writer running in `C:\projects\lf-229` on `f/229-dashboard-incident-noise`.
+- **#155** was closed by the merge of #226 (09:12 UTC), but no *scheduled* Factory dashboard run had appeared by 12:30 UTC (push runs fine). Check `gh run list --workflow factory-dashboard.yml --event schedule`; if still none, reopen #155.
 - **Lesson (this pass):** main CI went red on two pushes in a row (3764e13, 6570baf) with nothing wrong in the code: the Ubuntu archive mirror stopped answering, the `lf-lab-term` build hung, and ten exam modules each waited 1500 s for it (70-84 min, 87-136 errors). Re-running only the failed job was enough (incident #227); the hardening is #228. When every docker error is the same build timeout, look at the runner's `apt` lines before the code.
 - **Lesson (this pass):** the exam writers took ~55 minutes each on the loaded laptop (O20). Budget: a lane started after ~30 minutes into a pass does not reach a PR in the same pass; start the exam writers in the first 10 minutes.
 - **Laptop (O20):** ~1,080 processes (148 `cygwin-console-helper`, 240 `conhost`), CPU 97 %. Bash calls hung for minutes, even `ls`; PowerShell stayed usable. In PowerShell 5.1, `gh --jq` with embedded double quotes is mangled: use `--json ... | ConvertFrom-Json`.
