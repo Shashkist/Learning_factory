@@ -480,8 +480,8 @@ export default function LabScreen({
           aria-labelledby={`lab-tab-${tab}`}
         >
           {open ? (
-            <div role="status">
-              <p>
+            <div>
+              <p role="status">
                 {open.length === 1
                   ? t("lab.open.one")
                   : `${open.length} ${t("lab.open.many")}`}
