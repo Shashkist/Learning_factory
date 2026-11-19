@@ -417,3 +417,24 @@ def test_db_busy_after_the_insert_still_cleans_up_and_answers_503(monkeypatch):
     e = _answer(state)
     assert e.status_code == 503 and e.detail["code"] == "db_busy"
     assert removed and "status = 'starting'" in pool.sql[0]  # the row deleted, container removed
+
+
+def test_a_session_ended_during_the_start_is_409_without_a_second_cleanup(monkeypatch, caplog):
+    removed: list[str] = []
+
+    class Ready(_RT):
+        async def wait_ready(self, name, timeout):
+            return None
+
+    state, pool, _ = _env(monkeypatch, "DELETE 1", runtime=Ready(removed))
+
+    async def ended_meanwhile(sql, *args):
+        pool.sql.append(sql)
+        return None  # the 'running' mark finds no 'starting' row
+
+    pool.fetchval = ended_meanwhile
+    e = _answer(state)
+    assert (e.status_code, e.detail) == (409, "session_ended")
+    assert len(removed) == 1  # removed once, where the end was found
+    assert not any(q.startswith("delete from") for q in pool.sql)
+    assert not any(r.levelname == "ERROR" for r in caplog.records)

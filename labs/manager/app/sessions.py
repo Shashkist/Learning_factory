@@ -212,6 +212,8 @@ async def start(
             async with asyncio.timeout_at(_loop_time(deadline)):
                 return await run()
         except Exception as exc:
+            if isinstance(exc, HTTPException) and exc.detail == "session_ended":
+                raise  # the end was found and the container already removed: nothing to clean up
             if not rows and not isinstance(exc, TimeoutError):
                 raise  # before the insert there is nothing to clean up (HTTPException included)
             log.error("starting session of lab %s failed (%s)", lab.id, type(exc).__name__)

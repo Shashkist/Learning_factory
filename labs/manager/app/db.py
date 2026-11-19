@@ -122,6 +122,7 @@ class BoundedPool:
         if wait <= 0:
             raise _db_busy()
         try:
+            # wait_for stays around acquire(timeout=) because test fakes ignore `timeout`
             conn = await asyncio.wait_for(self._pool.acquire(timeout=wait), wait)
         except TimeoutError:
             raise _db_busy() from None
@@ -132,7 +133,17 @@ class BoundedPool:
 
     async def _run(self, method: str, *args: Any) -> Any:
         async with self.acquire() as conn:
-            return await getattr(conn, method)(*args)
+            budget: float = POOL_COMMAND_TIMEOUT
+            started = _request_started.get()
+            if started is not None:
+                budget = min(budget, started + REQUEST_DEADLINE_S - time.monotonic())
+            if budget <= 0:
+                raise _db_busy()
+            try:  # the statement may not outlive the request deadline
+                async with asyncio.timeout(budget):
+                    return await getattr(conn, method)(*args)
+            except TimeoutError:
+                raise _db_busy() from None
 
     async def fetch(self, *args: Any) -> Any:
         return await self._run("fetch", *args)
