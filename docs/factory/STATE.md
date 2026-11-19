@@ -4,9 +4,15 @@
 
 ## Now
 
-_Last updated: 2026-11-19 ~05:05 UTC, laptop pass **lf-v3k8** running (took over #204 from lf-p5r9, which stopped at its time limit)._
+_Last updated: 2026-11-19 ~08:40 UTC, laptop pass **lf-j8w3** stopped at its time limit (no claims held)._
 
-- **In flight (lf-v3k8):** **#204** PR #219, D68 write queue being built in `C:\projects\lf-204`. **#217** exam being written in `C:\projects\lf-217` (`f/217-student-page-api`).
+- **Resume here, in this order:**
+  1. **#155 PR #226** (dashboard every 15 min, D71): exam commit first, then the workflow, then a ruff fix to the exam comment (8b7c1c2). The first CI run was green except ruff; the re-run on 8b7c1c2 and a reviewer were running when the pass stopped. If CI is green and nothing is wrong in `gh pr diff 226`, review it (or re-dispatch the reviewer) and squash-merge. Then check that the Factory dashboard runs on the schedule (`gh run list --workflow factory-dashboard.yml --event schedule`) and close #155.
+  2. **#216** (translated flag reasons): exam 757217c pushed on `f/216-flag-reasons` (worktree `C:\projects\lf-216`); the contract is in the issue comment. Next: implementer. Its `labs/web/node_modules` is a junction to `C:\projects\lf-204\labs\web\node_modules`; remove it before deleting either worktree.
+  3. **#224** (check path bounds, `check_timeout`): exam e578628 pushed on `f/224-check-path-bounds` (worktree `C:\projects\lf-224`, run `npm ci` in `labs/web` first, its web exam has never run). Next: implementer. Runs beside #216: there is no overlap except `i18n/en.json` and `he.json`.
+- **Lesson (this pass):** main CI went red on two pushes in a row (3764e13, 6570baf) with nothing wrong in the code: the Ubuntu archive mirror stopped answering, the `lf-lab-term` build hung, and ten exam modules each waited 1500 s for it (70-84 min, 87-136 errors). Re-running only the failed job was enough (incident #227); the hardening is #228. When every docker error is the same build timeout, look at the runner's `apt` lines before the code.
+- **Lesson (this pass):** the exam writers took ~55 minutes each on the loaded laptop (O20). Budget: a lane started after ~30 minutes into a pass does not reach a PR in the same pass; start the exam writers in the first 10 minutes.
+- **Laptop (O20):** ~1,080 processes (148 `cygwin-console-helper`, 240 `conhost`), CPU 97 %. Bash calls hung for minutes, even `ls`; PowerShell stayed usable. In PowerShell 5.1, `gh --jq` with embedded double quotes is mangled: use `--json ... | ConvertFrom-Json`.
 - **Lesson (this pass, #219):** answers to two overlapping writes are snapshots taken by concurrent handlers; ordering them on the client by send time is wrong in one direction or the other. Serialize the writes instead (D68).
 - **Lesson (this pass, #218):** a unit test that builds a bare `SimpleNamespace` request broke on `request.state` again (same as #177). Read request attributes with `getattr(request, "state", None)` in shared helpers.
 
@@ -18,7 +24,7 @@ _Last updated: 2026-11-19 ~05:05 UTC, laptop pass **lf-v3k8** running (took over
 - **Laptop (O20, pass lf-n4d6; lf-k7p2 saw Bash responsive, narrow local tests fine):** ~950 python processes, CPU ~85 %; trivial Bash commands sometimes hang for 2 min and a full local vitest run did not finish in 10 min. Local checks: ruff/mypy/tsc/lint + narrow pytest only; CI runs the full suites.
 - **Laptop (O20 still open):** Bash responds this pass, but ~885 hung `qa-statusline.py` processes, CPU ~50 %. GitHub API/DNS from the laptop drops often (TLS handshake timeouts): wrap every `gh`/`git push` in a retry loop.
 - **Lesson (pass lf-x2v7):** the subagents here have only Bash as a shell; when Bash hangs, they cannot read issues, run tests or commit. Check `echo hi` in Bash at orient before dispatching; if it hangs, stop the pass and raise it.
-- **Production:** `lf-manager:4a6c46a` (Deploy 44459787744, smoke ok).
+- **Production:** `lf-manager:6570baf` (Deploy 44487685452, smoke ok start/show/check-fail/check-pass/quiz-show/end).
 - **Lesson (D62):** a docker exam matcher must not match a bare digit string: the random session id is in ttyd's argv.
 - **Lesson:** a PR branch cannot be rebased in place (no force-push; exam-integrity refuses merge commits). Merge the lanes in dependency order; when a rebase is needed, push the rebased commits to `<branch>-2` and open a new PR.
 - **Laptop load:** the web suite fails random tests on timeouts under load; `npx vitest run --maxWorkers=2` is reliable. CI is the judge.
@@ -30,8 +36,8 @@ _Last updated: 2026-11-19 ~05:05 UTC, laptop pass **lf-v3k8** running (took over
 
 ## Next (in order)
 
-1. Teacher UI: **#204** (see Now), then **#216** translated flag reasons (exam change first, depends on #204) and **#217** student page API nits (manager, can run beside #204). #204 still carries the #206 round 2 fake-backend nits. Flags/reasons in `task_results` / `lab_runs` (D55); leave out `lf-smoke` everywhere (`app/smoke.py`, D61). Optional: a refresh/poll on the live sessions page (#165 round 1 nit 6, not filed).
-2. **#220** task setup deadline follow-ups (quiz path, release bound, async `_start`, check path), **#186** busy row Save + open-tasks live region (exam edit first); **#192** session start nits, **#193** smoke stop path (both p2).
+1. See Now: **#226** (#155), **#216**, **#224** (all have their exams). Flags/reasons in `task_results` / `lab_runs` (D55); leave out `lf-smoke` everywhere (`app/smoke.py`, D61). Optional: a refresh/poll on the live sessions page (#165 round 1 nit 6, not filed).
+2. **#222** idempotent Next/Skip (after #224: same `tasks.py` and `LabScreen.tsx`), **#228** docker exam image build once / fail fast, **#229** dashboard incident noise (before or with #226's first day), **#186** busy row Save + open-tasks live region (exam edit first); **#192** session start nits, **#193** smoke stop path (both p2).
 3. **#167** docker end-to-end browser test against the real manager (split from #131, D60). **#151** kill follow-ups, **#154** Solution tab (D57 b), **#137**, **#126**, **#127**, **#142** (reuse the #153 helpers).
 4. **#98** (p2, D46): cancel superseded PR runs and skip full CI for docs-only pushes; **#155** dashboard cadence.
 5. **#85** deploy follow-ups, **#94**, **#93**; p2 list: #81, #76, #67, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
@@ -44,6 +50,9 @@ _Last updated: 2026-11-19 ~05:05 UTC, laptop pass **lf-v3k8** running (took over
 - O16/O7 resolved by D43 (public repository). O12 (back up `.env`), O13 (re-deploy after recreating nginx-proxy3), O5 reopened.
 
 ## Recently done
+
+- 2026-11-19 · Pass lf-j8w3: **0 PRs merged, the line fixed, three lanes started.** Found main CI red on 3764e13 and 6570baf from an Ubuntu mirror outage during the image build (incident #227, re-run green, hardening #228); then Deploy 44487685452 shipped #223 (smoke ok through show and check) and #220 was closed with that evidence (the previous pass lf-v3k8 had merged #219, #221, #223 and was stopped at its time limit before the deploy). #155 → PR #226 (D71, supersedes D12's cadence). Exams for #216 (757217c) and #224 (e578628) pushed; implementers not started (time).
+- 2026-11-19 · Pass lf-v3k8: **3 PRs merged.** #204 (#219, D68 write queue, four review rounds), #217 (#221, content-type check after the body moved into the handler, D69), #220 (#223, two rounds, leftovers #224/#222, D70). Stopped by the 110-minute limit before #223's deploy.
 
 - 2026-11-19 · Pass lf-p5r9: **2 PRs merged, #204 parked in review.** #214 (#215): the smoke-student exam reads tomorrow before and after the CLI run; reviewer nit (drop local-time tomorrow, access dates are UTC) folded in; main CI 44452939633 green. #202 (#218, D67): setup capped at 40 s, kill 5 s, DB step 8 s with server timeouts at 5 s and terminate instead of ROLLBACK, one 55 s request budget from a dependency resolved before auth, `END_REASONS` checked against migration 003; round 1 should-fix (unbounded ROLLBACK/release, pre-setup reads outside the sum), round 2 approved, CI caught a bare-request `state` read (fixed); Deploy 44459787744 smoke ok through show and quiz-show; leftovers #220. #204 sliced by D66 (#216, #217); PR #219 exam + code, three review rounds → D68.
 
@@ -116,7 +125,7 @@ _Last updated: 2026-11-19 ~05:05 UTC, laptop pass **lf-v3k8** running (took over
 - **Postgres exists only in CI** (the `manager` job's `postgres:16` service; no Docker/Postgres on the laptop). DB tests skip locally and must run in CI (the no-skip gate enforces it). They refuse any `LF_TEST_DATABASE_URL` that is not localhost.
 - **Exam harness fixes go before the code.** The per-commit gate (D9) rejects an exam change after a code commit; re-sequence onto a new branch (exam, harness fix, code) and open a new PR (#39 → #40). TestClient: a second client must reuse `other.portal = client.portal` (the asyncpg pool belongs to one loop).
 - **Pattern:** an issue whose acceptance needs a `ci.yml` change ships as two PRs (D19). To prove the exam before the code PR merges, stack the exam commits in a draft PR based on the code branch (as #32 did).
-- **Actions minutes:** private repo on the free plan (2,000 min/month). Dashboard cadence cut to push + every 3 h (D12); owner option O7.
+- **Actions minutes:** private repo on the free plan (2,000 min/month). The repository is public since D43 (free minutes); the dashboard runs on push + every 15 min (D71, #226).
 - Local runs: `uv run mypy` / `uv run pytest` `.exe` shims fail on this laptop (Access denied); use `uv run python -m ...`. Force-push is blocked by the permission classifier: re-sequence onto a new branch + new PR instead.
 - Deploy: `.github/workflows/deploy.yml` after every green main CI (D34); server files in `/root/learning-factory/` (`.env` mode 600, `deployed-tag`). Server: Docker 28.2.1, Compose 2.36.2, nginx network `my_network`. Dashboard publish works from the `production` environment (run 43639502324); the server refuses bursts of new SSH connections, so reuse one connection (ControlMaster) in deploy scripts.
 - Server: 4 vCPU / 7.8 GB / ~3.6 GB free / 92 GB disk free (2026-11-14).

@@ -96,7 +96,7 @@ in force · **owner (Ilia)** + factory · 2026-11-14 (renumbered from a duplicat
 
 
 ## D12 · Dashboard snapshot cadence fits the free Actions minutes; exam for #18 revised
-in force (assumption on budget) · factory · 2026-11-14
+cadence superseded by D71 (2026-11-19, repository public) · factory · 2026-11-14
 
 **Decision.** The repo is private on the free plan (2,000 Actions minutes a month; every job bills at least one minute). A 15-minute cron alone is ~2,880 minutes a month and would stop CI around day 20. So `factory-dashboard.yml` runs on **push to `main`** (the factory commits `STATE.md` at every step, so the page stays current), a **cron every 3 hours** (~240 min/month) and `workflow_dispatch`; no `issues` / `pull_request` triggers (they also built from unmerged branches, review of #22). The snapshot's run lights use only runs on `main`, queried per workflow. The claim is read from `status:in-progress` issues, then `status:in-review`, with the same rule as `scripts/issue_lock.py` (first live claim wins). `server` is `null` until the smoke workflow (#15) provides it.
 **Exam change.** D8's cadence and the claim rule were pinned by the exam. The exam writer revised it in a new commit; the manager re-sequenced the branch so both exam commits come before any code (the builder never touched the exam).
@@ -681,3 +681,12 @@ in force · factory · 2026-11-19
 **Why.** Each part is one reviewable PR; the task paths were the ones with a known way to exceed nginx's timeout. Other routes are single short reads at class scale.
 **Alternatives.** One PR for all of it (over the ~400-line budget, more review rounds); a pool subclass with a default acquire timeout (touches every route at once).
 **Revert.** Set the pool back to `COMMAND_TIMEOUT`; close #222/#224 as won't-do.
+
+## D71 · Dashboard snapshot every 15 minutes (supersedes D12's cadence)
+in force · factory · 2026-11-19
+
+**Decision.** The Factory dashboard workflow runs on `*/15 * * * *` again, plus every push to `main` and manual dispatch (#155). The exam cases that pinned D12's `0 */3 * * *` were changed first, in the same PR: the exam-integrity gate only refuses exam changes together with `ci.yml` or `scripts/ci/**` (D19), and `factory-dashboard.yml` is neither.
+**Why.** D12 cut the cadence to fit 2,000 free private-repo minutes. The repository is public (D43; `gh repo view` says PUBLIC), so GitHub-hosted minutes cost nothing, and the GitHub part of factory.shashkist.com lagged up to 3 hours.
+**Cost.** ~96 runs a day of ~1 minute each, plus one SSH connection per publish (ControlMaster, 3 retries 20 s apart). The server refuses bursts of new SSH connections (#26); a publish that lands next to a Deploy may retry once. Accepted risk (review of #226): `incident.yml` opens a p0 incident for any failed dashboard run, so a transient failure now has 12 times the chances; #229 raises it only after two failed scheduled runs in a row.
+**Alternatives.** Every 30 minutes (half the SSH traffic, still stale enough to notice); publish from the laptop poller (no runner, but only while the laptop is on).
+**Revert.** Set the cron back to `0 */3 * * *` in `factory-dashboard.yml` and in the #18/#19 exam cases.
