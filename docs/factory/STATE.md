@@ -10,10 +10,8 @@ _Last updated: 2026-11-19 ~04:45 UTC, laptop pass **lf-p5r9** stopped at its tim
 - **Lesson (this pass, #219):** answers to two overlapping writes are snapshots taken by concurrent handlers; ordering them on the client by send time is wrong in one direction or the other. Serialize the writes instead (D68).
 - **Lesson (this pass, #218):** a unit test that builds a bare `SimpleNamespace` request broke on `request.state` again (same as #177). Read request attributes with `getattr(request, "state", None)` in shared helpers.
 
-- **Next session starts at:** Next 1 (#204 student page follow-ups), with #214 (p2, exam-only, small) as a parallel lane.
 - **Lesson (this pass, #209):** an exam that checks the exact boundary of today must read the clock at test time and again after the request; a module-level `TODAY` read before midnight UTC failed a login at 00:04 UTC. Web exams with UTC fixture dates now run under a pinned `TZ=UTC` (`labs/web/vite.config.ts`, guard `src/tz.test.ts`), since pages show local time.
 
-- **Next session starts at:** #165: send the round 1 findings to an implementer on `f/165-live-sessions-2` (new commits, no force-push), wait for CI, review round 2, merge, deploy, live check (`/api/admin/live` 401 anonymous, bundle has `/admin/live`), close #165. Then Next 1.
 - **Lesson (this pass):** grep an exam's fake `lab.yaml` for `module`/`lesson` against `MODULE_LESSONS` in `app/content.py` before CI: a lesson outside its module's range makes the loader drop the lab silently (#145, again in #207).
 - **Lesson (this pass):** a pass killed by the runner time limit can leave a green, reviewed PR behind; check the PR's CI merge ref against what landed on main since (here #200 was already in it and #201 touched disjoint files), then merge without a re-run.
 - **Lesson (this pass):** check a reviewer's "simplify" nit against the exam before forwarding it. Reading `request.state.started` directly broke four #177 exam cases that call `start()` with a bare request.
