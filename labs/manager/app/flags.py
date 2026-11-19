@@ -1,6 +1,7 @@
 """Fast-work flags and active time (D37, spec section 8): pure functions, no database."""
 from collections.abc import Iterable
 from statistics import median
+from typing import Any
 
 DEFAULT_MIN_TASK_SECONDS = 20
 MEDIAN_MIN_PRIORS = 5
@@ -53,6 +54,36 @@ def fast_lab_reason(
                 f"({typical:.0f} s)"
             )
     return None
+
+
+def fast_task_detail(
+    task_id: str,
+    kind: str,
+    seconds: float,
+    min_task_seconds: float = DEFAULT_MIN_TASK_SECONDS,
+    repeat: bool = False,
+) -> dict[str, Any] | None:
+    """The structured twin of `fast_task_reason`: code, whole seconds and the limit."""
+    if fast_task_reason(task_id, kind, seconds, min_task_seconds, repeat) is None:
+        return None
+    return {"code": "fast_task", "seconds": int(seconds), "threshold": min_task_seconds}
+
+
+def fast_lab_detail(
+    active_seconds: float,
+    fast_lab_min: float | None = None,
+    prior_active_seconds: Iterable[float] = (),
+    repeat: bool = False,
+) -> dict[str, Any] | None:
+    """The structured twin of `fast_lab_reason`; the minimum wins when both rules hold."""
+    priors = list(prior_active_seconds)
+    if fast_lab_reason(active_seconds, fast_lab_min, priors, repeat) is None:
+        return None
+    if fast_lab_min is not None and active_seconds < fast_lab_min * 60:
+        code, threshold = "fast_lab_min", fast_lab_min * 60
+    else:
+        code, threshold = "fast_lab_median", median(priors)
+    return {"code": code, "seconds": int(active_seconds), "threshold": threshold}
 
 
 def is_fast_lab(
