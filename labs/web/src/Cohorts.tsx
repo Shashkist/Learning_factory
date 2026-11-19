@@ -4,7 +4,7 @@ import { useI18n } from "./i18n";
 
 type Cohort = { id: number; name: string; access_until: string; students: number };
 type Row = { line: number; status: "added" | "error"; code?: string };
-type Student = { name: string; note: string | null; disabled: boolean };
+type Student = { key?: string; name: string; note: string | null; disabled: boolean };
 type Result = { added: number; rows: Row[] };
 
 const MAX_IMPORT_LINES = 2000; // app/teacher.py MAX_LINES
@@ -25,7 +25,15 @@ async function send(url: string, body: unknown, method = "POST"): Promise<Respon
 
 const KNOWN_CODES = ["invalid_id", "missing_name", "invalid_name", "duplicate_in_paste", "already_exists"];
 
-function CohortRow({ cohort, onSave }: { cohort: Cohort; onSave: (id: number, body: object) => Promise<boolean> }) {
+function CohortRow({
+  cohort,
+  onSave,
+  open,
+}: {
+  cohort: Cohort;
+  onSave: (id: number, body: object) => Promise<boolean>;
+  open?: (key: string) => void;
+}) {
   const { t } = useI18n();
   const [name, setName] = useState(cohort.name);
   const [until, setUntil] = useState(cohort.access_until);
@@ -79,7 +87,20 @@ function CohortRow({ cohort, onSave }: { cohort: Cohort; onSave: (id: number, bo
         <ul data-testid={`students-${cohort.id}`}>
           {students.map((s, i) => (
             <li key={i}>
-              {s.name}
+              {s.key ? (
+                <a
+                  href={`/admin/students/${encodeURIComponent(s.key)}`}
+                  onClick={(e) => {
+                    if (!open || !s.key || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                    e.preventDefault();
+                    open(s.key);
+                  }}
+                >
+                  <bdi>{s.name}</bdi>
+                </a>
+              ) : (
+                <bdi>{s.name}</bdi>
+              )}
               {s.note ? ` ${s.note}` : ""}
               {s.disabled ? ` ${t("admin.students.disabled")}` : ""}
             </li>
@@ -90,7 +111,7 @@ function CohortRow({ cohort, onSave }: { cohort: Cohort; onSave: (id: number, bo
   );
 }
 
-export default function Cohorts() {
+export default function Cohorts({ open }: { open?: (key: string) => void } = {}) {
   const { t } = useI18n();
   const [cohorts, setCohorts] = useState<Cohort[] | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -177,7 +198,7 @@ export default function Cohorts() {
       {cohorts && cohorts.length > 0 && (
         <ul>
           {cohorts.map((c) => (
-            <CohortRow key={`${c.id}-${c.name}-${c.access_until}-${c.students}`} cohort={c} onSave={saveCohort} />
+            <CohortRow key={`${c.id}-${c.name}-${c.access_until}-${c.students}`} cohort={c} onSave={saveCohort} open={open} />
           ))}
         </ul>
       )}

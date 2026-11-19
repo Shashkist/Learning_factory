@@ -108,6 +108,8 @@
   "admin.class.empty": "אין תלמידים להצגה.",
   "admin.class.error": "לא ניתן לטעון את טבלת הכיתה.",
   "admin.student.back": "חזרה לטבלת הכיתה",
+  "admin.student.loading": "טוען את התלמיד…",
+  "admin.student.status": "סטטוס תלמיד",
   "admin.student.note": "הערת מורה",
   "admin.student.save_note": "שמירת הערה",
   "admin.student.disable": "השבתת תלמיד",
