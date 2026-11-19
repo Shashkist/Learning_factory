@@ -22,7 +22,7 @@ RUN printf 'Acquire::Retries "3";\nAcquire::http::Timeout "30";\n' > /etc/apt/ap
  && apt-get install -y --no-install-recommends --reinstall \
       coreutils findutils grep sed tar gzip bash util-linux passwd procps \
  && rm -rf /var/lib/apt/lists/* \
- && curl -fsSL -o /usr/local/bin/ttyd \
+ && curl -fsSL --retry 3 --max-time 120 -o /usr/local/bin/ttyd \
       "https://github.com/tsl0922/ttyd/releases/download/${TTYD_VERSION}/ttyd.x86_64" \
  && echo "${TTYD_SHA256}  /usr/local/bin/ttyd" | sha256sum -c - \
  && chmod 0755 /usr/local/bin/ttyd \
