@@ -73,3 +73,27 @@ def test_the_request_deadline_caps_the_wait_and_an_expired_one_is_db_busy(monkey
         asyncio.run(go())
     assert len(pool.timeouts) == 1 and 0 < pool.timeouts[0] <= 2.0
     assert e.value.status_code == 503 and e.value.detail["code"] == "db_busy"
+
+
+def test_a_statement_slower_than_the_time_left_is_db_busy_within_the_deadline(monkeypatch):
+    import time
+
+    monkeypatch.setattr(db, "REQUEST_DEADLINE_S", 0.3)
+
+    class Slow(_Conn):
+        async def fetchval(self, *a):
+            await asyncio.sleep(30)
+
+    class SlowPool(_Pool):
+        async def acquire(self, timeout=None):
+            return Slow()
+
+    async def go():
+        db.mark_request_start()
+        await db.BoundedPool(SlowPool()).fetchval("q")
+
+    t0 = time.monotonic()
+    with pytest.raises(HTTPException) as e:
+        asyncio.run(go())
+    assert time.monotonic() - t0 < 2
+    assert e.value.status_code == 503 and e.value.detail["code"] == "db_busy"
