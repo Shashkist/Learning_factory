@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 
 import { I18nProvider } from "./i18n";
 import en from "./i18n/en.json";
-import StudentPage from "./StudentPage";
+import StudentPage, { resetStudentQueue } from "./StudentPage";
 
 const EN = en as Record<string, string>;
 const KEY = "5b0e2f6c-7a1d-4c53-9d58-0f1f1f6f9a11";
@@ -59,7 +59,10 @@ async function open() {
 }
 const dismissButton = (p: HTMLElement) => within(p).queryByRole("button", { name: EN["admin.student.dismiss"] });
 
-beforeEach(() => window.localStorage.clear());
+beforeEach(() => {
+  window.localStorage.clear();
+  resetStudentQueue();
+});
 afterEach(() => vi.restoreAllMocks());
 
 /** Records every request and answers each one only when the test opens its gate. */
@@ -74,25 +77,22 @@ function queued() {
   return calls;
 }
 
-test.each([["first answer first"], ["second gate opened early"]])(
-  "two writes are sent one after another, %s",
-  async () => {
-    const calls = queued();
-    const p = await open();
-    fireEvent.click(within(p).getByRole("button", { name: EN["admin.student.disable"] }));
-    fireEvent.click(dismissButton(p)!);
-    await waitFor(() => expect(calls).toHaveLength(1));
-    await new Promise((r) => setTimeout(r, 20));
-    expect(calls).toHaveLength(1); // the dismiss waits for the disable answer
-    expect(calls[0].method).toBe("PATCH");
-    calls[0].open({ status: 200, body: student({ disabled: true }) });
-    await waitFor(() => expect(calls).toHaveLength(2));
-    expect(calls[1].method).toBe("POST");
-    calls[1].open({ status: 200, body: dismissed({ disabled: true }) });
-    expect(await within(p).findByRole("button", { name: EN["admin.student.enable"] })).toBeTruthy();
-    await waitFor(() => expect(dismissButton(p)).toBeNull());
-  },
-);
+test("two writes are sent one after another", async () => {
+  const calls = queued();
+  const p = await open();
+  fireEvent.click(within(p).getByRole("button", { name: EN["admin.student.disable"] }));
+  fireEvent.click(dismissButton(p)!);
+  await waitFor(() => expect(calls).toHaveLength(1));
+  await new Promise((r) => setTimeout(r, 20));
+  expect(calls).toHaveLength(1); // the dismiss waits for the disable answer
+  expect(calls[0].method).toBe("PATCH");
+  calls[0].open({ status: 200, body: student({ disabled: true }) });
+  await waitFor(() => expect(calls).toHaveLength(2));
+  expect(calls[1].method).toBe("POST");
+  calls[1].open({ status: 200, body: dismissed({ disabled: true }) });
+  expect(await within(p).findByRole("button", { name: EN["admin.student.enable"] })).toBeTruthy();
+  await waitFor(() => expect(dismissButton(p)).toBeNull());
+});
 
 test("a failed write in the queue shows its error and the next write still goes out", async () => {
   const calls = queued();
@@ -146,4 +146,68 @@ test("focus is not on the flag item while dismissing, and goes back to the butto
   expect(document.activeElement).not.toBe(screen.getByTestId("student-flag-f1"));
   post.open();
   await waitFor(() => expect(document.activeElement).toBe(dismissButton(p)));
+});
+
+test.each([["success", { status: 200, body: dismissed() }], ["failure", { status: 500 }]])(
+  "a queued dismiss that answers late with a %s leaves focus in the note",
+  async (_n, reply) => {
+    const calls = queued();
+    const p = await open();
+    fireEvent.click(dismissButton(p)!);
+    const box = within(p).getByRole("textbox") as HTMLTextAreaElement;
+    box.focus();
+    await waitFor(() => expect(calls).toHaveLength(1));
+    calls[0].open(reply as Reply);
+    await waitFor(() => expect(dismissButton(p) === null || !(dismissButton(p) as HTMLButtonElement).disabled).toBe(true));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(document.activeElement).toBe(box);
+  },
+);
+
+test("only the control whose write failed is marked invalid, and the alert names it", async () => {
+  const calls = queued();
+  const p = await open();
+  fireEvent.click(within(p).getByRole("button", { name: EN["admin.student.save_note"] }));
+  fireEvent.click(dismissButton(p)!);
+  await waitFor(() => expect(calls).toHaveLength(1));
+  calls[0].open({ status: 500 });
+  await waitFor(() => expect(calls).toHaveLength(2));
+  calls[1].open({ status: 200, body: dismissed() });
+  await waitFor(() => expect(dismissButton(p)).toBeNull());
+  const alert = screen.getByRole("alert");
+  expect(alert.textContent).toContain(EN["admin.student.note"]);
+  const box = within(p).getByRole("textbox");
+  expect(box.getAttribute("aria-invalid")).toBe("true");
+  expect(box.getAttribute("aria-describedby")).toBe(alert.id);
+  expect(within(p).getByLabelText(EN["admin.student.access"]).getAttribute("aria-invalid")).toBeNull();
+});
+
+test("a reopened page reads only after the writes of the old page", async () => {
+  const gets: string[] = [];
+  let finish!: () => void;
+  vi.spyOn(globalThis, "fetch").mockImplementation((async (_u: RequestInfo | URL, init?: RequestInit) => {
+    const m = init?.method ?? "GET";
+    gets.push(m);
+    if (m === "PATCH") await new Promise<void>((r) => (finish = r));
+    return { ok: true, status: 200, json: async () => student() } as Response;
+  }) as typeof fetch);
+  const a = render(
+    <I18nProvider>
+      <StudentPage studentKey={KEY} go={vi.fn()} />
+    </I18nProvider>,
+  );
+  const pa = await screen.findByTestId("student-page");
+  fireEvent.click(within(pa).getByRole("button", { name: EN["admin.student.save_note"] }));
+  await waitFor(() => expect(gets).toEqual(["GET", "PATCH"]));
+  a.unmount();
+  render(
+    <I18nProvider>
+      <StudentPage studentKey={KEY} go={vi.fn()} />
+    </I18nProvider>,
+  );
+  await new Promise((r) => setTimeout(r, 30));
+  expect(gets).toEqual(["GET", "PATCH"]); // the new GET waits
+  finish();
+  await screen.findByTestId("student-page");
+  expect(gets).toEqual(["GET", "PATCH", "GET"]);
 });
