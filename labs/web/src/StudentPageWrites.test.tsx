@@ -62,21 +62,33 @@ const dismissButton = (p: HTMLElement) => within(p).queryByRole("button", { name
 beforeEach(() => window.localStorage.clear());
 afterEach(() => vi.restoreAllMocks());
 
-test("an older answer that lands after a newer one does not undo it", async () => {
+test("an answer dropped as out of order is made up by a re-fetch", async () => {
   const patch = gate();
   const post = gate();
-  serve(
-    { gate: patch.promise, reply: { status: 200, body: student({ disabled: true }) } },
-    { gate: post.promise, reply: { status: 200, body: dismissed() } },
-  );
+  let gets = 0;
+  vi.spyOn(globalThis, "fetch").mockImplementation((async (_url: RequestInfo | URL, init?: RequestInit) => {
+    const m = init?.method ?? "GET";
+    let body: unknown;
+    if (m === "GET") body = ++gets === 1 ? student() : dismissed({ disabled: true });
+    if (m === "POST") {
+      await post.promise; // handled first: not disabled yet
+      body = dismissed();
+    }
+    if (m === "PATCH") {
+      await patch.promise; // handled second
+      body = dismissed({ disabled: true });
+    }
+    return { ok: true, status: 200, json: async () => body } as Response;
+  }) as typeof fetch);
   const p = await open();
   fireEvent.click(within(p).getByRole("button", { name: EN["admin.student.disable"] }));
   fireEvent.click(dismissButton(p)!);
   post.open(); // the newer write answers first
   await waitFor(() => expect(dismissButton(p)).toBeNull());
-  patch.open(); // then the old disable answer, which still lists the flag as open
-  await waitFor(() => expect((within(p).getByRole("button", { name: EN["admin.student.disable"] }) as HTMLButtonElement).disabled).toBe(false));
+  patch.open(); // the older answer is dropped, then the page re-reads the student
+  expect(await within(p).findByRole("button", { name: EN["admin.student.enable"] })).toBeTruthy();
   expect(dismissButton(p)).toBeNull();
+  expect(gets).toBe(2);
 });
 
 test("a later success does not hide an earlier failure of another write", async () => {
