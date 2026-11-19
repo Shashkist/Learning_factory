@@ -316,3 +316,76 @@ def test_the_worker_of_an_end_call_never_takes_a_sigterm(monkeypatch):
     assert lab_api._end_within("http://127.0.0.1:9", SID, "x", 5) is None
     assert signal.SIGTERM in masks[0]
     assert signal.SIGTERM not in signal.pthread_sigmask(signal.SIG_BLOCK, set())
+
+
+def test_the_end_is_sent_before_the_executor_join(monkeypatch):
+    """#203: a worker `coro` left behind must not delay /end: it goes out before the join."""
+    import asyncio
+
+    lab_api = _lab_api()
+    old = signal.getsignal(signal.SIGTERM)
+    lab = FakeLab(hold_end=0.1)
+    ev = threading.Event()
+    seen_at_release: list[bool] = []
+
+    def release() -> None:
+        seen_at_release.append(lab.end_seen.is_set())
+        ev.set()
+
+    async def abandon() -> None:
+        # the thread outlives the coroutine: only the executor join waits for it
+        asyncio.get_running_loop().run_in_executor(None, ev.wait, 6)
+
+    timer = threading.Timer(3, release)
+    timer.start()
+    try:
+        lab_api.run_then_end(lab.base, SID, "x", abandon(), lambda *f: None)
+    finally:
+        timer.cancel()
+        ev.set()
+        lab.close()
+        signal.signal(signal.SIGTERM, old)
+    assert seen_at_release == [True], seen_at_release
+
+
+def test_end_runs_inline_when_the_worker_thread_cannot_start(monkeypatch):
+    lab_api = _lab_api()
+    calls: list[tuple] = []
+
+    def end_session(*a, **k) -> str | None:
+        calls.append(a)
+        return "inline"
+
+    def cannot_start(self) -> None:
+        raise RuntimeError("can't start new thread")
+
+    monkeypatch.setattr(lab_api, "end_session", end_session)
+    monkeypatch.setattr(threading.Thread, "start", cannot_start)
+    assert lab_api._end_within("http://127.0.0.1:9", SID, "x", 5) == "inline"
+    assert len(calls) == 1
+
+
+def test_sigterm_is_ignored_during_the_fallback_end(monkeypatch):
+    """#203: the fallback end after a failed runner runs with SIGTERM ignored."""
+    lab_api = _lab_api()
+    old = signal.getsignal(signal.SIGTERM)
+    during: list[object] = []
+
+    def run_stoppable(coro, *_a, **_k) -> None:
+        coro.close()
+        raise lab_api.Fail("runner broke")
+
+    def end_session(*_a, **_k) -> None:
+        during.append(signal.getsignal(signal.SIGTERM))
+
+    async def never() -> None:
+        pass
+
+    monkeypatch.setattr(lab_api, "run_stoppable", run_stoppable)
+    monkeypatch.setattr(lab_api, "end_session", end_session)
+    try:
+        with pytest.raises(lab_api.Fail):
+            lab_api.run_then_end("http://127.0.0.1:9", SID, "x", never(), lambda *f: None)
+    finally:
+        signal.signal(signal.SIGTERM, old)
+    assert during == [signal.SIG_IGN]

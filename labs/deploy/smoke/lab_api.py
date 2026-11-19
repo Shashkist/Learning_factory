@@ -4,6 +4,7 @@ Both clients are run as `python labs/deploy/smoke/<name>.py`, so they import thi
 Never prints or logs the password or the session cookie.
 """
 import asyncio
+import contextlib
 import http.client
 import http.cookies
 import json
@@ -13,7 +14,7 @@ import sys
 import threading
 import urllib.error
 import urllib.request
-from collections.abc import Callable, Coroutine
+from collections.abc import Callable, Coroutine, Iterator
 from typing import Any
 
 COOKIE = "lf_session"
@@ -87,6 +88,19 @@ def end_session(base: str, sid: str, cookie: str, timeout: float = HTTP_TIMEOUT)
     return None if status in (200, 204) else f"ending the session failed (http {status})"
 
 
+@contextlib.contextmanager
+def _sigterm_blocked() -> Iterator[None]:
+    """Block SIGTERM in this thread for the body (a no-op where there is no pthread_sigmask)."""
+    mask = None
+    if hasattr(signal, "pthread_sigmask") and hasattr(signal, "SIGTERM"):
+        mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGTERM})
+    try:
+        yield
+    finally:
+        if mask is not None:
+            signal.pthread_sigmask(signal.SIG_SETMASK, mask)
+
+
 def _end_within(base: str, sid: str, cookie: str, total: float) -> str | None:
     """`end_session` bounded as a whole (a socket timeout is per operation: DNS, connect, TLS)."""
     out: list[str | None] = []
@@ -95,14 +109,11 @@ def _end_within(base: str, sid: str, cookie: str, total: float) -> str | None:
     )
     # a thread starts with its creator's signal mask: this one never takes a SIGTERM, even when it
     # outlives the bound (`_ignore_sigterm` relies on that after the final end)
-    mask = None
-    if hasattr(signal, "pthread_sigmask"):
-        mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGTERM})
     try:
-        worker.start()
-    finally:
-        if mask is not None:
-            signal.pthread_sigmask(signal.SIG_SETMASK, mask)
+        with _sigterm_blocked():
+            worker.start()
+    except RuntimeError:  # can't start new thread: end inline, unbounded but still ends the session
+        return end_session(base, sid, cookie, total)
     worker.join(total)
     return out[0] if out else "ending the session timed out"
 
@@ -138,6 +149,10 @@ def run_then_end(
     try:
         run_stoppable(coro, stop, lambda: end(FINAL_END_TIMEOUT))
     finally:
+        if not ended:
+            # the loop is gone: a SIGTERM during this end must not take the default action
+            with contextlib.suppress(ValueError, OSError):
+                signal.signal(signal.SIGTERM, signal.SIG_IGN)
         end(FINAL_END_TIMEOUT)  # only if the runner failed before it got there
 
 
@@ -217,18 +232,12 @@ def _ignore_sigterm(loop: asyncio.AbstractEventLoop) -> None:
     """
     if not hasattr(signal, "SIGTERM"):
         return
-    mask = None
-    if hasattr(signal, "pthread_sigmask"):
-        mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGTERM})
-    try:
+    with _sigterm_blocked():
         try:
             loop.remove_signal_handler(signal.SIGTERM)
         except (NotImplementedError, AttributeError, ValueError, RuntimeError):
             pass
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
-    finally:
-        if mask is not None:
-            signal.pthread_sigmask(signal.SIG_SETMASK, mask)
 
 
 def leave(code: int) -> None:
