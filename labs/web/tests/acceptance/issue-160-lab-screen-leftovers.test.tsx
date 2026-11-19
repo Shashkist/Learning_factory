@@ -208,7 +208,11 @@ describe.each(LANGS)("lab complete only when every task is passed (%s)", (lang) 
     else
       await waitFor(() =>
         expect(
-          screen.queryAllByRole("status").concat(screen.queryAllByRole("alert")).some((e) => (e.textContent ?? "").includes(String(open))),
+          screen
+            .queryAllByRole("status")
+            .concat(screen.queryAllByRole("alert"))
+            // the Hebrew singular line spells "one" (lab.open.one) instead of the digit (#186)
+            .some((e) => (e.textContent ?? "").includes(open === 1 ? d["lab.open.one"] : String(open))),
         ).toBe(true),
       );
     expect(screen.queryByText(d["lab.complete"], { exact: false })).toBeNull();
