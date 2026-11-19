@@ -351,11 +351,12 @@ def test_workflow_builds_the_snapshot_with_public():
     assert re.search(r"build_snapshot\.py[^\n]*--public", runs)
 
 
-def test_workflow_keeps_the_d12_triggers():
+def test_workflow_keeps_the_d71_triggers():
+    # D71 (#155) replaces D12's 3-hour schedule with every 15 minutes; push and dispatch stay.
     on = wf().get("on", wf().get(True))
     assert set(on) == {"schedule", "push", "workflow_dispatch"}
     assert on["push"]["branches"] == ["main"]
-    assert on["schedule"] == [{"cron": "0 */3 * * *"}]
+    assert on["schedule"] == [{"cron": "*/15 * * * *"}]
 
 
 def test_workflow_publish_is_guarded_to_main():
