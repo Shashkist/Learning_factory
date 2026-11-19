@@ -28,6 +28,9 @@ const LAB = {
 
 export const SESSION_ID = "s-e2e";
 
+export const json = (route: Route, body: unknown, status = 200) =>
+  route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
+
 // The /api/* calls the student UI makes, answered from memory. The request log lets a test
 // assert what the UI sent; `unmocked` lists every call the fake does not know (each test
 // asserts it stays empty, so a new or renamed call fails the suite even when the UI hides it).
@@ -48,9 +51,6 @@ export async function fakeBackend(page: Page) {
   });
   const progress = () =>
     passedIds.size === TASKS.length ? "done" : started ? `${passedIds.size}/${TASKS.length}` : "not_started";
-  const json = (route: Route, body: unknown, status = 200) =>
-    route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
-
   await page.route("**/api/**", (route) => {
     const req = route.request();
     const path = new URL(req.url()).pathname;
