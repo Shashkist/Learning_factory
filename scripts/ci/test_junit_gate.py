@@ -27,9 +27,9 @@ def test_empty_fails(tmp_path):
     assert len(check(_report(tmp_path, 0, 0))) == 1
 
 
-
 def test_no_allow_empty_flag(tmp_path):
     # #243: the gate has no way to accept an empty report any more
     gate = Path(__file__).with_name("junit_gate.py")
-    r = subprocess.run([sys.executable, str(gate), str(_report(tmp_path, 0, 0)), "--allow-empty"])
+    report = _report(tmp_path, 0, 0)
+    r = subprocess.run([sys.executable, str(gate), report, "--allow-empty"], check=False)
     assert r.returncode == 1
