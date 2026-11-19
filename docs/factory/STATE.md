@@ -4,7 +4,7 @@
 
 ## Now
 
-_Last updated: 2026-11-19 ~02:50 UTC, laptop pass **lf-m3x8** stopped at 3 merged PRs (#212, #213, #210). Nothing in flight, no claims held, no open feature branches._
+_Last updated: 2026-11-19 ~03:20 UTC, laptop pass **lf-p5r9** running. Lanes: **#214** PR #215 (exam-only, CI); **#202** on `f/202-bounded-setup` in `C:\projects\lf-202` (exam 7fe6176, implementer building); **#204** next (sliced by D66 into #204 web, #216 flag text, #217 API nits)._
 
 - **Next session starts at:** Next 1 (#204 student page follow-ups), with #214 (p2, exam-only, small) as a parallel lane.
 - **Lesson (this pass, #209):** an exam that checks the exact boundary of today must read the clock at test time and again after the request; a module-level `TODAY` read before midnight UTC failed a login at 00:04 UTC. Web exams with UTC fixture dates now run under a pinned `TZ=UTC` (`labs/web/vite.config.ts`, guard `src/tz.test.ts`), since pages show local time.
