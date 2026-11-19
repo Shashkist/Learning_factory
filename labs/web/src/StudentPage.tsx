@@ -3,7 +3,12 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useI18n } from "./i18n";
 import { localStamp } from "./localStamp";
 
-type Flag = { id: string; scope: "task" | "lab"; task_id: string | null; reason: string; dismissed_at: string | null };
+type Flag = {
+  id: string; scope: "task" | "lab"; task_id: string | null; reason: string; dismissed_at: string | null;
+  reason_code?: string | null; seconds?: number | null; threshold?: number | null;
+};
+
+const REASON_CODES = ["fast_task", "fast_lab_min", "fast_lab_median"];
 type Task = { id: string; passed: boolean; attempts: number; seconds: number | null; median_seconds: number | null };
 type Lab = {
   id: string;
@@ -155,6 +160,16 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
     if (next) setUntil((cur) => (cur === sent ? (next.access_until ?? "") : cur));
   };
 
+  const flagReason = (f: Flag) => {
+    const code = f.reason_code;
+    if (!code || !REASON_CODES.includes(code) || f.seconds == null || f.threshold == null) return f.reason;
+    if (code === "fast_task" && !f.task_id) return f.reason;
+    const threshold = code === "fast_lab_min" ? f.threshold / 60 : f.threshold;
+    return t(`admin.student.reason.${code}`)
+      .split("{task}").join(f.task_id ?? "")
+      .split("{seconds}").join(String(Math.round(f.seconds)))
+      .split("{threshold}").join(String(Math.round(threshold)));
+  };
   const mark = (id: string) => (failed.includes(id) ? { "aria-invalid": true, "aria-describedby": "student-write-error" } : {});
   const part = (id: string) =>
     id === "note" ? t("admin.student.note") : id === "access" ? t("admin.student.access") : id === "disabled" ? t("admin.student.status") : t("admin.student.flags");
@@ -268,7 +283,7 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
                   <span role="img" aria-label={t("admin.class.flag")}>
                     ⚡
                   </span>{" "}
-                  <bdi>{f.reason}</bdi>{" "}
+                  <bdi>{flagReason(f)}</bdi>{" "}
                   {f.dismissed_at ? (
                     <>
                       <span>{t("admin.student.dismissed")}</span>{" "}
