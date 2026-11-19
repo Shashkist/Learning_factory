@@ -2,8 +2,8 @@ name: Factory dashboard
 
 on:
   schedule:
-    # Every 15 minutes (D71): the repository is public, so Actions minutes are free.
-    - cron: "*/15 * * * *"
+    # Every 15 minutes (D71), off the quarter hours (D73): busy minutes get dropped.
+    - cron: "7,22,37,52 * * * *"
   push:
     branches: [main]
   workflow_dispatch:
