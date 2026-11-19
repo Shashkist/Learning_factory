@@ -124,5 +124,19 @@
   "admin.student.no_flags": "No flags.",
   "admin.student.not_found": "Student not found.",
   "admin.student.tasks": "Tasks",
-  "admin.student.flags": "Flags"
+  "admin.student.flags": "Flags",
+  "admin.nav.live": "Live sessions",
+  "admin.live.title": "Labs running right now",
+  "admin.live.col.name": "Student name",
+  "admin.live.col.cohort": "Student cohort",
+  "admin.live.col.lab": "Lab",
+  "admin.live.col.started": "Started",
+  "admin.live.col.heartbeat": "Last heartbeat",
+  "admin.live.no_heartbeat": "No heartbeat yet",
+  "admin.live.end": "End session",
+  "admin.live.confirm": "Yes, end it",
+  "admin.live.cancel": "Keep running",
+  "admin.live.empty": "Nobody is in a lab right now.",
+  "admin.live.error": "Could not load the live sessions.",
+  "admin.live.end_error": "Could not end the session. Try again."
 }

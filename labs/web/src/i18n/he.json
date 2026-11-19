@@ -124,5 +124,19 @@
   "admin.student.no_flags": "אין סימונים.",
   "admin.student.not_found": "התלמיד לא נמצא.",
   "admin.student.tasks": "משימות",
-  "admin.student.flags": "סימונים"
+  "admin.student.flags": "סימונים",
+  "admin.nav.live": "מעבדות פעילות",
+  "admin.live.title": "מעבדות פעילות ברגע זה",
+  "admin.live.col.name": "שם הסטודנט",
+  "admin.live.col.cohort": "קבוצת הסטודנט",
+  "admin.live.col.lab": "מעבדה",
+  "admin.live.col.started": "התחילה",
+  "admin.live.col.heartbeat": "דופק אחרון",
+  "admin.live.no_heartbeat": "עדיין אין דופק",
+  "admin.live.end": "סיום המפגש",
+  "admin.live.confirm": "כן, לסיים",
+  "admin.live.cancel": "להשאיר פועל",
+  "admin.live.empty": "אף אחד לא במעבדה כרגע.",
+  "admin.live.error": "לא ניתן לטעון את המעבדות הפעילות.",
+  "admin.live.end_error": "לא ניתן לסיים את המפגש. נסו שוב."
 }
