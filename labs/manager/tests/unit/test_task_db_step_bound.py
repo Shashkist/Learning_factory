@@ -305,7 +305,7 @@ def test_count_attempt_with_no_time_left_is_the_json_504_and_touches_no_pool():
     ctx = _attempt_ctx(tasks.REQUEST_BUDGET_S + 1)
     with pytest.raises(HTTPException) as exc:
         asyncio.run(tasks._count_attempt(ctx, SimpleNamespace(id="t"), True))
-    assert exc.value.status_code == 504 and exc.value.detail["code"] == "setup_timeout"
+    assert exc.value.status_code == 504 and exc.value.detail["code"] == "check_timeout"  # #224
 
 
 def test_gradable_read_is_bounded_by_the_time_left():
@@ -314,7 +314,7 @@ def test_gradable_read_is_bounded_by_the_time_left():
     ctx.task = lambda _id: task
     with pytest.raises(HTTPException) as exc:
         asyncio.run(tasks._gradable(ctx, "t", "quiz"))
-    assert exc.value.status_code == 504 and exc.value.detail["code"] == "setup_timeout"
+    assert exc.value.status_code == 504 and exc.value.detail["code"] == "check_timeout"  # #224
 
 
 def test_the_pool_is_created_with_the_pool_command_timeout(monkeypatch):
