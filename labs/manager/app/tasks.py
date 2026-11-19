@@ -121,8 +121,11 @@ class _Ctx:
             )
 
 
-def _start(request: Request) -> None:
-    """Resolved before the auth dependencies: the request's deadline starts here."""
+async def _start(request: Request) -> None:
+    """Resolved before the auth dependencies: the request's deadline starts here.
+
+    A coroutine, so it runs on the event loop at once; a sync dependency would first wait for a
+    free thread-pool worker and that wait would not count against the deadline."""
     request.state.started = time.monotonic()
 
 
@@ -174,13 +177,16 @@ async def _show(ctx: _Ctx, task: Task, moving_from: str | None = None) -> dict[s
         return await _do_show(ctx, task)
 
 
-async def _record_shown(ctx: _Ctx, task: Task) -> Any:
-    """The database step after the setup, hard-bounded by DB_STEP_BOUND_S: on any failure the
-    connection is terminated (the server rolls back) instead of awaiting a ROLLBACK."""
+async def _record_shown(ctx: _Ctx, task: Task, bound: float = DB_STEP_BOUND_S) -> Any:
+    """The database step after the setup, hard-bounded by `bound` (at most DB_STEP_BOUND_S): on
+    any failure the connection is terminated (the server rolls back) instead of awaiting a
+    ROLLBACK. The release is bounded by the same deadline and its failure never turns a
+    committed change into an error."""
     conn = None
+    deadline = time.monotonic() + bound
     try:
-        async with asyncio.timeout(DB_STEP_BOUND_S):
-            conn = await ctx.pool.acquire(timeout=DB_STEP_BOUND_S)
+        async with asyncio.timeout(bound):
+            conn = await ctx.pool.acquire(timeout=bound)
             tx = conn.transaction()
             await tx.start()
             ms = int(DB_SERVER_BOUND_S * 1000)
@@ -207,28 +213,41 @@ async def _record_shown(ctx: _Ctx, task: Task) -> Any:
         raise
     finally:
         if conn is not None:
-            await ctx.pool.release(conn)
+            try:
+                await ctx.pool.release(conn, timeout=max(0.1, deadline - time.monotonic()))
+            except Exception as exc:  # the pool drops a connection it cannot reset
+                log.error("releasing a connection failed (%s)", type(exc).__name__)
+
+
+def _left(ctx: _Ctx) -> float:
+    """Seconds of the request budget still unspent."""
+    now = time.monotonic()
+    return REQUEST_BUDGET_S - (now - (getattr(ctx, "started", None) or now))  # bare: from now
+
+
+def _timeout_error(message: str = "The server is busy; try again.") -> HTTPException:
+    return HTTPException(504, {"code": "setup_timeout", "message": message})
 
 
 async def _do_show(ctx: _Ctx, task: Task) -> dict[str, Any]:
     """Run the setup (hands-on), then record shown_at (first time only) and the current task."""
+    left = _left(ctx)
+    if left <= 0:
+        log.error("show of %s in session %s had no time left", task.id, ctx.sid)
+        raise _timeout_error()
     if task.kind == "hands-on":
         script = (ctx.lab.path / "tasks" / task.id / "setup.sh").read_bytes().decode("utf-8")
         try:
-            await asyncio.wait_for(_EXECS.acquire(), SLOT_WAIT_S)
+            await asyncio.wait_for(_EXECS.acquire(), min(SLOT_WAIT_S, left))
         except TimeoutError:
             log.error("setup of %s in session %s found no free exec slot", task.id, ctx.sid)
-            raise HTTPException(
-                504, {"code": "setup_timeout", "message": "The server is busy; try again."}
-            ) from None
-        left = REQUEST_BUDGET_S - (time.monotonic() - ctx.started)
+            raise _timeout_error() from None
+        left = _left(ctx)
         budget = min(setup_timeout(), left - KILL_BOUND_S - DB_STEP_BOUND_S)
         if budget <= 0:
             _EXECS.release()
             log.error("setup of %s in session %s had no time left", task.id, ctx.sid)
-            raise HTTPException(
-                504, {"code": "setup_timeout", "message": "The server is busy; try again."}
-            )
+            raise _timeout_error()
         try:
             res = await ctx.request.app.state.runtime.exec_script(
                 container_name(ctx.sid), script, budget
@@ -242,16 +261,18 @@ async def _do_show(ctx: _Ctx, task: Task) -> dict[str, Any]:
             _EXECS.release()
         if res.timed_out:
             log.error("setup of %s in session %s timed out", task.id, ctx.sid)
-            raise HTTPException(
-                504, {"code": "setup_timeout", "message": "Setting up the task took too long."}
-            )
+            raise _timeout_error("Setting up the task took too long.")
         if res.exit_code != 0:
             log.error("setup of %s in session %s exited %s", task.id, ctx.sid, res.exit_code)
             raise HTTPException(
                 502, {"code": "setup_failed", "message": "The task could not be set up."}
             )
+        left = _left(ctx)
+    bound = min(DB_STEP_BOUND_S, left)
+    if bound <= 0:
+        raise _timeout_error()
     with db_guard():  # a TimeoutError here is answered 503 by db_guard
-        row = await _record_shown(ctx, task)
+        row = await _record_shown(ctx, task, bound)
     ctx.current = task.id
     return _detail(ctx.lab, task, row)
 
@@ -368,8 +389,9 @@ async def _complete(conn: Any, ctx: _Ctx) -> None:
 async def _count_attempt(ctx: _Ctx, task: Task, passed: bool) -> int:
     """One atomic increment; `passed_at` only on the first pass, never cleared. The first pass
     also sets the task's fast flag and may complete the lab, in the same transaction."""
-    with db_guard():
-        async with ctx.pool.acquire() as conn, conn.transaction():
+    with db_guard():  # a TimeoutError here is answered 503 by db_guard
+        bound = min(DB_STEP_BOUND_S, _left(ctx))
+        async with asyncio.timeout(bound), ctx.pool.acquire() as conn, conn.transaction():
             # lock order: task row, then session row (as in _do_show). The session lock
             # serialises completions per session (two tasks passing at once each see the
             # other's commit) and keeps End-lab from slipping in between.
@@ -443,13 +465,18 @@ async def _run_check(ctx: _Ctx, task: Task) -> tuple[str | None, str, bool]:
     """(reason, output, exited 0); the reason is "timeout" or "error" when nothing was read."""
     script = (ctx.lab.path / "tasks" / task.id / "check.sh").read_bytes().decode("utf-8")
     try:
-        await asyncio.wait_for(_EXECS.acquire(), SLOT_WAIT_S)
+        await asyncio.wait_for(_EXECS.acquire(), max(0.0, min(SLOT_WAIT_S, _left(ctx))))
     except TimeoutError:
         log.error("check of %s in session %s found no free exec slot", task.id, ctx.sid)
         return "error", "", False
+    budget = min(CHECK_TIMEOUT_S, _left(ctx) - KILL_BOUND_S - DB_STEP_BOUND_S)
+    if budget <= 0:
+        _EXECS.release()
+        log.error("check of %s in session %s had no time left", task.id, ctx.sid)
+        return "error", "", False
     try:
         res = await ctx.request.app.state.runtime.exec_script(
-            container_name(ctx.sid), script, CHECK_TIMEOUT_S
+            container_name(ctx.sid), script, budget
         )
     except Exception as exc:
         log.error("check of %s in session %s failed (%s)", task.id, ctx.sid, type(exc).__name__)
