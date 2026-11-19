@@ -10,6 +10,9 @@ _LOCK_NS = 4101  # namespace key for pg_advisory_xact_lock(key1, key2)
 _LOCK_KEY = 2026
 CONNECT_TIMEOUT = 10
 COMMAND_TIMEOUT = 60
+# Request-serving pool only: below nginx's 60 s read timeout, so a stuck query fails with a
+# JSON error before the client is cut off. Migrations (`connect`) keep the longer bound.
+POOL_COMMAND_TIMEOUT = 50
 
 
 class MigrationsMissing(RuntimeError):
@@ -37,7 +40,7 @@ async def create_pool(dsn: str) -> "asyncpg.Pool[asyncpg.Record]":
         min_size=1,
         max_size=5,
         timeout=CONNECT_TIMEOUT,
-        command_timeout=COMMAND_TIMEOUT,
+        command_timeout=POOL_COMMAND_TIMEOUT,
     )
 
 
