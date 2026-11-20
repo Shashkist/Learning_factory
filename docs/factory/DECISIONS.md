@@ -1001,3 +1001,12 @@ in force · factory · 2026-11-20
 **Revert.** Make `HEAVY` include `labs/web/` whole, or split future exam changes into their own PRs.
 
 **Amendment (review round 1 of #317).** `HEAVY` also lists `labs/web/package.json`, `labs/web/package-lock.json` and `labs/web/vite.config.ts`: the manager image builds the web app from them and the browser exam serves `labs/web/dist`, so a light PR changing the build output folder would have broken main's docker and image jobs. `index.html` and docs stay light. The exam's cleanup removes only containers that were not there before the run; the typed-echo proof of the WebSocket relay is #319.
+
+## D100 · #318 (#306) merges on green after the manager fixed review round 2's one finding
+in force · factory · 2026-11-20
+
+**Decision.** Review round 2 of #318 resolved all 7 round-1 findings and found one new blocking timing risk: waiting for the student kill children before a root STOP could leave the check's root processes stopped when the killer's own deadline fires. The manager fixed it (root is stopped at once; the bounded wait of at most four single-`ps` polls happens only before the root KILL) and merges on green CI with no third round, as D95. The docker case `test_no_root_killer_process_survives_exec_script_under_a_stop_loop` is the guard; one green run does not prove the absence of a race, so a red rerun of that case reopens #306.
+
+**Why.** Two review rounds is the limit (FACTORY.md); the fix is 10 lines of shell that move a signal earlier and shorten a wait.
+
+**Revert.** Revert the #306 squash commit.
