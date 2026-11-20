@@ -4,7 +4,9 @@
 
 ## Now
 
-**Pass lf-q5m8 (laptop, 13:15-~14:15 UTC) stopped at 3 merged PRs:** #288 (#286), #295 (#290), #297 (#294). **#286, #290, #294 are closed with evidence. Production: `abe1f74` (Deploy 44751820829 success, smoke success; `/api/health` ok, database ok).** Decisions D94, D95. New issue: #298 (review nits of #297). No claims held, nothing in flight.
+**Pass lf-w4t7 (laptop, from ~14:25 UTC) in flight:** #293 on `f/293-exam-nits` (worktree `C:\projects\lf-293`), #298 on `f/298-runsc-followups` (worktree `C:\projects\lf-298`). Both claimed by lf-w4t7.
+
+_Previous:_ **Pass lf-q5m8 (laptop, 13:15-~14:15 UTC) stopped at 3 merged PRs:** #288 (#286), #295 (#290), #297 (#294). **#286, #290, #294 are closed with evidence. Production: `abe1f74` (Deploy 44751820829 success, smoke success; `/api/health` ok, database ok).** Decisions D94, D95. New issue: #298 (review nits of #297). No claims held, nothing in flight.
 
 - **Resume here:** the Next list, starting with **#293** and **#298** (both small; #298 starts with an exam edit). Worktrees `C:\projects\lf-286`, `lf-290`, `lf-294` are shipped and safe to remove.
 - **Lesson (pass lf-q5m8):** when the laptop cannot run an exam (the bootstrap exams need `jq` and Linux), push the exam alone as a throwaway draft PR to see it red in CI, then close it (#296: 10 new cases red, 1954 others green).
