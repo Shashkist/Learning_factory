@@ -234,30 +234,104 @@ def _validate(lab_dir: Path, data: Any) -> tuple[Lab | None, list[str]]:
 
 
 _SEPARATORS = re.compile(r"(\|\||&&|;|\|)")
+_ARITHMETIC = re.compile(r"\$\(\(.*?\)\)")
+_HEREDOC = re.compile(r"(?<!<)<<(?!<)(-?)\s*([^\s;&|<>()]+)")  # not `<<<`, a here-string
 _REDIRECTS = re.compile(r"\d*>&\d+|\d*>>?\s*\S+")
-_COMMENT = re.compile(r"\s+#.*$")
-_STDOUT_TO_FILE = re.compile(r"(?<![02-9&])>>?\s*[^\s&>]|&>>?\s*\S")
-_STDERR_TO_FILE = re.compile(r"2>>?\s*[^\s&>]|2>&1|&>>?\s*\S")
+_FD_REDIRECT = re.compile(r"&>>?\s*\S+|(\d*)>>?&(\d)|(\d*)>>?\s*\S+")
+_FD0_DUP = re.compile(r"\d*<&\s*0")
+_LEAD = re.compile(r"^(?:(?:do|then|else)\s+)*(?:\w+\s*\(\s*\)\s*)?(?:\{\s*)?")
 _WHILE_READ = re.compile(r"while\s+(?:\w+=\S*\s+)*read\b")
 _CAT_SUBSHELL = re.compile(r"\$\(\s*cat(?:\s+-\w*)*\s*\)|`\s*cat(?:\s+-\w*)*\s*`")
-_SU_READER = re.compile(r"su\b.*\s-c\s+(['\"])\s*(?:read\b[^'\"]*|cat(?:\s+-\w*)*\s*)\1")
+_SU_COMMAND = re.compile(r"\bsu\b[^|;&]*?\s-c\s+(['\"])")
+_SH_STDIN = re.compile(r"(?:/bin/)?sh\s+-s\s*$")
+
+
+def _scan(line: str) -> tuple[str, str]:
+    """Cut a trailing comment; also return the line with quoted text blanked to `x`.
+
+    A `#` inside quotes is text; a backslash outside single quotes escapes the next character.
+    The two results have the same length, so positions in one are positions in the other.
+    """
+    code: list[str] = []
+    masked: list[str] = []
+    quote = ""
+    i = 0
+    while i < len(line):
+        ch = line[i]
+        if ch == "\\" and quote != "'" and i + 1 < len(line):
+            code.append(line[i : i + 2])
+            masked.append("xx" if quote else line[i : i + 2])
+            i += 2
+            continue
+        if quote:
+            quote = "" if ch == quote else quote
+            masked.append(ch if not quote else "x")
+        elif ch in "'\"":
+            quote = ch
+            masked.append(ch)
+        elif ch == "#" and (i == 0 or line[i - 1].isspace()):
+            break
+        else:
+            masked.append(ch)
+        code.append(ch)
+        i += 1
+    return "".join(code).rstrip(), "".join(masked).rstrip()
+
+
+def _su_reads_stdin(line: str, masked: str) -> bool:
+    """`su ... -c '<reader>'` with no input redirect on the su command itself."""
+    m = _SU_COMMAND.search(masked)
+    if not m:
+        return False
+    close = masked.find(m.group(1), m.end())
+    if close < 0:
+        return False
+    body = line[m.end() : close]
+    # the su command ends at a separator or a lone `&`; the `&` of `2>&1`, `<&0` or `&>` does not
+    own_tail = re.split(r"[;|]|(?<![<>])&(?!>)", masked[close + 1 :], maxsplit=1)[0]
+    if _redirects_input(own_tail):
+        return False
+    return any(
+        _reads_stdin(seg) or bool(_SH_STDIN.match(seg.strip())) for seg in _SEPARATORS.split(body)
+    )
+
+
+def _redirects_input(text: str) -> bool:
+    """A real stdin redirect: `<file` or a here-document; `<&0` is the script itself."""
+    return "<" in _FD0_DUP.sub(" ", text)
+
+
+def _background_is_quiet(job: str) -> bool:
+    """Both outputs end in files, reading the redirects left to right (`2>&1` copies as it is)."""
+    out_file = err_file = False
+    for m in _FD_REDIRECT.finditer(job):
+        if m.group(2):  # n>&m
+            if m.group(1) == "2":
+                err_file = out_file
+            elif m.group(1) in ("", "1"):
+                out_file = err_file
+        elif m.group(0).startswith("&"):
+            out_file = err_file = True
+        elif m.group(3) == "2":
+            err_file = True
+        elif m.group(3) in ("", "1"):
+            out_file = True
+    return out_file and err_file
 
 
 def _reads_stdin(segment: str) -> bool:
-    if "<" in segment:
+    if _redirects_input(segment):
         return False
     words = _REDIRECTS.sub(" ", segment).split()
     if not words:
         return False
     if words[0] == "read":
         return True
-    if words[0] == "cat" and all(w.startswith("-") for w in words[1:]):
-        return True
-    return bool(_SU_READER.match(segment.strip()))
+    return words[0] == "cat" and all(w.startswith("-") for w in words[1:])
 
 
 def _loop_depth_change(segment: str) -> int:
-    words = re.sub(r"^(?:do|then|else)\s+", "", segment.strip()).split()
+    words = _LEAD.sub("", segment.strip()).split()
     if not words:
         return 0
     return 1 if words[0] in ("while", "until", "for") else -1 if words[0] == "done" else 0
@@ -268,30 +342,45 @@ def _script_warnings(text: str, label: str) -> list[str]:
     found: list[str] = []
     stdin_msg = "reads stdin, which is the script itself; add </dev/null"
     segments: list[tuple[int, str, bool]] = []  # (line, text, follows a pipe)
+    heredoc_end = ""  # inside a here-document body that ends at this line
+    dash_tabs = False
+    piped = False  # the previous line ended with a pipe
     for n, raw in enumerate(text.splitlines(), 1):
-        line = _COMMENT.sub("", raw.strip())
-        if not line or line.startswith("#"):
+        if heredoc_end:
+            if (raw.lstrip("\t") if dash_tabs else raw) == heredoc_end:
+                heredoc_end = ""
             continue
-        parts = _SEPARATORS.split(line)
+        line, masked = _scan(raw.strip())
+        if not line:
+            continue
+        no_math = _ARITHMETIC.sub(lambda m: " " * len(m.group()), masked)
+        doc = _HEREDOC.search(no_math)
+        if doc:
+            dash_tabs = doc.group(1) == "-"
+            heredoc_end = re.sub(r"['\"\\]", "", line[doc.start(2) : doc.end(2)])
+        parts = _SEPARATORS.split(masked)
         for i in range(0, len(parts), 2):
-            segments.append((n, parts[i], i > 0 and parts[i - 1] == "|"))
-        if _CAT_SUBSHELL.search(line) and "<" not in line:
+            segments.append((n, parts[i], (i > 0 and parts[i - 1] == "|") or (i == 0 and piped)))
+        piped = masked.endswith("|") and not masked.endswith("||")
+        cat = _CAT_SUBSHELL.search(line)
+        if _su_reads_stdin(line, masked) or (cat and not _redirects_input(line[cat.start() :])):
             found.append(f"{label} line {n}: {stdin_msg}")
-        if line.endswith("&") and not line.endswith("&&"):
-            if not (_STDOUT_TO_FILE.search(line) and _STDERR_TO_FILE.search(line)):
+        if masked.endswith("&") and not masked.endswith("&&"):
+            if not _background_is_quiet(masked):
                 found.append(
                     f"{label} line {n}: a background job keeps the exec open; "
                     "redirect it with >/dev/null 2>&1"
                 )
-    for k, (n, seg, piped) in enumerate(segments):
-        if piped:
+    for k, (n, seg, piped_in) in enumerate(segments):
+        if piped_in:
             continue
-        if _WHILE_READ.match(seg.strip()):
-            redirected, depth = "<" in seg, 0
+        seg = _LEAD.sub("", seg.strip())
+        if _WHILE_READ.match(seg):
+            redirected, depth = _redirects_input(seg), 0
             for _n, later, _p in segments[k:]:
                 depth += _loop_depth_change(later)
                 if depth <= 0:
-                    redirected = redirected or "<" in later
+                    redirected = redirected or _redirects_input(later)
                     break
             if not redirected:
                 found.append(f"{label} line {n}: {stdin_msg}")
