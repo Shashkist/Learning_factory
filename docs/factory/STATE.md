@@ -4,7 +4,9 @@
 
 ## Now
 
-**Pass lf-n6q2 (laptop, 11:57-~12:58 UTC) stopped at 3 merged PRs:** #287 (#284), #291 (#283, replaced #289), #292 (#285). **#283, #284, #285 are closed with evidence. Production: `e0eca95` (Deploy 44739270984 shipped #291 + #292; smoke `ok check-fail`, `ok check-pass`; `/api/health` ok, database ok).** Decisions D90, D91, D92, D93. New issues: #290, #293, #294. No claims held.
+**Pass lf-q5m8 (laptop, from ~13:15 UTC), in flight:** #288 merged (#286, 3958118; main CI 44744479600 running). Claims: **#290** (`f/290-janitor-guard`, worktree `C:\projects\lf-290`, exam-only) and **#294** (`f/294-runsc-local-image`, worktree `C:\projects\lf-294`, D94: exam first, then code). If this pass dies, continue those branches.
+
+_Previous:_ **Pass lf-n6q2 (laptop, 11:57-~12:58 UTC) stopped at 3 merged PRs:** #287 (#284), #291 (#283, replaced #289), #292 (#285). **#283, #284, #285 are closed with evidence. Production: `e0eca95` (Deploy 44739270984 shipped #291 + #292; smoke `ok check-fail`, `ok check-pass`; `/api/health` ok, database ok).** Decisions D90, D91, D92, D93. New issues: #290, #293, #294. No claims held.
 
 - **Resume here, first:** **#286 = PR #288** (exam-only, branch `f/286-ci-paths-exam`, worktree `C:\projects\lf-286`). Review round 1 and round 2 fixes are pushed (46d39ca), D93 says merge on green with no third round. Its `docker` job failed on a Docker Hub 429 pulling `hello-world` (not the PR; issue #294); the failed jobs were re-run at ~12:56 UTC. If green: `gh pr merge 288 --squash`, then `git push origin --delete f/286-ci-paths-exam`, then comment the evidence on #286 (it closes on merge), label `status:done`. Exam-only, so main CI green is the evidence.
 - Then the Next list. Worktrees `C:\projects\lf-283`, `lf-284`, `lf-285` are shipped and safe to remove (removing worktrees from a factory run was refused by the permission guard this pass; leave cleanup to the owner or do it by hand).
