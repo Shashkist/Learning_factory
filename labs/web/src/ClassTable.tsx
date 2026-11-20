@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { useI18n } from "./i18n";
 import { localStamp } from "./localStamp";
+import "./styles/teacher.css";
 
 type Cell = { status: string; flag: boolean };
 type Row = { key?: string; name: string; cohort: string; last_activity: string | null; cells: Record<string, Cell> };
@@ -57,8 +58,9 @@ export default function ClassTable({ open }: { open?: (key: string) => void } = 
   }, [qs]);
 
   return (
-    <section>
+    <section className="teacher-page">
       <h1>{t("admin.class.title")}</h1>
+      <div className="toolbar">
       <label>
         {t("admin.class.cohort")}
         <select value={cohort} onChange={(e) => setCohort(e.target.value)}>
@@ -75,17 +77,19 @@ export default function ClassTable({ open }: { open?: (key: string) => void } = 
         {t("admin.class.flagged")}
       </label>
       <a href={`/api/admin/class.csv${qs}`}>{t("admin.class.csv")}</a>
+      </div>
       {failed && <p role="alert">{t("admin.class.error")}</p>}
       {table && table.rows.length === 0 && <p>{t("admin.class.empty")}</p>}
       {table && table.rows.length > 0 && (
+        <div className="table-scroll">
         <table data-testid="class-table">
           <thead>
             <tr>
-              <th>{t("admin.class.col.name")}</th>
-              <th>{t("admin.class.col.cohort")}</th>
-              <th>{t("admin.class.col.last_activity")}</th>
+              <th scope="col">{t("admin.class.col.name")}</th>
+              <th scope="col">{t("admin.class.col.cohort")}</th>
+              <th scope="col">{t("admin.class.col.last_activity")}</th>
               {table.labs.map((l) => (
-                <th key={l.id}>{l.title[lang]}</th>
+                <th scope="col" key={l.id}>{l.title[lang]}</th>
               ))}
             </tr>
           </thead>
@@ -118,8 +122,11 @@ export default function ClassTable({ open }: { open?: (key: string) => void } = 
                     <td key={l.id} data-testid={`class-cell-${i}-${l.id}`}>
                       {mark(c.status)}
                       {c.flag && (
-                        <span role="img" aria-label={t("admin.class.flag")} title={t("admin.class.flag")}>
-                          ⚡
+                        <span className="badge warning">
+                          <span role="img" aria-label={t("admin.class.flag")} title={t("admin.class.flag")}>
+                            ⚡
+                          </span>{" "}
+                          {t("admin.class.flag")}
                         </span>
                       )}
                     </td>
@@ -129,6 +136,7 @@ export default function ClassTable({ open }: { open?: (key: string) => void } = 
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </section>
   );

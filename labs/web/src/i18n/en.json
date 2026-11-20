@@ -145,5 +145,10 @@
   "admin.live.cancel": "Keep running",
   "admin.live.empty": "Nobody is in a lab right now.",
   "admin.live.error": "Could not load the live sessions.",
-  "admin.live.end_error": "Could not end the session. Try again."
+  "admin.live.end_error": "Could not end the session. Try again.",
+  "admin.cohorts.create.legend": "Create a cohort",
+  "admin.import.legend": "Import students",
+  "admin.student.card.labs": "Labs done",
+  "admin.student.card.time": "Active time",
+  "admin.student.card.last": "Last activity seen"
 }

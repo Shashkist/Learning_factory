@@ -6,10 +6,12 @@ import { useI18n } from "./i18n";
 export default function AppShell({
   userName,
   onLogout,
+  nav,
   children,
 }: {
   userName?: string;
   onLogout?: () => void;
+  nav?: ReactNode;
   children: ReactNode;
 }) {
   const { lang, toggle, t } = useI18n();
@@ -28,6 +30,7 @@ export default function AppShell({
             </button>
           )}
         </div>
+        {nav}
       </header>
       <main className="app-content">{children}</main>
     </>

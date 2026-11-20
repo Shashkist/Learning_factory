@@ -145,5 +145,10 @@
   "admin.live.cancel": "להשאיר פועל",
   "admin.live.empty": "אף אחד לא במעבדה כרגע.",
   "admin.live.error": "לא ניתן לטעון את המעבדות הפעילות.",
-  "admin.live.end_error": "לא ניתן לסיים את המפגש. נסו שוב."
+  "admin.live.end_error": "לא ניתן לסיים את המפגש. נסו שוב.",
+  "admin.cohorts.create.legend": "יצירת קבוצה",
+  "admin.import.legend": "ייבוא תלמידים",
+  "admin.student.card.labs": "מעבדות שהושלמו",
+  "admin.student.card.time": "זמן פעיל",
+  "admin.student.card.last": "פעילות אחרונה שנראתה"
 }
