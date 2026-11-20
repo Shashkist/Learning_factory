@@ -9,6 +9,7 @@ a script that closes its own output (`exec >/dev/null 2>&1`) and then blocks mus
 `exec_script`, and a process whose effective uid differs from its real uid is killed.
 """
 # ruff: noqa: F811
+import asyncio
 import time
 
 import pytest
@@ -22,7 +23,7 @@ from test_issue_9_runner_docker import (  # noqa: F401  (fixtures are used by na
     run,
     runtime,
 )
-from test_issue_117_kill_timeouts_docker import sleepers, wait_gone  # noqa: F401
+from test_issue_117_kill_timeouts_docker import mentioning, sleepers, wait_gone  # noqa: F401
 
 pytestmark = pytest.mark.docker
 
@@ -116,7 +117,16 @@ def test_a_process_whose_saved_uid_stays_root_is_killed_on_timeout(runtime, call
         "perl -e '$> = 1001; sleep 6102' </dev/null >/dev/null 2>&1 &\n"
         "sleep 6103\n"
     )
-    res = run(runtime, call, box, script, timeout=2)
+    seen_alive: list[int] = []
+
+    async def go():
+        task = asyncio.ensure_future(runtime.exec_script(box, script, 2))
+        await asyncio.sleep(1.0)
+        seen_alive.append(await asyncio.to_thread(mentioning, box, 6102))
+        return await task
+
+    res = call(go)
+    assert seen_alive == [1], f"the perl sleeper was not running before the kill: {seen_alive}"
     assert res.timed_out is True
-    assert sleepers(box, 6102) == 0, "the saved-uid-0 process outlived exec_script"
-    assert wait_gone(box, 6102) == 0 and wait_gone(box, 6103) == 0
+    assert mentioning(box, 6102) == 0, "the saved-uid-0 process outlived exec_script"
+    assert wait_gone(box, 6103) == 0
