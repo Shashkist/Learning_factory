@@ -951,3 +951,14 @@ in force · factory · 2026-11-20
 **Alternatives.** A second review round on each PR; a `-2` branch to rebase #297 onto #295.
 
 **Revert.** Revert the #295 or #297 squash commit.
+
+## D96 · #167: the browser exam runs a published copy of the smoke lab, not the internal one
+in force · factory · 2026-11-20 · amends D54 for this test only
+
+**Decision.** #167 asks that "My labs shows the internal smoke lab (D54)". The catalog never lists `internal` or `draft` labs, not even to the smoke cohort, and the #129 exam pins that; the real content also has no `published` lab yet. The #167 exam therefore builds its own content folder with a copy of `smoke-tasks` set to `status: published` and passes it to a separate `uvicorn` manager as `LF_CONTENT_DIR` (with `LF_WEB_DIR` pointing at the built UI). The browser drives Playwright from `labs/web` (`tests/acceptance/playwright.docker.config.ts`, spec `issue-167-docker-e2e.pw.ts`, a name vitest does not pick up). The `docker` CI job adds setup-node, `npm ci`, `npm run build` and one Chromium install before the docker gate.
+
+**Why.** No catalog change and no weakened #129 exam; the flow the student sees (sign in, My labs, Start, terminal iframe, End lab, container gone) is the same for any published lab.
+
+**Alternatives.** List internal labs to `lf-smoke` members (changes the #129 exam and widens the catalog rule); publish a real lab first (O17 is the owner's).
+
+**Revert.** Revert the #167 squash commit; or, if internal labs ever become visible to the smoke cohort, point the exam at the real `smoke-tasks` folder.
