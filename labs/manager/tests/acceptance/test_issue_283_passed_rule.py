@@ -83,7 +83,6 @@ def test_the_check_route_uses_the_parsers_rule_with_the_checklist_size(monkeypat
     assert calls[0][1] == 0  # _run_check said exit_ok=True, so the parser gets exit code 0
     assert body["passed"] is True  # mirrors the parser's value
 
-    calls.clear()
     spy_false = lambda *a, **k: SimpleNamespace(passed=False, items={})  # noqa: E731
     monkeypatch.setattr(tasks, "parse_check_output", spy_false)
     async def run_ok(ctx, t):
