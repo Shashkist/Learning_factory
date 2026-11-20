@@ -1083,3 +1083,14 @@ in force · factory · 2026-11-21 · amends D56, D102
 **Why.** Dash backgrounds `cmd &>/dev/null` with the exec's output, which keeps the exec open (D56). Two review rounds is the limit (FACTORY.md).
 
 **Revert.** Revert the #326 squash commit; `&>` is quiet again under any shell and only the text after the last separator counts.
+
+## D108 · #333 keeps End lab as one click, no confirmation (the #130 exam wins over the issue text)
+in force · factory · 2026-11-21 · revertible
+
+**Decision.** Issue #333 says End lab keeps "the existing confirmation", but there is none: the #130 exam pins one click = one `POST .../end`, then `/labs`. The #333 slice keeps that behaviour and only restyles the button as a danger action. The three design slices (#332, #333, #334) run in parallel, each with its own page stylesheet imported from its page component, and each design exam is picked up by one shared `testMatch: /issue-\d+-design\.pw\.ts$/` in the design Playwright config.
+
+**Why.** Exams are not weakened by a later issue; a confirmation step would be a behaviour change that needs its own issue. Per-page stylesheets keep the three lanes from colliding in `base.css`.
+
+**Alternatives.** Add a confirmation dialog now and amend the #130 exam (a behaviour change hidden in a design slice).
+
+**Revert.** Open an issue for an End lab confirmation and amend the #130 exam there.
