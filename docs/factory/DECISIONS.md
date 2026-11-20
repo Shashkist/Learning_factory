@@ -881,3 +881,14 @@ in force · factory · 2026-11-20
 **Alternatives.** A third review round (~15 minutes and one more CI).
 
 **Revert.** Revert the #279 squash commit (exam only; the workflows are unchanged).
+
+## D90 · #283: the parser takes the checklist size; the route reads its verdict
+in force · factory · 2026-11-20
+
+**Decision.** `parse_check_output(stdout, exit_code, n_items=None)`. With `n_items`, `passed` is true exactly when the exit code is 0 and items `1..n_items` all printed `PASS` and none printed `FAIL`; item numbers outside `1..n_items` are noise (D88). Without `n_items` the old rule stays (any `FAIL <n>` fails, missing items do not), so two-argument callers keep their meaning. The check route passes `len(task.checklist)` and returns the parser's `passed`. The #12 and #128 content exams pass the checklist size too, so production and the content exams use one rule (D51(2)). The optional loader warning (criterion 4) is skipped: the loader never runs `check.sh`, so it cannot see the output.
+
+**Why.** One rule in one place, with the smallest change to existing callers.
+
+**Alternatives.** Make `n_items` required (edits every exam that calls the parser with two arguments). A separate `check_passed(...)` function (two functions that can drift again).
+
+**Revert.** Revert the #283 squash commit.

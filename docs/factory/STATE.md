@@ -4,7 +4,9 @@
 
 ## Now
 
-**Pass lf-x3r8 (laptop, 10:25-~11:50 UTC) stopped at 3 merged PRs:** #280 (#127), #282 (#137, replaced #281), #279 (#271 exam). **#127, #137 and #271 are closed with evidence. No claims held, nothing in flight. Production: `bd596e7` (Deploy 44729635504, smoke success, `/api/health` ok database ok).** Decisions D87, D88, D89. New issues: #283, #284, #285, #286.
+**Pass lf-n6q2 (laptop, from 11:57 UTC) in progress.** Lanes: **#284** PR #287 (exam-only harness fix, CI), **#283** (exam a0a3bad, implementer on `f/283-passed-rule`, D90), **#286** (exam writer on `f/286-ci-paths-exam`). Worktrees `C:\projects\lf-284`, `lf-283`, `lf-286`. If this pass dies, continue those branches.
+
+_Previous:_ **Pass lf-x3r8 (laptop, 10:25-~11:50 UTC) stopped at 3 merged PRs:** #280 (#127), #282 (#137, replaced #281), #279 (#271 exam). **#127, #137 and #271 are closed with evidence. No claims held, nothing in flight. Production: `bd596e7` (Deploy 44729635504, smoke success, `/api/health` ok database ok).** Decisions D87, D88, D89. New issues: #283, #284, #285, #286.
 
 - **Resume here:** the Next list. Worktrees `C:\projects\lf-127`, `lf-137`, `lf-271e` are shipped and safe to remove.
 - **Lesson (pass lf-x3r8):** the #89 completion harness swaps in its FakeRuntime after the app starts; the janitor's failed startup pass retries ~2 s later and ends every running session as an orphan. A database case that runs longer than ~2 s fails with `session_ended`. The #137 exam patches `app.janitor.run_once` locally; the harness fix is #284. Until then, keep #89-harness cases short or copy that fixture.
