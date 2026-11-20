@@ -255,10 +255,15 @@ def test_workflow_dispatch_is_always_fresh(tmp_path):
 def test_deploy_step_requires_fresh_and_the_fresh_step_holds_no_secret():
     wf = _load(DEPLOY)
     deploy_step = _step(wf, "deploy", "deploy")
-    assert "steps.fresh.outputs.fresh == 'true'" in str(deploy_step.get("if", ""))
+    assert str(deploy_step.get("if", "")).strip() == (
+        "steps.gate.outputs.ready == 'true' && steps.fresh.outputs.fresh == 'true'"
+    ), "both must hold: `||` would let a stale CI deploy older code"
     fresh = _step(wf, "deploy", "fresh")
     assert "secrets." not in str(fresh.get("env", {}))
     assert "secrets." not in str(fresh)
+    # a secret at workflow or job level would reach the fresh step's environment too
+    assert "secrets." not in str(wf.get("env", {}))
+    assert "secrets." not in str(wf["jobs"]["deploy"].get("env", {}))
 
 
 # ---------------------------------------------------------------- criterion 2: path-scoped jobs
@@ -349,6 +354,7 @@ def test_changes_job_output_heavy_is_the_heavy_step_output():
 
 def test_docker_and_image_jobs_have_exactly_the_expected_conditions():
     jobs = _load(CI)["jobs"]
+    assert "if" not in jobs["changes"], "a skipped changes job skips docker and the images"
     assert str(jobs["docker"].get("if", "")).strip() == "needs.changes.outputs.heavy == 'true'"
     for n in ("image-term", "image-manager"):
         assert "if" not in jobs[n], f"{n} must have no job-level condition, it follows docker"
