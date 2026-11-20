@@ -4,7 +4,9 @@
 
 ## Now
 
-**Pass lf-w4t7 (laptop, 14:25-~15:20 UTC) stopped at 3 merged PRs:** #300 (#67), #302 (#298), #299 (#293). **#67, #293, #298 are closed with evidence. Production: `bd37773` (Deploy 44760760376: deploy + smoke success; `/api/health` ok, database ok).** D94 amended (a tag failure does not fall back to Docker Hub). No new issues. No claims held, nothing in flight.
+**Pass lf-r2k6 (laptop, from 15:27 UTC) in flight:** #167 (`f/167-docker-e2e`, worktree `C:\projects\lf-167`) and #151 (`f/151-kill-followups`, worktree `C:\projects\lf-151`), both claimed by lf-r2k6.
+
+_Previous:_ **Pass lf-w4t7 (laptop, 14:25-~15:20 UTC) stopped at 3 merged PRs:** #300 (#67), #302 (#298), #299 (#293). **#67, #293, #298 are closed with evidence. Production: `bd37773` (Deploy 44760760376: deploy + smoke success; `/api/health` ok, database ok).** D94 amended (a tag failure does not fall back to Docker Hub). No new issues. No claims held, nothing in flight.
 
 - **Resume here:** the Next list, starting with **#167** and **#151**. Worktrees `C:\projects\lf-67`, `lf-293`, `lf-298` are shipped and safe to remove.
 - **Lesson (pass lf-w4t7):** Deploy runs report main's *newest* head as their `headSha`, not the commit whose CI started them. A watcher that filters Deploy runs by the merge sha never matches; wait on the CI run ids instead, then read the Deploy logs ("deployed <sha>" or "Deploy skipped: ... no longer the head").
