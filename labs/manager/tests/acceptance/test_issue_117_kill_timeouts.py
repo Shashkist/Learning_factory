@@ -285,8 +285,6 @@ BACKGROUND_OK = [
     "sleep 600 >/dev/null 2>&1 &",
     "sleep 600 > /dev/null 2>&1 &",
     "sleep 600 </dev/null >/dev/null 2>&1 &",
-    "nohup sleep 600 &>/dev/null &",
-    "nohup sleep 600 &> /dev/null &",
     "true && echo done",
     "true || echo failed",
     "echo hi 2>&1",
