@@ -239,6 +239,8 @@ _HEREDOC = re.compile(r"(?<!<)<<(?!<)(-?)\s*([^\s;&|<>()]+)")  # not `<<<`, a he
 _REDIRECTS = re.compile(r"\d*>&\d+|\d*>>?\s*\S+")
 _FD_REDIRECT = re.compile(r"&>>?\s*\S+|(\d*)>>?&(\d)|(\d*)>>?\s*\S+")
 _FD0_DUP = re.compile(r"\d*<&\s*0")
+_EXEC_FD0_DUP = re.compile(r"exec\s+\d<&\s*0(?!\d)")
+_BASH_SHEBANG = re.compile(r"#!\s*(?:/usr/bin/env\s+bash|/(?:usr/)?bin/bash)(?:\s|$)")
 _LEAD = re.compile(r"^(?:(?:do|then|else)\s+)*(?:\w+\s*\(\s*\)\s*)?(?:\{\s*)?")
 _WHILE_READ = re.compile(r"while\s+(?:\w+=\S*\s+)*read\b")
 _CAT_SUBSHELL = re.compile(r"\$\(\s*cat(?:\s+-\w*)*\s*\)|`\s*cat(?:\s+-\w*)*\s*`")
@@ -301,8 +303,13 @@ def _redirects_input(text: str) -> bool:
     return "<" in _FD0_DUP.sub(" ", text)
 
 
-def _background_is_quiet(job: str) -> bool:
-    """Both outputs end in files, reading the redirects left to right (`2>&1` copies as it is)."""
+def _background_is_quiet(job: str, bash: bool = False) -> bool:
+    """Both outputs end in files, reading the redirects left to right (`2>&1` copies as it is).
+
+    Only the redirects of the backgrounded command count (after the last separator), and `&>`
+    only under bash: dash reads `cmd &>file &` as a background job, then `>file`.
+    """
+    job = _SEPARATORS.split(job.removesuffix("&"))[-1]
     out_file = err_file = False
     for m in _FD_REDIRECT.finditer(job):
         if m.group(2):  # n>&m
@@ -311,7 +318,8 @@ def _background_is_quiet(job: str) -> bool:
             elif m.group(1) in ("", "1"):
                 out_file = err_file
         elif m.group(0).startswith("&"):
-            out_file = err_file = True
+            if bash:
+                out_file = err_file = True
         elif m.group(3) == "2":
             err_file = True
         elif m.group(3) in ("", "1"):
@@ -325,7 +333,7 @@ def _reads_stdin(segment: str) -> bool:
     words = _REDIRECTS.sub(" ", segment).split()
     if not words:
         return False
-    if words[0] == "read":
+    if words[0] == "read" or _EXEC_FD0_DUP.match(segment.strip()):
         return True
     return words[0] == "cat" and all(w.startswith("-") for w in words[1:])
 
@@ -344,6 +352,7 @@ def _script_warnings(text: str, label: str) -> list[str]:
     segments: list[tuple[int, str, bool]] = []  # (line, text, follows a pipe)
     heredoc_end = ""  # inside a here-document body that ends at this line
     dash_tabs = False
+    bash = bool(_BASH_SHEBANG.match(text.splitlines()[0].strip())) if text else False
     piped = False  # the previous line ended with a pipe
     for n, raw in enumerate(text.splitlines(), 1):
         if heredoc_end:
@@ -366,7 +375,7 @@ def _script_warnings(text: str, label: str) -> list[str]:
         if _su_reads_stdin(line, masked) or (cat and not _redirects_input(line[cat.start() :])):
             found.append(f"{label} line {n}: {stdin_msg}")
         if masked.endswith("&") and not masked.endswith("&&"):
-            if not _background_is_quiet(masked):
+            if not _background_is_quiet(masked, bash):
                 found.append(
                     f"{label} line {n}: a background job keeps the exec open; "
                     "redirect it with >/dev/null 2>&1"
