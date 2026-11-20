@@ -243,3 +243,89 @@ def test_item8_the_04_and_05_check_scripts_exist_and_have_no_warnings(task):
     assert (LINUX_1 / "tasks" / task / "check.sh").is_file()
     result = load_labs(CONTENT)
     assert not [w for w in result.warnings.get("linux/linux-1", []) if task in w]
+
+
+# ------------------------------------------------------------------ review round 1
+
+BG_AFTER_FAKE_HEREDOC = [
+    'echo "use <<EOF" >/tmp/u; cat <<X\nhi\nX\nsleep 600 &',
+    "mask=$((1 << 6))\nsleep 600 &",
+    "cat >/tmp/n <<END-NOTE\nhi\nEND-NOTE\nsleep 600 &",
+]
+READER_AFTER_FAKE_HEREDOC = [
+    "x=$((1<<n))\nwhile read x; do echo $x; done",
+    "mask=$((1 << 6))\nwhile read x; do echo $x; done",
+    'echo "use <<EOF" >/tmp/u\nwhile read x; do echo $x; done',
+]
+SU_SCOPE_WARN = [
+    "su student -c 'read x'; echo done </dev/null",
+    "su student -c 'read x'; echo '<'",
+    "su student -c 'echo hi; read x'",
+    'su student -c "echo hi; read x"',
+    "su student -c 'read x' && echo ok </dev/null",
+]
+SU_SCOPE_QUIET = [
+    "su student -c 'read x' </dev/null; echo hi",
+    "su student -c 'echo hi; read x' </dev/null",
+    "su student -c 'read x' </dev/null && echo ok",
+]
+ESCAPED_QUOTES = [
+    "echo can\'t; while read x; do echo $x; done; echo won\'t",
+    'echo say\\"hi; while read x; do echo $x; done; echo \\"',
+]
+FD0_SPACED = [
+    "while read x; do echo $x; done <& 0",
+    "while read x\ndo\n  echo $x\ndone <&  0",
+]
+
+
+@pytest.mark.parametrize("name", NAMES)
+@pytest.mark.parametrize("body", BG_AFTER_FAKE_HEREDOC)
+def test_round1_a_background_job_after_a_not_a_here_document_still_warns(tmp_path, name, body):
+    result = _script(tmp_path, body, name)
+    found = background_warnings(result)
+    assert found, f"no background warning for {body!r}: {result.warnings}"
+
+
+@pytest.mark.parametrize("name", NAMES)
+@pytest.mark.parametrize("body", READER_AFTER_FAKE_HEREDOC)
+def test_round1_a_reader_after_a_not_a_here_document_still_warns(tmp_path, name, body):
+    _must_warn_stdin(tmp_path, body, name)
+
+
+@pytest.mark.parametrize("name", NAMES)
+@pytest.mark.parametrize("body", SU_SCOPE_WARN)
+def test_round1_su_reader_is_judged_by_its_own_redirect_only(tmp_path, name, body):
+    _must_warn_stdin(tmp_path, body, name)
+
+
+@pytest.mark.parametrize("name", NAMES)
+@pytest.mark.parametrize("body", SU_SCOPE_QUIET)
+def test_round1_su_reader_with_its_own_redirect_is_quiet(tmp_path, name, body):
+    _must_not_warn(tmp_path, body, name)
+
+
+@pytest.mark.parametrize("name", NAMES)
+@pytest.mark.parametrize("body", ESCAPED_QUOTES)
+def test_round1_an_escaped_quote_does_not_hide_the_loop(tmp_path, name, body):
+    _must_warn_stdin(tmp_path, body, name)
+
+
+@pytest.mark.parametrize("name", NAMES)
+@pytest.mark.parametrize("body", FD0_SPACED)
+def test_round1_fd_0_with_a_space_is_still_not_a_redirect(tmp_path, name, body):
+    _must_warn_stdin(tmp_path, body, name)
+
+
+@pytest.mark.parametrize("name", NAMES)
+@pytest.mark.parametrize(
+    "body",
+    [
+        "while read x; do echo $x; done <<END-NOTE\nhi\nEND-NOTE",
+        "while read x; do echo $x; done <<'END-NOTE'\nhi\nEND-NOTE",
+        "echo \"a << b\"; while read x; do echo $x; done </dev/null",
+        "mask=$((1 << 6)); while read x; do echo $x; done </dev/null",
+    ],
+)
+def test_round1_real_here_documents_and_redirects_stay_quiet(tmp_path, name, body):
+    _must_not_warn(tmp_path, body, name)
