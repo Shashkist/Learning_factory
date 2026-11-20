@@ -55,11 +55,13 @@ def test_a_cancelled_exec_script_runs_the_kill_and_reraises_cancellederror(engin
             outcome = "cancelled"
         except BaseException as exc:  # noqa: BLE001
             outcome = type(exc).__name__
-        # the kill ran in full, the cancel did not cut it
+        # the kill ran in full before the cancel went on (D56: the lock outlives the script)
+        stopped_at_raise = "exec1" in engine.finished
         await _settle(engine)
-        return outcome
+        return outcome, stopped_at_raise
 
-    outcome = asyncio.run(main())
+    outcome, stopped_at_raise = asyncio.run(main())
+    assert stopped_at_raise, "the cancel went on while the script was still running"
     assert len(engine.kill_runs) == 1, f"kill execs after a cancel: {len(engine.kill_runs)}"
     assert t9.is_kill_exec(engine.kill_runs[0][0]["Cmd"])
     assert "exec1" in engine.finished, "the cancelled script is still running"
@@ -74,13 +76,30 @@ def test_an_outer_wait_for_timeout_still_kills_the_script(engine):
         with pytest.raises(TimeoutError):
             await asyncio.wait_for(runtime().exec_script("lab-exam-1", SLEEPER, 30.0), 1.0)
         took = time.monotonic() - started
+        stopped_at_raise = "exec1" in engine.finished
         await _settle(engine)
-        return took
+        return took, stopped_at_raise
 
-    took = asyncio.run(main())
+    took, stopped_at_raise = asyncio.run(main())
+    assert stopped_at_raise, "the outer TimeoutError surfaced while the script was still running"
     assert len(engine.kill_runs) == 1, f"kill execs after an outer timeout: {len(engine.kill_runs)}"
     assert "exec1" in engine.finished
     assert took < 1.0 + rt_mod.KILL_BOUND_S + 2.0, f"{took:.1f}s"
+
+
+def test_an_outer_cancel_during_the_timeout_paths_kill_still_runs_one_kill(engine):
+    _hang(engine)
+
+    async def main():
+        with pytest.raises(TimeoutError):
+            await asyncio.wait_for(runtime().exec_script("lab-exam-1", SLEEPER, 1.0), 1.1)
+        stopped_at_raise = "exec1" in engine.finished
+        await _settle(engine)
+        return stopped_at_raise
+
+    stopped_at_raise = asyncio.run(main())
+    assert len(engine.kill_runs) == 1, f"kill execs: {len(engine.kill_runs)}"
+    assert stopped_at_raise, "the outer TimeoutError surfaced while the script was still running"
 
 
 def test_a_cancel_with_a_kill_that_hangs_is_still_bounded_and_reraises(engine):
