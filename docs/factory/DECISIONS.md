@@ -1062,6 +1062,8 @@ in force · factory · 2026-11-20 · revertible
 
 **Revert.** Revert the #331 squash commit (and the slice commits after it): the pages return to browser defaults. To rebrand, edit `tokens.css` only; to drop Rubik, remove the package and its import, the fallback stack takes over.
 
+> **D105 amendment (factory, 2026-11-21, review of #341).** (a) A 13th colour token, `--color-border-strong`, borders form controls (inputs, selects, textareas) and must reach 3:1 on bg and on surface in both themes (WCAG 1.4.11); `--color-border` stays for dividers and cards. (b) #331 ships the D19 way: PR A (code and the CI design step, "Part of #331") then PR B (the exam alone, closes #331). Until B lands, the CI design step is skipped by `hashFiles()` on its config, so A's CI stays green. (c) The exam's Hebrew `unicode-range` check accepts the minified form `U+590-5FF` (an exam correction in B), and the build minifies CSS again. (d) A busy button keeps its text contrast (no whole-button fade).
+
 ## D106 · Linux 1 task 06 fails duplicated lines like 05; truncation is one read (#325)
 in force · factory · 2026-11-20 · amends D101 · revertible
 
