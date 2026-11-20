@@ -4,10 +4,14 @@
 
 ## Now
 
-**Pass lf-d3a2 (laptop, from 17:27 UTC) in flight, all claimed by lf-d3a2:**
-- **#314 done**: #315 merged (2db2d26), Deploy 44786065212 shipped ee3f734, smoke ok, health ok. #313 closed as its duplicate; #126, #151, #167 got their deploy evidence and `status:done`.
-- **#306** stale timeout killer: PR **#318** (`f/306-stale-killer`, worktree `C:\projects\lf-306`): 306 exam → #9 exam edit (allows `LF_EXEC_ID`, D98 amended) → code. Round 1 CI found the #9 env pin and a unit test outside `tests/unit/` (counts as exam); branch rebuilt. CI + reviewer running. Draft **#316** = the exam alone on main (red run; close it, never merge).
-- **#312** browser exam follow-ups: PR **#317** (`f/312-browser-exam`, worktree `C:\projects\lf-312`): two exam commits → `HEAVY` code commit (D99). Round 1 CI: the new `.xterm` check failed because the host-run manager cannot resolve `lab-<session>`; the exam now runs a host TCP forwarder behind `LF_TERM_UPSTREAM`. CI + reviewer running.
+**Pass lf-d3a2 (laptop, 17:27-~19:05 UTC) stopped at 3 merged PRs:** #315 (#314), #317 (#312), #318 (#306). **#314, #312, #306 closed with evidence; #313 closed as duplicate; #126, #151, #167 got deploy evidence. Production: `56aacca` (Deploy 44798811736: all checks passed, smoke ok, `/api/health` ok, database ok).** No claims held, nothing in flight. Decisions D98 (+ amendment, accepted risk), D99 (+ amendment), D100. New issue: #319.
+
+- **Resume here:** the Next list, starting with **#308** and **#311**.
+- Then the Next list. Worktrees `C:\projects\lf-306`, `lf-312` (and `lf-314`) are shipped and safe to remove.
+- **Lesson (pass lf-d3a2):** exam integrity counts every file under `labs/*/tests/` except `tests/unit/` as exam. A new unit test in `labs/manager/tests/` made the code commit fail "changes the exam and non-test code together".
+- **Lesson (pass lf-d3a2):** before adding to a process environment or a pinned set, grep *every* copy of the exam: the #9 runner exam pins the env in a unit file (`set(env) == {"PATH","HOME"}`) and in a docker file (`names <= shell | {...}`); the second showed up only in the docker job.
+- **Lesson (pass lf-d3a2):** a red case in an "exam alone" draft run is evidence only if it failed at its assertion. In #316 one case was red from a 600 s hang in its own cleanup, and two cases were vacuously green.
+- **Lesson (pass lf-d3a2):** the #167 browser exam runs the manager on the CI host, which cannot resolve `lab-<session>`; it now uses a host TCP forwarder behind `LF_TERM_UPSTREAM` that dials the session's container by the request path.
 
 _Previous:_ **Pass lf-r2k6 (laptop, 15:27-~17:05 UTC):** merged #307 (#151), #304 + #309 + #310 (#167), #303 (#126); main went red from a semantic conflict between #303 and #307 (incident #314, fix PR #315 opened). Leftovers: #306, #308, #311, #312. D96, D97.
 
@@ -134,7 +138,7 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
 ## Next (in order)
 
-1. **#167** docker end-to-end browser test against the real manager (split from #131, D60). **#151** kill follow-ups, **#154** Solution tab (D57 b), **#126**, **#142** (reuse the #153 helpers).
+1. **#308** kill and validator follow-ups (now unblocked; includes the `<&0` rule from the #315 review), **#311** Linux 1 check leftovers, **#319** WebSocket relay proof, **#154** Solution tab (D57 b), **#142** (reuse the #153 helpers).
 2. **#85** deploy follow-ups (its "docs-only redeploys" item is done by #278), **#94**, **#93**; p2 list: #81, #76, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
@@ -147,6 +151,11 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 - O16/O7 resolved by D43 (public repository). O12 (back up `.env`), O13 (re-deploy after recreating nginx-proxy3), O5 reopened.
 
 ## Recently done
+
+- 2026-11-20 · Pass lf-d3a2: **3 PRs merged, 3 issues closed (+ duplicate #313).**
+  - #315 → **#314** (incident: 05 tally loop `done <&0`). Deploy 44786065212 shipped ee3f734 (also #303, #304, #307, #309, #310), smoke ok.
+  - #317 → **#312** (web build paths heavy; `.xterm` check; host forwarder; own-container cleanup; D99). Deploy 44795921240 shipped fb5db1e, smoke ok.
+  - #318 → **#306** (killer: own deadline, per-exec marker, student groups before root; D98, D100). PR docker job green incl. all 5 #306 cases; draft #316 showed the red run. Deploy 44798811736 shipped 56aacca, smoke ok.
 
 - 2026-11-20 · Pass lf-w4t7: **3 PRs merged, 3 issues closed.**
   - #300 → **#67** (one-off liveness diagnostic removed; the `--init` cause written in `isolation.sh`; D30 note). Exam edited by hand, exam commit first.
