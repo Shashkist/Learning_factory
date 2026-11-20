@@ -23,8 +23,6 @@ database tests skip locally without LF_TEST_DATABASE_URL.
 """
 # ruff: noqa: F811 (imported fixtures are used as test arguments)
 
-import pytest
-
 from tests.acceptance.test_issue_89_completion import (  # noqa: F401 (fixtures)
     DAY,
     LABS,
@@ -44,22 +42,6 @@ LABS["smokelow"] = ([(PLAIN, "hands-on")], None)
 LABS["smokehigh"] = ([(PLAIN, "hands-on")], None)
 
 SMOKE = "lf-smoke"
-
-
-@pytest.fixture(autouse=True)
-def _no_janitor_passes(monkeypatch):
-    """Keep the janitor out of these cases.
-
-    The #89 harness swaps in its FakeRuntime after the app has started, so the janitor's startup
-    pass fails on the real Docker socket and retries 2 s later. FakeRuntime lists no containers,
-    so that retry ends every running session as an orphan. The smoke cases open ten or more
-    sessions and outlive the 2 s (seen in CI: `session_ended` on the tenth session)."""
-    import app.janitor as janitor
-
-    async def idle(_app):
-        return True
-
-    monkeypatch.setattr(janitor, "run_once", idle)
 
 
 # ================================================================ pure functions (no database)
