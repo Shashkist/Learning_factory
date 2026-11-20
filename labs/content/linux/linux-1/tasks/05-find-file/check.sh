@@ -34,7 +34,7 @@ fact() {
 }
 rd() { printf '%s\n' "$facts" | grep -qx "R $1 1"; }
 body() { printf '%s\n' "$facts" | sed -n "s/^C $1 //p"; }
-# tally: reads lines on stdin, prints "non-empty-lines lines-equal-to-want other-lines". A builtin
+# tally LINES: reads the lines from a here-document, prints "non-empty-lines lines-equal-to-want other-lines". A builtin
 # loop, so the expected path is never an argument of an external command (D52).
 tally() {
   t=0; m=0; o=0
@@ -42,7 +42,9 @@ tally() {
     [ -n "$l" ] || continue
     t=$((t + 1))
     if [ "$l" = "$want" ]; then m=$((m + 1)); else o=$((o + 1)); fi
-  done <&0  # the caller pipes the lines in; the stdin check cannot see the call site
+  done <<EOF
+$1
+EOF
   echo "$t $m $o"
 }
 rc=0
@@ -59,7 +61,7 @@ fi
 
 if [ "$ty" = f ]; then
   if rd found; then
-    set -- $(body found | tally)
+    set -- $(tally "$(body found)")
     n=$1; right=$2; other=$3
     if [ "$right" -ge 1 ] && [ "$n" -eq 1 ]; then
       echo "PASS 2"

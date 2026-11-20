@@ -38,14 +38,19 @@ fact() {
 }
 rd() { printf '%s\n' "$facts" | grep -qx "R $1 1"; }
 body() { printf '%s\n' "$facts" | sed -n "s/^C $1 //p"; }
-# has TEXT: reads lines on stdin, true if one contains TEXT. A builtin loop, so the text is never
-# an argument of an external command and never shows on a process command line (D52).
-has() { while IFS= read -r l; do case $l in *"$1"*) return 0 ;; esac; done; return 1; }
+# has LINES TEXT: true if one of LINES contains TEXT. A builtin loop fed by a here-document, so the
+# text is never an argument of an external command and never shows on a process command line (D52).
+has() {
+  while IFS= read -r l; do case $l in *"$2"*) return 0 ;; esac; done <<EOF
+$1
+EOF
+  return 1
+}
 rc=0
 
 fact bak
 if [ "$ty" = f ]; then
-  if body bak | has "Quarterly report draft"; then
+  if has "$(body bak)" "Quarterly report draft"; then
     echo "PASS 1"
   elif rd bak; then
     echo "FAIL 1 the file in ~/backup is not a copy of report.txt; which command makes a copy and leaves the original?"
@@ -75,7 +80,7 @@ if [ "$ty" != f ] || [ "$inpic" != - ]; then
 elif ! rd pic; then
   echo "FAIL 3 the file ~/pictures/photo.txt cannot be read; check its permissions with ls -l"
   rc=1
-elif body pic | has "Photo of the team"; then
+elif has "$(body pic)" "Photo of the team"; then
   echo "PASS 3"
 else
   echo "FAIL 3 ~/pictures/photo.txt is not the photo from ~/inbox: move the original with mv"
