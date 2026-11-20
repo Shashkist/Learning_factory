@@ -105,16 +105,24 @@ def _end_stopper_and_continue(box: str):
 
 
 def _cleanup(box: str):
-    docker("exec", "-u", "student", box, "sh", "-c", "kill -CONT -1; kill -KILL -1", check=False)
-    docker("exec", "-u", "root", box, "rm", "-f", STOP_FILE, check=False)
+    """End the loop FIRST (it would stop this very cleanup), then continue and kill."""
+    _end_stopper_and_continue(box)
+    docker(
+        "exec", "-u", "student", box, "sh", "-c", "kill -CONT -1; kill -KILL -1",
+        check=False, timeout=30,
+    )
+    docker("exec", "-u", "root", box, "rm", "-f", STOP_FILE, check=False, timeout=30)
 
 
-def _timed_out_check_under_stopper(runtime, call, box) -> float:
-    """Setup, start the SIGSTOP loop, run the check. Returns the monotonic time it returned."""
+def _timed_out_check_under_stopper(runtime, call, box, before: set | None = None) -> float:
+    """Setup, start the SIGSTOP loop, run the check. Returns the monotonic time it returned.
+    `before`, when given, is filled with the pids that exist when the check starts."""
     task = _task_dir(TASK)
     setup = call(runtime.exec_script, box, _text(task / "setup.sh"), 60)
     assert setup.exit_code == 0 and not setup.timed_out, setup.output
     _start_stopper(box)
+    if before is not None:
+        before.update(r[0] for r in _ps(box))
     res = call(runtime.exec_script, box, _text(task / "check.sh"), CHECK_TIMEOUT_S)
     assert res.timed_out is True, (
         f"the stop loop did not make the check time out (exit {res.exit_code}), so the case "
@@ -199,12 +207,18 @@ def test_no_stopped_student_reader_is_left_five_seconds_after_the_timed_out_chec
     docker_available, runtime, call, fresh_box
 ):
     try:
-        returned = _timed_out_check_under_stopper(runtime, call, fresh_box)
+        before: set = set()
+        returned = _timed_out_check_under_stopper(runtime, call, fresh_box, before)
         time.sleep(max(0.0, 5.0 - (time.monotonic() - returned)))
+        # Any new stopped student process of the check: the reader may still read `su student
+        # -s /bin/sh -c /bin/sh -s` (stopped right after the uid switch), not just `/bin/sh -s`.
         readers = [
             r
             for r in _ps(fresh_box)
-            if r[2] == "student" and r[4] == "/bin/sh -s" and r[3].startswith("T")
+            if r[2] == "student"
+            and r[3].startswith("T")
+            and r[0] not in before
+            and "stop-stopper126" not in r[4]
         ]
     finally:
         _cleanup(fresh_box)
@@ -213,7 +227,7 @@ def test_no_stopped_student_reader_is_left_five_seconds_after_the_timed_out_chec
         entries = re.split(r"(?m)^#+ (?=.*\bD\d+\b)", text)
         accepted = any("#306" in e and "accepted risk" in e.lower() for e in entries)
         assert accepted, (
-            f"{len(readers)} stopped student `/bin/sh -s` readers of the timed-out check are "
+            f"{len(readers)} stopped student processes (readers) of the timed-out check are "
             f"left 5 s after exec_script returned, and no D-entry records it as accepted risk "
             f"for #306: {readers}"
         )
@@ -226,7 +240,7 @@ def test_setup_and_check_after_a_stop_loop_run_normally_in_the_same_container(
     try:
         _timed_out_check_under_stopper(runtime, call, fresh_box)
         _end_stopper_and_continue(fresh_box)
-        time.sleep(3.0)  # a resumed stale killer would be walking its rounds by now
+        time.sleep(0.2)  # start at once: a resumed stale killer is still walking its rounds
         setup = call(runtime.exec_script, fresh_box, _text(task / "setup.sh"), 60)
         started = time.monotonic()
         check = call(runtime.exec_script, fresh_box, _text(task / "check.sh"), CHECK_TIMEOUT_S)
