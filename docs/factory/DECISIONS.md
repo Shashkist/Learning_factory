@@ -973,3 +973,25 @@ in force · factory · 2026-11-20
 **Alternatives.** Hold #126 until #306 ships; do items 6-8 in #303 (another ~2 CI rounds).
 
 **Revert.** Move the two cases back into the #126 exam once #306 ships.
+
+## D98 · #306: the timeout killer ends by its own deadline and finds its exec by a unique marker
+in force · factory · 2026-11-20
+
+**Decision.** Each `exec_script` call carries a unique `LF_EXEC_ID=<uuid>` in its environment. The killer targets only processes whose `/proc/<pid>/environ` holds that exact id, plus their descendants by PPid; the old match (`<interp> -s`, uid 0, PPid 0) is gone. The killer runs as `exec timeout -s KILL <bound - 0.6 s> sh -c <kill program>`, so it dies before the manager gives up and takes its root process group with it. The student-uid `setpriv ... kill` children (D56) run in the background and are never waited for; the rounds repeat until the deadline.
+
+**Why.** A student `kill -STOP` loop stopped the student-uid kill child; the root killer waited on it, outlived `exec_script`, and when resumed killed the next exec (exit 137 in the #126 exam). A self-enforced deadline removes the stale killer; the marker makes a wrong target impossible even if a killer were late.
+
+**Residual (accepted).** A stopped `setpriv` child that resumes later sends signals, as the student, to its stale pid list only. The student could send those signals anyway (D56 unchanged). The script can read its own `LF_EXEC_ID`; it learns nothing about any other exec.
+
+**Alternatives.** Track the exec's root pid from `docker exec` inspect (racy under gVisor); run the kill children as root (breaks D56); SIGCONT the whole uid before killing (lets a stopped student loop run again).
+
+**Revert.** Revert the #306 squash commit.
+
+## D99 · #312: exam commit and code commit in one PR; only `labs/web/src/` and `labs/web/tests/acceptance/` are heavy
+in force · factory · 2026-11-20
+
+**Decision.** #312 asked for the #271 exam change "in its own PR". It ships as one PR (#317) with the exam commit first and the `scripts/ci_paths.py` commit second, because exam integrity is checked per commit and the pair is two lines of code. `HEAVY` gains `labs/web/src/` and `labs/web/tests/acceptance/`, not all of `labs/web/`: the browser exam depends on the app's code and its own spec, while files such as `labs/web/index.html` or a README do not need a 30-minute docker job. The #271 exam's old "web-only PR is light" case became a docs-only control.
+
+**Why.** One CI round instead of two; the per-commit check gives the same guarantee as two PRs.
+
+**Revert.** Make `HEAVY` include `labs/web/` whole, or split future exam changes into their own PRs.
