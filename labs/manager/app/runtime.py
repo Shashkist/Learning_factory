@@ -12,7 +12,7 @@ from typing import Any, Protocol
 
 import httpx
 
-from app.content import Lab
+from app.content import Lab, shebang_argv
 
 log = logging.getLogger("lab-manager")
 
@@ -119,9 +119,7 @@ class LabRuntime(Protocol):
 
 def exec_command(script: str) -> list[str]:
     """The shebang interpreter plus `-s` (read the program from stdin); `/bin/sh` without one."""
-    first = script.split("\n", 1)[0]
-    parts = first[2:].split() if first.startswith("#!") else []
-    return [*(parts or ["/bin/sh"]), "-s"]
+    return [*shebang_argv(script), "-s"]
 
 
 # Run as root by a second exec after a timeout (#117, #306). The script's exec carries a per-exec
