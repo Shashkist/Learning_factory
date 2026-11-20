@@ -1010,3 +1010,25 @@ in force · factory · 2026-11-20
 **Why.** Two review rounds is the limit (FACTORY.md); the fix is 10 lines of shell that move a signal earlier and shorten a wait.
 
 **Revert.** Revert the #306 squash commit.
+
+## D101 · #311: forged fact lines stay an accepted risk; no per-check token
+in force · factory · 2026-11-20 · amends D52
+
+**Decision.** Item 2 of #311 is closed by this entry, not by code. The Linux 1 readers keep printing plain fact lines; a student who writes fake fact lines into a reader's stdout through `/proc/<pid>/fd/1` stays inside the accepted risk of D52 (2). #311 ships items 1, 3, 4 and 5.
+
+**Why.** A token that root sends to a student-owned process is readable by that same student (its stdin pipe, its memory), so it only raises the bar from a shell loop to a `/proc` read, at the cost of a token rule in every check of seven tasks. The labs are practice, not graded exams (spec §5), and the cheat needs a timed race against a reader that lives for milliseconds. Truncation (item 1) is different: there a wrong answer passes with no effort, so it is fixed.
+
+**Alternatives.** A per-check random token on stdin, required on every fact line (rejected for now: cost across seven checks, small gain). Read files as root with `CAP_DAC_READ_SEARCH` (rejected in D45).
+
+**Revert.** Open an issue for the token: root writes a random token on the reader's stdin before the script, the reader prefixes every fact line with it, root ignores lines without it.
+
+## D102 · #308 splits in two; `<&0` stops being accepted, function inputs use here-documents
+in force · factory · 2026-11-20
+
+**Decision.** (1) #308 keeps the validator items (1, 2, 3, 8); the kill items (4-7) move to #320, so each is one PR of about 400 lines and they can run side by side. (2) Item 8: the stdin rule no longer accepts `<&0` as a redirect. The 04 `has()` and 05 `tally()` helpers move to the argument + here-document form (`while read ...; done <<EOF` / `$1` / `EOF`), and the rule looks inside function bodies wherever the header sits. A loop that reads stdin with no redirect warns, in a function or not.
+
+**Why.** Documenting `<&0` as "the caller pipes the input in" keeps a hole: a top-level `done <&0` reads the check script itself and passes. The here-document form is plain POSIX sh, needs no exception, and makes one rule for every loop.
+
+**Alternatives.** Document `<&0` in spec §7 (rejected: hides a real read of the script).
+
+**Revert.** Accept `<&0` again in `labs/manager/app/content.py` and restore the `done <&0` lines in 04 and 05.
