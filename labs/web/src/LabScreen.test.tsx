@@ -371,6 +371,26 @@ describe("open tasks view", () => {
     expect(screen.queryByText(EN["lab.complete"], { exact: false })).toBeNull();
   });
 
+  test("completing from the open-tasks view clears the list", async () => {
+    backend({
+      ...openRoutes,
+      [`GET ${API}/tasks`]: [
+        ok({ tasks: [{ id: "a", state: "shown", title: { en: "Alpha", he: "א" } }] }),
+        ok({ tasks: [{ id: "a", state: "passed", title: { en: "Alpha", he: "א" } }] }),
+      ],
+    });
+    await open();
+    fireEvent.click(btn(EN["lab.next"]));
+    await screen.findByRole("button", { name: "Alpha" });
+    fireEvent.click(btn(EN["lab.next"]));
+    await waitFor(() =>
+      expect(screen.getByRole("status").textContent).toBe(EN["lab.complete"]),
+    );
+    expect(screen.queryByRole("button", { name: "Alpha" })).toBeNull();
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.getByRole("link", { name: EN["lab.to_labs"] })).toBeTruthy();
+  });
+
   test("clears after Previous", async () => {
     backend({
       ...openRoutes,
