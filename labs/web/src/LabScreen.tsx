@@ -355,7 +355,10 @@ export default function LabScreen({
         if (rest.length) {
           setOpen(rest.map((x) => ({ id: x.id, title: x.title })));
           setDone(false);
-        } else setDone(true);
+        } else {
+          setOpen(null);
+          setDone(true);
+        }
       }
     });
   const check = () =>
@@ -428,6 +431,7 @@ export default function LabScreen({
   const dragEnd = () => setDragging(false);
 
   const hands = task.kind === "hands-on";
+  const emptyLine = !done && !open;
   const verdictText = verdict
     ? t(`lab.${verdict}`)
     : checkFailed
@@ -480,15 +484,15 @@ export default function LabScreen({
           role="tabpanel"
           aria-labelledby={`lab-tab-${tab}`}
         >
-          {!done && (
-            <p role="status">
-              {open
+          <p role="status" style={emptyLine ? { margin: 0 } : undefined}>
+            {done
+              ? t("lab.complete")
+              : open
                 ? open.length === 1
                   ? t("lab.open.one")
                   : `${open.length} ${t("lab.open.many")}`
                 : ""}
-            </p>
-          )}
+          </p>
           {open ? (
               <ul>
                 {open.map((o) => (
@@ -510,9 +514,7 @@ export default function LabScreen({
                 ))}
               </ul>
           ) : done ? (
-            <p role="status">
-              {t("lab.complete")} {toLabs}
-            </p>
+            <p>{toLabs}</p>
           ) : tab === "solution" ? (
             <p>{t("lab.solution.none")}</p>
           ) : (
