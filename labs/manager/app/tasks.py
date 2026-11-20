@@ -33,7 +33,9 @@ SETUP_TIMEOUT_MAX_S = 40.0
 DEFAULT_SETUP_TIMEOUT_S = 40.0
 DB_STEP_BOUND_S = 8.0  # the database step after the setup, pool acquire included
 DB_SERVER_BOUND_S = 5.0  # lock_timeout and statement_timeout inside that step: the clean path
-REQUEST_BUDGET_S = 55.0  # one show/navigate request, from the start of its dependencies
+# import-time copy kept for the #220/#224 exams and unit tests; nothing reads it at request time
+# (the routes read db.REQUEST_DEADLINE_S)
+REQUEST_BUDGET_S = db.REQUEST_DEADLINE_S
 CHECK_TIMEOUT_S = 20.0  # spec section 7
 SLOT_WAIT_S = 5.0  # waiting for an exec slot, on top of the setup timeout
 
@@ -111,17 +113,18 @@ class _Ctx:
 
     @property
     def started(self) -> float:
-        """The request start (set by `_start`); a bare request: when this context was built."""
+        """The request start: `_start` copies the middleware's; else the request clock."""
         state = getattr(self.request, "state", None)
-        return getattr(state, "started", None) or self._bare_started
+        return getattr(state, "started", None) or db.request_started() or self._bare_started
 
 
 async def _start(request: Request) -> None:
-    """Resolved before the auth dependencies: the request's deadline starts here.
+    """Resolved before the auth dependencies: takes the middleware's request start and stamps
+    its own only when no middleware ran (bare test apps).
 
     A coroutine, so it runs on the event loop at once; a sync dependency would first wait for a
     free thread-pool worker and that wait would not count against the deadline."""
-    request.state.started = time.monotonic()
+    request.state.started = db.request_started() or time.monotonic()  # the middleware start
 
 
 async def _ctx(
@@ -231,9 +234,8 @@ async def _record_shown(ctx: _Ctx, task: Task, bound: float = DB_STEP_BOUND_S) -
 
 def _left(ctx: _Ctx) -> float:
     """Seconds of the request budget still unspent."""
-    now = time.monotonic()
-    started = getattr(ctx, "started", None)
-    return REQUEST_BUDGET_S - (now - (started or now))  # bare: from now
+    left = db.time_left(getattr(ctx, "started", None))  # the one request clock
+    return db.REQUEST_DEADLINE_S if left is None else left
 
 
 def _step_bound(ctx: _Ctx, code: str = "setup_timeout") -> float:
