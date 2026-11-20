@@ -997,3 +997,5 @@ in force · factory · 2026-11-20
 **Why.** One CI round instead of two; the per-commit check gives the same guarantee as two PRs.
 
 **Revert.** Make `HEAVY` include `labs/web/` whole, or split future exam changes into their own PRs.
+
+**Amendment (review round 1 of #317).** `HEAVY` also lists `labs/web/package.json`, `labs/web/package-lock.json` and `labs/web/vite.config.ts`: the manager image builds the web app from them and the browser exam serves `labs/web/dist`, so a light PR changing the build output folder would have broken main's docker and image jobs. `index.html` and docs stay light. The exam's cleanup removes only containers that were not there before the run; the typed-echo proof of the WebSocket relay is #319.
