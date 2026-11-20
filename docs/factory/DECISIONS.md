@@ -1061,3 +1061,14 @@ in force · factory · 2026-11-20 · revertible
 **Alternatives.** A system-font stack (zero bytes, but Hebrew rendering differs per OS); Assistant or Heebo (Hebrew-first, weaker Latin); a CSS framework such as Tailwind or a component library (a new build dependency and class soup across every page; tokens plus plain CSS is enough for this size); a manual theme switch (later, if teachers ask).
 
 **Revert.** Revert the #331 squash commit (and the slice commits after it): the pages return to browser defaults. To rebrand, edit `tokens.css` only; to drop Rubik, remove the package and its import, the fallback stack takes over.
+
+## D106 · Linux 1 task 06 fails duplicated lines like 05; truncation is one read (#325)
+in force · factory · 2026-11-20 · amends D101 · revertible
+
+**Decision.** (1) In `06-grep-log`, `~/errors.txt` must hold each ERROR line of the log exactly once (any order); a duplicated line fails item 3 with its own hint, as 05 already fails duplicated paths. The truncation hint ("far longer ...") is decided before the duplicates hint. (2) Both checks read the student's file once (`head -c 65536 | head -n 201`) and root counts a 201st line, blank or not, as truncation; exactly 200 lines is not truncation. The old #311 case that pinned 40 copies of the four lines as correct is removed (a long 06 file without duplicates cannot exist: the log has four ERROR lines).
+
+**Why.** One rule across the lab (a list of matches has no repeats); a student who appends with `>>` twice gets a clear hint instead of a pass. One read closes the swap race between the flag and the lines (review of #322).
+
+**Alternatives.** Accept duplicates in 06 (inconsistent with 05; teaches nothing about `>` vs `>>`).
+
+**Revert.** Revert the #325 squash commit.
