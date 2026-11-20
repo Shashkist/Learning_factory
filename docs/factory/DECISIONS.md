@@ -936,3 +936,14 @@ in force · factory · 2026-11-20
 **Alternatives.** Run a lab image from ghcr.io (the bootstrap does not pull lab images, and it would need registry access before the manager is deployed). Docker Hub login in CI (a secret, and the server would still pull anonymously). Skip the check when the pull fails (hides a broken runtime).
 
 **Revert.** Revert the #294 squash commit; the check goes back to `docker run --runtime=runsc hello-world`.
+
+## D95 · #290 and #294: review findings fixed by the manager, merged without a second round
+in force · factory · 2026-11-20
+
+**Decision.** PR #295 (#290, exam-only): review round 1 found one blocking finding (the inline patch in the #8 harness turned the #105 janitor exam into a case that cannot fail; #8 already lists its containers, so it never raced) and one nit (the #89 race case's elapsed-time assert was always true). The manager reverted the #8 hunk and replaced the fixed sleep with a wait anchored to app start; merged on green with no second round. PR #297 (#294): approved with five nits; the exam nits cannot go into the same PR (an exam edit after a code commit fails exam integrity), so all of them are #298. CI then failed the #50 exam's "no `latest` in the script" pin (it guards the gVisor download); the fix names the check image without a tag (`hello-world`, `mirror.gcr.io/library/hello-world`), which Docker resolves to the same `:latest` image and the #294 exam normalises the same way. #297 merges on green without being rebased onto #295: the two touch disjoint files, and main's CI after the merge is the check.
+
+**Why.** Each fix answers a named finding and is small enough to check by reading; a second round costs ~15 minutes and one CI.
+
+**Alternatives.** A second review round on each PR; a `-2` branch to rebase #297 onto #295.
+
+**Revert.** Revert the #295 or #297 squash commit.
