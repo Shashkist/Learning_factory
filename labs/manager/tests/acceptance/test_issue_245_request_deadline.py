@@ -11,7 +11,7 @@ No Docker, no database. The names the implementation must use:
   (at construction), instead of silently using its fetch*/execute with no limit.
 
 The slow pool: every acquire (and so every read) takes DELAY, just under the per-wait limit, so
-no single wait ever times out; only the sum is too long. Tasks routes (REQUEST_BUDGET_S, #236)
+no single wait ever times out; only the sum is too long. Tasks routes (REQUEST_DEADLINE_S, #236)
 are not touched here.
 """
 import asyncio

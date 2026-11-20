@@ -218,7 +218,7 @@ def test_check_read_of_a_healthy_connection_is_released_not_terminated(tmp_path)
 def test_check_read_is_bounded_by_the_time_left_in_the_request(tmp_path, monkeypatch):
     monkeypatch.setattr(tasks, "DB_STEP_BOUND_S", 8.0)
     pool = Pool(Conn(row=SHOWN))
-    ctx = _ctx(pool, _lab(tmp_path, QUIZ), spent=tasks.REQUEST_BUDGET_S - 0.3)
+    ctx = _ctx(pool, _lab(tmp_path, QUIZ), spent=db.REQUEST_DEADLINE_S - 0.3)
     asyncio.run(tasks._gradable(ctx, "t1", "quiz"))
     assert pool.acquire_timeout is not None and pool.acquire_timeout <= 0.35
 
@@ -301,25 +301,25 @@ def _assert_check_timeout(err: HTTPException) -> None:
 
 
 def test_check_with_no_time_left_answers_504_check_timeout_and_touches_nothing(tmp_path):
-    ctx = _ctx(NoPool(), _lab(tmp_path, HANDS), spent=tasks.REQUEST_BUDGET_S + 1)
+    ctx = _ctx(NoPool(), _lab(tmp_path, HANDS), spent=db.REQUEST_DEADLINE_S + 1)
     err, _ = _raises(tasks.check_task("t1", ctx))
     _assert_check_timeout(err)
 
 
 def test_answer_with_no_time_left_answers_504_check_timeout_and_touches_nothing(tmp_path):
-    ctx = _ctx(NoPool(), _lab(tmp_path, QUIZ), spent=tasks.REQUEST_BUDGET_S + 1)
+    ctx = _ctx(NoPool(), _lab(tmp_path, QUIZ), spent=db.REQUEST_DEADLINE_S + 1)
     err, _ = _raises(tasks.answer_task("t1", tasks._Answer(option=0), ctx))
     _assert_check_timeout(err)
 
 
 def test_reading_the_shown_row_with_no_time_left_is_check_timeout(tmp_path):
-    ctx = _ctx(NoPool(), _lab(tmp_path, QUIZ), spent=tasks.REQUEST_BUDGET_S + 1)
+    ctx = _ctx(NoPool(), _lab(tmp_path, QUIZ), spent=db.REQUEST_DEADLINE_S + 1)
     err, _ = _raises(tasks._gradable(ctx, "t1", "quiz"))
     _assert_check_timeout(err)
 
 
 def test_counting_an_attempt_with_no_time_left_is_check_timeout(tmp_path):
-    ctx = _ctx(NoPool(), _lab(tmp_path, QUIZ), spent=tasks.REQUEST_BUDGET_S + 1)
+    ctx = _ctx(NoPool(), _lab(tmp_path, QUIZ), spent=db.REQUEST_DEADLINE_S + 1)
     err, _ = _raises(tasks._count_attempt(ctx, QUIZ, True))
     _assert_check_timeout(err)
 
@@ -327,7 +327,7 @@ def test_counting_an_attempt_with_no_time_left_is_check_timeout(tmp_path):
 def test_budget_spent_during_the_check_script_gives_check_timeout_for_the_attempt_step(tmp_path):
     class Slow(Runtime):
         async def exec_script(self, name, script, timeout):
-            ctx.request.state.started = time.monotonic() - tasks.REQUEST_BUDGET_S - 1
+            ctx.request.state.started = time.monotonic() - db.REQUEST_DEADLINE_S - 1
             return SimpleNamespace(timed_out=False, exit_code=0, output="")
 
     pool = Pool(Conn(row=SHOWN))  # the first read is fine, the budget then runs out
@@ -337,7 +337,7 @@ def test_budget_spent_during_the_check_script_gives_check_timeout_for_the_attemp
 
 
 def test_a_show_with_no_time_left_keeps_the_setup_timeout_code(tmp_path):
-    ctx = _ctx(NoPool(), _lab(tmp_path, HANDS), spent=tasks.REQUEST_BUDGET_S + 1)
+    ctx = _ctx(NoPool(), _lab(tmp_path, HANDS), spent=db.REQUEST_DEADLINE_S + 1)
     err, _ = _raises(tasks._do_show(ctx, HANDS), 504)
     assert err.detail["code"] == "setup_timeout"
 
@@ -347,7 +347,7 @@ def test_a_show_with_no_time_left_keeps_the_setup_timeout_code(tmp_path):
 
 def test_the_pool_acquire_timeout_is_below_nginx_and_below_the_request_budget():
     assert 0 < db.POOL_ACQUIRE_TIMEOUT < 60
-    assert db.POOL_ACQUIRE_TIMEOUT <= tasks.REQUEST_BUDGET_S
+    assert db.POOL_ACQUIRE_TIMEOUT <= db.REQUEST_DEADLINE_S
 
 
 class HeldPool:

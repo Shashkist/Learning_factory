@@ -33,9 +33,6 @@ SETUP_TIMEOUT_MAX_S = 40.0
 DEFAULT_SETUP_TIMEOUT_S = 40.0
 DB_STEP_BOUND_S = 8.0  # the database step after the setup, pool acquire included
 DB_SERVER_BOUND_S = 5.0  # lock_timeout and statement_timeout inside that step: the clean path
-# import-time copy kept for the #220/#224 exams and unit tests; nothing reads it at request time
-# (the routes read db.REQUEST_DEADLINE_S)
-REQUEST_BUDGET_S = db.REQUEST_DEADLINE_S
 CHECK_TIMEOUT_S = 20.0  # spec section 7
 SLOT_WAIT_S = 5.0  # waiting for an exec slot, on top of the setup timeout
 
