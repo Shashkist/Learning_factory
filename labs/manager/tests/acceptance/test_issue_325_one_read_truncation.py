@@ -12,6 +12,10 @@
      no long file without duplicates can be correct: the old "long file under the cap passes"
      case is gone, replaced by duplicates-fail cases and an unordered no-duplicates pass case.
   4. 05: the right path, 200 blank lines, then a decoy path on line 202 fails item 2.
+  5. Review round 1: dash's `read` drops NUL bytes, so NUL padding must not eat the 64 KiB
+     budget unseen. 06 with the 4 right lines, 70000 NULs and a junk line fails item 3; 05 with
+     the right path, 70000 NULs and a decoy line fails item 2. 06 with exactly 200 lines (50
+     copies) fails item 3 as duplicates, not as truncation (catches an off-by-one in the 201 test).
 
 Students are fake. Docker tests skip only when Docker is absent.
 """
@@ -131,7 +135,54 @@ def test_06_the_four_right_lines_once_each_in_another_order_pass(machine):
     assert res.returncode == 0 and parsed.passed, res.stdout
 
 
+@pytest.mark.docker
+def test_06_exactly_200_lines_fail_item_3_as_duplicates_not_truncation(machine):
+    _setup(machine, T06)
+    _errors_copies(machine, 50)
+    assert _lines(machine, "/home/student/errors.txt") == 200
+    res, parsed = _check(machine, T06)
+    assert res.returncode != 0 and not parsed.passed, res.stdout
+    assert not parsed.items[3].passed, res.stdout
+    assert parsed.items[3].hint, res.stdout
+    assert TRUNCATION_HINT not in parsed.items[3].hint, (
+        f"200 lines are not cut, they are duplicates:\n{res.stdout}"
+    )
+
+
+@pytest.mark.docker
+def test_06_nul_padding_does_not_hide_a_junk_line_from_item_3(machine):
+    _setup(machine, T06)
+    _as_student_script(
+        machine,
+        "grep ERROR ~/logs/app.log > ~/errors.txt\n"
+        "head -c 70000 /dev/zero >> ~/errors.txt\n"
+        "printf '\\nthis is not an error line\\n' >> ~/errors.txt\n",
+    )
+    res, parsed = _check(machine, T06)
+    assert res.returncode != 0 and not parsed.passed, (
+        f"NUL padding hid a junk line:\n{res.stdout}"
+    )
+    assert not parsed.items[3].passed, f"item 3 must fail:\n{res.stdout}"
+
+
 # ------------------------------------------------------------ 4. 05 truncation (docker)
+
+
+@pytest.mark.docker
+def test_05_nul_padding_does_not_hide_a_decoy_line_from_item_2(machine):
+    _setup(machine, T05)
+    _as_student_script(
+        machine,
+        f"echo '{WANT}' > ~/found.txt\n"
+        "head -c 70000 /dev/zero >> ~/found.txt\n"
+        f"printf '\\n%s\\n' '{DECOY}' >> ~/found.txt\n",
+    )
+    res, parsed = _check(machine, T05)
+    assert res.returncode != 0 and not parsed.passed, (
+        f"NUL padding hid a decoy path:\n{res.stdout}"
+    )
+    assert not parsed.items[2].passed, f"item 2 must fail:\n{res.stdout}"
+    assert parsed.items[2].hint, res.stdout
 
 
 @pytest.mark.docker
