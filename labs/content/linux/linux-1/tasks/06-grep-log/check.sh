@@ -15,7 +15,7 @@ c() {
   if [ -f "$2" ] && ( : < "$2" ) 2>/dev/null; then
     printf '%s\n' "R $1 1"
     # Truncation fact: more than 64 KiB or more than 200 lines, so root knows it saw only a part.
-    if [ "$(head -c 65537 "$2" | wc -c)" -gt 65536 ] || [ -n "$(head -c 65536 "$2" | sed -n '201p')" ]; then
+    if [ "$(head -c 65537 "$2" | wc -c)" -gt 65536 ] || [ -n "$(head -c 65536 "$2" | sed -n '201{s/.*/x/p;q;}')" ]; then
       printf '%s\n' "T $1 1"
     fi
     head -c 65536 "$2" | head -n 200 | while IFS= read -r l || [ -n "$l" ]; do
