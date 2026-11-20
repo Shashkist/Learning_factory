@@ -42,7 +42,7 @@ tally() {
     [ -n "$l" ] || continue
     t=$((t + 1))
     if [ "$l" = "$want" ]; then m=$((m + 1)); else o=$((o + 1)); fi
-  done
+  done <&0  # the caller pipes the lines in; the stdin check cannot see the call site
   echo "$t $m $o"
 }
 rc=0
