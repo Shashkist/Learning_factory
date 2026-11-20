@@ -5,7 +5,7 @@
 # looks at. Root parses the facts and decides; no answer, hint or comparison reaches a student
 # process, command line or file (D52).
 facts=$(su student -s /bin/sh -c '/bin/sh -s' <<'READER'
-# f key path: type, mode, owner, group. c key path: readable flag and the lines.
+# f key path: type, mode, owner, group. c key path: readable flag, a truncation flag and the lines.
 f() {
   if [ -d "$2" ]; then t=d; elif [ -f "$2" ]; then t=f; elif [ -e "$2" ]; then t=o
   else printf '%s\n' "F $1 - - - -"; return; fi
@@ -14,6 +14,10 @@ f() {
 c() {
   if [ -f "$2" ] && ( : < "$2" ) 2>/dev/null; then
     printf '%s\n' "R $1 1"
+    # Truncation fact: more than 64 KiB or more than 200 lines, so root knows it saw only a part.
+    if [ "$(head -c 65537 "$2" | wc -c)" -gt 65536 ] || [ -n "$(head -c 65536 "$2" | sed -n '201{s/.*/x/p;q;}')" ]; then
+      printf '%s\n' "T $1 1"
+    fi
     head -c 65536 "$2" | head -n 200 | while IFS= read -r l || [ -n "$l" ]; do
       printf '%s\n' "C $1 $l"
     done
@@ -77,7 +81,10 @@ extra=1
 if [ "$ty" = f ] && [ -s "$tmp/got" ]; then
   extra=$(grep -cvxF -f "$tmp/exp" "$tmp/got")
 fi
-if [ "$extra" -eq 0 ]; then
+if [ "$ty" = f ] && printf '%s\n' "$facts" | grep -qx "T out 1"; then
+  echo "FAIL 3 errors.txt is far longer than the ERROR lines of the log; grep should print only matching lines"
+  rc=1
+elif [ "$extra" -eq 0 ]; then
   echo "PASS 3"
 else
   echo "FAIL 3 errors.txt is empty or has lines that are not ERROR lines; grep should print only matching lines"
