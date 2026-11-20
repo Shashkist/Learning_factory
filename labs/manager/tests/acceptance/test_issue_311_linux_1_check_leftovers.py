@@ -2,10 +2,11 @@
 
 Item 2 (forged fact lines) is accepted risk by D101 and is not tested here.
 
-  1. Task 06: the student-side reader reads at most 200 lines. An errors.txt that holds the 4
+  1. Task 06: the student-side reader reads at most 201 lines. An errors.txt that holds the 4
      right ERROR lines repeated past that cap and then junk used to pass items 2 and 3, because
-     root never saw the junk. Root must now fail item 3 for it. The correct answer (and a long
-     but uncut file under the cap) must keep passing. Docker cases (CI, runsc).
+     root never saw the junk. Root must now fail item 3 for it. The correct answer must keep
+     passing (a long file of the 4 lines repeated is duplicates, #325, and fails). Docker cases
+     (CI, runsc).
   3. Cleanup: a check.sh that defines the reader `c()` or the root-side `rd` / `body` helpers
      must call them. Pinned by text on every hands-on task (02, 07 and 09 define them unused
      today). Plain pytest, runs anywhere.
@@ -48,7 +49,7 @@ from test_issue_126_linux_1_check_privacy_docker import (
 )
 
 TASK = "06-grep-log"
-CAP = 200  # lines the student-side reader of 06 reads
+CAP = 200  # lines root accepts; the student-side reader of 06 reads one more (201)
 
 
 # ------------------------------------------------------------ 1. 06 truncation (docker)
@@ -111,15 +112,8 @@ def test_06_the_correct_answer_still_passes(machine):
     assert set(parsed.items) == {1, 2, 3}, res.stdout
 
 
-@pytest.mark.docker
-def test_06_a_long_file_under_the_cap_still_passes(machine):
-    _setup(machine, TASK)
-    lines = _write_errors(machine, repeats=40, junk=False)  # 160 lines, under the cap
-    assert lines < CAP
-    res, parsed = _check(machine, TASK)
-    assert res.returncode == 0 and parsed.passed, (
-        f"a file under the {CAP}-line cap must not be reported as truncated:\n{res.stdout}"
-    )
+# test_06_a_long_file_under_the_cap_still_passes is gone (#325): 06 fails duplicates, so 40 copies
+# of the 4 ERROR lines are not a correct file. See test_issue_325_one_read_truncation.py.
 
 
 # ------------------------------------------------------------ 3. unused helpers (text)
