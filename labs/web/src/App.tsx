@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import Admin from "./Admin";
+import AppShell from "./AppShell";
 import { I18nProvider, useI18n } from "./i18n";
 import Login, { type User } from "./Login";
 import LabScreen from "./LabScreen";
@@ -55,23 +56,28 @@ function Student() {
     signedOut();
   };
 
-  if (unavailable) return <p role="alert">{t("login.error.unavailable")}</p>;
-  if (user === undefined) return null;
+  if (unavailable)
+    return (
+      <AppShell>
+        <p role="alert">{t("login.error.unavailable")}</p>
+      </AppShell>
+    );
+  if (user === undefined) return <AppShell>{null}</AppShell>;
   if (!user)
     return (
-      <Login
-        onUser={(u) => {
-          setUser(u);
-          go("/labs", true);
-        }}
-      />
+      <AppShell>
+        <Login
+          onUser={(u) => {
+            setUser(u);
+            go("/labs", true);
+          }}
+        />
+      </AppShell>
     );
 
   const lab = labId(path);
   return (
-    <main>
-      <bdi>{user.name}</bdi>
-      <button onClick={logout}>{t("nav.logout")}</button>
+    <AppShell userName={user.name} onLogout={logout}>
       {logoutFailed && <p role="alert">{t("nav.logout_failed")}</p>}
       {["/", "/labs", "/login"].includes(path) ? (
         <>
@@ -85,7 +91,7 @@ function Student() {
       ) : (
         <p>{t("notFound.title")}</p>
       )}
-    </main>
+    </AppShell>
   );
 }
 

@@ -74,6 +74,14 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: End-to-end tests (fake backend)
         run: npm run e2e
+      - name: Design checks and screenshots
+        run: npx playwright test -c tests/acceptance/playwright.design.config.ts
+      - name: Upload design screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: design-screenshots
+          path: labs/web/test-results/design-screenshots/
 
   # Decides whether a PR needs the docker and image jobs (#271). The repository has no
   # required checks (main is not protected), so a skipped job does not block a merge.
