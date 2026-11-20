@@ -7,7 +7,7 @@
 **Pass lf-d3a2 (laptop, 17:27-~19:05 UTC) stopped at 3 merged PRs:** #315 (#314), #317 (#312), #318 (#306). **#314, #312, #306 closed with evidence; #313 closed as duplicate; #126, #151, #167 got deploy evidence. Production: `56aacca` (Deploy 44798811736: all checks passed, smoke ok, `/api/health` ok, database ok).** No claims held, nothing in flight. Decisions D98 (+ amendment, accepted risk), D99 (+ amendment), D100. New issue: #319.
 
 - **Resume here:** the Next list, starting with **#308** and **#311**.
-- Then the Next list. Worktrees `C:\projects\lf-306`, `lf-312` (and `lf-314`) are shipped and safe to remove.
+- Worktrees `C:\projects\lf-306`, `lf-312` (and `lf-314`) are shipped and safe to remove.
 - **Lesson (pass lf-d3a2):** exam integrity counts every file under `labs/*/tests/` except `tests/unit/` as exam. A new unit test in `labs/manager/tests/` made the code commit fail "changes the exam and non-test code together".
 - **Lesson (pass lf-d3a2):** before adding to a process environment or a pinned set, grep *every* copy of the exam: the #9 runner exam pins the env in a unit file (`set(env) == {"PATH","HOME"}`) and in a docker file (`names <= shell | {...}`); the second showed up only in the docker job.
 - **Lesson (pass lf-d3a2):** a red case in an "exam alone" draft run is evidence only if it failed at its assertion. In #316 one case was red from a 600 s hang in its own cleanup, and two cases were vacuously green.
