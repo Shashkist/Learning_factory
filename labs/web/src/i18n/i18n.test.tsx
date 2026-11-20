@@ -3,8 +3,13 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { I18nProvider, useI18n } from ".";
 
 function Probe() {
-  const { t } = useI18n();
-  return <p>{t("labs.title")}</p>;
+  const { t, toggle } = useI18n();
+  return (
+    <>
+      <p>{t("labs.title")}</p>
+      <button onClick={toggle}>switch</button>
+    </>
+  );
 }
 
 test("unknown language in storage falls back to English; toggle persists", () => {

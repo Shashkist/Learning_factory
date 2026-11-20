@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 
 import Admin from "./Admin";
+import { I18nProvider } from "./i18n";
 
 function answer(routes: Record<string, { ok: boolean; body?: unknown }>) {
   globalThis.fetch = vi.fn(async (url: RequestInfo | URL) => {
@@ -13,7 +14,11 @@ afterEach(() => vi.restoreAllMocks());
 
 test("an admin sees who is signed in and a log out button", async () => {
   answer({ "/api/auth/me": { ok: true, body: { kind: "admin", name: "admin" } } });
-  render(<Admin />);
+  render(
+    <I18nProvider>
+      <Admin />
+    </I18nProvider>,
+  );
   expect(await screen.findByText("Signed in as admin")).toBeTruthy();
   expect(screen.getByRole("button", { name: "Log out" })).toBeTruthy();
 });
