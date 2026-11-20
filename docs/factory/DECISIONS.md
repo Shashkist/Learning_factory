@@ -534,7 +534,7 @@ in force · factory · 2026-11-16 · amends D45
 **Why.** Review round 1 of #125: running the whole check as the student exposed the check body in `/proc/<pid>/cmdline` and let the student overwrite 06's expected-lines temp file to pass a wrong answer. **Alternatives.** Run the whole check as the student (rejected: leaks and tampering); give root `CAP_DAC_READ_SEARCH` (rejected in D45: widens every lab). **Revert.** Restore the per-task `su` reads of #106.
 **Amended 2026-11-16 (review round 2 of #125).** The reader prints with `printf '%s
 '` (dash `echo` turns `
-` in file content into new lines, which forged fact lines), opens regular files only, and reads at most 64 KiB / 200 lines (a FIFO or `/dev/zero` symlink hung it). The accepted risk in (2) also covers a student writing fake fact lines into the reader's stdout through `/proc/<pid>/fd/1` with a plain shell loop, no debugger needed. A per-check token is the follow-up (#126), with the 04/05 expected texts still on root command lines.
+` in file content into new lines, which forged fact lines), opens regular files only, and reads at most 64 KiB / 200 lines (a FIFO or `/dev/zero` symlink hung it). The accepted risk in (2) also covers a student writing fake fact lines into the reader's stdout through `/proc/<pid>/fd/1` with a plain shell loop, no debugger needed. A per-check token is the follow-up (#311; the 04/05 expected texts left root command lines in #126).
 
 ## D53 · #10 student UI ships in four slices
 in force · factory · 2026-11-16
@@ -568,7 +568,7 @@ in force · factory · 2026-11-16
 ## D56 · #117 a timed-out task script is killed by a second exec, as each process's owner
 in force (review round 2 of #148 approved, shipped 2026-11-16) · factory · 2026-11-16
 
-**Decision.** After a setup/check deadline, the manager runs a second exec in the lab container (root, unprivileged, same as the script exec). With one `ps -eo pid=,ppid=,ruid=,rgid=,args=` walk (real ids since #151: a process that changed its effective uid is still signalled as its real owner) it collects the timed-out exec's interpreter (uid 0, **PPid 0**, args exactly `<interp> -s`) and all its descendants. It sends STOP, collects again, then KILL to both sets, for up to 3 rounds. Non-root processes are signalled as their owner (`setpriv --reuid --regid --clear-groups kill`), because the container drops `CAP_KILL` and every shipped script starts work as the student (D45, D52). The kill is bounded (`min(5, max(3, 0.2*timeout))` s), so a setup still answers inside nginx's 60 s. `exec_script` returns only after the first exec stops or the bounded kill gives up, which keeps the session lock (D49) held. A failed kill logs one line and still reports `timed_out`.
+**Decision.** After a setup/check deadline (since #151: after any failure once the exec id is known; non-timeout failures re-raise after the kill), the manager runs a second exec in the lab container (root, unprivileged, same as the script exec). With one `ps -eo pid=,ppid=,ruid=,rgid=,args=` walk (real ids since #151: a process that changed its effective uid is still signalled as its real owner) it collects the timed-out exec's interpreter (uid 0, **PPid 0**, args exactly `<interp> -s`) and all its descendants. It sends STOP, collects again, then KILL to both sets, for up to 3 rounds. Non-root processes are signalled as their owner (`setpriv --reuid --regid --clear-groups kill`), because the container drops `CAP_KILL` and every shipped script starts work as the student (D45, D52). The kill is bounded (`min(5, max(3, 0.2*timeout))` s), so a setup still answers inside nginx's 60 s. `exec_script` returns only after the first exec stops or the bounded kill gives up, which keeps the session lock (D51) held. Known limits: a cancelled `exec_script` skips the kill (#308); a killer that the student stops can resume later and hit the next script (#306). A failed kill logs one line and still reports `timed_out`.
 **Why.** `timeout -s KILL` kills only its direct child (background jobs survive). The `/exec/<id>/json` Pid is a host pid under runsc. The exec is not a process-group leader. The exam pins the exec env to `PATH` and `HOME`, so there is no env marker. PPid 0 tells the exec's own interpreter apart from root leftovers of earlier scripts (which get PPid 1).
 **Alternatives.** Wrap every script in `setsid` and kill the group; add `CAP_KILL` to lab containers (rejected: more privilege for the student's container).
 **Known limits.** A process that double-forks away from the tree before the deadline, or a script that `exec`s another command, is not matched. Acceptable for authored lab scripts; the spec §7 note says "the interpreter and its descendants".
@@ -962,3 +962,14 @@ in force · factory · 2026-11-20 · amends D54 for this test only
 **Alternatives.** List internal labs to `lf-smoke` members (changes the #129 exam and widens the catalog rule); publish a real lab first (O17 is the owner's).
 
 **Revert.** Revert the #167 squash commit; or, if internal labs ever become visible to the smoke cohort, point the exam at the real `smoke-tasks` folder.
+
+## D97 · #126 merges with the stale-killer cases moved to #306 and its leftovers moved to #311
+in force · factory · 2026-11-20
+
+**Decision.** The #126 exam's first docker run found two stopper cases red because of a runner bug, not the content: a timeout killer that the student had stopped resumed later and killed the next script (#306). Those two cases (stopped-reader pile-up, the next check after the loop) moved into #306's acceptance criteria; the #126 stopper case runs in a fresh container per case and now requires `timed_out`, which is what issue item 4 asks for. Review of #303 (round 1, CHANGES REQUESTED) blocked only on closing #126 with items 6-8 of #125's round 2 untracked; they are #311 (including the 06 truncation pass), and D52 now points there. The exam nits (03 needle, canary size, `timed_out`, docstring) were applied as an exam commit before the content commit (branch rebuilt); merge on green without a second round, as D95.
+
+**Why.** The moved cases test the runner, which #151/#306 own; #126 is about what students can see or change in a check. The leftovers are tracked, not dropped.
+
+**Alternatives.** Hold #126 until #306 ships; do items 6-8 in #303 (another ~2 CI rounds).
+
+**Revert.** Move the two cases back into the #126 exam once #306 ships.
