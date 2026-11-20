@@ -90,6 +90,19 @@ def inner_cmd(cmd: list[str]) -> list[str]:
     return cmd[i + 1 :]
 
 
+def is_kill_exec(cmd: list[str]) -> bool:
+    """#117/#151: the kill exec (mechanism (b)) is recognised by its command alone. A script exec
+    always ends in `-s` (with or without a `timeout` wrapper); the kill exec runs a shell
+    program (`sh -c <program> ...`) that mentions kill and does not end in a bare `-s`. What a
+    script says on stdin (a script may well contain the word kill) never decides."""
+    return (
+        timeout_wrapper(cmd) is None
+        and bool(cmd)
+        and cmd[-1] != "-s"
+        and "kill" in " ".join(cmd).lower()
+    )
+
+
 def frame(stream: int, data: bytes) -> bytes:
     return struct.pack(">BxxxI", stream, len(data)) + data
 
@@ -104,8 +117,12 @@ class FakeEngine:
         self.exit_codes: dict[str, int] = {}
         self.finished: set[str] = set()
         self.create_status = 201
-        # #117: a kill exec (mechanism (b)) is recognised by the word "kill" in its Cmd or stdin.
+        # #117: a kill exec (mechanism (b)) is recognised by its Cmd (`is_kill_exec`), not stdin.
         self.kill_runs: list[tuple[dict, bytes]] = []
+        # #151 knobs: a kill that does nothing (the script stays alive), and an exec inspect
+        # that answers garbage (HTTP 500, not JSON) until a kill exec has been started.
+        self.kill_effective = True
+        self.json_fails_until_kill = False
         self.kill_delay = 0.0  # seconds the kill exec itself takes
         self.gone_delay = 0.0  # seconds from the kill until the killed process is really gone
         self.finished_at: dict[str, float] = {}
@@ -148,6 +165,13 @@ class FakeEngine:
             f"Content-Length: {len(raw)}\r\n\r\n".encode() + raw
         )
         await w.drain()
+
+    async def _stop_when_killed(self, eid: str, evt: asyncio.Event) -> None:
+        await evt.wait()
+        await asyncio.sleep(self.gone_delay)
+        self.exit_codes[eid] = 137
+        self.finished.add(eid)
+        self.finished_at[eid] = time.monotonic()
 
     async def _conn(self, r: asyncio.StreamReader, w: asyncio.StreamWriter) -> None:
         try:
@@ -199,12 +223,11 @@ class FakeEngine:
                     b"HTTP/1.1 200 OK\r\nContent-Type: application/vnd.docker.raw-stream\r\n"
                     b"Connection: close\r\n\r\n"
                 )
-            text = " ".join(create.get("Cmd", [])) + " " + stdin.decode("utf-8", "replace")
-            if timeout_wrapper(create.get("Cmd", [])) is None and "kill" in text.lower():
+            if is_kill_exec(create.get("Cmd", [])):
                 self.kill_runs.append((create, stdin))
                 await asyncio.sleep(self.kill_delay)
                 for other, evt in self._wake.items():  # the killed processes die now
-                    if other not in self.finished:
+                    if self.kill_effective and other not in self.finished:
                         evt.set()
                 self.exit_codes[eid] = 0
                 self.finished.add(eid)
@@ -213,6 +236,14 @@ class FakeEngine:
             self.stdin.append(stdin)
             plan = self.behaviour(create, stdin)
             delay, code = plan.get("delay", 0.0), plan.get("exit", 0)
+            if plan.get("stream") in ("ends_early", "reset"):
+                # #151: the output stream ends (or the connection is reset) while the script
+                # lives on: it stops only when a kill exec reaches it.
+                evt = self._wake[eid] = asyncio.Event()
+                if plan["stream"] == "reset":
+                    w.transport.abort()
+                asyncio.ensure_future(self._stop_when_killed(eid, evt))
+                return True
             wrapped = timeout_wrapper(create.get("Cmd", []))
             if wrapped and delay > wrapped[1]:  # `timeout -s KILL n` ends the script at n
                 delay, code = wrapped[1] + 0.3, 137
@@ -239,12 +270,15 @@ class FakeEngine:
         m = re.fullmatch(r"/exec/([^/]+)/json", path)
         if m and method == "GET":
             eid = m.group(1)
+            if self.json_fails_until_kill and not self.kill_runs and eid == "exec1":
+                w.write(b"HTTP/1.1 500 Error\r\nContent-Length: 4\r\n\r\nboom")
+                await w.drain()
+                return False
             await self._reply(
                 w,
                 "200 OK",
                 {
                     "ID": eid,
-                    "Pid": 4242,
                     "Running": eid not in self.finished,
                     "ExitCode": self.exit_codes.get(eid, 0) if eid in self.finished else None,
                 },
@@ -355,6 +389,37 @@ def test_stdin_is_attached_and_closed_so_the_interpreter_sees_end_of_input(engin
     assert body["AttachStdin"] is True
     assert body["AttachStdout"] is True and body["AttachStderr"] is True
     assert engine.stdin, "the fake saw no end of input: the client did not close its write side"
+
+
+# ---------------------------------------------------------------- the fake itself (#151 item 7)
+
+
+def test_a_script_that_mentions_kill_is_not_taken_for_a_kill_exec(engine):
+    """The fake tells the kill exec by its command; the script's own text is just a script."""
+    script = "#!/bin/sh\n# kill it with fire\npkill -f nothing-at-all\necho kill\n"
+    engine.behaviour = lambda b, s: {"exit": 0, "frames": [frame(1, b"kill\n")]}
+    res = run(engine, script, timeout=5)
+    assert res.exit_code == 0 and res.timed_out is False and "kill" in res.output
+    assert engine.kill_runs == [] and engine.stdin == [script.encode()]
+
+
+def test_a_timed_out_script_that_mentions_kill_still_gets_exactly_one_kill_exec(engine):
+    script = "#!/bin/sh\npkill -f nothing-at-all\nsleep 600\n"
+    engine.behaviour = lambda b, s: {"exit": 0, "frames": [], "delay": 600.0}
+    res = run(engine, script, timeout=1)
+    assert res.timed_out is True
+    assert len(engine.kill_runs) == 1 and engine.stdin == [script.encode()]
+    assert is_kill_exec(engine.kill_runs[0][0]["Cmd"])
+    assert not is_kill_exec(engine.creates[0]["Cmd"])
+
+
+def test_the_fake_inspect_answer_has_no_host_pid(engine):
+    """The runner never needs the exec's Pid (a host pid under runsc, D56): the fake sends none."""
+    import urllib.request
+
+    run(engine, SCRIPT_SH)
+    with urllib.request.urlopen(f"http://127.0.0.1:{engine.port}/exec/exec1/json") as r:
+        assert "Pid" not in json.loads(r.read())
 
 
 # ---------------------------------------------------------------- no extra privilege (D45)

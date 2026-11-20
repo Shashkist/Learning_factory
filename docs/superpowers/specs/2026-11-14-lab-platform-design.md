@@ -98,6 +98,7 @@ Per lab container:
 - own Docker network `lf-labs` with **no access to the host or other containers**: iptables (DOCKER-USER) drops traffic from `lf-labs` to the host IPs and the private ranges;
 - **internet (my call):** off by default. A lab with `internet: true` gets access **only through an allowlist proxy** (apt/Ubuntu mirrors, PyPI, npm, GitHub, plus per-lab extra domains in `lab.yaml`). Never full outbound access: a student scanning, spamming or mining from Ilia's server IP could get it blocklisted and take his bots down with it;
 - no Docker socket, no host mounts, no secrets in the environment.
+- **Image requirement:** the lab images carry `procps` (`ps`), util-linux `setpriv` and `awk`: the kill of a timed-out setup or check script walks the process table with `ps`/`awk` and signals each process as its real owner with `setpriv`.
 
 Global:
 - memory limits are ceilings, not reservations. Admission is decided by **real free memory**: a new session starts only if free memory after it stays above a reserve kept for Ilia's other services (default 1.5 GB), plus config caps (default 20 terminal, 8 VS Code). When full: a friendly "lab capacity is full, try in a few minutes". Expected real use: terminal session ~50 MB, VS Code session ~250–400 MB;

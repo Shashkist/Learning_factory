@@ -235,7 +235,12 @@ def _validate(lab_dir: Path, data: Any) -> tuple[Lab | None, list[str]]:
 
 _SEPARATORS = re.compile(r"(\|\||&&|;|\|)")
 _REDIRECTS = re.compile(r"\d*>&\d+|\d*>>?\s*\S+")
-_QUIET = re.compile(r">\s*/dev/null\s+2>&1|&>\s*/dev/null")
+_COMMENT = re.compile(r"\s+#.*$")
+_STDOUT_TO_FILE = re.compile(r"(?<![02-9&])>>?\s*[^\s&>]|&>>?\s*\S")
+_STDERR_TO_FILE = re.compile(r"2>>?\s*[^\s&>]|2>&1|&>>?\s*\S")
+_WHILE_READ = re.compile(r"while\s+(?:\w+=\S*\s+)*read\b")
+_CAT_SUBSHELL = re.compile(r"\$\(\s*cat(?:\s+-\w*)*\s*\)|`\s*cat(?:\s+-\w*)*\s*`")
+_SU_READER = re.compile(r"su\b.*\s-c\s+(['\"])\s*(?:read\b[^'\"]*|cat(?:\s+-\w*)*\s*)\1")
 
 
 def _reads_stdin(segment: str) -> bool:
@@ -246,28 +251,52 @@ def _reads_stdin(segment: str) -> bool:
         return False
     if words[0] == "read":
         return True
-    return words[0] == "cat" and all(w.startswith("-") for w in words[1:])
+    if words[0] == "cat" and all(w.startswith("-") for w in words[1:]):
+        return True
+    return bool(_SU_READER.match(segment.strip()))
+
+
+def _loop_depth_change(segment: str) -> int:
+    words = re.sub(r"^(?:do|then|else)\s+", "", segment.strip()).split()
+    if not words:
+        return 0
+    return 1 if words[0] in ("while", "until", "for") else -1 if words[0] == "done" else 0
 
 
 def _script_warnings(text: str, label: str) -> list[str]:
     """Authoring rules (spec 7): the script arrives on stdin, and a timeout kills it."""
     found: list[str] = []
+    stdin_msg = "reads stdin, which is the script itself; add </dev/null"
+    segments: list[tuple[int, str, bool]] = []  # (line, text, follows a pipe)
     for n, raw in enumerate(text.splitlines(), 1):
-        line = raw.strip()
+        line = _COMMENT.sub("", raw.strip())
         if not line or line.startswith("#"):
             continue
         parts = _SEPARATORS.split(line)
         for i in range(0, len(parts), 2):
-            if (i == 0 or parts[i - 1] != "|") and _reads_stdin(parts[i]):
+            segments.append((n, parts[i], i > 0 and parts[i - 1] == "|"))
+        if _CAT_SUBSHELL.search(line) and "<" not in line:
+            found.append(f"{label} line {n}: {stdin_msg}")
+        if line.endswith("&") and not line.endswith("&&"):
+            if not (_STDOUT_TO_FILE.search(line) and _STDERR_TO_FILE.search(line)):
                 found.append(
-                    f"{label} line {n}: reads stdin, which is the script itself; "
-                    "add </dev/null"
+                    f"{label} line {n}: a background job keeps the exec open; "
+                    "redirect it with >/dev/null 2>&1"
                 )
-        if line.endswith("&") and not line.endswith("&&") and not _QUIET.search(line):
-            found.append(
-                f"{label} line {n}: a background job keeps the exec open; "
-                "redirect it with >/dev/null 2>&1"
-            )
+    for k, (n, seg, piped) in enumerate(segments):
+        if piped:
+            continue
+        if _WHILE_READ.match(seg.strip()):
+            redirected, depth = "<" in seg, 0
+            for _n, later, _p in segments[k:]:
+                depth += _loop_depth_change(later)
+                if depth <= 0:
+                    redirected = redirected or "<" in later
+                    break
+            if not redirected:
+                found.append(f"{label} line {n}: {stdin_msg}")
+        elif _reads_stdin(seg):
+            found.append(f"{label} line {n}: {stdin_msg}")
     return found
 
 
