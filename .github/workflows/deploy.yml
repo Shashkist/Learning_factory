@@ -88,12 +88,17 @@ jobs:
           [ "${#tag}" = 40 ] || { echo "not a full commit sha: refusing to deploy" >&2; exit 1; }
           # GITHUB_SHA is the head of main here (workflow_run: main's head when the event fired;
           # dispatch: the head of the dispatched ref, which the production environment limits to main).
-          if [ "$tag" != "$GITHUB_SHA" ]; then
-            if [ "$EVENT_NAME" = workflow_run ]; then
-              # An older or re-run CI must never roll production back; the newer commit's run deploys.
-              echo "Deploy skipped: $tag is no longer the head of main ($GITHUB_SHA)"
+          if [ "$EVENT_NAME" = workflow_run ]; then
+            # Docs-only commits run no CI, so the newest commit with CI is the newest code commit.
+            # An older or re-run CI must never roll production back; the newer code commit's run deploys.
+            # A failing script fails the step: no blind deploy, no silent skip.
+            git cat-file -e "$GITHUB_SHA^{commit}" 2>/dev/null || git fetch -q origin "$GITHUB_SHA"
+            latest=$(python3 scripts/ci_paths.py latest-code "$GITHUB_SHA")
+            if [ "$tag" != "$latest" ]; then
+              echo "Deploy skipped: $tag is not the newest code commit on main ($latest)"
               exit 0
             fi
+          elif [ "$tag" != "$GITHUB_SHA" ]; then
             # A manual sha must be a commit that is already on main (reviewed and merged code only).
             git merge-base --is-ancestor "$tag" "$GITHUB_SHA"               || { echo "$tag is not on main: refusing to deploy" >&2; exit 1; }
           fi
