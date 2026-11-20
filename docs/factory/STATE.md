@@ -5,9 +5,9 @@
 ## Now
 
 **Pass lf-r2k6 (laptop, from 15:27 UTC) in flight, all claimed by lf-r2k6:**
-- **#167**: CI wiring PR #304 (green, `f/167-ci-wiring`) + stacked draft exam PR #305 (`f/167-docker-e2e`, base `f/167-ci-wiring`; exam integrity forbids exam + ci.yml in one PR). Worktree `C:\projects\lf-167`. D96. After #304 merges: rebase #305 onto main, retarget to `main`, re-run CI.
-- **#151**: exam 1d2e406 on `f/151-kill-followups` (worktree `C:\projects\lf-151`), implementer running. D56 amended (ruid/rgid).
-- **#126**: PR #303 (`f/126-linux1-check-privacy`, worktree `C:\projects\lf-126`). First docker run: 04/05 checks leak expected texts (content fix coming), a stale timeout killer (new **#306**) poisoned two stopper cases, which move to #306.
+- **#151**: merged as #307 (f53cb85), approved with 8 non-blocking findings, now **#308**. Waiting for main CI + Deploy, then close.
+- **#167**: CI wiring merged as #304 (6bdbbc7). Exam PR **#309** (`f/167-docker-e2e`, rebased on main; replaces #305, which closed when its stacked base branch was deleted). Margin PR **#310** (`f/167-ci-margin`, worktree `C:\projects\lf-167m`: timeout 33 min, `--only-shell`). Both approved in substance (#305 review APPROVE); merge on green. Review leftovers: **#312**. D96.
+- **#126**: PR **#303** rebuilt (exam, exam nits, content fix), CI running; merge on green (D97). Leftovers: **#311**; stale killer: **#306**.
 
 _Previous:_ **Pass lf-w4t7 (laptop, 14:25-~15:20 UTC) stopped at 3 merged PRs:** #300 (#67), #302 (#298), #299 (#293). **#67, #293, #298 are closed with evidence. Production: `bd37773` (Deploy 44760760376: deploy + smoke success; `/api/health` ok, database ok).** D94 amended (a tag failure does not fall back to Docker Hub). No new issues. No claims held, nothing in flight.
 
