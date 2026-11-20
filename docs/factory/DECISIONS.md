@@ -907,10 +907,21 @@ in force · factory · 2026-11-20
 ## D92 · #285: the stored median threshold is the ceiling of the median
 in force · factory · 2026-11-20
 
-**Decision.** `fast_lab_detail` stores `threshold = ceil(median)` for the median rule. The reason text prints that stored value, so the reason, `fast_threshold` and the web all show one whole number. The fast test itself still compares against the raw median (`active < 0.3 * median`). The web needs no change: `Math.round` of a whole number is the same number. Existing rows are not backfilled (#285 criterion 3).
+**Decision.** `fast_lab_detail` stores `threshold = ceil(median)` for the median rule. The reason text prints that stored value, so the reason, `fast_threshold` and the web all show one whole number. The fast test itself still compares against the raw median (`active < 0.3 * median`). The web needs no change: `Math.round` of a whole number is the same number. Existing rows are not backfilled (#285 criterion 3). An old row whose median ends in .5 keeps a stored reason one second lower than its stored threshold (review of #292); the page builds its text from the threshold, and `Math.round` of x.5 gives the same number as the new ceiling, so the page is right for old rows too.
 
 **Why.** #137 rounds active time up; the same direction for the median keeps the numbers consistent, and the server decides the value once.
 
 **Alternatives.** Round half to even on both sides (two places that can drift again). Floor (shows a median smaller than the real one).
 
 **Revert.** Revert the #285 squash commit.
+
+## D93 · PR #288 (#286 exam) merges after review round 2 on the manager's own four assertions
+in force · factory · 2026-11-20
+
+**Decision.** Round 1 found three wrong workflow edits the exam let through: the test repos kept a local `main`, and `"docker" in needs` was too loose. The fix commit made each edit fail one case. Round 2 found three more edits that skip docker and the images on push, plus a nit: `docker` or `changes` needing a pull-request-only job, an `if:` on the `heavy` step, and the deploy step ignoring `TAG_SOURCE`. The manager added one assertion for each and checked each against its mutation; the unmodified workflows pass 35/35. No third review round (same as D86, D89).
+
+**Why.** Each fix is one assertion answering a named finding, verified by its own mutation.
+
+**Alternatives.** A third review round (~15 minutes and one more CI).
+
+**Revert.** Revert the #288 squash commit (exam only; the workflows are unchanged).

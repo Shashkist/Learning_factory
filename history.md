@@ -369,3 +369,14 @@ The exam-only lane needed two review rounds. Each reviewer copied the workflows 
 The CI rule from the morning also proved itself live: two code PRs merged eleven minutes apart, the older one's Deploy said "no longer the head of main's code" and skipped, and the newer one shipped both.
 
 Tips: a test that passes only because it is fast hides a race; long tests find it. Before you change a rounding or a format, grep the exams for the old number. When an exam reads a workflow, ask for exact `if:` and `env:` values and one mutation per assertion.
+
+## Four lanes, four reviewers, one fake local branch (2026-11-20)
+A pass of about 60 minutes on four small follow-ups from the morning's reviews. Three lanes started in the same minute: the manager wrote the harness fix itself (#284, a 15-line exam edit), while two exam writers took a CI exam (#286) and a parser rule (#283). When #284 merged, the fourth lane (#285) took its slot. Three PRs merged (#287, #291, #292), and the fourth (#288) was parked green-pending at the stop line.
+
+The best catch was about what a test repo looks like. The #286 exam builds a throwaway git repo to run the CI step scripts, and that repo had a local `main` branch. GitHub's pull-request checkout has only `origin/main`, and a deploy checkout of a sha has none. So a workflow edit from `origin/$BASE_REF` to `$BASE_REF` passed the exam, though in real CI it would silently fall back to the PR's own copy of the rule. Deleting one branch in the fixture made three wrong edits fail.
+
+The #283 reviewer found the other classic gap: the route case used a spy parser that returned no items, so a route that added its own rule on top of the parser's verdict passed every case. Two real-parser cases closed it. Because exams must change before code, the branch was rebuilt as `-2`, and `git range-diff` showed the code commit unchanged (`=`).
+
+A review round on the CI exam is now a familiar pattern: three rounds have each found three or four more one-line workflow edits (needs on a pull-request-only job, an `if:` on a step, a value declared but not used). Each fix is a single assertion checked by its own mutation.
+
+Tips: make test fixtures look like the real checkout (which refs exist, not only which files). Give a spy-based route case a twin with the real collaborator. A reviewer who leaves a full local test suite running in the background can be stopped once its verdict is in.

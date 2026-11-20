@@ -4,7 +4,14 @@
 
 ## Now
 
-**Pass lf-n6q2 (laptop, from 11:57 UTC) in progress.** Merged: #287 (#284, D91; follow-up #290). Lanes: **#286** PR #288 (review round 2), **#283** PR #291 (replaces #289 after review round 1, `f/283-passed-rule-2`; round 2 review, D90), **#285** (exam writer on `f/285-median-threshold`, D92). Worktrees `C:\projects\lf-283`, `lf-285`, `lf-286` (and `lf-284`, shipped). If this pass dies, continue those branches.
+**Pass lf-n6q2 (laptop, 11:57-~12:58 UTC) stopped at 3 merged PRs:** #287 (#284), #291 (#283, replaced #289), #292 (#285). **#283, #284, #285 are closed with evidence. Production: `e0eca95` (Deploy 44739270984 shipped #291 + #292; smoke `ok check-fail`, `ok check-pass`; `/api/health` ok, database ok).** Decisions D90, D91, D92, D93. New issues: #290, #293, #294. No claims held.
+
+- **Resume here, first:** **#286 = PR #288** (exam-only, branch `f/286-ci-paths-exam`, worktree `C:\projects\lf-286`). Review round 1 and round 2 fixes are pushed (46d39ca), D93 says merge on green with no third round. Its `docker` job failed on a Docker Hub 429 pulling `hello-world` (not the PR; issue #294); the failed jobs were re-run at ~12:56 UTC. If green: `gh pr merge 288 --squash`, then `git push origin --delete f/286-ci-paths-exam`, then comment the evidence on #286 (it closes on merge), label `status:done`. Exam-only, so main CI green is the evidence.
+- Then the Next list. Worktrees `C:\projects\lf-283`, `lf-284`, `lf-285` are shipped and safe to remove (removing worktrees from a factory run was refused by the permission guard this pass; leave cleanup to the owner or do it by hand).
+- **Lesson (pass lf-n6q2):** a fixture repo for workflow scripts must look like the real checkout in its *refs*, not only its files: a local `main` let `$BASE_REF:` (no `origin/`) and `main:` pass, though GitHub's PR checkout has only `origin/main` and a sha checkout has none (#288 round 1).
+- **Lesson (pass lf-n6q2):** a route case with a spy parser that returns no items cannot see a route rule of its own; give every spy case a twin with the real collaborator (#289 round 1, rebuilt as `-2`).
+- **Lesson (pass lf-n6q2):** a reviewer may leave a full local pytest running in the background after its verdict; stop it with TaskStop once the verdict is in.
+- **Lesson (pass lf-n6q2):** the bootstrap exam pulls `hello-world` from Docker Hub anonymously; a 429 fails all of its cases at step `runtime`. Re-run the failed jobs (`gh run rerun <id> --failed`); the fix is #294.
 
 _Previous:_ **Pass lf-x3r8 (laptop, 10:25-~11:50 UTC) stopped at 3 merged PRs:** #280 (#127), #282 (#137, replaced #281), #279 (#271 exam). **#127, #137 and #271 are closed with evidence. No claims held, nothing in flight. Production: `bd596e7` (Deploy 44729635504, smoke success, `/api/health` ok database ok).** Decisions D87, D88, D89. New issues: #283, #284, #285, #286.
 
@@ -105,7 +112,7 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
 ## Next (in order)
 
-1. Small follow-ups from this pass: **#284** (harness janitor race, exam-only; do it before the next #89-harness exam), **#283** (one rule for a passed check), **#285** (median threshold rounding), **#286** (#271 exam nits). Since #278, a PR that touches only `labs/web/**` skips docker and the image jobs; do not read a skipped `docker` as missing evidence.
+1. **#288** (see Now), then the small follow-ups: **#290** (janitor race in nine more harnesses, exam-only), **#293** (exam nits from #291/#292), **#294** (bootstrap runsc check without Docker Hub).
 2. **#167** docker end-to-end browser test against the real manager (split from #131, D60). **#151** kill follow-ups, **#154** Solution tab (D57 b), **#126**, **#142** (reuse the #153 helpers).
 3. **#85** deploy follow-ups (its "docs-only redeploys" item is done by #278), **#94**, **#93**; p2 list: #81, #76, #67, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
@@ -119,6 +126,12 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 - O16/O7 resolved by D43 (public repository). O12 (back up `.env`), O13 (re-deploy after recreating nginx-proxy3), O5 reopened.
 
 ## Recently done
+
+- 2026-11-20 · Pass lf-n6q2: **3 PRs merged, 3 issues closed.**
+  - #287 → **#284** (the #89 harness patches the janitor out; #137's copy removed; D91). Round 1 approved; follow-up #290. Main CI 44734348356: 1597 exam cases, no skips.
+  - #291 → **#283** (parser takes the checklist size, route reads its verdict; D90). #289 round 1 asked for real-parser route cases; rebuilt as `-2` (code identical by range-diff); round 2 approved.
+  - #292 → **#285** (median threshold stored as its ceiling; D92). Round 1 approved; nits → #293.
+  - Deploy 44739270984 shipped #291 + #292 (the #291 Deploy skipped as older), smoke success.
 
 - 2026-11-20 · Pass lf-x3r8: **3 PRs merged, 3 issues closed.**
   - #280 → **#127** (stray FAIL lines are noise, ASCII item numbers, `session_busy` during a check; D88). Round 1 approved; its should-fix items became D88 and #283. Deploy 44724443029, smoke check-fail/check-pass ok.
