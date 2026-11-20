@@ -3,8 +3,6 @@ name: Server smoke
 # Checks against the shared production server.
 # check=isolation runs labs/deploy/smoke/isolation.sh: throw-away lf-smoke-* containers on the
 # lab network prove that labs reach nothing but the manager's 7681 path (issue #3).
-# check=liveness runs labs/deploy/smoke/liveness.sh: a diagnostic of lab containers that exit after
-# a docker exec (throw-away lf-smoke-live-* containers, read-only otherwise).
 # check=terminal opens a real terminal through https://labs.shashkist.com as a synthetic smoke
 # student (issue #86, D36). It runs by hand, nightly, and as a job of every Deploy run that really
 # deployed (workflow_call from deploy.yml, issue #90, D38).
@@ -16,7 +14,7 @@ on:
       check:
         description: "Which smoke to run"
         type: choice
-        options: [isolation, liveness, terminal]
+        options: [isolation, terminal]
         default: isolation
   workflow_call:
     inputs:
@@ -118,7 +116,7 @@ jobs:
       - name: Run the smoke on the server
         if: env.CHECK != 'terminal'
         run: |
-          case "$CHECK" in isolation) script=labs/deploy/smoke/isolation.sh ;; liveness) script=labs/deploy/smoke/liveness.sh ;; *) echo "unknown check" >&2; exit 1 ;; esac
+          case "$CHECK" in isolation) script=labs/deploy/smoke/isolation.sh ;; *) echo "unknown check" >&2; exit 1 ;; esac
           cfg="$RUNNER_TEMP/ssh_config"
           dest=/root/lf-smoke/run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT
           ssh -F "$cfg" smoke "mkdir -p $dest"
