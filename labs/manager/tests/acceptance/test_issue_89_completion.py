@@ -7,7 +7,7 @@ reads everything below straight from the database, so the storage is part of the
 CONTRACT chosen by this exam (the spec and the migrations leave these open):
 
 Storage. A new migration adds, besides the existing columns of section 8:
-  lab_sessions.active_seconds integer not null default 0   running total of heartbeat time
+  lab_sessions.active_seconds double precision not null default 0   running total of heartbeat time
   task_results.fast_reason    text null                    why the task was flagged
   lab_runs.fast_reason        text null                    why the lab run was flagged
 `fast_reason` is a non-empty human sentence (for example "task 04-x passed 9 s after it
