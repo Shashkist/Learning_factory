@@ -765,7 +765,7 @@ in force · factory · 2026-11-19
 **Revert.** Put `role="status"` back on the wrapper and revert the #186 squash commit.
 
 ## D81 · #257: one request clock; `REQUEST_BUDGET_S` stays as an import-time copy
-in force · factory · 2026-11-19
+one clock in force; the copy removed by #273 (D84, PR #277, 2026-11-20) · factory · 2026-11-19
 
 **Decision (review round 1 of #270).** The task routes (show, navigate) measure their remaining time from the start the request middleware records (`db.mark_request_start`) against `db.REQUEST_DEADLINE_S`, read at request time. The `_start` dependency no longer stamps a later start of its own, so auth reads and task steps share one start point and one deadline. `tasks.REQUEST_BUDGET_S` is kept only as an import-time copy of `db.REQUEST_DEADLINE_S`, because the #220 and #224 exams and `tests/unit/test_task_db_step_bound.py` import the name to build "budget used up" contexts; nothing reads it at request time. Criterion 1's "read at request time" is met by the routes, not by that copy.
 **Assumption.** A test that patches `db.REQUEST_DEADLINE_S` and also builds contexts from `tasks.REQUEST_BUDGET_S` would get a stale number; no exam does both today (#245 patches the deadline but does not touch task routes).
@@ -796,3 +796,35 @@ in force · factory · 2026-11-20
 **Why.** A guard that names a removed attribute keeps the name alive and tests a monkeypatch side effect, not behaviour. Docstrings that point at a name that no longer exists mislead the next reader.
 **Alternatives.** Limit the grep to `labs/manager/app` and leave the exam mentions as history (cheaper, but the criterion says otherwise and the guard case keeps testing nothing).
 **Revert.** Restore the old #245/#257 exam text from the #273 exam commit's parent.
+
+## D85 · #271: docs-only means three folders; a Deploy compares code trees, not heads
+in force · factory · 2026-11-20 (amended after review round 1 of PR #278)
+
+**Decision.** Docs-only means exactly `docs/**`, `courses/**` and `.claude/**`. Root `*.md` and everything under `labs/**` count as code. CI's push trigger ignores those three paths.
+
+A green CI for `<tag>` deploys when two things hold:
+- `<tag>` is an ancestor of main's head;
+- the two trees differ only in docs (`git diff --quiet <tag> <head> -- . ':(exclude)docs' ...`).
+
+This is the same before/after comparison that GitHub's `paths-ignore` makes, so no push whose net change is docs-only can strand a code commit. That includes code, then a revert, then docs (round 1, finding 4). It also never deploys code older than what is on main.
+
+How the check runs:
+- It lives in its own step, `fresh`, with no secrets in its environment.
+- It runs main's head copy of `scripts/ci_paths.py` with `python3 -I`, so a CI run for a commit from before #271 is judged too and does not fail.
+- The skip line keeps the phrase "no longer the head of main", which the #90 exam pins (round 1, blocker).
+
+On PRs, `docker` and the image jobs run only for `labs/images|manager|deploy|content/` and `.github/workflows/`. A `changes` job decides this, using the base branch's copy of the rule on the merge-base diff (NUL-separated names). Main has no required checks, so skipped jobs block nothing. A unit test pins `paths-ignore` to `DOCS_ONLY`.
+
+The code half ships first ("Part of #271"). The exam follows in its own PR (D19), covers the `fresh` step as shell, and closes #271.
+
+**Why.** State commits are the most frequent push, and each one ran ~29 billable minutes of CI. Worse, a state commit that landed during a merge's CI made that merge's Deploy skip (D49).
+
+**Assumption (round 1, finding 5, accepted risk).** Web-only PRs no longer build the manager image, which also compiles `labs/web` on `node:22.12-slim`. The `web` job's `npm run build` (Node 22.x) covers the usual breaks. A break specific to the image, such as a Node version, the output folder or `labs/.dockerignore`, shows on main's CI as a red run and a p0 incident before any Deploy: loud, never silent. The issue's criterion names five prefixes; adding `labs/web/` would run the 10-minute docker exam on most PRs. If this bites, run `image-manager` alone for `labs/web/` changes.
+
+**Alternatives.**
+- Compare newest code commits (the first draft): a revert inside a docs-only push stranded the code commit below it.
+- Compare `<tag>` with the newest code commit at the head: a push with docs on top of code would never deploy.
+- `dorny/paths-filter`: a third-party action, which runs into the #21 pinning problem.
+- Glob rules in shell, as in PR #103: `**.md` swallowed lab content, and quoted non-ASCII paths broke the match.
+
+**Revert.** Revert the #271 squash commit. CI then runs on every push again, and Deploy compares with the head.

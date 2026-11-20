@@ -4,7 +4,7 @@
 
 ## Now
 
-**Pass lf-k9d4 (laptop, started 08:27 UTC):** #275 (exam-only, worktree `C:\projects\lf-275`, branch `f/275-exam-269-complete`) and #273 (worktree `C:\projects\lf-273`, branch `f/273-drop-request-budget`, D84) claimed; exam writers running.
+**Pass lf-k9d4 (laptop, started 08:27 UTC):** shipped #275 (#276) and #273 (#277); Deploy 44708217902 deployed e9fe57e, smoke success. **#271** in flight: PR #278 (code + CI half, D85), worktree `C:\projects\lf-271`, branch `f/271-docs-only-deploy`; review round 1 asked for changes (1 blocker, 4 should-fix), fixed in 347eb18; CI and review round 2 running.
 
 _Previous:_ 2026-11-20 ~08:00 UTC, laptop pass **lf-p7w2** stopped at 3 merged PRs (#274, #270, #272) after ~65 minutes. Closed #269, #257, #98 with evidence. No claims held. New issues: #271 (rest of #98: docs-only skip + path-scoped docker jobs, D82), #273 (remove `tasks.REQUEST_BUDGET_S`, exam edits), #275 (#269 exam case that cannot fail). Decisions D82, D83.
 
