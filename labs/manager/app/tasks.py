@@ -588,7 +588,7 @@ async def check_task(task_id: str, ctx: Annotated[_Ctx, Depends(_ctx)]) -> dict[
     task = await _gradable(ctx, task_id, "hands-on")
     async with _session_lock(ctx.sid, "session_busy"):
         reason, output, exit_ok = await _run_check(ctx, task)
-        res = parse_check_output(output, 0 if exit_ok else 1)
+        res = parse_check_output(output, 0 if exit_ok else 1, len(task.checklist))
         items = [
             {
                 "n": n,
@@ -598,8 +598,7 @@ async def check_task(task_id: str, ctx: Annotated[_Ctx, Depends(_ctx)]) -> dict[
             }
             for n, text in enumerate(task.checklist, 1)
         ]
-        # `FAIL <n>` for an n outside this checklist is noise: only exit code and items count
-        passed = exit_ok and all(i["passed"] for i in items)
+        passed = res.passed
         if reason == "error":  # the server's failure, not the student's: no attempt
             attempts = await _bounded(
                 ctx,

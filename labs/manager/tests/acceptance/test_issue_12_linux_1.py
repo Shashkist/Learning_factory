@@ -393,7 +393,7 @@ def _check(machine: str, task_id: str):
     start = time.time()
     res = _as_root(machine, _task_dir(task_id) / "check.sh", timeout=60)
     assert time.time() - start < 20, "check.sh took longer than the 20 s limit"
-    return res, parse_check_output(res.stdout, res.returncode)
+    return res, parse_check_output(res.stdout, res.returncode, _n_items(task_id))
 
 
 def _n_items(task_id: str) -> int:
