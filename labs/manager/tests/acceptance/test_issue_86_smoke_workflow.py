@@ -76,7 +76,9 @@ def test_terminal_is_a_manual_option_and_the_default_stays_isolation():
     inputs = (_on(_wf()).get("workflow_dispatch") or {}).get("inputs") or {}
     check = inputs.get("check") or {}
     options = check.get("options") or []
-    assert {"isolation", "liveness", "terminal"} <= set(options)
+    assert {"isolation", "terminal"} <= set(options)
+    # #67: the one-off liveness diagnostic (D30) is gone once #3 closed
+    assert "liveness" not in options
     assert check.get("default") == "isolation"
 
 
@@ -153,7 +155,8 @@ def test_existing_checks_still_map_to_their_scripts_and_the_key_is_removed_alway
     wf = _wf()
     text = _all_run(wf)
     assert "labs/deploy/smoke/isolation.sh" in text
-    assert "labs/deploy/smoke/liveness.sh" in text
+    # #67: the one-off liveness diagnostic is removed with its script (D30)
+    assert "liveness" not in text
     cleanup = [s for s in _steps(wf) if "smoke_key" in s.get("run", "") and "rm" in s.get("run", "")]
     assert cleanup and "always()" in str(cleanup[-1].get("if", ""))
 
