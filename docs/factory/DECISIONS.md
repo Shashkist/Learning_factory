@@ -771,3 +771,11 @@ in force · factory · 2026-11-19
 **Assumption.** A test that patches `db.REQUEST_DEADLINE_S` and also builds contexts from `tasks.REQUEST_BUDGET_S` would get a stale number; no exam does both today (#245 patches the deadline but does not touch task routes).
 **Alternatives.** A module `__getattr__` alias (breaks `monkeypatch.setattr(..., raising=False)` in the #257 exam, which leaves a real attribute behind on undo); removing the name (edits three older exams); keeping two clocks (the defect #257 removes).
 **Revert.** Revert the #257 squash commit: `_left` reads `REQUEST_BUDGET_S` again and `_start` stamps its own start.
+
+## D82 · #98 ships in two slices: PR-run cancelling and dashboard paths now, docs-only skip later (#271)
+in force · factory · 2026-11-20
+
+**Decision.** #98 is done as a low-risk slice: CI cancels superseded runs on a pull request only (main runs are grouped per commit and never cancelled), the Factory dashboard publishes on push only when `docs/factory/**` or its own code changed (the 15-minute schedule stays), and FACTORY.md gets a minute-budget note. Criteria 1 and 2 (docs-only pushes skip CI, path-scoped docker and image jobs) move to #271, with the PR #103 review findings.
+**Why.** D46 named PR-run cancelling as the first slice to take. Criteria 1 and 2 change what a Deploy sees as the newest head; a wrong docs-only rule silently skips a Deploy, so they deserve their own PR and review.
+**Alternatives.** Finish all of #98 in one PR (the D46 risk again); leave #98 untouched (state commits keep cancelling nothing and the dashboard republishes on every code merge).
+**Revert.** Remove the `concurrency` block from `ci.yml` and the `paths` filter from the dashboard's `push` trigger.
