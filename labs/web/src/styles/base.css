@@ -16,6 +16,14 @@ body {
   font-family: var(--font-sans);
   font-size: var(--text-base);
   line-height: var(--line-height);
+}
+
+/* Long unbroken strings (ids, code, table cells) wrap; nothing else may hide overflow. */
+bdi,
+code,
+kbd,
+td,
+th {
   overflow-wrap: anywhere;
 }
 
@@ -99,7 +107,6 @@ button[aria-disabled="true"] {
 }
 button[aria-busy="true"] {
   cursor: progress;
-  opacity: 0.8;
 }
 
 /* Forms */
@@ -116,7 +123,7 @@ textarea {
   margin-block-start: var(--space-1);
   padding-block: var(--space-2);
   padding-inline: var(--space-3);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius);
   background: var(--color-surface);
   color: var(--color-text);

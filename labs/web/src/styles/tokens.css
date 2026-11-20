@@ -6,6 +6,7 @@
   --color-text: #111827;
   --color-text-muted: #4b5563;
   --color-border: #d1d5db;
+  --color-border-strong: #6b7280;
   --color-primary: #1d4ed8;
   --color-on-primary: #ffffff;
   --color-success: #15803d;
@@ -56,6 +57,7 @@
     --color-text: #f1f5f9;
     --color-text-muted: #b6c2d2;
     --color-border: #475569;
+    --color-border-strong: #7c8ba1;
     --color-primary: #7cb0ff;
     --color-on-primary: #0b1220;
     --color-success: #4ade80;
