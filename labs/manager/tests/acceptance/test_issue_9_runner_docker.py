@@ -159,9 +159,10 @@ def test_the_exec_has_root_with_a_clean_environment_in_the_root_directory(runtim
     names = set(lines[2:])
     assert {"PATH", "HOME"} <= names
     # An exec always inherits the container's own Env (set at create by `container_spec`:
-    # LF_BASE_PATH, LF_SUDO); the exec adds only PATH and HOME. Nothing from the manager.
+    # LF_BASE_PATH, LF_SUDO); the exec adds only PATH, HOME and the timeout kill's per-exec
+    # marker LF_EXEC_ID (#306, D98). Nothing from the manager.
     shell = {"PATH", "HOME", "PWD", "SHLVL", "_", "OLDPWD", "TERM", "HOSTNAME"}
-    assert names <= shell | {"LF_BASE_PATH", "LF_SUDO"}, names
+    assert names <= shell | {"LF_BASE_PATH", "LF_SUDO", "LF_EXEC_ID"}, names
 
 
 def test_exit_code_and_both_output_streams_come_back(runtime, call, box):
