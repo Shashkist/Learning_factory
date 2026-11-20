@@ -989,6 +989,8 @@ in force · factory · 2026-11-20
 
 **Amendment (same day).** The #9 runner exam pinned the script environment to exactly `PATH` and `HOME`. An exam-only commit before the code now also allows `LF_EXEC_ID` when it is 32 hex characters, and nothing else. The marker is not a secret (spec §5: no secrets in the environment) and tells a script only its own exec's id. Putting the marker in argv instead (`sh -s <id>`) would set `$1` in every check script. Revert together with the #306 commit.
 
+**Accepted risk (#306 criterion 3a, review round 1 of #318).** When a student's own stop loop makes a check time out, a stopped student-side process of that check (the `su` child or its `/bin/sh -s` reader) can survive the kill: the loop can also stop the student-uid kill child, and root cannot find orphaned student processes (the container has only SETUID/SETGID caps, so root cannot read a student's `/proc/<pid>/environ`; student processes are found only as descendants by PPid, which also misses `env -i` children). The killer signals student groups before root parents to keep the tree intact as long as it can. What is left belongs to the student, uses the student's own quota, and dies with the session's container; it cannot touch the next exec (marker) or any root process. Criterion 1 is also best effort by the exec start latency: the killer's own deadline is the bound minus 1.5 s, measured from its start inside the container.
+
 ## D99 · #312: exam commit and code commit in one PR; only `labs/web/src/` and `labs/web/tests/acceptance/` are heavy
 in force · factory · 2026-11-20
 
