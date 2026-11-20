@@ -25,4 +25,5 @@ archive/
 courses/
 
 labs/web/test-results/
+labs/web/tests/acceptance/test-results/
 labs/web/playwright-report/

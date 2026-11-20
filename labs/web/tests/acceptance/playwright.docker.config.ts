@@ -12,6 +12,8 @@ export default defineConfig({
   forbidOnly: true,
   retries: 0, // a retry would hide timing bugs in the flow under test
   workers: 1,
+  // The pytest exam points this into its tmp folder; the default would write test-results/ here.
+  outputDir: process.env.LF_E2E_OUTPUT_DIR,
   timeout: 240_000, // a real lab container under runsc takes a while to start
   reporter: [["list"], ["json", { outputFile: process.env.LF_E2E_REPORT ?? "e2e-report.json" }]],
   use: { baseURL: process.env.LF_E2E_BASE_URL, trace: "off" },

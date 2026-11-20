@@ -11,6 +11,15 @@ Then the docker CLI must show the lab-<uuid> container of the run gone.
 Contract for the CI `docker` job (pinned by test_issue_167_ci_wiring.py): Node 22, `npm ci` and
 `npm run build` in labs/web, Chromium installed for Playwright, all before the docker gate.
 
+Terminal upstream: the manager's proxy dials `lab-<session>:7681` by Docker DNS name, which only
+resolves for a manager that is a container on the lab network. Here the manager is a host process,
+so the exam runs a small TCP forwarder on 127.0.0.1 (LF_TERM_UPSTREAM) that looks up the IP of the
+lab-<session> container on the lab network (the session id comes from the request line) and pipes
+bytes both ways (HTTP and the WebSocket upgrade). The forwarder replaces only name resolution;
+the manager's proxy code (auth, header filtering, WebSocket relay) is the real one.
+The `.xterm` check in the browser flow proves the HTTP path to ttyd under this session's base path;
+it does not prove the WebSocket relay (ttyd draws .xterm before it connects).
+
 Lab content (decision, see the hand-back of #167): the catalog never lists `internal` or `draft`
 labs, not even to the smoke cohort (#129 exam). So the exam gives the manager its own content
 folder (LF_CONTENT_DIR) holding a copy of the smoke lab `smoke-tasks` with `status: published`;
@@ -25,6 +34,7 @@ removed.
 import asyncio
 import json
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -59,6 +69,7 @@ SMOKE_ID = "990000000000000000000000000001"
 SMOKE_PASSWORD = "smoke-e2e-" + "pw-0001"
 LAB_ID = "smoke-tasks"
 LAB_TITLE = "Smoke test, task API"  # lab.yaml title.en
+MANAGER_LOG: list[Path] = []  # the running manager's log file, for the failure message
 
 
 def docker(*args: str, timeout: int = 600, check: bool = True) -> subprocess.CompletedProcess:
@@ -159,7 +170,7 @@ def content_dir(tmp_path_factory) -> Path:
 
 
 @pytest.fixture(scope="module")
-def manager(admin_dsn, network, image, content_dir, tmp_path_factory):
+def manager(admin_dsn, network, image, content_dir, tmp_path_factory, request):
     """The real manager process, serving the built UI, and the smoke student from the real CLI."""
     assert (DIST / "index.html").is_file(), (
         f"{DIST}/index.html is missing: build the web app first (`npm run build` in labs/web)"
@@ -171,6 +182,9 @@ def manager(admin_dsn, network, image, content_dir, tmp_path_factory):
         await conn.execute(f"alter role {APP_ROLE} password '{APP_PASSWORD}'")
 
     _run_as(admin_dsn, reset)
+    fwd_stop = threading.Event()
+    request.addfinalizer(fwd_stop.set)
+    fwd_port = _start_forwarder(network, fwd_stop)
     app_dsn = _app_dsn(admin_dsn)
     env = {k: v for k, v in os.environ.items() if not k.startswith("LF_")}
     env.update(
@@ -183,11 +197,13 @@ def manager(admin_dsn, network, image, content_dir, tmp_path_factory):
         LF_JANITOR_INTERVAL_S="3600",
         LF_CONTENT_DIR=str(content_dir),
         LF_WEB_DIR=str(DIST),
+        LF_TERM_UPSTREAM=f"127.0.0.1:{fwd_port}",
     )
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
     log_path = tmp_path_factory.mktemp("manager-log") / "manager.log"
+    MANAGER_LOG[:] = [log_path]
     with open(log_path, "wb") as log:
         proc = subprocess.Popen(
             [sys.executable, "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1",
@@ -244,6 +260,110 @@ def _annotations(node: object, kind: str) -> list[str]:
     return sorted(set(found))
 
 
+def _log_tail(chars: int = 3000) -> str:
+    if not MANAGER_LOG or not MANAGER_LOG[0].is_file():
+        return "(no manager log)"
+    return MANAGER_LOG[0].read_text(encoding="utf-8", errors="replace")[-chars:]
+
+
+def _lab_ip(network: str, name: str) -> str | None:
+    res = docker("inspect", name, check=False)
+    if res.returncode != 0:
+        return None
+    nets = json.loads(res.stdout)[0]["NetworkSettings"]["Networks"]
+    return nets.get(network, {}).get("IPAddress") or None
+
+
+def _pipe(src: socket.socket, dst: socket.socket) -> None:
+    try:
+        while True:
+            data = src.recv(65536)
+            if not data:
+                break
+            dst.sendall(data)
+    except OSError:
+        pass
+    finally:
+        for s in (src, dst):
+            try:
+                s.shutdown(socket.SHUT_RDWR)  # wakes the sibling thread's blocked recv
+            except OSError:
+                pass
+            try:
+                s.close()
+            except OSError:
+                pass
+
+
+_REQUEST_LINE = re.compile(rb"^[A-Z]+ /s/([0-9a-f-]{36})/")
+
+
+def _serve_one(client: socket.socket, network: str) -> None:
+    """Dial exactly lab-<uuid>, the uuid taken from the first request line (HTTP and the
+    WebSocket upgrade both start with `GET /s/<uuid>/term/...`); bytes read go upstream first."""
+    upstream = None
+    try:
+        head = b""
+        client.settimeout(15)
+        while b"\r\n" not in head and len(head) < 8192:
+            chunk = client.recv(4096)
+            if not chunk:
+                break
+            head += chunk
+        client.settimeout(None)
+        m = _REQUEST_LINE.match(head)
+        if not m:
+            client.close()
+            return
+        name = f"lab-{m.group(1).decode()}"
+        deadline = time.time() + 15
+        while upstream is None and time.time() < deadline:
+            ip = _lab_ip(network, name)
+            if ip:
+                try:
+                    upstream = socket.create_connection((ip, 7681), timeout=5)
+                    upstream.settimeout(None)
+                except OSError:
+                    upstream = None
+            if upstream is None:
+                time.sleep(0.3)
+        if upstream is None:
+            client.close()
+            return
+        upstream.sendall(head)
+    except OSError:
+        client.close()
+        if upstream is not None:
+            upstream.close()
+        return
+    threading.Thread(target=_pipe, args=(client, upstream), daemon=True).start()
+    threading.Thread(target=_pipe, args=(upstream, client), daemon=True).start()
+
+
+def _start_forwarder(network: str, stop: threading.Event) -> int:
+    """127.0.0.1:<port> -> <running lab container ip>:7681, until `stop` is set."""
+    listener = socket.socket()
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(16)
+    listener.settimeout(0.5)
+
+    def loop() -> None:
+        try:
+            while not stop.is_set():
+                try:
+                    client, _ = listener.accept()
+                except TimeoutError:
+                    continue
+                except OSError:
+                    break
+                threading.Thread(target=_serve_one, args=(client, network), daemon=True).start()
+        finally:
+            listener.close()
+
+    threading.Thread(target=loop, daemon=True).start()
+    return listener.getsockname()[1]
+
+
 def _watch(stop: threading.Event, seen: set[str]) -> None:
     while not stop.is_set():
         names = docker("ps", "-a", "--filter", "name=^lab-", "--format", "{{.Names}}", check=False)
@@ -270,6 +390,11 @@ def test_smoke_student_runs_the_lab_in_chromium_and_the_container_is_gone_after(
         LF_E2E_LAB_ID=LAB_ID,
         LF_E2E_LAB_TITLE=LAB_TITLE,
         LF_E2E_REPORT=str(report),
+        LF_E2E_OUTPUT_DIR=str(tmp_path / "pw-output"),  # failures must not write into the repo
+    )
+    before = set(
+        docker("ps", "-a", "--filter", "name=^lab-", "--format", "{{.Names}}", check=False)
+        .stdout.split()
     )
     stop = threading.Event()
     seen: set[str] = set()
@@ -281,13 +406,13 @@ def test_smoke_student_runs_the_lab_in_chromium_and_the_container_is_gone_after(
             ["npx", "--no-install", "playwright", "test", "-c", PW_CONFIG],
             cwd=WEB_DIR, env=env, capture_output=True, text=True, timeout=600,
         )
-    finally:
         stop.set()
         watcher.join(timeout=10)
-    try:
         assert run.returncode == 0, (
             "the browser flow failed (is Chromium installed? `npx playwright install chromium`):\n"
             + (run.stdout + run.stderr)[-4000:]
+            + "\n--- manager log tail ---\n"
+            + _log_tail()
         )
         stats = json.loads(report.read_text(encoding="utf-8"))["stats"]
         assert stats["expected"] == 1, f"the browser test did not run and pass once: {stats}"
@@ -303,5 +428,13 @@ def test_smoke_student_runs_the_lab_in_chromium_and_the_container_is_gone_after(
             assert time.time() < deadline, f"{name} still exists after End lab"
             time.sleep(1)
     finally:
-        for name in seen:
+        stop.set()
+        watcher.join(timeout=10)
+        # Only this run's containers: names that were not there before the run, plus the
+        # session of the report. Any other lab-* container is none of this exam's business.
+        try:
+            mine = _annotations(json.loads(report.read_text(encoding="utf-8")), "lf-session")
+        except (OSError, ValueError):
+            mine = []
+        for name in (seen - before) | {f"lab-{s}" for s in mine}:
             _rm(name)
