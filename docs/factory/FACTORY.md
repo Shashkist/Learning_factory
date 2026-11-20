@@ -44,7 +44,9 @@ The factory turns the spec into a running lab platform at `labs.shashkist.com` w
 
 A full CI run (on a PR or on a push to main) costs about **29 billable minutes**: `manager` ~12, `docker` ~10, `web` ~3, every other job ~1 (three green PR runs, 2026-11-20, each job rounded up the way GitHub bills). Since the repository went public (D43, D46) hosted minutes are free, so these rules now save queue and wall-clock time (public repositories still have a concurrent-job limit). For scale, from the private-repository period (#98, 737 runs over about two days of factory work): CI on push to main 886 minutes, CI on pull requests 681, dashboard publish on push 215; the account hit its 2,000-minute limit (#96).
 
-- Batch state commits: one per step, not one per sub-step. Every push to main runs the full CI (until #271).
+- Batch state commits: one per step, not one per sub-step.
+- A push to main that touches only `docs/**`, `courses/**` or `.claude/**` runs no CI and no Deploy (#271); a `docs/factory` push still runs the dashboard workflow. Root `*.md` and everything under `labs/` count as code. A green CI deploys when its commit is on main and main differs from it only in docs (`scripts/ci_paths.py deploys`, the same start-to-end comparison GitHub's `paths-ignore` makes), so a docs-only commit landing meanwhile does not stale it, and older code never rolls production back (D85).
+- On a PR, the `docker` and `image-*` jobs run only when the change touches `labs/images/`, `labs/manager/`, `labs/deploy/`, `labs/content/` or `.github/workflows/`; pushes to main always run them.
 - PR runs are cancelled when a newer commit lands on the same PR. Main runs are never cancelled.
 - The dashboard publishes on push only when `docs/factory/**` or the dashboard code changed.
 

@@ -4,6 +4,12 @@ on:
   pull_request:
   push:
     branches: [main]
+    # Docs-only pushes run no CI (#271). Keep in step with DOCS_ONLY in scripts/ci_paths.py:
+    # Deploy treats exactly these paths as docs when it compares code trees. PRs stay unfiltered.
+    paths-ignore:
+      - "docs/**"
+      - "courses/**"
+      - ".claude/**"
 
 permissions:
   contents: read
@@ -69,7 +75,40 @@ jobs:
       - name: End-to-end tests (fake backend)
         run: npm run e2e
 
+  # Decides whether a PR needs the docker and image jobs (#271). The repository has no
+  # required checks (main is not protected), so a skipped job does not block a merge.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      heavy: ${{ steps.heavy.outputs.heavy }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Does the change touch images, manager, deploy, content or workflows
+        id: heavy
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EVENT_NAME" != pull_request ]; then
+            echo "heavy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git fetch -q origin "$BASE_REF"
+          # The base branch's copy decides, so a PR cannot skip its own docker exam by editing HEAVY.
+          script=scripts/ci_paths.py   # bootstrap: the base has no copy yet
+          if git show "origin/$BASE_REF:scripts/ci_paths.py" > "$RUNNER_TEMP/ci_paths.py" 2>/dev/null; then
+            script="$RUNNER_TEMP/ci_paths.py"
+          fi
+          heavy=$(python3 -I "$script" heavy "origin/$BASE_REF" "$HEAD_SHA")
+          echo "heavy=$heavy" >> "$GITHUB_OUTPUT"
+
   docker:
+    needs: changes
+    if: needs.changes.outputs.heavy == 'true'
     runs-on: ubuntu-latest
     # About 8 minutes when the mirrors answer. The term image build is bounded
     # (#228), so a hung mirror fails fast instead of holding the runner 70+ min.
