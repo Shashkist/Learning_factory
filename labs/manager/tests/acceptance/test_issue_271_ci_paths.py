@@ -324,9 +324,27 @@ def _changes(tmp_path: Path, files: dict, event: str = "pull_request"):
     return r, _outputs(tmp_path)
 
 
+@pytest.mark.parametrize(
+    "path",
+    [
+        "labs/web/src/i18n/en.json",
+        "labs/web/src/pages/LabPage.tsx",
+        "labs/web/tests/acceptance/issue-167-docker-e2e.pw.ts",
+    ],
+    ids=["web-src-json", "web-src-tsx", "web-browser-exam"],
+)
 @needs_bash
-def test_a_web_only_pull_request_is_not_heavy(tmp_path):
-    r, out = _changes(tmp_path, {"labs/web/index.html": "v1\n", "docs/x.md": "x\n"})
+def test_a_web_only_pull_request_that_the_browser_exam_covers_is_heavy(tmp_path, path):
+    # #312: labels, the "Lab terminal" iframe title, test ids and the .pw.ts exam itself live under
+    # labs/web/; a PR touching only those must get the docker job, which runs the browser exam.
+    r, out = _changes(tmp_path, {path: "v1\n", "docs/x.md": "x\n"})
+    assert r.returncode == 0, r.stderr
+    assert out.get("heavy") == "true", f"a PR touching only {path} gets no docker job"
+
+
+@needs_bash
+def test_a_docs_only_pull_request_is_not_heavy(tmp_path):
+    r, out = _changes(tmp_path, {"docs/x.md": "x\n", "README.md": "x\n"})
     assert r.returncode == 0, r.stderr
     assert out.get("heavy") == "false"
 

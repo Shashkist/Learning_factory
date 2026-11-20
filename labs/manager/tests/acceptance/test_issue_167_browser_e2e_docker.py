@@ -59,6 +59,7 @@ SMOKE_ID = "990000000000000000000000000001"
 SMOKE_PASSWORD = "smoke-e2e-" + "pw-0001"
 LAB_ID = "smoke-tasks"
 LAB_TITLE = "Smoke test, task API"  # lab.yaml title.en
+MANAGER_LOG: list[Path] = []  # the running manager's log file, for the failure message
 
 
 def docker(*args: str, timeout: int = 600, check: bool = True) -> subprocess.CompletedProcess:
@@ -188,6 +189,7 @@ def manager(admin_dsn, network, image, content_dir, tmp_path_factory):
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
     log_path = tmp_path_factory.mktemp("manager-log") / "manager.log"
+    MANAGER_LOG[:] = [log_path]
     with open(log_path, "wb") as log:
         proc = subprocess.Popen(
             [sys.executable, "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1",
@@ -244,6 +246,12 @@ def _annotations(node: object, kind: str) -> list[str]:
     return sorted(set(found))
 
 
+def _log_tail(chars: int = 3000) -> str:
+    if not MANAGER_LOG or not MANAGER_LOG[0].is_file():
+        return "(no manager log)"
+    return MANAGER_LOG[0].read_text(encoding="utf-8", errors="replace")[-chars:]
+
+
 def _watch(stop: threading.Event, seen: set[str]) -> None:
     while not stop.is_set():
         names = docker("ps", "-a", "--filter", "name=^lab-", "--format", "{{.Names}}", check=False)
@@ -270,6 +278,7 @@ def test_smoke_student_runs_the_lab_in_chromium_and_the_container_is_gone_after(
         LF_E2E_LAB_ID=LAB_ID,
         LF_E2E_LAB_TITLE=LAB_TITLE,
         LF_E2E_REPORT=str(report),
+        LF_E2E_OUTPUT_DIR=str(tmp_path / "pw-output"),  # failures must not write into the repo
     )
     stop = threading.Event()
     seen: set[str] = set()
@@ -288,6 +297,8 @@ def test_smoke_student_runs_the_lab_in_chromium_and_the_container_is_gone_after(
         assert run.returncode == 0, (
             "the browser flow failed (is Chromium installed? `npx playwright install chromium`):\n"
             + (run.stdout + run.stderr)[-4000:]
+            + "\n--- manager log tail ---\n"
+            + _log_tail()
         )
         stats = json.loads(report.read_text(encoding="utf-8"))["stats"]
         assert stats["expected"] == 1, f"the browser test did not run and pass once: {stats}"
@@ -303,5 +314,11 @@ def test_smoke_student_runs_the_lab_in_chromium_and_the_container_is_gone_after(
             assert time.time() < deadline, f"{name} still exists after End lab"
             time.sleep(1)
     finally:
-        for name in seen:
-            _rm(name)
+        # Only this run's container: `lab-<session>` from the report. Another lab-* container
+        # (another run, the owner's) is none of this exam's business, even if the watcher saw it.
+        try:
+            mine = _annotations(json.loads(report.read_text(encoding="utf-8")), "lf-session")
+        except (OSError, ValueError):
+            mine = []
+        for session in mine:
+            _rm(f"lab-{session}")

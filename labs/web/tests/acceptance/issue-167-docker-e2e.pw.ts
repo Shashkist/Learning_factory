@@ -40,6 +40,11 @@ test("smoke student: login, My labs, Start, terminal iframe, End lab", async ({ 
   // app's tsconfig has no Node types, and `tsc --noEmit` checks this file too).
   test.info().annotations.push({ type: "lf-session", description: m![1] });
 
+  // The proxy reaches ttyd: the terminal itself renders inside the iframe.
+  await expect(
+    page.frameLocator('iframe[title="Lab terminal"]').locator(".xterm"),
+  ).toBeVisible(wait);
+
   await page.getByRole("button", { name: "End lab" }).click();
   await expect(page).toHaveURL(/\/labs$/, wait);
   await expect(page.getByRole("heading", { name: "My labs" })).toBeVisible();
