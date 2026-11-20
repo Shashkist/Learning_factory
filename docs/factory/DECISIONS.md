@@ -987,6 +987,8 @@ in force · factory · 2026-11-20
 
 **Revert.** Revert the #306 squash commit.
 
+**Amendment (same day).** The #9 runner exam pinned the script environment to exactly `PATH` and `HOME`. An exam-only commit before the code now also allows `LF_EXEC_ID` when it is 32 hex characters, and nothing else. The marker is not a secret (spec §5: no secrets in the environment) and tells a script only its own exec's id. Putting the marker in argv instead (`sh -s <id>`) would set `$1` in every check script. Revert together with the #306 commit.
+
 ## D99 · #312: exam commit and code commit in one PR; only `labs/web/src/` and `labs/web/tests/acceptance/` are heavy
 in force · factory · 2026-11-20
 
