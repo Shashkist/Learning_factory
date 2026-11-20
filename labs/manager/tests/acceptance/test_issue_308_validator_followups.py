@@ -329,3 +329,34 @@ def test_round1_fd_0_with_a_space_is_still_not_a_redirect(tmp_path, name, body):
 )
 def test_round1_real_here_documents_and_redirects_stay_quiet(tmp_path, name, body):
     _must_not_warn(tmp_path, body, name)
+
+
+# ------------------------------------------------------------------ review round 2
+
+AFTER_HERE_STRING = [
+    'while read l; do echo $l; done <<< "$x"\nsleep 600 &',
+    'cat <<<"$x" >/dev/null\nsleep 600 &',
+]
+SU_STDERR_DUP_QUIET = [
+    "su student -c 'read x' 2>&1 </dev/null",
+    "su student -s /bin/sh -c '/bin/sh -s' 2>&1 <<'R'\necho hi\nR",
+]
+
+
+@pytest.mark.parametrize("name", NAMES)
+@pytest.mark.parametrize("body", AFTER_HERE_STRING)
+def test_round2_a_here_string_is_not_a_here_document(tmp_path, name, body):
+    result = _script(tmp_path, body, name)
+    found = background_warnings(result)
+    assert found, f"no background warning after a here-string in {body!r}: {result.warnings}"
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_round2_a_reader_after_a_here_string_still_warns(tmp_path, name):
+    _must_warn_stdin(tmp_path, 'cat <<<"$x" >/dev/null\nwhile read y; do :; done', name)
+
+
+@pytest.mark.parametrize("name", NAMES)
+@pytest.mark.parametrize("body", SU_STDERR_DUP_QUIET)
+def test_round2_su_with_2_to_1_and_its_own_redirect_is_quiet(tmp_path, name, body):
+    _must_not_warn(tmp_path, body, name)
