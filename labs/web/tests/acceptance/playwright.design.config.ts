@@ -14,7 +14,7 @@ const PORT = 4331; // its own port: never collide with the e2e preview on 4173
 
 export default defineConfig({
   testDir: ".",
-  testMatch: "issue-331-design.pw.ts",
+  testMatch: /issue-\d+-design\.pw\.ts$/,
   forbidOnly: !!process.env.CI,
   retries: 0,
   reporter: process.env.CI ? "github" : "list",
