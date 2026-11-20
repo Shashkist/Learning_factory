@@ -939,6 +939,7 @@ in force · factory · 2026-11-20
 **Revert.** Revert the #294 squash commit; the check goes back to `docker run --runtime=runsc hello-world`.
 
 **Note (#298).** The #3 and #50 exams' `--pull=never` calls depend on the bootstrap leaving `hello-world` local; changing the check image means changing them too.
+**Amended (#298).** A failed `docker tag` after a working mirror pull fails the step with "could not pull or tag the hello-world image" and does not fall back to Docker Hub (the pull worked, so the registry is not the problem). Docker Hub is tried only when the mirror refuses the pull. In a dry run the read-only `docker image inspect` runs, and the pull and tag are only printed. **Revert:** revert the #298 squash commit.
 
 ## D95 · #290 and #294: review findings fixed by the manager, merged without a second round
 in force · factory · 2026-11-20
