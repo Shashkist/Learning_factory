@@ -1072,3 +1072,12 @@ in force · factory · 2026-11-20 · amends D101 · revertible
 **Alternatives.** Accept duplicates in 06 (inconsistent with 05; teaches nothing about `>` vs `>>`).
 
 **Revert.** Revert the #325 squash commit.
+
+## D107 · #326 merges on green after the manager fixed review round 2; the validator splits jobs on every lone `&`
+in force · factory · 2026-11-21 · amends D56, D102
+
+**Decision.** (1) Since #326 the content validator decides "bash" with the runtime's own first-line logic (`shebang_argv`, shared with `runtime.exec_command`; `env -S bash` is bash, a leading space means no shebang). It splits each line into jobs on every lone `&` (not `&&`, `>&`, `<&`, `|&`, an escaped `\&`, nor an `&` inside `$(( ))`); every backgrounded job must be quiet by its own redirects. Under sh (dash) the `&` of `&>` ends a job, so `cmd &>/dev/null` warns; under bash `&>` is a quiet redirect. `exec ... N<&0` is a stdin reader. (2) Review round 2 resolved all round 1 findings and found one blocking false positive (`echo $((x & 1))` warned); the manager fixed it on `f/326-validator-dash-3` (exam commit first, red on the round 2 code) and #342 merges on green with no third round, as D100, D103 and D104. Leftovers: #337 (pipelines), #343 (linear regexes, su job split, bash `>&word`).
+
+**Why.** Dash backgrounds `cmd &>/dev/null` with the exec's output, which keeps the exec open (D56). Two review rounds is the limit (FACTORY.md).
+
+**Revert.** Revert the #326 squash commit; `&>` is quiet again under any shell and only the text after the last separator counts.
