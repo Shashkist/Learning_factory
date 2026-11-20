@@ -4,7 +4,13 @@
 
 ## Now
 
-**In flight (pass lf-p7w2, started 2026-11-20 ~06:56 UTC):** #257 (PR #270, `f/257-one-request-clock`, `C:\projects\lf-257`: CI green, review round 2 running), #269 (`f/269-one-live-region`, `C:\projects\lf-269`: exam writer), #98 slice (`f/98-ci-cancel`, `C:\projects\lf-98`: implementer; D82, rest split to #271). All three claimed by lf-p7w2.
+**Nothing in flight.** 2026-11-20 ~08:00 UTC, laptop pass **lf-p7w2** stopped at 3 merged PRs (#274, #270, #272) after ~65 minutes. Closed #269, #257, #98 with evidence. No claims held. New issues: #271 (rest of #98: docs-only skip + path-scoped docker jobs, D82), #273 (remove `tasks.REQUEST_BUDGET_S`, exam edits), #275 (#269 exam case that cannot fail). Decisions D82, D83.
+
+- **Resume here, in this order:** **#275** (exam-only, small) and **#273** (exam edit first, then code), then the Next list below. Worktrees `C:\projects\lf-257`, `lf-269`, `lf-98` are shipped and safe to remove.
+- **Check on the next code merge (#98 criterion 3):** a squash-merge that touches no `docs/factory/**` or dashboard code must NOT start a "Factory dashboard" push run. ad4d27d still started one because the filter landed one commit later (339018c).
+- **Lesson (pass lf-p7w2):** since #272, a newer push to a PR cancels that PR's older CI run (seen live: 44692266240 cancelled). `gh pr checks --watch` follows the head commit, so this is invisible to the loop; just do not wonder about "cancelled" runs in `gh run list`.
+- **Lesson (pass lf-p7w2):** merging two green PRs back-to-back right after a Deploy finished gave one more Deploy that shipped both (two Deploy runs reported the newest head, both success). Cheaper than waiting a full CI + Deploy between them, at the cost of one shared smoke result.
+- **Production:** `339018c` (Deploy 44698393593: deploy + smoke success; `/api/health` 200 database ok; live bundle has one `role="status"` region in the lab tab panel).
 
 _Previous: pass lf-h3q9 (~19:27-20:35 UTC) shipped #263 (#266) and #264 (#268), opened PR #270 for #257 (review round 1 fixed, D81) and #269; it left no STATE update._
 
@@ -70,8 +76,8 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
 ## Next (in order)
 
-1. **#263** Previous race: pin the `repeat_ok` no-op ordering and a forced overlap (exam-only, DB cases; D75 amended). **#264** live region present before its text + #178 exam header (exam edit first). **#257** one request clock (task routes read `db.REQUEST_DEADLINE_S`; touches `tasks.py`, so not in parallel with #263's code reading).
-2. **#98** (p2, D46): this pass pushed 6 docs-only state commits and each ran the full ~12-minute CI; cancel superseded runs and skip full CI for docs-only pushes.
+1. **#275** #269 exam: the open-tasks-to-complete case reaches complete (exam-only, web). **#273** remove `tasks.REQUEST_BUDGET_S` (exam edit of the #220/#224 exams first, then code; manager). Independent, can run side by side.
+2. **#271** (rest of #98, D46/D82): docs-only pushes skip CI without staling a Deploy; path-scoped docker jobs. Read the PR #103 review first; code + CI in one PR, any exam in another.
 3. **#167** docker end-to-end browser test against the real manager (split from #131, D60). **#151** kill follow-ups, **#154** Solution tab (D57 b), **#137**, **#126**, **#127**, **#142** (reuse the #153 helpers).
 4. **#85** deploy follow-ups, **#94**, **#93**; p2 list: #81, #76, #67, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 

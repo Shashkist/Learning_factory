@@ -780,3 +780,11 @@ in force · factory · 2026-11-20
 **Alternatives.** Finish all of #98 in one PR (the D46 risk again); leave #98 untouched (state commits keep cancelling nothing and the dashboard republishes on every code merge).
 **Assumption (review of #272).** After a code squash-merge the dashboard no longer publishes on that push; the page catches up at the next `docs/factory/**` state commit, which rule 6 makes follow every close. The 15-minute schedule is unreliable (D73: runs ~5 hours apart on 2026-11-19/20), so it is not counted on. `dashboard-ci.yml` gets no PR concurrency on purpose: it takes ~19 s and criterion 4 names CI only.
 **Revert.** Remove the `concurrency` block from `ci.yml` and the `paths` filter from the dashboard's `push` trigger.
+
+## D83 · #257 merged after review round 2 without a third review; #269 merged on its round-1 approval plus a checked fix
+in force · factory · 2026-11-20
+
+**Decision.** PR #270 (#257) reached the two-round review limit with no blocker. Round 2 asked for one deadline helper (`db.time_left`, now used by the pool and the task routes) and a clock-agreement test that drives `db.BoundedPool` instead of re-computing the db side; both are in d14acd9, which the manager read line by line, and CI was green on it. Round-2 nit 5 (remove `tasks.REQUEST_BUDGET_S`, needs exam edits) is #273. PR #274 (#269) was approved in round 1 with two should-fix findings: the stale open-tasks list at lab complete was fixed in 56118f5 with a unit test, and the weak exam case (finding 2) needs an exam-only PR, so it is #275.
+**Why.** FACTORY.md caps review at two rounds; after that the manager decides. Each fix answered a named finding with a small, readable diff, and a third reviewer would have read the same lines.
+**Alternatives.** A third review round for #270 (~6 minutes and one more CI); rebuilding #274 as `-2` with the exam case strengthened first (a rebuild and a second CI for a test-only gap).
+**Revert.** Revert the squash commits ad4d27d (#270) or 8e68837 (#274).
