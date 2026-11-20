@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 
-from app import janitor, runtime, sessions, tasks
+from app import db, janitor, runtime, sessions, tasks
 
 
 class _Conn:
@@ -89,7 +89,7 @@ def test_server_side_bounds_are_below_the_step_bound():
 
 
 def test_request_budget_is_under_nginx_and_covers_the_parts():
-    assert tasks.REQUEST_BUDGET_S < 60
+    assert db.REQUEST_DEADLINE_S < 60
     assert tasks.SETUP_TIMEOUT_MAX_S + runtime.KILL_BOUND_S + tasks.DB_STEP_BOUND_S < 60
 
 
@@ -131,7 +131,7 @@ def test_setup_timeout_shrinks_with_the_time_already_spent(monkeypatch, tmp_path
     ctx, rt = _hands_on(tmp_path, time.monotonic() - 30)  # 30 s gone in auth and queueing
     with pytest.raises(HTTPException):
         asyncio.run(tasks._do_show(ctx, SimpleNamespace(id="t", kind="hands-on")))
-    left = tasks.REQUEST_BUDGET_S - 30 - runtime.KILL_BOUND_S - tasks.DB_STEP_BOUND_S
+    left = db.REQUEST_DEADLINE_S - 30 - runtime.KILL_BOUND_S - tasks.DB_STEP_BOUND_S
     assert rt.timeout == pytest.approx(left, abs=1)
 
 
@@ -192,7 +192,7 @@ def test_start_is_a_coroutine_function_and_sets_started_at_once():
 
 def test_show_with_a_nearly_spent_budget_bounds_the_slot_wait(monkeypatch, tmp_path):
     monkeypatch.setattr(tasks, "_EXECS", asyncio.Semaphore(0))
-    ctx, _ = _hands_on(tmp_path, time.monotonic() - tasks.REQUEST_BUDGET_S + 0.3)
+    ctx, _ = _hands_on(tmp_path, time.monotonic() - db.REQUEST_DEADLINE_S + 0.3)
     t0 = time.monotonic()
     with pytest.raises(HTTPException) as exc:
         asyncio.run(tasks._do_show(ctx, SimpleNamespace(id="t", kind="hands-on")))
@@ -217,14 +217,14 @@ def test_check_timeout_plus_kill_plus_db_step_stays_in_the_request_budget(tmp_pa
     ctx, rt = _check_ctx(tmp_path, 30)
     asyncio.run(tasks._run_check(ctx, SimpleNamespace(id="t")))
     total = rt.timeout + runtime.KILL_BOUND_S + tasks.DB_STEP_BOUND_S
-    assert total <= tasks.REQUEST_BUDGET_S - 30 + 1
+    assert total <= db.REQUEST_DEADLINE_S - 30 + 1
     ctx, rt = _check_ctx(tmp_path / "fresh", 0)
     asyncio.run(tasks._run_check(ctx, SimpleNamespace(id="t")))
     assert rt.timeout == tasks.CHECK_TIMEOUT_S
 
 
 def test_check_with_no_time_left_runs_nothing(tmp_path):
-    ctx, rt = _check_ctx(tmp_path, tasks.REQUEST_BUDGET_S)
+    ctx, rt = _check_ctx(tmp_path, db.REQUEST_DEADLINE_S)
     reason, _, ok = asyncio.run(tasks._run_check(ctx, SimpleNamespace(id="t")))
     assert reason == "error" and not ok and rt.timeout is None
 
@@ -302,14 +302,14 @@ def test_count_attempt_terminates_the_connection_when_the_bound_fires(monkeypatc
 
 
 def test_count_attempt_with_no_time_left_is_the_json_504_and_touches_no_pool():
-    ctx = _attempt_ctx(tasks.REQUEST_BUDGET_S + 1)
+    ctx = _attempt_ctx(db.REQUEST_DEADLINE_S + 1)
     with pytest.raises(HTTPException) as exc:
         asyncio.run(tasks._count_attempt(ctx, SimpleNamespace(id="t"), True))
     assert exc.value.status_code == 504 and exc.value.detail["code"] == "check_timeout"  # #224
 
 
 def test_gradable_read_is_bounded_by_the_time_left():
-    ctx = _attempt_ctx(tasks.REQUEST_BUDGET_S + 1)
+    ctx = _attempt_ctx(db.REQUEST_DEADLINE_S + 1)
     task = SimpleNamespace(id="t", kind="quiz")
     ctx.task = lambda _id: task
     with pytest.raises(HTTPException) as exc:

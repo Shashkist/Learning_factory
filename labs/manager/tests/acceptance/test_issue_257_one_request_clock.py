@@ -6,8 +6,8 @@ No Docker, no database. The contract (internals named on purpose, they exist tod
   starts when the middleware calls `db.mark_request_start()`.
 * `app.tasks._do_show(ctx, task)` (the show/navigate worker) and `app.tasks._left(ctx)` (the
   seconds of the request budget still unspent) answer from that clock: remaining budget =
-  `db.REQUEST_DEADLINE_S - (now - request start)`. `tasks.REQUEST_BUDGET_S` may be removed or be
-  an alias; whichever it is, changing it must not change what the routes do.
+  `db.REQUEST_DEADLINE_S - (now - request start)`. There is no second copy of the budget in
+  `app.tasks`; the routes answer from `db.REQUEST_DEADLINE_S` alone.
 * An exhausted budget is the #236/#220 answer: HTTP 504, detail code `setup_timeout`, and the
   database is not touched.
 
@@ -110,15 +110,6 @@ def test_a_larger_db_deadline_lets_a_show_the_old_budget_would_cut(monkeypatch):
     pool, exc = _show(spent=70.0)  # 70 s in: over 55 s, under 200 s
     assert isinstance(exc, _Touched), repr(exc)
     assert pool.calls
-
-
-def test_the_old_budget_constant_no_longer_drives_the_routes(monkeypatch):
-    """If REQUEST_BUDGET_S is still there it is not a second clock: it may not cut a request
-    that the db deadline still allows."""
-    monkeypatch.setattr(db, "REQUEST_DEADLINE_S", 55.0)
-    monkeypatch.setattr(tasks, "REQUEST_BUDGET_S", 1.0, raising=False)
-    pool, exc = _show(spent=10.0)
-    assert isinstance(exc, _Touched), repr(exc)
 
 
 @pytest.mark.parametrize("deadline,spent", [(55.0, 3.0), (12.0, 3.0), (7.5, 0.2)])

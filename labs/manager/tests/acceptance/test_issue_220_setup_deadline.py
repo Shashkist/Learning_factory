@@ -1,7 +1,7 @@
 """Acceptance tests for issue #220 item 1: the request deadline covers every task kind.
 
 No Docker, no database. `_do_show(ctx, task)` is called with a context whose request budget
-(`app.tasks.REQUEST_BUDGET_S`, measured from `ctx.started`) is already used up. For a quiz
+(`app.db.REQUEST_DEADLINE_S`, measured from `ctx.started`) is already used up. For a quiz
 task the answer is the same JSON error the hands-on path gives when no time is left
 (HTTP 504, detail code `setup_timeout`) and the database is not touched.
 """
@@ -35,7 +35,7 @@ class _Pool:
 
 
 def _ctx(task, pool):
-    from app import tasks
+    from app import db
 
     lab = SimpleNamespace(id="lab", path=Path("."), tasks=[task])
     return SimpleNamespace(
@@ -44,7 +44,7 @@ def _ctx(task, pool):
         sid="00000000-0000-0000-0000-000000000000",
         student="s",
         current=None,
-        started=time.monotonic() - tasks.REQUEST_BUDGET_S - 1,
+        started=time.monotonic() - db.REQUEST_DEADLINE_S - 1,
         request=SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace())),
     )
 
