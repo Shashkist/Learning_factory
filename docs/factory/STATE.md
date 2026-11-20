@@ -4,7 +4,14 @@
 
 ## Now
 
-**Pass lf-b7m3 (laptop, from 19:26 UTC) in flight:** #311 merged (#322, `10776e8`; deploy pending behind the history commits). **#328** (#308, `f/308-validator-followups-2`, worktree `C:\projects\lf-308`) and **#329** (#320, `f/320-kill-followups-3`, worktree `lf-320`) are reviewed twice, manager-fixed, and merge on green CI (D103, D104). Follow-ups: #325, #326.
+**Pass lf-b7m3 (laptop, 19:26-~21:00 UTC) stopped at 3 merged PRs:** #322 (#311), #328 (#308), #329 (#320, split from #308 by D102). **#311, #308, #320 closed with evidence. Production: `b48e6a3` (Deploy 44815987427: deploy + smoke success; `/api/health` ok, database ok).** No claims held, nothing in flight. Decisions D101-D104 (D24, D52, D56 amended). New issues: #320, #325, #326.
+
+- **Resume here:** the Next list, starting with **#325** and **#326** (review leftovers, both exam-first), then **#319**.
+- Worktrees `C:\projects\lf-308`, `lf-311`, `lf-320` are shipped and safe to remove.
+- **Lesson (pass lf-b7m3):** review fixes that add exam cases after a code commit fail exam integrity, and force-pushes are refused on the laptop. Build the fix on a fresh `f/<n>-<slug>-2` from main with every exam commit first (cherry-pick), open a new PR, close the old (D103).
+- **Lesson (pass lf-b7m3):** a timing case that is red on the laptop can be green on the Linux runner (a fake kill with no delay finished before the outer cancel). Give the fake a delay that makes the race certain.
+- **Lesson (pass lf-b7m3):** before merging two green PRs in the same package back to back, merge both into a scratch branch and run the shared exams (2 min); then merge both and let one Deploy ship them.
+- **Lesson (pass lf-b7m3):** `gh issue close` on an issue the PR already closed exits with "already closed" and drops the comment; post the evidence with `gh issue comment`.
 
 _Previous:_ **Pass lf-d3a2 (laptop, 17:27-~19:05 UTC) stopped at 3 merged PRs:** #315 (#314), #317 (#312), #318 (#306). **#314, #312, #306 closed with evidence; #313 closed as duplicate; #126, #151, #167 got deploy evidence. Production: `56aacca` (Deploy 44798811736: all checks passed, smoke ok, `/api/health` ok, database ok).** No claims held, nothing in flight. Decisions D98 (+ amendment, accepted risk), D99 (+ amendment), D100. New issue: #319.
 
@@ -140,7 +147,7 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
 ## Next (in order)
 
-1. **#308** kill and validator follow-ups (now unblocked; includes the `<&0` rule from the #315 review), **#311** Linux 1 check leftovers, **#319** WebSocket relay proof, **#154** Solution tab (D57 b), **#142** (reuse the #153 helpers).
+1. **#325** Linux 1 one-read truncation flag (06, 05), **#326** validator `&>` under dash and same-line redirects, **#319** WebSocket relay proof, **#154** Solution tab (D57 b), **#142** (reuse the #153 helpers).
 2. **#85** deploy follow-ups (its "docs-only redeploys" item is done by #278), **#94**, **#93**; p2 list: #81, #76, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner

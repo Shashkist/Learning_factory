@@ -437,3 +437,15 @@ Measured from the local session transcripts (the token usage of every request, m
 - Caching is the whole story: without cache reads, the same input would cost about ten times more.
 
 Tips: a long agent loop is mostly re-reading its own context, so cost tracks how long sessions run and how much they read, not how much they write. The hands-on roles already run on Sonnet; the Opus manager and reviewers are 80 % of the cost, so the cheap levers are shorter manager passes and a smaller STATE.md that every pass reads first.
+
+## Three lanes, two review rounds each, and a commit order the gate enforces (2026-11-20)
+
+Pass lf-b7m3 opened three lanes at once. #308 was too big for one PR (eight items across the validator, the kill code and two lab checks), so the manager split the kill half into #320 and recorded it (D102), then took #311 alongside. Each lane got an exam writer, then an implementer, all in their own worktrees; the first three exams were written in about three minutes of wall clock, side by side.
+
+The reviewers earned their keep. On #311 the manager itself spotted, before review, that `$(sed -n 201p)` is empty for a blank line 201, so 200 right lines + a blank line + junk would still pass; on #320 the reviewer found the new docker case could never fail (its counter only matched command lines that *start* with `sleep 6102`, and the process was `perl -e '...; sleep 6102'`), and in round 2 that a new unit case passed on the laptop only because Windows is slow (the fake kill finished before the outer cancel on Linux). On #308 round 1 found that the new here-document skipper could be fooled by `$((1 << 6))` into ignoring the rest of a script; round 2 found the same for bash's `<<<`.
+
+The surprise was the gate, not the code. Review fixes that add exam cases after a code commit fail exam integrity ("changes the exam after non-test code was added"), and force-pushes are refused on this laptop. So each fixed branch was rebuilt as `-2` / `-3` with every exam commit first, and the old PR closed: #323 → #327 → #329, #324 → #328. Same trees, new order, green.
+
+Numbers: 3 issues, 3 merged PRs (#322, #328, #329), 3 exam writers, 3 implementers, 5 review rounds, 1 exam-only probe PR (#321: exactly the 5 predicted cases red), 4 replaced PRs, 2 follow-up issues (#325, #326), 4 decisions (D101-D104).
+
+Tips: when review fixes need new exam cases, write them in a fresh branch from main in the order exam → code, instead of appending to the reviewed branch. A timing test that passes on a slow laptop proves nothing about a fast CI runner; give the fake a delay that makes the race deterministic. Before merging two green PRs back to back that touch the same package, merge both into a scratch branch and run the shared exams: two minutes instead of a second 18-minute CI.
