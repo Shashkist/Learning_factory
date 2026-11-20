@@ -1,6 +1,5 @@
 """CI path rules (#271): which commits are docs-only, which PRs need the heavy jobs.
 
-  ci_paths.py latest-code <rev>        sha of the newest first-parent commit that changes code
   ci_paths.py deploys <tag> <head>     "true" or "false": may a green CI for <tag> deploy (main is <head>)
   ci_paths.py heavy <base> <head>      "true" or "false": does the PR touch a heavy path
 """
@@ -27,19 +26,15 @@ def code_spec() -> list[str]:
     return [".", *(f":(exclude){d}" for d in DOCS_ONLY)]
 
 
-def latest_code(rev: str) -> str:
-    sha = git("rev-list", "-1", "--first-parent", rev, "--", *code_spec()).stdout.decode().strip()
-    if not sha:
-        raise SystemExit(f"no code commit found in the first-parent history of {rev}")
-    return sha
-
-
 def deploys(tag: str, head: str) -> bool:
     # A green CI for <tag> may deploy when <tag> is on main and main's code is the same tree as
     # <tag>'s: only docs changed since. This is the comparison GitHub's push paths-ignore makes
     # (start and end of a push), so a push whose net change is docs-only never strands a code
     # commit. Different code on main (newer, or a revert of <tag>) means another CI deploys.
-    if git("merge-base", "--is-ancestor", tag, head, check=False).returncode != 0:
+    on_main = git("merge-base", "--is-ancestor", tag, head, check=False).returncode
+    if on_main not in (0, 1):
+        raise SystemExit(f"git merge-base failed for {tag} and {head}")
+    if on_main == 1:
         return False
     same = git("diff", "--quiet", tag, head, "--", *code_spec(), check=False).returncode
     if same not in (0, 1):
@@ -53,9 +48,6 @@ def is_heavy(base: str, head: str) -> bool:
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) == 2 and argv[0] == "latest-code":
-        print(latest_code(argv[1]))
-        return 0
     if len(argv) == 3 and argv[0] == "deploys":
         print("true" if deploys(argv[1], argv[2]) else "false")
         return 0

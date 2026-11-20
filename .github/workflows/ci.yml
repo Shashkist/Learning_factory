@@ -4,8 +4,8 @@ on:
   pull_request:
   push:
     branches: [main]
-    # Docs-only pushes run no CI (#271). Keep in step with DOCS_ONLY in scripts/ci_paths.py,
-    # which Deploy uses to find the newest code commit. Pull requests stay unfiltered.
+    # Docs-only pushes run no CI (#271). Keep in step with DOCS_ONLY in scripts/ci_paths.py:
+    # Deploy treats exactly these paths as docs when it compares code trees. PRs stay unfiltered.
     paths-ignore:
       - "docs/**"
       - "courses/**"

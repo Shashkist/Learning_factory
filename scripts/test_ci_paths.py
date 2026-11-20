@@ -57,52 +57,55 @@ def repo(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def latest(repo: Path) -> str:
-    r = run(repo, "latest-code", "HEAD")
-    assert r.returncode == 0, r.stderr
-    return r.stdout.strip()
-
-
-def test_latest_code_skips_docs_only_head(repo: Path) -> None:
-    code = commit(repo, "labs/web/a.ts")
-    commit(repo, "docs/factory/STATE.md")
-    commit(repo, "courses/x.md", ".claude/s.json")
-    assert latest(repo) == code
-
-
-def test_mixed_commit_counts_as_code(repo: Path) -> None:
-    mixed = commit(repo, "docs/a.md", "labs/web/b.ts")
-    assert latest(repo) == mixed
-
-
-def test_lab_content_markdown_is_code(repo: Path) -> None:
-    c = commit(repo, "labs/content/x/task.he.md")
-    assert latest(repo) == c
-
-
-def test_root_readme_is_code(repo: Path) -> None:
-    c = commit(repo, "README.md")
-    assert latest(repo) == c
-
-
-def test_hebrew_name_under_courses_is_docs_only(repo: Path) -> None:
-    code = commit(repo, "labs/web/a.ts")
-    commit(repo, "courses/שיעור.md")
-    assert latest(repo) == code
-
-
-def test_latest_code_fails_when_none(tmp_path: Path) -> None:
-    git(tmp_path, "init", "-q", "-b", "main")
-    commit(tmp_path, "docs/a.md")
-    r = run(tmp_path, "latest-code", "HEAD")
-    assert r.returncode != 0
-    assert r.stderr.strip()
-
-
 def deploys(repo: Path, tag: str, head: str) -> str:
     r = run(repo, "deploys", tag, head)
     assert r.returncode == 0, r.stderr
     return r.stdout.strip()
+
+
+# Path classes, through the rule Deploy uses: code below, <files> on top, may the code's CI deploy?
+def test_docs_only_on_top_deploys(repo: Path) -> None:
+    code = commit(repo, "labs/web/a.ts")
+    commit(repo, "docs/factory/STATE.md")
+    head = commit(repo, "courses/x.md", ".claude/s.json")
+    assert deploys(repo, code, head) == "true"
+
+
+def test_mixed_commit_counts_as_code(repo: Path) -> None:
+    code = commit(repo, "labs/web/a.ts")
+    head = commit(repo, "docs/a.md", "labs/web/b.ts")
+    assert deploys(repo, code, head) == "false"
+
+
+def test_lab_content_markdown_is_code(repo: Path) -> None:
+    code = commit(repo, "labs/web/a.ts")
+    head = commit(repo, "labs/content/x/task.he.md")
+    assert deploys(repo, code, head) == "false"
+
+
+def test_root_readme_is_code(repo: Path) -> None:
+    code = commit(repo, "labs/web/a.ts")
+    head = commit(repo, "README.md")
+    assert deploys(repo, code, head) == "false"
+
+
+def test_non_ascii_lab_content_is_code(repo: Path) -> None:
+    code = commit(repo, "labs/web/a.ts")
+    head = commit(repo, "labs/content/x/שלב.md")
+    assert deploys(repo, code, head) == "false"
+
+
+def test_hebrew_name_under_courses_is_docs_only(repo: Path) -> None:
+    code = commit(repo, "labs/web/a.ts")
+    head = commit(repo, "courses/שיעור.md")
+    assert deploys(repo, code, head) == "true"
+
+
+def test_unknown_tag_fails_loudly(repo: Path) -> None:
+    head = git(repo, "rev-parse", "HEAD")
+    r = run(repo, "deploys", "0" * 40, head)
+    assert r.returncode != 0
+    assert r.stderr.strip()
 
 
 def test_deploys_when_only_docs_landed_after(repo: Path) -> None:
@@ -152,8 +155,10 @@ def test_paths_ignore_matches_docs_only() -> None:
         sys.path.pop(0)
     ci = (SCRIPT.parent.parent / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
     block = ci.split("paths-ignore:", 1)[1].split("\n\n", 1)[0]
-    ignored = re.findall(r'^\s+- "([^"]+)/\*\*"\s*$', block, flags=re.MULTILINE)
-    assert sorted(ignored) == sorted(DOCS_ONLY)
+    entries = [ln.strip()[2:].strip() for ln in block.splitlines() if ln.strip().startswith("- ")]
+    # Every entry must have the one shape the script understands, so no extra rule hides here.
+    assert entries and all(re.fullmatch(r'"[^"*/]+/\*\*"', e) for e in entries), entries
+    assert sorted(e[1:-4] for e in entries) == sorted(DOCS_ONLY)
 
 
 def test_docs_commit_before_newer_code_does_not_deploy(repo: Path) -> None:
