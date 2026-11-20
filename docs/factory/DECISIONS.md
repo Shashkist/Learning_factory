@@ -788,3 +788,11 @@ in force · factory · 2026-11-20
 **Why.** FACTORY.md caps review at two rounds; after that the manager decides. Each fix answered a named finding with a small, readable diff, and a third reviewer would have read the same lines.
 **Alternatives.** A third review round for #270 (~6 minutes and one more CI); rebuilding #274 as `-2` with the exam case strengthened first (a rebuild and a second CI for a test-only gap).
 **Revert.** Revert the squash commits ad4d27d (#270) or 8e68837 (#274).
+
+## D84 · #273: the name goes everywhere in `labs/manager`, including exam prose and the #257 guard case
+in force · factory · 2026-11-20
+
+**Decision.** #273 criterion 2 (`grep -rn REQUEST_BUDGET_S labs/manager` finds nothing) is read literally. The exam commit also rewrites the docstrings of the #245 and #257 exams that name it, and replaces the #257 guard case that patched `tasks.REQUEST_BUDGET_S` with `raising=False` by an equivalent behavioural check (patching `db.REQUEST_DEADLINE_S` changes what a task route sees), or drops it when another case in that exam already covers it.
+**Why.** A guard that names a removed attribute keeps the name alive and tests a monkeypatch side effect, not behaviour. Docstrings that point at a name that no longer exists mislead the next reader.
+**Alternatives.** Limit the grep to `labs/manager/app` and leave the exam mentions as history (cheaper, but the criterion says otherwise and the guard case keeps testing nothing).
+**Revert.** Restore the old #245/#257 exam text from the #273 exam commit's parent.

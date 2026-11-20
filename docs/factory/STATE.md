@@ -4,7 +4,9 @@
 
 ## Now
 
-**Nothing in flight.** 2026-11-20 ~08:00 UTC, laptop pass **lf-p7w2** stopped at 3 merged PRs (#274, #270, #272) after ~65 minutes. Closed #269, #257, #98 with evidence. No claims held. New issues: #271 (rest of #98: docs-only skip + path-scoped docker jobs, D82), #273 (remove `tasks.REQUEST_BUDGET_S`, exam edits), #275 (#269 exam case that cannot fail). Decisions D82, D83.
+**Pass lf-k9d4 (laptop, started 08:27 UTC):** #275 (exam-only, worktree `C:\projects\lf-275`, branch `f/275-exam-269-complete`) and #273 (worktree `C:\projects\lf-273`, branch `f/273-drop-request-budget`, D84) claimed; exam writers running.
+
+_Previous:_ 2026-11-20 ~08:00 UTC, laptop pass **lf-p7w2** stopped at 3 merged PRs (#274, #270, #272) after ~65 minutes. Closed #269, #257, #98 with evidence. No claims held. New issues: #271 (rest of #98: docs-only skip + path-scoped docker jobs, D82), #273 (remove `tasks.REQUEST_BUDGET_S`, exam edits), #275 (#269 exam case that cannot fail). Decisions D82, D83.
 
 - **Resume here, in this order:** **#275** (exam-only, small) and **#273** (exam edit first, then code), then the Next list below. Worktrees `C:\projects\lf-257`, `lf-269`, `lf-98` are shipped and safe to remove.
 - **Check on the next code merge (#98 criterion 3):** a squash-merge that touches no `docs/factory/**` or dashboard code must NOT start a "Factory dashboard" push run. ad4d27d still started one because the filter landed one commit later (339018c).
