@@ -673,7 +673,9 @@ def download_path():
                              if n.startswith("runsc") and n != "runsc" and ASIDE not in n)
         s.cfg = _base_cfg(_daemon_bytes())
         s.runtimes = _runtimes()
-        s.hello = _run(["docker", "run", "--rm", "--runtime=runsc", "hello-world"], timeout=600)
+        s.hello = _run(
+            ["docker", "run", "--rm", "--pull=never", "--runtime=runsc", "hello-world"], timeout=600
+        )
     yield from _scope_result(s, sc)
 
 
@@ -802,7 +804,9 @@ def normal_run():
         s.after_stat = _stat(DAEMON_JSON)
         s.cfg = _base_cfg(_daemon_bytes())
         s.runtimes = _runtimes()
-        s.hello = _run(["docker", "run", "--rm", "--runtime=runsc", "hello-world"], timeout=600)
+        s.hello = _run(
+            ["docker", "run", "--rm", "--pull=never", "--runtime=runsc", "hello-world"], timeout=600
+        )
     yield from _scope_result(s, sc)
 
 
