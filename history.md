@@ -433,7 +433,7 @@ Measured from the local session transcripts (the token usage of every request, m
 
 - 7 days (2026-11-14 .. 2026-11-20), 54 manager passes, 361 agent runs, ~11,700 model requests.
 - ~957M tokens, of which 905M (95 %) were cache reads; only 9.2M output tokens and 43M cache writes.
-- **≈ $500 API-equivalent** (about $70 a day, $24-106 per day): Opus 5.5 (managers, reviewers) $397, Sonnet 5.5 (exam writers, implementers) $102.
+- **≈ $500 API-equivalent** (about $70 a day, $24-106 per day): Opus 5.5 (managers, reviewers) $397, Sonnet 5.5 (exam writers, implementers, researchers) $102.
 - Caching is the whole story: without cache reads, the same input would cost about ten times more.
 
-Tips: a long agent loop is mostly re-reading its own context, so cost tracks how long sessions run and how much they read, not how much they write. Cheap levers: shorter passes, Sonnet for the hands-on roles, a smaller STATE.md that every pass reads first.
+Tips: a long agent loop is mostly re-reading its own context, so cost tracks how long sessions run and how much they read, not how much they write. The hands-on roles already run on Sonnet; the Opus manager and reviewers are 80 % of the cost, so the cheap levers are shorter manager passes and a smaller STATE.md that every pass reads first.
