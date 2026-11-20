@@ -184,12 +184,6 @@ def manager(admin_dsn, network, image, content_dir, tmp_path_factory):
         LF_CONTENT_DIR=str(content_dir),
         LF_WEB_DIR=str(DIST),
     )
-    cli = subprocess.run(
-        [sys.executable, "-m", "app.cli", "smoke-student"],
-        input=SMOKE_PASSWORD + "\n", text=True, capture_output=True, cwd=MANAGER_DIR,
-        env=env, timeout=90,
-    )
-    assert cli.returncode == 0, cli.stdout + cli.stderr
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
@@ -211,6 +205,13 @@ def manager(admin_dsn, network, image, content_dir, tmp_path_factory):
                 except Exception:  # noqa: BLE001 - still starting
                     assert time.time() < deadline, "the manager did not start"
                     time.sleep(0.3)
+            # The manager's startup applies the schema, so the CLI runs once it answers (as #86).
+            cli = subprocess.run(
+                [sys.executable, "-m", "app.cli", "smoke-student"],
+                input=SMOKE_PASSWORD + "\n", text=True, capture_output=True, cwd=MANAGER_DIR,
+                env=env, timeout=90,
+            )
+            assert cli.returncode == 0, cli.stdout + cli.stderr
             yield base
         finally:
             proc.terminate()
