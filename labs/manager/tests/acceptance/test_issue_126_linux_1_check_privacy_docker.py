@@ -9,12 +9,14 @@ and, for the timeout case, that of #117 (`DockerRuntime.exec_script` on a real l
      A sampler runs as `student`, reads every /proc/<pid>/cmdline in a tight loop while the
      checks of one task run (right answer and untouched, several rounds), and keeps every needle
      it sees. The needles are the hint fragments parsed from the check scripts plus the expected
-     answers named below. A canary (a student process with a known argument) proves the sampler
-     can see short-lived processes, so a blind sampler fails the case instead of passing it.
+     answers named below. Only the untouched and the solved state run under the sampler; the
+     near-miss branches are not sampled. A canary (a student process with a known argument)
+     proves the sampler can see short-lived processes, so a blind sampler fails the case instead
+     of passing it.
      Mutations that turn it red: a check that runs `grep -qF "<expected text>" file` as root (the
-     04 and 05 checks do today, see the note at the end of the 04/05 cases), `printf` or `echo`
-     replaced by `/usr/bin/printf "<hint>"`, an expected line passed as an argument of any
-     command.
+     04 and 05 checks did before #126), `grep -qi linux` as root in 03, `printf` or `echo`
+     replaced by `/usr/bin/printf "<hint>"` in a branch the sampler runs, an expected line passed
+     as an argument of any command.
   2. A planted ~/.profile, ~/.bash_profile, ~/.bash_login, ~/.bashrc and ~/.shrc (with ENV set)
      that prints `PASS 1`..`PASS 3` and exits 0 changes nothing: the check prints byte for byte
      what it printed before. A second variant plants forged fact lines, which is what a `su -`
@@ -26,9 +28,10 @@ and, for the timeout case, that of #117 (`DockerRuntime.exec_script` on a real l
      comparison) written to a temp file by a process that runs as student, or a root write to a
      fixed name in /tmp that the student pre-created.
   4. A student who SIGSTOPs their own processes in a loop during a check gets a failed check
-     within the 20 s limit (plus the bounded kill of D56), not a hung request; the check's
-     student reader does not pile up afterwards. Mutations: an `exec_script` without the
-     deadline (hangs), a runner that does not kill the stopped reader (the leftover case).
+     within the 20 s limit (plus the bounded kill of D56), not a hung request: the check times
+     out (`timed_out`), each case in a fresh container. Mutation: an `exec_script` without the
+     deadline (hangs). What is left behind after the timeout (stale killer, stopped readers) is
+     #306.
 
 No content or app code is touched by this exam. Students are fake. Docker tests skip only when
 Docker is absent.
@@ -131,6 +134,8 @@ def _hint_fragments() -> set[str]:
 # The expected answers of the checks, as the content states them (setup.sh and check.sh):
 # what a check compares the student's work with and the student is asked to find or produce.
 ANSWERS = {
+    # After the sampler's tr, an argument that is exactly `linux` sits between two spaces.
+    "03-create-file": [" linux "],
     "04-copy-move": ["Quarterly report draft", "Photo of the team"],
     "05-find-file": [
         "/home/student/archive/2023/spring/misc/secret-recipe.txt",
@@ -185,7 +190,8 @@ def test_no_process_command_line_shows_the_decision_logic_of_the_check(machine, 
     # these, a clean result below would mean nothing.
     _docker(
         "exec", "-u", "student", machine, "sh", "-c",
-        f"i=0; while [ $i -lt 300 ]; do grep -qF {CANARY} /dev/null; i=$((i+1)); done",
+        # About as many short processes as one leaking command gets over all rounds below.
+        f"i=0; while [ $i -lt 24 ]; do grep -qF {CANARY} /dev/null; i=$((i+1)); done",
         timeout=120,
     )
     time.sleep(0.5)
@@ -382,8 +388,11 @@ def test_a_student_stopping_their_own_processes_gets_a_failed_check_not_a_hang(
     assert elapsed < CHECK_TIMEOUT_S + KILL_BOUND_S + 5, (
         f"the check request hung for {elapsed:.0f} s under a student SIGSTOP loop"
     )
-    assert res.timed_out or res.exit_code != 0, (
-        f"a stopped student reader did not fail the check: exit {res.exit_code}\n{res.output}"
+    # The issue asks to record the result: the stopped reader makes the check time out. An
+    # untouched task fails anyway, so "any failure" would not tell a timeout from a plain FAIL.
+    assert res.timed_out is True, (
+        f"the stop loop did not make the check time out (exit {res.exit_code}, "
+        f"{elapsed:.1f} s), so the case tested nothing:\n{res.output}"
     )
     assert "PASS" not in res.output.replace("PASS 0", ""), res.output
 
