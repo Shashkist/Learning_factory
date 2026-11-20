@@ -665,7 +665,7 @@ def test_runsc_is_registered_and_runs_containers(run):
     assert run.run1.returncode == 0
     info = _docker("info", "--format", "{{json .Runtimes}}").stdout
     assert "runsc" in json.loads(info)
-    res = _docker("run", "--rm", "--runtime=runsc", "hello-world", check=False)
+    res = _docker("run", "--rm", "--pull=never", "--runtime=runsc", "hello-world", check=False)
     assert res.returncode == 0, res.stderr
     assert "Hello from Docker" in res.stdout
 
@@ -939,7 +939,7 @@ def test_runtime_step_leaves_a_backup_equal_to_the_pre_run_file(run):
 @pytest.mark.docker
 def test_runsc_container_runs_after_the_runtime_step(run):
     assert run.run1.returncode == 0
-    res = _docker("run", "--rm", "--runtime=runsc", "hello-world", check=False)
+    res = _docker("run", "--rm", "--pull=never", "--runtime=runsc", "hello-world", check=False)
     assert res.returncode == 0, res.stderr
     assert "Hello from Docker" in res.stdout
 
