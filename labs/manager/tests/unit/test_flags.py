@@ -32,3 +32,11 @@ def test_active_time_rounds_up_once() -> None:
     # class median: 300.4 s is 301 s, not under 30 % of 1000 s
     assert not is_fast_lab(300.4, None, [1000] * 5)
     assert is_fast_lab(299.0, None, [1000] * 5)
+
+
+def test_a_half_second_median_is_stored_and_worded_as_its_ceiling():
+    from app.flags import fast_lab_detail, fast_lab_reason
+
+    priors = [10, 10, 10, 11, 11, 11]  # median 10.5
+    assert fast_lab_detail(1, prior_active_seconds=priors)["threshold"] == 11
+    assert fast_lab_reason(1, prior_active_seconds=priors).endswith("(11 s)")

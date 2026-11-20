@@ -49,7 +49,7 @@ def fast_lab_reason(
         return f"{spent}, under the {fast_lab_min} min minimum"
     return (
         f"{spent}, under {round(MEDIAN_FRACTION * 100)} % of the class median "
-        f"({detail['threshold']:.0f} s)"
+        f"({detail['threshold']} s)"
     )
 
 
@@ -82,7 +82,8 @@ def fast_lab_detail(
     if len(priors) >= MEDIAN_MIN_PRIORS:
         typical = median(priors)
         if active_seconds < MEDIAN_FRACTION * typical:
-            return {"code": "fast_lab_median", "seconds": seconds, "threshold": typical}
+            # one whole number for the reason, the stored row and the web (#285, D92)
+            return {"code": "fast_lab_median", "seconds": seconds, "threshold": math.ceil(typical)}
     return None
 
 
