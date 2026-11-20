@@ -152,3 +152,15 @@ def test_validated_content_is_kept(tmp_path: Path) -> None:
     quiz, hands_on = lab.tasks
     assert quiz.correct == 1 and quiz.options[1]["en"] == "echo" and quiz.question["he"]
     assert len(hands_on.checklist) == 2 and hands_on.checklist[0]["en"]
+
+
+def test_n_items_out_of_range_fail_is_noise_for_passed():
+    r = parse_check_output("PASS 1\nPASS 2\nFAIL 9 nope\n", 0, 2)
+    assert r.passed
+    assert 9 in r.items
+
+
+def test_n_items_missing_item_fails():
+    assert not parse_check_output("PASS 1\n", 0, 2).passed
+    assert not parse_check_output("PASS 1\nFAIL 2\n", 0, 2).passed
+    assert not parse_check_output("PASS 1\nPASS 2\n", 1, 2).passed
