@@ -23,6 +23,10 @@ MAX_OUTPUT = 256 * 1024  # the exam reassembles 200 KiB, so not the 64 KiB asked
 TRUNCATED = b"\n[output truncated]\n"
 
 
+class _StillRunning(Exception):
+    """The kill exec ended and the script is still running."""
+
+
 EXEC_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 
@@ -127,7 +131,7 @@ def exec_command(script: str) -> list[str]:
 KILL_SCRIPT = r"""
 want="$1"
 collect() {
-  ps -eo pid=,ppid=,uid=,gid=,args= | awk -v want="$want" '
+  ps -eo pid=,ppid=,ruid=,rgid=,args= | awk -v want="$want" '
     BEGIN { sub(/ +$/, "", want) }
     { pid=$1; pp[pid]=$2; uid[pid]=$3; gid[pid]=$4
       a=$0; sub(/^ *[0-9]+ +[0-9]+ +[0-9]+ +[0-9]+ +/, "", a); sub(/ +$/, "", a); args[pid]=a }
@@ -242,18 +246,29 @@ class DockerRuntime:
         try:
             async with asyncio.timeout(timeout) as deadline:
                 return await self._run_exec(name, script, create, out, ids)
-        except TimeoutError:
-            if not deadline.expired():
-                raise  # a timeout inside the exec (e.g. connecting) is a failure, not a slow script
+        except Exception as exc:
+            timed_out = isinstance(exc, TimeoutError) and deadline.expired()
             if ids:  # returns only once the script has stopped, so the session lock outlives it
-                try:
-                    async with asyncio.timeout(min(KILL_BOUND_S, max(3.0, timeout * 0.2))):
-                        await self._kill(name, exec_command(script), ids[0])
-                except Exception as exc:  # the lock is released anyway; class only, no data
-                    log.error("killing a timed-out script failed (%s)", type(exc).__name__)
+                await self._kill_bounded(name, script, ids[0], timeout)
+            if not timed_out:
+                raise  # a failure (even a timeout while connecting), not a slow script
             return ExecResult(None, out.decode("utf-8", "replace"), True)
 
-    async def _kill(self, name: str, argv: list[str], exec_id: str) -> None:
+    async def _kill_bounded(self, name: str, script: str, exec_id: str, timeout: float) -> None:
+        """The kill of a script that must not outlive its call; never raises, logs one line."""
+        loop = asyncio.get_running_loop()
+        bound = min(KILL_BOUND_S, max(3.0, timeout * 0.2))
+        try:
+            async with asyncio.timeout(bound):
+                await self._kill(name, exec_command(script), exec_id, loop.time() + bound - 0.3)
+        except TimeoutError:
+            log.error("kill of the timed-out script hung")
+        except _StillRunning:
+            log.error("kill left the timed-out script running")
+        except Exception as exc:  # the lock is released anyway; class only, no data
+            log.error("killing a timed-out script failed (%s)", type(exc).__name__)
+
+    async def _kill(self, name: str, argv: list[str], exec_id: str, give_up_at: float) -> None:
         if argv[0].rsplit("/", 1)[-1] == "env":  # `env bash -s` replaces itself with `bash -s`
             argv = argv[1:]
         body = {
@@ -270,11 +285,13 @@ class DockerRuntime:
             if resp.status_code != 201:
                 raise RuntimeError(f"docker kill exec create failed: {resp.status_code}")
             await self._stream_exec(str(resp.json()["Id"]), "", bytearray())
-            for _ in range(100):
+            loop = asyncio.get_running_loop()
+            while True:
                 if not (await c.get(f"/exec/{exec_id}/json")).json().get("Running"):
                     return
+                if loop.time() >= give_up_at:
+                    raise _StillRunning
                 await asyncio.sleep(0.1)
-        raise RuntimeError("a timed-out script is still running after the kill")
 
     async def _run_exec(
         self, name: str, script: str, create: dict[str, Any], out: bytearray, ids: list[str]
