@@ -89,6 +89,7 @@ def test_an_outer_wait_for_timeout_still_kills_the_script(engine):
 
 def test_an_outer_cancel_during_the_timeout_paths_kill_still_runs_one_kill(engine):
     _hang(engine)
+    engine.kill_delay = 1.0  # the kill is still running when the outer cancel lands at 1.1 s
 
     async def main():
         with pytest.raises(TimeoutError):

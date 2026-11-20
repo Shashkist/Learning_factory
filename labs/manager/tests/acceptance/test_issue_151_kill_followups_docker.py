@@ -120,13 +120,20 @@ def test_a_process_whose_saved_uid_stays_root_is_killed_on_timeout(runtime, call
     seen_alive: list[int] = []
 
     async def go():
-        task = asyncio.ensure_future(runtime.exec_script(box, script, 2))
-        await asyncio.sleep(1.0)
-        seen_alive.append(await asyncio.to_thread(mentioning, box, 6102))
+        task = asyncio.ensure_future(runtime.exec_script(box, script, 6))
+        for _ in range(12):  # poll: an exec start under runsc can take a second on a busy runner
+            await asyncio.sleep(0.25)
+            seen = await asyncio.to_thread(mentioning, box, 6102)
+            if seen:
+                seen_alive.append(seen)
+                break
         return await task
 
     res = call(go)
     assert seen_alive == [1], f"the perl sleeper was not running before the kill: {seen_alive}"
     assert res.timed_out is True
+    deadline = time.monotonic() + 5.0  # a process just sent SIGKILL may be listed for a moment
+    while mentioning(box, 6102) and time.monotonic() < deadline:
+        time.sleep(0.25)
     assert mentioning(box, 6102) == 0, "the saved-uid-0 process outlived exec_script"
     assert wait_gone(box, 6103) == 0
