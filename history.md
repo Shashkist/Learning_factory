@@ -426,3 +426,14 @@ Then two lanes in parallel. **#312** asked the browser exam to see the real term
 Numbers: 7 agents (2 exam writers, 1 implementer, 4 review rounds), 3 throwaway or rebuilt branches, 1 red-run draft PR (#316: 3 of 5 cases red on main, one of them for the wrong reason, which the reviewer caught by reading the log, not the verdict).
 
 Tips: before adding anything to a process's environment, grep the exams for the variable *set* they allow, in every copy of the exam (unit and docker). A red case on the "before" run is only evidence if it failed at its assertion; read the traceback. Unit tests go in `tests/unit/`, or exam integrity calls them exam edits. When a check fails in CI on a new, stronger assertion, first ask whether the test's environment can even do what production does.
+
+## What a week of the factory cost (2026-11-20)
+
+Measured from the local session transcripts (the token usage of every request, manager sessions plus every agent they started), priced at API list rates. The factory runs on a Claude subscription, so this is what the same work would cost through the API, not a bill.
+
+- 7 days (2026-11-14 .. 2026-11-20), 54 manager passes, 361 agent runs, ~11,700 model requests.
+- ~957M tokens, of which 905M (95 %) were cache reads; only 9.2M output tokens and 43M cache writes.
+- **≈ $500 API-equivalent** (about $70 a day, $24-106 per day): Opus 5.5 (managers, reviewers) $397, Sonnet 5.5 (exam writers, implementers) $102.
+- Caching is the whole story: without cache reads, the same input would cost about ten times more.
+
+Tips: a long agent loop is mostly re-reading its own context, so cost tracks how long sessions run and how much they read, not how much they write. Cheap levers: shorter passes, Sonnet for the hands-on roles, a smaller STATE.md that every pass reads first.
