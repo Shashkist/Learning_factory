@@ -172,7 +172,7 @@ describe.each(LANGS)("one live region for the lab screen (%s)", (lang) => {
 
   /** Last task passed, Next answers no_next_task, the list shows two open tasks; the second list answer is
    * all passed. Opening task 2 from the list gives a hands-on task that passes on Check. */
-  const viaOpenTasks = async () => {
+  const viaOpenTasks = async (next?: Reply[]) => {
     backend(
       lastOf({
         [`GET ${API}/tasks`]: [
@@ -181,6 +181,8 @@ describe.each(LANGS)("one live region for the lab screen (%s)", (lang) => {
         ],
         [`POST ${API}/tasks/t2/show`]: ok(HANDS),
         [`POST ${API}/tasks/02-make-file/check`]: PASS(),
+        [`POST ${API}/tasks/03-third/check`]: PASS(),
+        ...(next ? { [`POST ${API}/tasks/current/next`]: next } : {}),
       }),
     );
     await open(lang);
@@ -193,13 +195,32 @@ describe.each(LANGS)("one live region for the lab screen (%s)", (lang) => {
     return before;
   };
 
+  /** The walk a student really takes (review of #276): Next from task 2 gives task 3, from task 3 the already
+   * passed task 4, and only Next on the last task answers no_next_task (the server's rule in app/tasks.py). */
+  const THIRD = { ...HANDS, id: "03-third", index: 3, title: { en: "The third one", he: "השלישית" } };
+
   test("from the open-tasks view to complete, still one region, the same element", async () => {
-    const before = await viaOpenTasks();
+    const before = await viaOpenTasks([
+      err(409, "no_next_task"),
+      ok(THIRD),
+      ok({ ...LAST, state: "passed" }),
+      err(409, "no_next_task"),
+    ]);
     expect(region()).toBe(before);
     fireEvent.click(screen.getByRole("button", { name: title(2) }));
     await within(panel()).findByRole("heading", { level: 2, name: HANDS.title[lang] });
     expect(region()).toBe(before);
-    await toComplete();
+    fireEvent.click(button(d["lab.check"]));
+    fireEvent.click(await within(panel()).findByRole("button", { name: d["lab.next"] }));
+    await within(panel()).findByRole("heading", { level: 2, name: THIRD.title[lang] });
+    expect(region()).toBe(before);
+    expect(text(before)).toBe("");
+    fireEvent.click(button(d["lab.check"]));
+    fireEvent.click(await within(panel()).findByRole("button", { name: d["lab.next"] }));
+    await within(panel()).findByRole("heading", { level: 2, name: LAST.title[lang] });
+    expect(region()).toBe(before);
+    fireEvent.click(await within(panel()).findByRole("button", { name: d["lab.next"] }));
+    await waitFor(() => expect(text(region())).toContain(d["lab.complete"]));
     expect(screen.getAllByRole("status")).toHaveLength(1);
     expect(region()).toBe(before);
     expect(text(before)).toContain(d["lab.complete"]);
