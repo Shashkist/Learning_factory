@@ -4,7 +4,7 @@
 
 ## Now
 
-**Pass lf-k9d4 (laptop, 08:27-~10:00 UTC) stopped at 3 merged PRs:** #276 (#275), #277 (#273), #278 (code + CI half of #271, D85, D86). #275 and #273 are closed with evidence (Deploy 44708217902 deployed e9fe57e, smoke success). **#271 stays open, claimed by lf-k9d4 until this pass ends; the next pass takes it over.**
+**Pass lf-k9d4 (laptop, 08:27-~10:00 UTC) stopped at 3 merged PRs:** #276 (#275), #277 (#273), #278 (code + CI half of #271, D85, D86). #275 and #273 are closed with evidence (Deploy 44708217902 deployed e9fe57e, smoke success). **#271 stays open (exam PR next); claim released, no claims held. Production: `6d03964` (Deploy 44715640313, smoke success, `/api/health` 200 database ok).**
 
 - **Resume here:**
   1. **#271 exam PR.** Branch `f/271-exam` is pushed. It is commit b32e261 on top of 347eb18 (27 cases; 8 mutations each caught, D86).
