@@ -844,3 +844,16 @@ The manager fixed all three in d80df20, read the diff line by line, and merged o
 **Alternatives.** A third review round (~20 minutes on this laptop and one more CI).
 
 **Revert.** Revert the #278 squash commit (D85 revert).
+
+## D87 · #137 rounds lab active time up everywhere; the #216 exam pin moves with it; its branch is rebuilt as `-2`
+in force · factory · 2026-11-20
+
+**Decision.** #137 asks for one rounding (ceil) of a run's active time, used by the flag, the reason, the detail and the stored row. The #216 exam pinned `fast_lab_detail(95.4, ...)["seconds"] == 95` (floor) and its contract docstring said `int(active_seconds)`. PR #281's CI failed on that case. The manager edited the #216 exam (96, `math.ceil`) in an exam-only commit and rebuilt the branch as `f/137-completion-followups-2`: exam commits first (#89 docstring, #137 exam, #216 pin plus a janitor guard), then the unchanged code commit (cherry-picked). PR #281 is closed in favour of the rebuilt PR.
+
+The same CI run showed a second, harness-level failure: the #89 test harness installs its FakeRuntime after the app starts, so the janitor's startup pass fails on the real Docker socket and retries 2 s later; FakeRuntime lists no containers, so the retry ends every running session as an orphan. Cases that open ten sessions outlive the 2 s (`session_ended` on the tenth). The #137 exam now patches `app.janitor.run_once` to a no-op for its own cases. The #89 harness itself is unchanged: its cases are short today.
+
+**Why.** The issue's own words are "round once with ceil"; a floor elsewhere would bring back the 299 s / 300 s mismatch. The janitor is not under test in #137.
+
+**Alternatives.** Keep floor for `seconds` only (two roundings again, rejected by the issue). Fix the #89 harness (a wider exam edit for a race no current #89 case hits).
+
+**Revert.** Revert the #137 squash commit; the #216 pin then goes back to 95 with it.
