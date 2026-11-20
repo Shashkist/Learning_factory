@@ -925,3 +925,14 @@ in force · factory · 2026-11-20
 **Alternatives.** A third review round (~15 minutes and one more CI).
 
 **Revert.** Revert the #288 squash commit (exam only; the workflows are unchanged).
+
+## D94 · #294: the runsc check runs a local image first and pulls from a mirror only when it is missing
+in force · factory · 2026-11-20
+
+**Decision.** The bootstrap's gVisor check keeps `hello-world:latest` as its image but stops depending on Docker Hub. If the image is present locally it runs with `--pull=never`. If it is missing, the bootstrap pulls `mirror.gcr.io/library/hello-world:latest` (Google's public cache of Docker Hub library images) and tags it `hello-world:latest`; only if that fails does it try Docker Hub. If every pull is refused, the step fails with one clear log line naming the image and the registries tried. The retry-once rule for the first runsc start (#180) stays. The exam's own `docker run ... hello-world` calls follow the same rule, so a Docker Hub 429 cannot fail the bootstrap cases in CI.
+
+**Why.** A 429 on an anonymous Docker Hub pull failed every #3 case in PR #288's CI, and the same pull runs on the real server. A local image is the common case after the first run; the mirror covers fresh hosts and CI runners.
+
+**Alternatives.** Run a lab image from ghcr.io (the bootstrap does not pull lab images, and it would need registry access before the manager is deployed). Docker Hub login in CI (a secret, and the server would still pull anonymously). Skip the check when the pull fails (hides a broken runtime).
+
+**Revert.** Revert the #294 squash commit; the check goes back to `docker run --runtime=runsc hello-world`.
