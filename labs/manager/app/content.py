@@ -240,9 +240,10 @@ _REDIRECTS = re.compile(r"\d*>&\d+|\d*>>?\s*\S+")
 _FD_REDIRECT = re.compile(r"&>>?\s*\S+|(\d*)>>?&(\d)|(\d*)>>?\s*\S+")
 _FD0_DUP = re.compile(r"\d*<&\s*0")
 _EXEC_FD0_DUP = re.compile(r"exec\s(?:.*\s)?\d+<&\s*0(?!\d)")
-# a lone `&` ends a job: not `&&`, nor the `&` of `>&`, `<&`, `|&`; `&>` redirects only in bash
-_BASH_AMP = re.compile(r"(?<![&<>|])&(?![&>])")
-_SH_AMP = re.compile(r"(?<![&<>|])&(?!&)")
+# a lone `&` ends a job: not `&&`, nor the `&` of `>&`, `<&`, `|&`, nor an escaped `\&`;
+# `&>` redirects only in bash. The caller splits the line with $(( )) blanked (bitwise AND).
+_BASH_AMP = re.compile(r"(?<![&<>|\\])&(?![&>])")
+_SH_AMP = re.compile(r"(?<![&<>|\\])&(?!&)")
 _LEAD = re.compile(r"^(?:(?:do|then|else)\s+)*(?:\w+\s*\(\s*\)\s*)?(?:\{\s*)?")
 _WHILE_READ = re.compile(r"while\s+(?:\w+=\S*\s+)*read\b")
 _CAT_SUBSHELL = re.compile(r"\$\(\s*cat(?:\s+-\w*)*\s*\)|`\s*cat(?:\s+-\w*)*\s*`")
@@ -396,7 +397,7 @@ def _script_warnings(text: str, label: str) -> list[str]:
         cat = _CAT_SUBSHELL.search(line)
         if _su_reads_stdin(line, masked) or (cat and not _redirects_input(line[cat.start() :])):
             found.append(f"{label} line {n}: {stdin_msg}")
-        if not all(_background_is_quiet(job, bash) for job in amp.split(masked)[:-1]):
+        if not all(_background_is_quiet(job, bash) for job in amp.split(no_math)[:-1]):
             found.append(
                 f"{label} line {n}: a background job keeps the exec open; "
                 "redirect it with >/dev/null 2>&1"
