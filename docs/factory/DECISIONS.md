@@ -870,3 +870,14 @@ in force · factory · 2026-11-20
 **Alternatives.** Keep failing on any `FAIL` line (the bug #127 reports). Fix #283's gap in the same PR (one more CI and review round for a case no published lab hits).
 
 **Revert.** Revert the #280 squash commit.
+
+## D89 · PR #279 (#271 exam) merged after review round 2 on the manager's own three assertions
+in force · factory · 2026-11-20
+
+**Decision.** Round 1 showed six one-line workflow edits that passed all 27 cases; the exam writer added exact pins (33 cases, each edit now caught). Round 2 found three more should-fix gaps: the deploy step's condition was checked only for a substring (`||` instead of `&&` passed), a secret at workflow or deploy-job level was not checked (it would reach the `fresh` step, D85), and a job-level `if` on `changes` was not checked (skipping it on pushes skips docker and the images). The manager added the three assertions (b9b5a1a / f49d7a0), ran each matching workflow edit (1 failed, 32 passed each; 33 passed unchanged), and merged on green CI without a third review (the two-round cap, as in D83, D86). Round 2's two nits are #286.
+
+**Why.** Each fix is one assertion answering a named finding, verified by its own mutation.
+
+**Alternatives.** A third review round (~15 minutes and one more CI).
+
+**Revert.** Revert the #279 squash commit (exam only; the workflows are unchanged).
