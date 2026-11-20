@@ -1,4 +1,5 @@
 """Fast-work flags and active time (D37, spec section 8): pure functions, no database."""
+import math
 from collections.abc import Iterable
 from statistics import median
 from typing import Any
@@ -43,7 +44,7 @@ def fast_lab_reason(
     detail = fast_lab_detail(active_seconds, fast_lab_min, prior_active_seconds, repeat)
     if detail is None:
         return None
-    spent = f"lab finished in {int(active_seconds)} s of active time"
+    spent = f"lab finished in {math.ceil(active_seconds)} s of active time"
     if detail["code"] == "fast_lab_min":
         return f"{spent}, under the {fast_lab_min} min minimum"
     return (
@@ -74,7 +75,7 @@ def fast_lab_detail(
     """The rule itself (the minimum wins when both hold); `fast_lab_reason` words it."""
     if repeat:
         return None
-    seconds = int(active_seconds)
+    active_seconds = seconds = math.ceil(active_seconds)
     if fast_lab_min is not None and active_seconds < fast_lab_min * 60:
         return {"code": "fast_lab_min", "seconds": seconds, "threshold": fast_lab_min * 60}
     priors = list(prior_active_seconds)
