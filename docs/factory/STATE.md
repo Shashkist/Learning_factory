@@ -161,6 +161,7 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
 ## Recently done
 
+- 2026-11-20 pass lf-b7m3: #311 (#322, 06 truncation fact, unused helpers removed), #308 (#328, validator: redirect order, here-documents, su scope, no `<&0`), #320 (#329, kill shielded on cancel, start budget 42 s). Deploy 44815987427.
 - 2026-11-20 · Pass lf-d3a2: **3 PRs merged, 3 issues closed (+ duplicate #313).**
   - #315 → **#314** (incident: 05 tally loop `done <&0`). Deploy 44786065212 shipped ee3f734 (also #303, #304, #307, #309, #310), smoke ok.
   - #317 → **#312** (web build paths heavy; `.xterm` check; host forwarder; own-container cleanup; D99). Deploy 44795921240 shipped fb5db1e, smoke ok.
