@@ -17,7 +17,7 @@ temp directory, stubs on PATH), with a `docker` stub that models an image store:
   * `docker [image] pull <ref>` (the last argument) is refused with a `toomanyrequests` message when
     the registry of the ref is set to `refuse` (STUB_MIRROR for mirror.gcr.io, STUB_HUB for
     anything else), else the image becomes present;
-  * `docker [image] tag <src> <dst>` makes dst present when src is;
+  * `docker [image] tag <src> <dst>` makes dst present when src is (fails when STUB_TAG is `fail`);
   * `docker run ... <image>` (the image is the last argument): with `--pull=never` and the image
     missing it fails (exit 125); without `--pull=never` (or with `--pull=always`) a missing image is
     pulled implicitly from Docker Hub and recorded in `implicit-pulls` (refused when STUB_HUB is
@@ -92,14 +92,16 @@ case "$1" in
       inspect) shift
         if have "$(last "$@")"; then echo '[{}]'; else echo "No such image" >&2; exit 1; fi ;;
       pull) shift; pull_ref "$(last "$@")" || exit 1 ;;
-      tag) if have "$2"; then norm "$3" >> "$IMG"; fi ;;
+      tag) [ "$STUB_TAG" = fail ] && { echo "Error: tag failed" >&2; exit 1; }
+        if have "$2"; then norm "$3" >> "$IMG"; fi ;;
       ls) listed "$@" ;;
     esac ;;
   inspect)
     if have "$(last "$@")"; then echo '[{}]'; else echo "No such object" >&2; exit 1; fi ;;
   images) listed "$@" ;;
   pull) shift; pull_ref "$(last "$@")" || exit 1 ;;
-  tag) if have "$2"; then norm "$3" >> "$IMG"; fi ;;
+  tag) [ "$STUB_TAG" = fail ] && { echo "Error: tag failed" >&2; exit 1; }
+    if have "$2"; then norm "$3" >> "$IMG"; fi ;;
   run)
     image="$(last "$@")"
     if ! have "$image" || [[ " $* " == *" --pull=always "* ]]; then
@@ -187,6 +189,7 @@ class _Run:
         local: bool,
         mirror: str = "ok",
         hub: str = "ok",
+        tag: str = "ok",
         runsc_fails: int = 0,
         dry: bool = False,
     ) -> None:
@@ -233,6 +236,7 @@ class _Run:
             "STUB_OOM_MESSAGE": OOM_MESSAGE,
             "STUB_MIRROR": mirror,
             "STUB_HUB": hub,
+            "STUB_TAG": tag,
             "LF_BASELINE_URLS": "",
             "LF_BASELINE_TCP": "",
             "LF_SWAP_MIN_FREE_GB": "1",
@@ -304,6 +308,7 @@ _SCENARIOS = {
     "missing_mirror_refuses_hub_ok": dict(local=False, mirror="refuse", hub="ok"),
     "missing_all_refuse": dict(local=False, mirror="refuse", hub="refuse"),
     "missing_runsc_broken": dict(local=False, mirror="ok", hub="ok", runsc_fails=2),
+    "missing_mirror_ok_tag_fails": dict(local=False, mirror="ok", hub="refuse", tag="fail"),
     "missing_dry_run": dict(local=False, mirror="ok", hub="ok", dry=True),
 }
 
@@ -471,6 +476,10 @@ def test_missing_image_every_pull_refused_the_step_fails_and_rolls_back(scenario
     assert "step 'runtime' failed; rolling it back" in r.out, r.tail()
     assert r.daemon_json.read_bytes() == r.seed, "daemon.json was not restored\n" + r.tail()
     assert "== step swap" not in r.out and "== step iptables" not in r.out, r.tail()
+    assert r.runsc_runs == [], (
+        "runsc was started although there was no image: a registry problem is blamed on runsc\n"
+        + r.tail()
+    )
 
 
 def test_missing_image_every_pull_refused_both_registries_were_tried_mirror_first(scenario):
@@ -504,3 +513,70 @@ def test_dry_run_pulls_nothing_and_starts_nothing(scenario):
     assert r.pulls == [] and r.tags == [] and r.implicit_pulls == [], r.tail()
     assert r.runsc_runs == [], r.tail()
     assert r.images_after == [], r.images_after
+    assert "== step runtime: applying" in r.out, (
+        "the dry run never reached the runtime step\n" + r.tail()
+    )
+    assert r.last_line == f"{RESULT} dry run", r.tail()
+
+
+# ---------------------------------------------------------------- #298: tag failure, dry-run plan
+
+
+def test_missing_image_mirror_pull_works_but_tag_fails_the_step_fails_without_starting_runsc(
+    scenario,
+):
+    r = scenario("missing_mirror_ok_tag_fails")
+    _precondition(r)
+    assert r.res.returncode != 0, (
+        "the step passed although the image could not be tagged\n" + r.tail()
+    )
+    assert r.last_line == f"{RESULT} failed", r.tail()
+    assert r.pulls[:1] == [MIRROR_REF], f"the mirror pull must have been made: {r.pulls}"
+    assert r.tags, "the tag must have been attempted\n" + r.tail()
+    assert r.runsc_runs == [], "runsc was started although the check image is missing\n" + r.tail()
+    assert "step 'runtime' failed; rolling it back" in r.out, r.tail()
+
+
+def test_missing_image_tag_fails_the_log_does_not_say_the_mirror_refused_the_pull(scenario):
+    r = scenario("missing_mirror_ok_tag_fails")
+    _precondition(r)
+    log_lines = [ln for ln in r.out.splitlines() if not ln.startswith("+ ")]
+    refused = [ln for ln in log_lines if re.search(r"refus", ln, re.I)]
+    assert refused == [], f"the log blames a refused pull: {refused}\n" + r.tail()
+    assert r.registry_lines() == [], r.registry_lines()
+
+
+def test_missing_image_tag_fails_the_log_says_it_could_not_pull_or_tag_the_image(scenario):
+    r = scenario("missing_mirror_ok_tag_fails")
+    _precondition(r)
+    lines = [
+        ln
+        for ln in r.out.splitlines()
+        if not ln.startswith("+ ")
+        and "hello-world" in ln
+        and re.search(r"could not pull or tag", ln, re.I)
+    ]
+    assert lines, 'no log line with "could not pull or tag" naming hello-world\n' + r.tail()
+
+
+def test_dry_run_on_a_host_without_the_image_shows_the_planned_pull_and_tag(scenario):
+    r = scenario("missing_dry_run")
+    pull = re.compile(r"^\+ docker (image )?pull mirror\.gcr\.io/library/hello-world\S*$", re.M)
+    tag = re.compile(
+        r"^\+ docker (image )?tag mirror\.gcr\.io/library/hello-world\S* hello-world\S*$", re.M
+    )
+    assert pull.search(r.out), "the dry run does not show the planned mirror pull\n" + r.tail()
+    assert tag.search(r.out), "the dry run does not show the planned tag\n" + r.tail()
+    assert pull.search(r.out).start() < tag.search(r.out).start(), (
+        "the pull is planned after the tag"
+    )
+
+
+def test_dry_run_shows_the_plan_but_executes_no_pull_tag_or_run(scenario):
+    r = scenario("missing_dry_run")
+    assert any(c.startswith(("image inspect", "inspect ")) for c in r.calls), (
+        "the dry run must still read the image store (read-only inspect)" + r.tail()
+    )
+    assert r.pulls == [] and r.tags == [], r.tail()
+    assert not any(c.startswith("run ") for c in r.calls), r.tail()
+    assert r.implicit_pulls == [] and r.images_after == [], r.tail()
