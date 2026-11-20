@@ -111,15 +111,8 @@ def test_06_the_correct_answer_still_passes(machine):
     assert set(parsed.items) == {1, 2, 3}, res.stdout
 
 
-@pytest.mark.docker
-def test_06_a_long_file_under_the_cap_still_passes(machine):
-    _setup(machine, TASK)
-    lines = _write_errors(machine, repeats=40, junk=False)  # 160 lines, under the cap
-    assert lines < CAP
-    res, parsed = _check(machine, TASK)
-    assert res.returncode == 0 and parsed.passed, (
-        f"a file under the {CAP}-line cap must not be reported as truncated:\n{res.stdout}"
-    )
+# test_06_a_long_file_under_the_cap_still_passes is gone (#325): 06 fails duplicates, so 40 copies
+# of the 4 ERROR lines are not a correct file. See test_issue_325_one_read_truncation.py.
 
 
 # ------------------------------------------------------------ 3. unused helpers (text)
