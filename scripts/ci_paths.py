@@ -14,34 +14,41 @@ DOCS_ONLY = ("docs", "courses", ".claude")
 HEAVY = ("labs/images/", "labs/manager/", "labs/deploy/", "labs/content/", ".github/workflows/")
 
 
-def git(*args: str) -> str:
-    out = subprocess.run(
+def git(*args: str, check: bool = True) -> subprocess.CompletedProcess[bytes]:
+    return subprocess.run(
         ["git", "-c", "core.quotePath=false", *args],
-        check=True,
+        check=check,
         capture_output=True,
     )
-    return out.stdout.decode("utf-8")
+
+
+def code_spec() -> list[str]:
+    # Pathspec exclusion: git decides what is docs-only, no path text is parsed here.
+    return [".", *(f":(exclude){d}" for d in DOCS_ONLY)]
 
 
 def latest_code(rev: str) -> str:
-    # Pathspec exclusion: git decides what is docs-only, no path text is parsed here.
-    spec = [".", *(f":(exclude){d}" for d in DOCS_ONLY)]
-    sha = git("rev-list", "-1", "--first-parent", rev, "--", *spec).strip()
+    sha = git("rev-list", "-1", "--first-parent", rev, "--", *code_spec()).stdout.decode().strip()
     if not sha:
         raise SystemExit(f"no code commit found in the first-parent history of {rev}")
     return sha
 
 
 def deploys(tag: str, head: str) -> bool:
-    # A CI run for <tag> may deploy when no code landed on main after it. Docs-only commits on top
-    # of <tag> do not count (they run no CI). Comparing the newest code commit of both sides, not
-    # <tag> itself, also covers one push that carried a code commit with a docs commit on top: CI
-    # then runs only for the docs head, and its image holds the same code.
-    return latest_code(tag) == latest_code(head)
+    # A green CI for <tag> may deploy when <tag> is on main and main's code is the same tree as
+    # <tag>'s: only docs changed since. This is the comparison GitHub's push paths-ignore makes
+    # (start and end of a push), so a push whose net change is docs-only never strands a code
+    # commit. Different code on main (newer, or a revert of <tag>) means another CI deploys.
+    if git("merge-base", "--is-ancestor", tag, head, check=False).returncode != 0:
+        return False
+    same = git("diff", "--quiet", tag, head, "--", *code_spec(), check=False).returncode
+    if same not in (0, 1):
+        raise SystemExit(f"git diff failed between {tag} and {head}")
+    return same == 0
 
 
 def is_heavy(base: str, head: str) -> bool:
-    names = git("diff", "--name-only", "-z", f"{base}...{head}").split("\0")
+    names = git("diff", "--name-only", "-z", f"{base}...{head}").stdout.decode("utf-8").split("\0")
     return any(n.startswith(HEAVY) for n in names if n)
 
 

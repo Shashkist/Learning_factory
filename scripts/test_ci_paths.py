@@ -1,5 +1,6 @@
 """Tests for scripts/ci_paths.py, on throwaway git repos."""
 
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -121,6 +122,38 @@ def test_older_code_never_deploys(repo: Path) -> None:
     commit(repo, "docs/a.md")
     head = commit(repo, "labs/web/c.ts")
     assert deploys(repo, old, head) == "false"
+
+
+def test_code_then_revert_then_docs_still_deploys(repo: Path) -> None:
+    # One push [X, revert X, docs] is docs-only for GitHub's paths-ignore: no CI, so the code
+    # commit below must still deploy (review of #278, finding 4).
+    c1 = commit(repo, "labs/manager/b.py")
+    commit(repo, "labs/web/a.ts")
+    git(repo, "revert", "--no-edit", "HEAD")
+    head = commit(repo, "docs/y.md")
+    assert deploys(repo, c1, head) == "true"
+
+
+def test_a_tag_off_main_never_deploys(repo: Path) -> None:
+    base = git(repo, "rev-parse", "HEAD")
+    git(repo, "checkout", "-q", "-b", "side")
+    side = commit(repo, "docs/a.md")
+    git(repo, "checkout", "-q", "main")
+    git(repo, "reset", "-q", "--hard", base)
+    head = commit(repo, "docs/b.md")
+    assert deploys(repo, side, head) == "false"
+
+
+def test_paths_ignore_matches_docs_only() -> None:
+    sys.path.insert(0, str(SCRIPT.parent))
+    try:
+        from ci_paths import DOCS_ONLY
+    finally:
+        sys.path.pop(0)
+    ci = (SCRIPT.parent.parent / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    block = ci.split("paths-ignore:", 1)[1].split("\n\n", 1)[0]
+    ignored = re.findall(r'^\s+- "([^"]+)/\*\*"\s*$', block, flags=re.MULTILINE)
+    assert sorted(ignored) == sorted(DOCS_ONLY)
 
 
 def test_docs_commit_before_newer_code_does_not_deploy(repo: Path) -> None:

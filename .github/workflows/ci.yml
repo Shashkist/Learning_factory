@@ -98,7 +98,12 @@ jobs:
             exit 0
           fi
           git fetch -q origin "$BASE_REF"
-          heavy=$(python3 scripts/ci_paths.py heavy "origin/$BASE_REF" "$HEAD_SHA")
+          # The base branch's copy decides, so a PR cannot skip its own docker exam by editing HEAVY.
+          script=scripts/ci_paths.py   # bootstrap: the base has no copy yet
+          if git show "origin/$BASE_REF:scripts/ci_paths.py" > "$RUNNER_TEMP/ci_paths.py" 2>/dev/null; then
+            script="$RUNNER_TEMP/ci_paths.py"
+          fi
+          heavy=$(python3 -I "$script" heavy "origin/$BASE_REF" "$HEAD_SHA")
           echo "heavy=$heavy" >> "$GITHUB_OUTPUT"
 
   docker:
