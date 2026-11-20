@@ -4,7 +4,15 @@
 
 ## Now
 
-**Pass lf-h8v5 (laptop, from ~21:25 UTC) in progress.** Claims: **#331** (design foundation, p1, branch `f/331-design-foundation`, worktree `C:\projects\lf-331`), **#325** (`f/325-one-read-truncation`, `lf-325`), **#326** (`f/326-validator-dash`, `lf-326`). Exam writers running. D105 (visual design v1) recorded.
+**Pass lf-h8v5 (laptop, 21:25-~22:55 UTC) stopped at 3 merged PRs:** #338 (#325), #342 (#326), #344 (#331 part A: code + CI design step). **#325 and #326 closed with evidence; #331 stays open for its exam PR #345. Production: `c6c53e2` (Deploy 44834294844: deployed, smoke `ok start`/`check-fail`/`check-pass`; the live CSS carries the tokens and the bundled Rubik, no external URL).** Decisions D105 (+ amendment), D106, D107. New issues: #337, #340, #343.
+
+- **Resume here, first: PR #345** (#331 part B, the exam alone, branch `f/331-design-exam-2`, worktree `C:\projects\lf-331e2`). Already reviewed: round 1 on #341 and round 2 on #344 approved the exam and its corrections (efb96eb -> 34d30a6). Check its CI: all green **and** the web job's "Design checks and screenshots" step ran (not skipped) **and** the `design-screenshots` artifact exists. Then `gh pr merge 345 --squash --delete-branch`, link the artifact in a comment on #331, smoke the live site (the built CSS has no external URL, `/` serves the shell), close #331 (`gh issue comment` if the merge already closed it), label `status:done`, release the claim (`python scripts/issue_lock.py release 331 --session lf-h8v5 --reason shipped`; the claim is still held for this hand-over).
+- Then the epic slices **#332** (login + My labs; the review asked for `--color-border-strong` on secondary buttons), **#333** (lab screen: full-width, full-height layout, the shell's 72rem column made the terminal narrow), **#334** (teacher pages). Each needs Playwright screenshots; the design config and CI artifact now exist, so a slice adds its pages to the design exam.
+- Worktrees `C:\projects\lf-325`, `lf-325b`, `lf-326`, `lf-326b`, `lf-326c`, `lf-331`, `lf-331a`, `lf-331e` are shipped or replaced and safe to remove.
+- **Lesson (pass lf-h8v5):** a UI issue that needs a CI step must be planned as D19 from the start: PR A = code + the CI step guarded by `if: hashFiles('<exam config>') != ''` (skipped until the exam lands), PR B = the exam alone. The exam writer's "implementer adds the CI step" note led straight into the gate.
+- **Lesson (pass lf-h8v5):** dash's `read` drops NUL bytes silently; any student-side reader with a byte budget needs `tr '\000' '?'` before the line cap. WSL `dash` on the laptop is a faithful stand-in for the image's dash and found this in review.
+- **Lesson (pass lf-h8v5):** reviewers can run in parallel with CI (review needs no green CI); this pass dispatched each reviewer right after the PR opened.
+- **Lesson (pass lf-h8v5):** a minifier may rewrite valid CSS (`U+0590-05FF` -> `U+590-5FF`); fix the exam's regex, never turn the minifier off for a test.
 
 _Previous:_ **Pass lf-b7m3 (laptop, 19:26-~21:00 UTC) stopped at 3 merged PRs:** #322 (#311), #328 (#308), #329 (#320, split from #308 by D102). **#311, #308, #320 closed with evidence. Production: `b48e6a3` (Deploy 44815987427: deploy + smoke success; `/api/health` ok, database ok).** No claims held, nothing in flight. Decisions D101-D104 (D24, D52, D56 amended). New issues: #320, #325, #326.
 
@@ -149,8 +157,9 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
 ## Next (in order)
 
-1. **#325** Linux 1 one-read truncation flag (06, 05), **#326** validator `&>` under dash and same-line redirects, **#319** WebSocket relay proof, **#154** Solution tab (D57 b), **#142** (reuse the #153 helpers).
-2. **#85** deploy follow-ups (its "docs-only redeploys" item is done by #278), **#94**, **#93**; p2 list: #81, #76, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
+1. **#345** (merge on green, see Now), then the design slices **#332**, **#333**, **#334** (p1, epic #330).
+2. Review leftovers: **#340** (Linux 1 exam pins), **#343** (validator: linear regexes, su job split, bash `>&word`), **#337** (pipelines); **#319** WebSocket relay proof, **#154** Solution tab (D57 b), **#142**.
+3. **#85** deploy follow-ups, **#94**, **#93**; p2 list: #81, #76, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
 
@@ -163,6 +172,7 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
 ## Recently done
 
+- 2026-11-21 pass lf-h8v5: #325 (#338, one-read truncation with NULs mapped, 06 fails duplicates, D106; Deploy 44830036804, smoke ok), #326 (#342, validator: `&>` per shebang, jobs split on every lone `&`, `exec N<&0`, D107), #331 part A (#344, tokens, light/dark, bundled Rubik, app shell; exam PR #345 pending).
 - 2026-11-20 pass lf-b7m3: #311 (#322, 06 truncation fact, unused helpers removed), #308 (#328, validator: redirect order, here-documents, su scope, no `<&0`), #320 (#329, kill shielded on cancel, start budget 42 s). Deploy 44815987427.
 - 2026-11-20 · Pass lf-d3a2: **3 PRs merged, 3 issues closed (+ duplicate #313).**
   - #315 → **#314** (incident: 05 tally loop `done <&0`). Deploy 44786065212 shipped ee3f734 (also #303, #304, #307, #309, #310), smoke ok.

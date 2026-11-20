@@ -449,3 +449,13 @@ The surprise was the gate, not the code. Review fixes that add exam cases after 
 Numbers: 3 issues, 3 merged PRs (#322, #328, #329), 3 exam writers, 3 implementers, 5 review rounds, 1 exam-only probe PR (#321: exactly the 5 predicted cases red), 4 replaced PRs, 2 follow-up issues (#325, #326), 4 decisions (D101-D104).
 
 Tips: when review fixes need new exam cases, write them in a fresh branch from main in the order exam → code, instead of appending to the reviewed branch. A timing test that passes on a slow laptop proves nothing about a fast CI runner; give the fake a delay that makes the race deterministic. Before merging two green PRs back to back that touch the same package, merge both into a scratch branch and run the shared exams: two minutes instead of a second 18-minute CI.
+
+## The labs UI gets a face, and the gate splits it in two (2026-11-21)
+
+Pass lf-h8v5 ran three lanes at once: the owner's new p1 epic (visual design, #330), with its first slice #331 (design foundation), plus two review leftovers, #325 (Linux 1 checks) and #326 (the content validator). The manager decided the style up front (D105: one token file, Rubik bundled for Hebrew and Latin, logical CSS only, light and dark from the system) so the exam writer could pin it: 65 vitest cases and 23 Playwright cases, including a WCAG contrast check computed straight from the token file and a header-mirroring check that compares element positions in en and he.
+
+Reviewers found real bugs in all three lanes. dash's `read` silently drops NUL bytes, so `head -c 70000 /dev/zero >> errors.txt` padded past the 64 KiB budget unseen and let a junk line pass. That was a regression, caught by running the check under real dash in WSL. In dash, `cmd &>/dev/null` is not a redirect at all: it means "background, then `>/dev/null`". In #331, the input borders were 1.3:1 against the page, the exam and `ci.yml` landed in one PR (which the gate refuses, D19), and the build had turned CSS minification off just to satisfy one exam regex.
+
+Numbers: 3 merged PRs (#338, #342, #344), 3 exam writers, 6 implementer runs, 6 review rounds, 4 replaced PRs (#335, #336, #339, #341), 1 round-2 fix done by the manager in 10 minutes (`$(( x & 1 ))` was read as a background job), 4 follow-up issues (#337, #340, #343, plus #345 as the exam half of #331), decisions D105 (+ amendment), D106, D107.
+
+Tips: let reviewers run while CI runs, because review doesn't need green CI, and this pass saved about 20 minutes per lane that way. Look at two screenshots yourself before opening a UI PR: it costs two Read calls. For a UI issue that needs a CI step, plan the D19 split from the start: code + CI step guarded by `hashFiles()` on the exam's config first, then the exam alone.
