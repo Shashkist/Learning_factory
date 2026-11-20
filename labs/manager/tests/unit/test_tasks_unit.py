@@ -324,3 +324,24 @@ def test_a_repeated_move_is_answered_from_the_current_task_and_runs_nothing(monk
     with pytest.raises(HTTPException) as err:
         asyncio.run(tasks._show(ctx, other, moving_from="02-files", repeat_ok=True))
     assert err.value.detail == "task_changed" and ran == []
+
+
+def test_show_while_a_check_holds_the_session_lock_is_session_busy_and_check_vs_show_too():
+    import asyncio
+    import uuid
+
+    from fastapi import HTTPException
+
+    sid = uuid.uuid4()
+
+    async def busy_of(holder, asker):
+        async with tasks._session_lock(sid, holder):
+            with pytest.raises(HTTPException) as err:
+                async with tasks._session_lock(sid, asker):
+                    pass
+            return err.value.detail
+
+    assert asyncio.run(busy_of("session_busy", "setup_running")) == "session_busy"
+    assert asyncio.run(busy_of("setup_running", "session_busy")) == "session_busy"
+    assert asyncio.run(busy_of("setup_running", "setup_running")) == "setup_running"
+    assert sid not in tasks._LOCKS and sid not in tasks._HOLDERS

@@ -46,6 +46,7 @@ def _max_execs() -> int:
 
 _EXECS = asyncio.Semaphore(_max_execs())
 _LOCKS: dict[uuid.UUID, asyncio.Lock] = {}  # one manager process (D23): setups per session
+_HOLDERS: dict[uuid.UUID, str] = {}  # the busy slug of the request holding a session's lock
 
 router = APIRouter(prefix="/api/sessions/{session}/tasks")
 
@@ -146,11 +147,15 @@ async def _ctx(
 async def _session_lock(sid: uuid.UUID, busy: str) -> AsyncIterator[None]:
     """The per-session lock, never waited for: if it is held the caller gets 409 `busy`."""
     lock = _LOCKS.setdefault(sid, asyncio.Lock())
-    if lock.locked():
-        raise HTTPException(409, busy)
+    if lock.locked():  # a holder that is a check is `session_busy` whoever asks
+        raise HTTPException(409, "session_busy" if _HOLDERS.get(sid) == "session_busy" else busy)
     try:
         async with lock:
-            yield
+            _HOLDERS[sid] = busy
+            try:
+                yield
+            finally:
+                _HOLDERS.pop(sid, None)
     finally:
         if not lock.locked() and _LOCKS.get(sid) is lock:
             del _LOCKS[sid]
@@ -589,7 +594,8 @@ async def check_task(task_id: str, ctx: Annotated[_Ctx, Depends(_ctx)]) -> dict[
             }
             for n, text in enumerate(task.checklist, 1)
         ]
-        passed = res.passed and all(i["passed"] for i in items)
+        # `FAIL <n>` for an n outside this checklist is noise: only exit code and items count
+        passed = exit_ok and all(i["passed"] for i in items)
         if reason == "error":  # the server's failure, not the student's: no attempt
             attempts = await _bounded(
                 ctx,
