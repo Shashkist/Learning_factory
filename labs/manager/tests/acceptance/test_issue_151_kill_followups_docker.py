@@ -87,3 +87,36 @@ def test_a_process_with_a_changed_effective_uid_is_killed_on_timeout(runtime, ca
     assert res.timed_out is True
     assert sleepers(box, 6102) == 0, "the euid-changed sleeper outlived exec_script"
     assert wait_gone(box, 6102) == 0 and wait_gone(box, 6103) == 0
+
+
+# ---------------------------------------------------------------- #320: a saved uid that stays 0
+
+
+def test_a_process_whose_saved_uid_stays_root_is_killed_on_timeout(runtime, call, box):
+    """#320. `setpriv --euid=1001` (the case above) sets the saved uid to 1001 too, so even the
+    old kill passes it: the old program read `ps uid=` (the effective uid, 1001) and signalled as
+    student (`setpriv --reuid=1001` makes real, effective and saved uid 1001). The kernel lets a
+    sender kill a target only when the sender's real or effective uid equals the target's real or
+    SAVED uid. Perl's `$> = 1001` changes only the effective uid: real 0, effective 1001, saved 0.
+    The student-owned signal gets EPERM, the process lives on. Only a kill that reads the real
+    uid (`ruid=`, 0 here) and signals as root reaches it. So this case fails on the old kill and
+    passes on the real-id kill."""
+    probe = docker(
+        "exec", "-u", "root", box, "perl", "-e",
+        '$> = 1001; open F, "/proc/self/status"; print grep { /^Uid/ } <F>',
+    )
+    ids = probe.stdout.split()[1:4]
+    assert probe.returncode == 0 and ids == ["0", "1001", "0"], (
+        "the case needs real 0, effective 1001, saved 0 (perl in the lab image?)",
+        probe.stdout,
+        probe.stderr,
+    )
+    script = (
+        "#!/bin/sh\n"
+        "perl -e '$> = 1001; sleep 6102' </dev/null >/dev/null 2>&1 &\n"
+        "sleep 6103\n"
+    )
+    res = run(runtime, call, box, script, timeout=2)
+    assert res.timed_out is True
+    assert sleepers(box, 6102) == 0, "the saved-uid-0 process outlived exec_script"
+    assert wait_gone(box, 6102) == 0 and wait_gone(box, 6103) == 0
