@@ -88,6 +88,9 @@ def test_06_the_right_lines_repeated_past_the_reader_cap_then_junk_does_not_pass
     )
     assert not parsed.items[3].passed, f"item 3 must fail for the cut file:\n{res.stdout}"
     assert parsed.items[3].hint, f"FAIL 3 has no hint:\n{res.stdout}"
+    assert "far longer" in parsed.items[3].hint, (
+        f"item 3 must give the truncation hint, not the duplicate one (D106):\n{res.stdout}"
+    )
 
 
 @pytest.mark.docker
@@ -100,6 +103,9 @@ def test_06_a_file_longer_than_the_reader_cap_is_not_passed_on_its_first_lines(m
     res, parsed = _check(machine, TASK)
     assert not parsed.items[3].passed, (
         f"a file longer than the reader cap was passed on its first {CAP} lines:\n{res.stdout}"
+    )
+    assert "far longer" in parsed.items[3].hint, (
+        f"item 3 must give the truncation hint, not the duplicate one (D106):\n{res.stdout}"
     )
 
 

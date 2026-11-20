@@ -1,7 +1,7 @@
 """Acceptance tests for issue #325: one-read truncation in 05 and 06, boundary exam cases.
 
-  1. 06 reads the truncation flag and the lines in one read; a 201st line counts as truncation
-     by root. A race between two reads cannot be pinned by a deterministic case (it needs a
+  1. 06 reads the lines once; root counts a 201st line as truncation.
+     A race between two reads cannot be pinned by a deterministic case (it needs a
      student loop that swaps the file between two root reads), so that half is review-only.
      The observable half is pinned here: a 201st correct line is truncation (fails item 3 with
      the "far longer" hint, not as a duplicate).
