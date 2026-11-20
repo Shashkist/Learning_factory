@@ -295,6 +295,12 @@ class DockerRuntime:
             if not timed_out:
                 raise  # a failure (even a timeout while connecting), not a slow script
             return ExecResult(None, out.decode("utf-8", "replace"), True)
+        except asyncio.CancelledError:
+            if ids:  # a cancel (shutdown, outer timeout) must not leave the script running
+                kill = asyncio.ensure_future(self._kill_bounded(name, marker, ids[0], timeout))
+                with contextlib.suppress(asyncio.CancelledError):
+                    await asyncio.shield(kill)  # the kill bounds itself by KILL_BOUND_S
+            raise
 
     async def _kill_bounded(self, name: str, marker: str, exec_id: str, timeout: float) -> None:
         """The kill of a script that must not outlive its call; never raises, logs one line."""
@@ -305,9 +311,9 @@ class DockerRuntime:
                 give_up_at = loop.time() + bound - 0.3
                 await self._kill(name, marker, exec_id, give_up_at, max(1.0, bound - 1.5))
         except TimeoutError:
-            log.error("kill of the timed-out script hung")
+            log.error("kill of the script hung")
         except _StillRunning:
-            log.error("kill left the timed-out script running")
+            log.error("kill left the script running")
         except Exception as exc:  # the lock is released anyway; class only, no data
             log.error("killing a timed-out script failed (%s)", type(exc).__name__)
 
