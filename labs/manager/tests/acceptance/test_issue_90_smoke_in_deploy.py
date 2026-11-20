@@ -89,7 +89,8 @@ def test_nightly_schedule_and_manual_dispatch_are_kept():
     on = _on(_load(SMOKE))
     assert [e.get("cron") for e in on.get("schedule") or []] == ["30 3 * * *"]
     check = ((on.get("workflow_dispatch") or {}).get("inputs") or {}).get("check") or {}
-    assert set(check.get("options") or []) == {"isolation", "liveness", "terminal"}
+    # #67 removed the one-off liveness diagnostic (D30)
+    assert set(check.get("options") or []) == {"isolation", "terminal"}
     assert check.get("default") == "isolation"
 
 

@@ -31,7 +31,9 @@ P=lf-smoke
 # run removes the stopped containers by name). No --rm: a container that dies mid-run must stay
 # inspectable (exit code, OOMKilled). The lab limits of D20 (256 MB with no extra swap, 256 pids,
 # 0.5 CPU): under runsc the sandbox's own memory and threads, and every exec, count against them.
-# --init: labs run under an init (tini), as lf-lab-term does in production (D30).
+# --init: labs run under an init (tini), as lf-lab-term does in production (D30). The cause: with
+# `sh` as PID 1, a docker exec that runs busybox `timeout` made the container exit (code 0) about a
+# second later, also under runc and on the default bridge, so the smoke's labs need an init.
 RUN_OPTS=(--runtime runsc --init --memory 256m --memory-swap 256m --pids-limit 256 --cpus 0.5)
 LIFE_S=600
 
