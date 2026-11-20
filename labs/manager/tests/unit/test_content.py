@@ -50,8 +50,14 @@ def test_tabs_and_leading_spaces_are_accepted() -> None:
     assert r.items[3].passed is True
 
 
-def test_malformed_fail_line_still_fails_the_check() -> None:
-    assert parse_check_output("PASS 1\nFAIL oops\n", 0).passed is False
+def test_malformed_fail_line_is_noise_when_the_exit_code_is_zero() -> None:
+    assert parse_check_output("PASS 1\nFAIL oops\n", 0).passed is True
+    assert parse_check_output("PASS 1\nFAIL oops\n", 1).passed is False
+
+
+def test_item_numbers_are_ascii_digits_only() -> None:
+    assert parse_check_output("PASS ١\n", 0).items == {}
+    assert set(parse_check_output("PASS 1\nFAIL ١ x\n", 0).items) == {1}
 
 
 def test_failed_word_is_not_a_fail_line() -> None:

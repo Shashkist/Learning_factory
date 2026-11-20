@@ -325,8 +325,7 @@ def load_labs(root: Path) -> LoadResult:
 
 
 MAX_HINT = 300
-_ITEM = re.compile(r"\s*(PASS|FAIL)\s+(\d{1,4})(?:\s+(.*))?$")
-_FAIL_LINE = re.compile(r"\s*FAIL\b")
+_ITEM = re.compile(r"\s*(PASS|FAIL)\s+([0-9]{1,4})(?:\s+(.*))?$")
 
 
 @dataclass
@@ -345,14 +344,13 @@ def parse_check_output(stdout: str, exit_code: int) -> CheckResult:
     items: dict[int, ItemResult] = {}
     failed = False
     for line in stdout.splitlines():
-        if _FAIL_LINE.match(line):
-            failed = True
         m = _ITEM.match(line)
-        if not m:
+        if not m:  # a stray FAIL line (not `FAIL <n>`) is noise, not an item failure
             continue
         n = int(m.group(2))
         if m.group(1) == "PASS":
             items.setdefault(n, ItemResult(True))  # never overwrites a FAIL
         else:
+            failed = True
             items[n] = ItemResult(False, (m.group(3) or "").strip()[:MAX_HINT] or None)
     return CheckResult(exit_code == 0 and not failed, items)
