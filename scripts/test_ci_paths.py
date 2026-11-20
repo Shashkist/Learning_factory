@@ -98,6 +98,37 @@ def test_latest_code_fails_when_none(tmp_path: Path) -> None:
     assert r.stderr.strip()
 
 
+def deploys(repo: Path, tag: str, head: str) -> str:
+    r = run(repo, "deploys", tag, head)
+    assert r.returncode == 0, r.stderr
+    return r.stdout.strip()
+
+
+def test_deploys_when_only_docs_landed_after(repo: Path) -> None:
+    code = commit(repo, "labs/manager/b.py")
+    head = commit(repo, "docs/factory/STATE.md")
+    assert deploys(repo, code, head) == "true"
+
+
+def test_deploys_the_docs_head_of_a_mixed_push(repo: Path) -> None:
+    commit(repo, "labs/manager/b.py")
+    head = commit(repo, "docs/factory/STATE.md")
+    assert deploys(repo, head, head) == "true"
+
+
+def test_older_code_never_deploys(repo: Path) -> None:
+    old = commit(repo, "labs/manager/b.py")
+    commit(repo, "docs/a.md")
+    head = commit(repo, "labs/web/c.ts")
+    assert deploys(repo, old, head) == "false"
+
+
+def test_docs_commit_before_newer_code_does_not_deploy(repo: Path) -> None:
+    docs = commit(repo, "docs/a.md")
+    head = commit(repo, "labs/web/c.ts")
+    assert deploys(repo, docs, head) == "false"
+
+
 def heavy(repo: Path, base: str, head: str = "HEAD") -> str:
     r = run(repo, "heavy", base, head)
     assert r.returncode == 0, r.stderr

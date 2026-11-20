@@ -89,13 +89,14 @@ jobs:
           # GITHUB_SHA is the head of main here (workflow_run: main's head when the event fired;
           # dispatch: the head of the dispatched ref, which the production environment limits to main).
           if [ "$EVENT_NAME" = workflow_run ]; then
-            # Docs-only commits run no CI, so the newest commit with CI is the newest code commit.
-            # An older or re-run CI must never roll production back; the newer code commit's run deploys.
-            # A failing script fails the step: no blind deploy, no silent skip.
+            # Docs-only commits run no CI and do not stale this run: it deploys when no code landed on
+            # main after $tag. An older or re-run CI must never roll production back; the newer code
+            # commit's run deploys. A failing script fails the step: no blind deploy, no silent skip.
             git cat-file -e "$GITHUB_SHA^{commit}" 2>/dev/null || git fetch -q origin "$GITHUB_SHA"
-            latest=$(python3 scripts/ci_paths.py latest-code "$GITHUB_SHA")
-            if [ "$tag" != "$latest" ]; then
-              echo "Deploy skipped: $tag is not the newest code commit on main ($latest)"
+            may=$(python3 scripts/ci_paths.py deploys "$tag" "$GITHUB_SHA")
+            if [ "$may" != true ]; then
+              latest=$(python3 scripts/ci_paths.py latest-code "$GITHUB_SHA")
+              echo "Deploy skipped: newer code than $tag is on main ($latest)"
               exit 0
             fi
           elif [ "$tag" != "$GITHUB_SHA" ]; then
