@@ -4,7 +4,9 @@
 
 ## Now
 
-**Pass lf-b7m3 (laptop, 19:26-~21:00 UTC) stopped at 3 merged PRs:** #322 (#311), #328 (#308), #329 (#320, split from #308 by D102). **#311, #308, #320 closed with evidence. Production: `b48e6a3` (Deploy 44815987427: deploy + smoke success; `/api/health` ok, database ok).** No claims held, nothing in flight. Decisions D101-D104 (D24, D52, D56 amended). New issues: #320, #325, #326.
+**Pass lf-h8v5 (laptop, from ~21:25 UTC) in progress.** Claims: **#331** (design foundation, p1, branch `f/331-design-foundation`, worktree `C:\projects\lf-331`), **#325** (`f/325-one-read-truncation`, `lf-325`), **#326** (`f/326-validator-dash`, `lf-326`). Exam writers running. D105 (visual design v1) recorded.
+
+_Previous:_ **Pass lf-b7m3 (laptop, 19:26-~21:00 UTC) stopped at 3 merged PRs:** #322 (#311), #328 (#308), #329 (#320, split from #308 by D102). **#311, #308, #320 closed with evidence. Production: `b48e6a3` (Deploy 44815987427: deploy + smoke success; `/api/health` ok, database ok).** No claims held, nothing in flight. Decisions D101-D104 (D24, D52, D56 amended). New issues: #320, #325, #326.
 
 - **Resume here:** the Next list, starting with **#325** and **#326** (review leftovers, both exam-first), then **#319**.
 - Worktrees `C:\projects\lf-308`, `lf-311`, `lf-320` are shipped and safe to remove.
