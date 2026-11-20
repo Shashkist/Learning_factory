@@ -181,7 +181,7 @@ def branch_with(repo: Path, *files: str) -> str:
 
 @pytest.mark.parametrize(
     "path",
-    ["labs/web/src/a.ts", "docs/a.md", "README.md", "labs/web/x.md", "labs/managerial/x.py"],
+    ["docs/a.md", "README.md", "labs/web/x.md", "labs/web/index.html", "labs/managerial/x.py"],
 )
 def test_heavy_false(repo: Path, path: str) -> None:
     base = branch_with(repo, path)
@@ -197,6 +197,11 @@ def test_heavy_false(repo: Path, path: str) -> None:
         "labs/content/x/lab.yaml",
         ".github/workflows/ci.yml",
         "labs/content/x/שלב.md",
+        "labs/web/src/a.ts",
+        "labs/web/tests/acceptance/x.pw.ts",
+        "labs/web/package.json",
+        "labs/web/package-lock.json",
+        "labs/web/vite.config.ts",
     ],
 )
 def test_heavy_true(repo: Path, path: str) -> None:

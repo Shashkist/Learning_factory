@@ -10,7 +10,20 @@ import sys
 # Directories whose changes alone never need CI or a Deploy (keep in step with ci.yml paths-ignore).
 DOCS_ONLY = ("docs", "courses", ".claude")
 # Directory prefixes whose changes need the docker and image jobs.
-HEAVY = ("labs/images/", "labs/manager/", "labs/deploy/", "labs/content/", ".github/workflows/")
+HEAVY = (
+    "labs/images/",
+    "labs/manager/",
+    "labs/deploy/",
+    "labs/content/",
+    # The docker job's browser exam drives the built web app and reads its labels; the
+    # manager image builds it from these files (#312, D99).
+    "labs/web/src/",
+    "labs/web/tests/acceptance/",
+    "labs/web/package.json",
+    "labs/web/package-lock.json",
+    "labs/web/vite.config.ts",
+    ".github/workflows/",
+)
 
 
 def git(*args: str, check: bool = True) -> subprocess.CompletedProcess[bytes]:
