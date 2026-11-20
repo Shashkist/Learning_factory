@@ -270,7 +270,7 @@ SU_SCOPE_QUIET = [
     "su student -c 'read x' </dev/null && echo ok",
 ]
 ESCAPED_QUOTES = [
-    "echo can\'t; while read x; do echo $x; done; echo won\'t",
+    "echo can\\'t; while read x; do echo $x; done; echo won\\'t",
     'echo say\\"hi; while read x; do echo $x; done; echo \\"',
 ]
 FD0_SPACED = [
