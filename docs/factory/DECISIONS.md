@@ -828,3 +828,19 @@ The code half ships first ("Part of #271"). The exam follows in its own PR (D19)
 - Glob rules in shell, as in PR #103: `**.md` swallowed lab content, and quoted non-ASCII paths broke the match.
 
 **Revert.** Revert the #271 squash commit. CI then runs on every push again, and Deploy compares with the head.
+
+## D86 · PR #278 (#271) merged after review round 2 on the manager's own fixes; its exam waits on `f/271-exam`
+in force · factory · 2026-11-20
+
+**Decision.** Review round 2 of PR #278 found no blocker and three should-fix items:
+- the dead `latest-code` path, and the docs that still described it;
+- a `paths-ignore` pin test that missed other entry shapes;
+- a git error in the ancestor check that turned into a quiet skip.
+
+The manager fixed all three in d80df20, read the diff line by line, and merged on green CI without a third review (the two-round cap, as in D83). The #271 exam is ready on branch `f/271-exam` (b32e261: 27 cases, 8 mutations each caught). It was built on 347eb18, which tests the `fresh` step and the `changes` step as shell, not `latest-code`. Its PR opens after #278's merge, rebased onto main, and closes #271.
+
+**Why.** Each fix answers a named finding in a small diff that unit tests cover. A third reviewer would read the same 60 lines.
+
+**Alternatives.** A third review round (~20 minutes on this laptop and one more CI).
+
+**Revert.** Revert the #278 squash commit (D85 revert).

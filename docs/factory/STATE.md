@@ -4,7 +4,24 @@
 
 ## Now
 
-**Pass lf-k9d4 (laptop, started 08:27 UTC):** shipped #275 (#276) and #273 (#277); Deploy 44708217902 deployed e9fe57e, smoke success. **#271** in flight: PR #278 (code + CI half, D85), worktree `C:\projects\lf-271`, branch `f/271-docs-only-deploy`; review round 1 asked for changes (1 blocker, 4 should-fix), fixed in 347eb18; CI and review round 2 running.
+**Pass lf-k9d4 (laptop, 08:27-~10:00 UTC) stopped at 3 merged PRs:** #276 (#275), #277 (#273), #278 (code + CI half of #271, D85, D86). #275 and #273 are closed with evidence (Deploy 44708217902 deployed e9fe57e, smoke success). **#271 stays open, claimed by lf-k9d4 until this pass ends; the next pass takes it over.**
+
+- **Resume here:**
+  1. **#271 exam PR.** Branch `f/271-exam` is pushed. It is commit b32e261 on top of 347eb18 (27 cases; 8 mutations each caught, D86).
+     - Rebuild it on main: `git checkout -b f/271-exam-2 origin/main && git cherry-pick b32e261`.
+     - Run `uvx --with pyyaml pytest -q -p no:cacheprovider --confcutdir=tests -o addopts="" tests/acceptance/test_issue_271_ci_paths.py` from `labs/manager`, about 70 s.
+     - Open the PR with "Closes #271". Its CI must be green with no skips, then review and merge.
+     - Worktree `C:\projects\lf-271e` holds the old branch. `lf-271`, `lf-273` and `lf-275` are shipped and safe to remove.
+  2. **Check #278 live.**
+     - The state commit pushed right after the #278 merge (b096e13) must have started **no CI run**.
+     - b096e13's Deploy must still deploy: its log should show `deployed b096e13...`, not "Deploy skipped". That is the D49 race fixed.
+     - If either fails, open a p0 incident and revert per D85.
+     - The result is noted below if this pass saw it.
+  3. Then the Next list.
+- **Lesson (pass lf-k9d4):** GitHub's push `paths-ignore` compares only the start and the end of a push. A rule that must agree with it has to compare the same two trees, not walk commits (review of #278).
+- **Lesson (pass lf-k9d4):** before rewording a log line in a workflow, grep the exams for it. The #90 exam pinned "no longer the head of main".
+- **Lesson (pass lf-k9d4):** the full local manager `pytest -q` did not finish in 10 minutes on the laptop. Narrow test files plus CI are the practical check.
+- **Lesson (pass lf-k9d4):** an exam writer's hand-back came back as one word, "placeholder", although the work was committed. Check the branch, re-run the tests and do a mutation yourself before you trust or distrust an empty report.
 
 _Previous:_ 2026-11-20 ~08:00 UTC, laptop pass **lf-p7w2** stopped at 3 merged PRs (#274, #270, #272) after ~65 minutes. Closed #269, #257, #98 with evidence. No claims held. New issues: #271 (rest of #98: docs-only skip + path-scoped docker jobs, D82), #273 (remove `tasks.REQUEST_BUDGET_S`, exam edits), #275 (#269 exam case that cannot fail). Decisions D82, D83.
 
@@ -78,10 +95,9 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
 ## Next (in order)
 
-1. **#275** #269 exam: the open-tasks-to-complete case reaches complete (exam-only, web). **#273** remove `tasks.REQUEST_BUDGET_S` (exam edit of the #220/#224 exams first, then code; manager). Independent, can run side by side.
-2. **#271** (rest of #98, D46/D82): docs-only pushes skip CI without staling a Deploy; path-scoped docker jobs. Read the PR #103 review first; code + CI in one PR, any exam in another.
-3. **#167** docker end-to-end browser test against the real manager (split from #131, D60). **#151** kill follow-ups, **#154** Solution tab (D57 b), **#137**, **#126**, **#127**, **#142** (reuse the #153 helpers).
-4. **#85** deploy follow-ups, **#94**, **#93**; p2 list: #81, #76, #67, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
+1. **#271** exam PR from `f/271-exam` (see Now). Since #278, a PR that touches only `labs/web/**` skips docker and the image jobs. Do not read a skipped `docker` as missing evidence.
+2. **#167** docker end-to-end browser test against the real manager (split from #131, D60). **#151** kill follow-ups, **#154** Solution tab (D57 b), **#137**, **#126**, **#127**, **#142** (reuse the #153 helpers).
+3. **#85** deploy follow-ups (its "docs-only redeploys" item is done by #278), **#94**, **#93**; p2 list: #81, #76, #67, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
 
@@ -93,6 +109,13 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 - O16/O7 resolved by D43 (public repository). O12 (back up `.env`), O13 (re-deploy after recreating nginx-proxy3), O5 reopened.
 
 ## Recently done
+
+- 2026-11-20 · Pass lf-k9d4: **3 PRs merged, 2 issues closed.**
+  - #276 → **#275** (exam-only). The manager checked two mutations. Review round 1 approved; its should-fix (the case reached complete through a `no_next_task` the server only sends from the last task) was fixed in eab657f.
+  - #277 → **#273**. The exam commit came first; the #257 guard case was dropped per D84, and the reviewer showed the larger-deadline case catches a reintroduced copy. Round 1 approved.
+  - Deploy 44708217902 deployed e9fe57e, smoke success, `/api/health` 200 database ok.
+  - The code merges d8fcef6 and e9fe57e started no "Factory dashboard" run, so #98 criterion 3 is confirmed.
+  - #278 → part of **#271** (D85, D86). Round 1: blocker (the #90 exam pins the skip phrase) and four should-fix items. Round 2: three should-fix items, fixed by the manager. The exam is on `f/271-exam`.
 
 - 2026-11-19 · Pass lf-v6k1: **3 PRs merged, 3 issues closed.** #258 → **#255** (exam-only, Previous gaps; review round 1: unknown `from` on the first task and a forced overlap added, D75 amended; round 2 approved; main CI 1527 exam cases, no skips). #262 → **#186** (busy rows disable Save; live region holds the count only; branch rebuilt twice: commit order for exam integrity, then round-1 asks (singular case in the #178 exam, re-enable test); D80; Deploy 44593159664, live bundle checked). #265 → **#245** (one deadline per request incl. statements via `asyncio.timeout`, release floor keeps `db_busy`, `session_ended` skips the start cleanup; replaces #256/#261; rebased after #258 so the #255 exam ran against it; Deploy 44595946699, smoke ok). New: #257, #263, #264.
 - 2026-11-19 · Pass lf-q3m8: **3 PRs merged, one parked approved.** #239 (#228 image built once, merged first; main CI green). #241 (#228 docker job `timeout-minutes: 30`, docker exams run once: job 17 → ~10 min; review round 1 approved; the timeout's exam moved to #243 under D19) → **#228 closed** (Deploy 44549921062, smoke ok on the new term image). #242 (#155 cron off the quarter hours, D73; round 1 approved; issue kept open until a scheduled run is seen). #236 → PR #244 (exam case corrected after the build, D74; round 1 blocker on start cleanup fixed and verified with a test that fails on the old code; round 2 approved, CI green), parked. New: #243, #245.
