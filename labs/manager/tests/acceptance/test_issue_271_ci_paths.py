@@ -413,6 +413,8 @@ def test_changes_job_output_heavy_is_the_heavy_step_output():
 def test_docker_and_image_jobs_have_exactly_the_expected_conditions():
     jobs = _load(CI)["jobs"]
     assert "if" not in jobs["changes"], "a skipped changes job skips docker and the images"
+    assert not _needs(jobs["changes"]), "a needed job that skips on push skips changes too"
+    assert set(_needs(jobs["docker"])) == {"changes"}, "docker may need only changes"
     assert _cond(jobs["docker"].get("if")) == "needs.changes.outputs.heavy == 'true'"
     for n in ("image-term", "image-manager"):
         assert "if" not in jobs[n], f"{n} must have no job-level condition, it follows docker"
@@ -421,6 +423,7 @@ def test_docker_and_image_jobs_have_exactly_the_expected_conditions():
 
 
 def test_heavy_step_reads_the_pull_request_context():
+    assert "if" not in _step(_load(CI), "changes", "heavy"), "a skipped step leaves heavy empty"
     env = _env(_step(_load(CI), "changes", "heavy"))
     assert env == {
         "EVENT_NAME": "${{ github.event_name }}",
@@ -434,6 +437,8 @@ def test_fresh_step_reads_the_same_tag_source_as_the_deploy_step():
     fresh = _effective_env(wf, "deploy", _step(wf, "deploy", "fresh"))
     deploy = _effective_env(wf, "deploy", _step(wf, "deploy", "deploy"))
     assert fresh["TAG_SOURCE"] == deploy["TAG_SOURCE"] == TAG_SOURCE_EXPR
+    for step in ("fresh", "deploy"):  # the value is used, not only declared
+        assert 'tag="$TAG_SOURCE"' in _step(wf, "deploy", step)["run"], step
     assert fresh["EVENT_NAME"] == "${{ github.event_name }}"
 
 
