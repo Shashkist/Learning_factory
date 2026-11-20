@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import AppShell from "./AppShell";
 import ClassTable from "./ClassTable";
 import Cohorts from "./Cohorts";
 import LiveSessions from "./LiveSessions";
@@ -50,12 +51,16 @@ export default function Admin() {
   };
 
   const student = studentKey(path);
-  if (state === "loading") return <p>Loading</p>;
+  if (state === "loading")
+    return (
+      <AppShell>
+        <p>Loading</p>
+      </AppShell>
+    );
   if (state === "admin")
     return (
-      <main>
+      <AppShell onLogout={logout}>
         <p>Signed in as admin</p>
-        <button onClick={logout}>Log out</button>
         <nav>
           {[
             ["/admin", "admin.nav.cohorts"],
@@ -84,9 +89,17 @@ export default function Admin() {
         ) : (
           <Cohorts open={(key) => go(`/admin/students/${encodeURIComponent(key)}`)} />
         )}
-      </main>
+      </AppShell>
     );
-  if (state === "google") return <a href="/auth/google/start">Sign in with Google</a>;
-  if (state === "error") return <p>Could not load sign-in options</p>;
-  return <p>Google sign-in is not configured</p>;
+  return (
+    <AppShell>
+      {state === "google" ? (
+        <a href="/auth/google/start">Sign in with Google</a>
+      ) : state === "error" ? (
+        <p>Could not load sign-in options</p>
+      ) : (
+        <p>Google sign-in is not configured</p>
+      )}
+    </AppShell>
+  );
 }

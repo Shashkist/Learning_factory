@@ -611,7 +611,7 @@ export default function LabScreen({
         style={{
           width: 6,
           cursor: "col-resize",
-          background: "#8888",
+          background: "var(--color-border)",
           touchAction: "none",
         }}
       />
