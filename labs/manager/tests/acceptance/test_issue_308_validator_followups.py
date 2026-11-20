@@ -57,7 +57,6 @@ BG_QUIET = [
     "sleep 600 >/dev/null 2>&1 &",
     "sleep 600 >/tmp/log 2>&1 &",
     "sleep 600 >>/tmp/log 2>&1 &",
-    "sleep 600 &>/dev/null &",
     "sleep 600 >/tmp/out 2>/tmp/err &",
     "sleep 600 2>/tmp/err >/tmp/out &",
 ]

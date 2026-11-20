@@ -468,8 +468,6 @@ BACKGROUND_LOGGED = [
     "sleep 600 >/tmp/log 2>&1 &",
     "sleep 600 > /var/log/lf/app.log 2>&1 &",
     "sleep 600 >>/tmp/log 2>&1 &",
-    "nohup sleep 600 &>/tmp/log &",
-    "nohup sleep 600 &> /tmp/app.log &",
     "sleep 600 >/tmp/out 2>/tmp/err &",
     "python3 -m http.server 8080 </dev/null >/tmp/http.log 2>&1 &",
 ]

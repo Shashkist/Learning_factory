@@ -233,12 +233,17 @@ def _validate(lab_dir: Path, data: Any) -> tuple[Lab | None, list[str]]:
     )
 
 
-_SEPARATORS = re.compile(r"(\|\||&&|;|\|)")
+_SEPARATORS = re.compile(r"(\|\||&&|;|(?<!>)\|)")  # `>|` is a redirect, not a pipe
 _ARITHMETIC = re.compile(r"\$\(\(.*?\)\)")
 _HEREDOC = re.compile(r"(?<!<)<<(?!<)(-?)\s*([^\s;&|<>()]+)")  # not `<<<`, a here-string
 _REDIRECTS = re.compile(r"\d*>&\d+|\d*>>?\s*\S+")
 _FD_REDIRECT = re.compile(r"&>>?\s*\S+|(\d*)>>?&(\d)|(\d*)>>?\s*\S+")
 _FD0_DUP = re.compile(r"\d*<&\s*0")
+_EXEC_FD0_DUP = re.compile(r"exec\s(?:.*\s)?\d+<&\s*0(?!\d)")
+# a lone `&` ends a job: not `&&`, nor the `&` of `>&`, `<&`, `|&`, nor an escaped `\&`;
+# `&>` redirects only in bash. The caller splits the line with $(( )) blanked (bitwise AND).
+_BASH_AMP = re.compile(r"(?<![&<>|\\])&(?![&>])")
+_SH_AMP = re.compile(r"(?<![&<>|\\])&(?!&)")
 _LEAD = re.compile(r"^(?:(?:do|then|else)\s+)*(?:\w+\s*\(\s*\)\s*)?(?:\{\s*)?")
 _WHILE_READ = re.compile(r"while\s+(?:\w+=\S*\s+)*read\b")
 _CAT_SUBSHELL = re.compile(r"\$\(\s*cat(?:\s+-\w*)*\s*\)|`\s*cat(?:\s+-\w*)*\s*`")
@@ -301,8 +306,30 @@ def _redirects_input(text: str) -> bool:
     return "<" in _FD0_DUP.sub(" ", text)
 
 
-def _background_is_quiet(job: str) -> bool:
-    """Both outputs end in files, reading the redirects left to right (`2>&1` copies as it is)."""
+def shebang_argv(script: str) -> list[str]:
+    """The interpreter command the exec runs, read from the raw first line like the kernel's `#!`
+    (so a leading space or tab means no shebang); `/bin/sh` without one."""
+    first = script.split("\n", 1)[0]
+    parts = first[2:].split() if first.startswith("#!") else []
+    return parts or ["/bin/sh"]
+
+
+def _is_bash(argv: list[str]) -> bool:
+    if argv[0] in ("/bin/bash", "/usr/bin/bash"):
+        return True
+    return (
+        argv[0].endswith("/env")
+        and next((a for a in argv[1:] if not a.startswith("-")), "") == "bash"
+    )
+
+
+def _background_is_quiet(job: str, bash: bool) -> bool:
+    """Both outputs end in files, reading the redirects left to right (`2>&1` copies as it is).
+
+    Only the redirects of the backgrounded command count (after the last separator), and `&>`
+    only under bash: dash reads `cmd &>file &` as a background job, then `>file`.
+    """
+    job = _SEPARATORS.split(job)[-1]
     out_file = err_file = False
     for m in _FD_REDIRECT.finditer(job):
         if m.group(2):  # n>&m
@@ -311,7 +338,8 @@ def _background_is_quiet(job: str) -> bool:
             elif m.group(1) in ("", "1"):
                 out_file = err_file
         elif m.group(0).startswith("&"):
-            out_file = err_file = True
+            if bash:
+                out_file = err_file = True
         elif m.group(3) == "2":
             err_file = True
         elif m.group(3) in ("", "1"):
@@ -320,6 +348,8 @@ def _background_is_quiet(job: str) -> bool:
 
 
 def _reads_stdin(segment: str) -> bool:
+    if _EXEC_FD0_DUP.match(segment.strip()):
+        return True
     if _redirects_input(segment):
         return False
     words = _REDIRECTS.sub(" ", segment).split()
@@ -344,6 +374,8 @@ def _script_warnings(text: str, label: str) -> list[str]:
     segments: list[tuple[int, str, bool]] = []  # (line, text, follows a pipe)
     heredoc_end = ""  # inside a here-document body that ends at this line
     dash_tabs = False
+    bash = _is_bash(shebang_argv(text))
+    amp = _BASH_AMP if bash else _SH_AMP
     piped = False  # the previous line ended with a pipe
     for n, raw in enumerate(text.splitlines(), 1):
         if heredoc_end:
@@ -365,12 +397,11 @@ def _script_warnings(text: str, label: str) -> list[str]:
         cat = _CAT_SUBSHELL.search(line)
         if _su_reads_stdin(line, masked) or (cat and not _redirects_input(line[cat.start() :])):
             found.append(f"{label} line {n}: {stdin_msg}")
-        if masked.endswith("&") and not masked.endswith("&&"):
-            if not _background_is_quiet(masked):
-                found.append(
-                    f"{label} line {n}: a background job keeps the exec open; "
-                    "redirect it with >/dev/null 2>&1"
-                )
+        if not all(_background_is_quiet(job, bash) for job in amp.split(no_math)[:-1]):
+            found.append(
+                f"{label} line {n}: a background job keeps the exec open; "
+                "redirect it with >/dev/null 2>&1"
+            )
     for k, (n, seg, piped_in) in enumerate(segments):
         if piped_in:
             continue
