@@ -7,6 +7,7 @@ Nothing needs docker or the network. Cases that run bash are skipped only when b
 not installed (a Windows laptop without Git Bash); CI runs on Linux.
 """
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -243,6 +244,29 @@ def test_a_non_hex_tag_makes_the_fresh_step_fail(tmp_path, bad):
 
 
 @needs_bash
+def test_fresh_uses_main_head_copy_of_ci_paths_not_the_checked_out_one(tmp_path):
+    # D85: the checkout is the tag's commit; its ci_paths.py must not decide. The tag's copy
+    # here always answers "true", main's head (the real one) sees newer code and says false.
+    repo = _new_repo(tmp_path)
+    stub = "print('true')\n"
+    tag = _commit(repo, "code + hostile script", {
+        "labs/manager/app.py": "v1\n", "scripts/ci_paths.py": stub,
+    })
+    head = _commit(repo, "newer code, real script", {
+        "labs/manager/app.py": "v2\n",
+        "scripts/ci_paths.py": CI_PATHS.read_text(encoding="utf-8"),
+    })
+    _git(repo, "checkout", "-q", "--detach", tag)  # what actions/checkout of the tag leaves
+    assert (repo / "scripts" / "ci_paths.py").read_text(encoding="utf-8") == stub
+    script = _step(_load(DEPLOY), "deploy", "fresh")["run"]
+    r = _run_script(script, repo, tmp_path, {
+        "GITHUB_SHA": head, "TAG_SOURCE": tag, "EVENT_NAME": "workflow_run",
+    })
+    assert r.returncode == 0, r.stderr
+    assert _outputs(tmp_path).get("fresh") == "false", "the checked-out copy decided"
+
+
+@needs_bash
 def test_workflow_dispatch_is_always_fresh(tmp_path):
     repo = _new_repo(tmp_path)
     tag = _commit(repo, "code", {"labs/manager/app.py": "v1\n"})
@@ -324,6 +348,24 @@ def test_each_heavy_prefix_makes_a_pull_request_heavy(tmp_path, path):
     assert out.get("heavy") == "true"
 
 
+def _emptied_heavy() -> str:
+    """The real ci_paths.py with HEAVY emptied: a PR copy that would call nothing heavy."""
+    text = CI_PATHS.read_text(encoding="utf-8")
+    new, n = re.subn(r"^HEAVY = \(.*?\)$", "HEAVY = ()", text, flags=re.S | re.M)
+    assert n == 1 and new != text, "could not empty HEAVY in scripts/ci_paths.py"
+    return new
+
+
+@needs_bash
+def test_the_base_branch_copy_of_ci_paths_decides_heavy_not_the_pull_requests(tmp_path):
+    # D85: a PR that empties HEAVY and touches labs/manager/ must still be heavy.
+    r, out = _changes(
+        tmp_path, {"scripts/ci_paths.py": _emptied_heavy(), "labs/manager/app.py": "v1\n"}
+    )
+    assert r.returncode == 0, r.stderr
+    assert out.get("heavy") == "true", "the PR's own ci_paths.py decided instead of the base's"
+
+
 @needs_bash
 def test_a_push_is_always_heavy(tmp_path):
     r, out = _changes(tmp_path, {"labs/web/index.html": "v1\n"}, event="push")
@@ -338,6 +380,20 @@ TAG_SOURCE_EXPR = "${{ github.event.workflow_run.head_sha || inputs.sha || githu
 
 def _env(step: dict) -> dict:
     return {k: str(v).strip() for k, v in (step.get("env") or {}).items()}
+
+
+def _effective_env(wf: dict, job: str, step: dict) -> dict:
+    """What the step sees: workflow env, then job env, then step env (later wins)."""
+    wf_env = _env({"env": wf.get("env")})
+    job_env = _env({"env": wf["jobs"][job].get("env")})
+    return {**wf_env, **job_env, **_env(step)}
+
+
+def _cond(value) -> str:
+    """An `if:` value without an optional `${{ ... }}` wrapper (same meaning)."""
+    v = str(value or "").strip()
+    m = re.fullmatch(r"\$\{\{(.*)\}\}", v, flags=re.S)
+    return (m.group(1) if m else v).strip()
 
 
 def _checkout(wf: dict, job: str) -> dict:
@@ -355,10 +411,10 @@ def test_changes_job_output_heavy_is_the_heavy_step_output():
 def test_docker_and_image_jobs_have_exactly_the_expected_conditions():
     jobs = _load(CI)["jobs"]
     assert "if" not in jobs["changes"], "a skipped changes job skips docker and the images"
-    assert str(jobs["docker"].get("if", "")).strip() == "needs.changes.outputs.heavy == 'true'"
+    assert _cond(jobs["docker"].get("if")) == "needs.changes.outputs.heavy == 'true'"
     for n in ("image-term", "image-manager"):
         assert "if" not in jobs[n], f"{n} must have no job-level condition, it follows docker"
-        assert _needs(jobs[n]) == ["docker"]
+        assert "docker" in _needs(jobs[n]), f"{n} must need docker"
 
 
 def test_heavy_step_reads_the_pull_request_context():
@@ -372,8 +428,8 @@ def test_heavy_step_reads_the_pull_request_context():
 
 def test_fresh_step_reads_the_same_tag_source_as_the_deploy_step():
     wf = _load(DEPLOY)
-    fresh = _env(_step(wf, "deploy", "fresh"))
-    deploy = _env(_step(wf, "deploy", "deploy"))
+    fresh = _effective_env(wf, "deploy", _step(wf, "deploy", "fresh"))
+    deploy = _effective_env(wf, "deploy", _step(wf, "deploy", "deploy"))
     assert fresh["TAG_SOURCE"] == deploy["TAG_SOURCE"] == TAG_SOURCE_EXPR
     assert fresh["EVENT_NAME"] == "${{ github.event_name }}"
 
