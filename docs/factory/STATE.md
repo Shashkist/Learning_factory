@@ -12,11 +12,11 @@
      - Run `uvx --with pyyaml pytest -q -p no:cacheprovider --confcutdir=tests -o addopts="" tests/acceptance/test_issue_271_ci_paths.py` from `labs/manager`, about 70 s.
      - Open the PR with "Closes #271". Its CI must be green with no skips, then review and merge.
      - Worktree `C:\projects\lf-271e` holds the old branch. `lf-271`, `lf-273` and `lf-275` are shipped and safe to remove.
-  2. **Check #278 live.**
-     - The state commit pushed right after the #278 merge (b096e13) must have started **no CI run**.
-     - b096e13's Deploy must still deploy: its log should show `deployed b096e13...`, not "Deploy skipped". That is the D49 race fixed.
+  2. **Check #278 live.** The first state commit after the merge (6d03964) also touched the root `history.md`. That counts as code (D85), so it ran CI, and b096e13's Deploy correctly skipped in its favour.
+     - The next commit touches only `docs/factory/STATE.md`. It must have started **no CI run**.
+     - 6d03964's Deploy must still deploy afterwards: its log should show `deployed 6d03964...`, not "Deploy skipped". That is the D49 race fixed.
      - If either fails, open a p0 incident and revert per D85.
-     - The result is noted below if this pass saw it.
+     - Keep `history.md` edits out of state-only commits, or accept one CI run for them.
   3. Then the Next list.
 - **Lesson (pass lf-k9d4):** GitHub's push `paths-ignore` compares only the start and the end of a push. A rule that must agree with it has to compare the same two trees, not walk commits (review of #278).
 - **Lesson (pass lf-k9d4):** before rewording a log line in a workflow, grep the exams for it. The #90 exam pinned "no longer the head of main".
