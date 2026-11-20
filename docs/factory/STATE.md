@@ -4,7 +4,9 @@
 
 ## Now
 
-**Pass lf-d3a2 (laptop, 17:27-~19:05 UTC) stopped at 3 merged PRs:** #315 (#314), #317 (#312), #318 (#306). **#314, #312, #306 closed with evidence; #313 closed as duplicate; #126, #151, #167 got deploy evidence. Production: `56aacca` (Deploy 44798811736: all checks passed, smoke ok, `/api/health` ok, database ok).** No claims held, nothing in flight. Decisions D98 (+ amendment, accepted risk), D99 (+ amendment), D100. New issue: #319.
+**Pass lf-b7m3 (laptop, from 19:26 UTC) in flight:** #311 (`f/311-linux1-check-leftovers`, worktree `C:\projects\lf-311`), #308 (`f/308-validator-followups`, `lf-308`), #320 (`f/320-kill-followups`, `lf-320`; split from #308 by D102). D101, D102. All three at the exam step.
+
+_Previous:_ **Pass lf-d3a2 (laptop, 17:27-~19:05 UTC) stopped at 3 merged PRs:** #315 (#314), #317 (#312), #318 (#306). **#314, #312, #306 closed with evidence; #313 closed as duplicate; #126, #151, #167 got deploy evidence. Production: `56aacca` (Deploy 44798811736: all checks passed, smoke ok, `/api/health` ok, database ok).** No claims held, nothing in flight. Decisions D98 (+ amendment, accepted risk), D99 (+ amendment), D100. New issue: #319.
 
 - **Resume here:** the Next list, starting with **#308** and **#311**.
 - Worktrees `C:\projects\lf-306`, `lf-312` (and `lf-314`) are shipped and safe to remove.
