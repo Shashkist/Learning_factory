@@ -23,6 +23,7 @@ from app.auth import Principal, current_student, db_guard
 from app.content import LANGS, Lab, Task, parse_check_output
 from app.flags import fast_lab_detail, fast_lab_reason, fast_task_detail, fast_task_reason
 from app.runtime import KILL_BOUND_S, container_name
+from app.smoke import NOT_SMOKE_SQL
 from app.term_proxy import authorize
 
 log = logging.getLogger("lab-manager")
@@ -422,14 +423,17 @@ async def _complete(conn: Any, ctx: _Ctx) -> None:
         )
         is not None
     )
-    active = float(
+    active = math.ceil(  # whole seconds, once: the flag, its texts and the stored row agree
         await conn.fetchval(f"select active_seconds from {T}.lab_sessions where id = $1", ctx.sid)
     )
     priors: list[int] = []
     if first:
         rows = await conn.fetch(  # runs without heartbeat data (0 s) say nothing about the class
-            f"select active_seconds from {T}.lab_runs "
-            "where lab_id = $1 and first_completion and student <> $2 and active_seconds > 0",
+            f"select r.active_seconds from {T}.lab_runs r "
+            f"join {T}.students s on s.id_hash = r.student "
+            f"join {T}.cohorts c on c.id = s.cohort_id "
+            f"where {NOT_SMOKE_SQL} and r.lab_id = $1 and r.first_completion "
+            "and r.student <> $2 and r.active_seconds > 0",
             ctx.lab.id,
             ctx.student,
         )
@@ -446,7 +450,7 @@ async def _complete(conn: Any, ctx: _Ctx) -> None:
         ctx.lab.id,
         ctx.sid,
         first,
-        math.ceil(active),  # whole seconds, never below the session's own total
+        active,
         fast,
         reason,
         detail.get("code"),
