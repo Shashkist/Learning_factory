@@ -6,6 +6,11 @@ on:
     - cron: "7,22,37,52 * * * *"
   push:
     branches: [main]
+    # Only what the snapshot reads or the page ships (#98): state docs and dashboard code.
+    paths:
+      - "docs/factory/**"
+      - "labs/factory-dashboard/**"
+      - ".github/workflows/factory-dashboard.yml"
   workflow_dispatch:
 
 permissions:

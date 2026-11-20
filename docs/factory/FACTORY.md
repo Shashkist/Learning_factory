@@ -40,6 +40,14 @@ The factory turns the spec into a running lab platform at `labs.shashkist.com` w
 | **CI red on `main`, a failed deploy, or a failed smoke test** | a workflow opens an issue `type:incident` with `priority:p0`; the next run takes it first |
 | **Nightly at 02:00 Israel time** | a smoke workflow starts and ends 30 lab sessions and checks that memory and disk returned to baseline (the cleanup guarantee) |
 
+## Minute budget
+
+Actions minutes are finite (the account hit its 2,000-minute limit in November, #96). Measured from 737 runs: a push to main costs about 886 minutes per 2 days of state commits, and PR runs about 681 (CI `docker` is the biggest job, then `manager` and `web`). The dashboard publish on push cost 215.
+
+- Batch state commits: one per step, not one per sub-step. Every push to main runs the full CI.
+- PR runs are cancelled when a newer commit lands on the same PR. Main runs are never cancelled.
+- The dashboard publishes on push only when `docs/factory/**` or the dashboard code changed.
+
 ## Labels
 
 - `status:ready` · `status:in-progress` · `status:in-review` · `status:needs-owner` · `status:blocked` · `status:done` · `status:superseded`
