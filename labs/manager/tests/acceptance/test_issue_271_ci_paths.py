@@ -257,6 +257,7 @@ def test_fresh_uses_main_head_copy_of_ci_paths_not_the_checked_out_one(tmp_path)
         "scripts/ci_paths.py": CI_PATHS.read_text(encoding="utf-8"),
     })
     _git(repo, "checkout", "-q", "--detach", tag)  # what actions/checkout of the tag leaves
+    _git(repo, "branch", "-q", "-D", "main")  # a checkout of a sha has no local main
     assert (repo / "scripts" / "ci_paths.py").read_text(encoding="utf-8") == stub
     script = _step(_load(DEPLOY), "deploy", "fresh")["run"]
     r = _run_script(script, repo, tmp_path, {
@@ -314,6 +315,7 @@ def _changes(tmp_path: Path, files: dict, event: str = "pull_request"):
     subprocess.run(["git", "clone", "-q", "--bare", str(repo), str(origin)], check=True)
     _git(repo, "remote", "add", "origin", str(origin))
     _git(repo, "checkout", "-q", "-b", "feature")
+    _git(repo, "branch", "-q", "-D", "main")  # a pull request checkout has only origin/main
     head = _commit(repo, "change", files)
     script = _step(_load(CI), "changes", "heavy")["run"]
     r = _run_script(
@@ -415,6 +417,7 @@ def test_docker_and_image_jobs_have_exactly_the_expected_conditions():
     for n in ("image-term", "image-manager"):
         assert "if" not in jobs[n], f"{n} must have no job-level condition, it follows docker"
         assert "docker" in _needs(jobs[n]), f"{n} must need docker"
+        assert set(_needs(jobs[n])) <= {"changes", "docker"}, f"{n} may need only these"
 
 
 def test_heavy_step_reads_the_pull_request_context():
