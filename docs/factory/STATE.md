@@ -4,7 +4,7 @@
 
 ## Now
 
-**Pass lf-n6q2 (laptop, from 11:57 UTC) in progress.** Lanes: **#284** PR #287 (exam-only harness fix, CI), **#283** (exam a0a3bad, implementer on `f/283-passed-rule`, D90), **#286** (exam writer on `f/286-ci-paths-exam`). Worktrees `C:\projects\lf-284`, `lf-283`, `lf-286`. If this pass dies, continue those branches.
+**Pass lf-n6q2 (laptop, from 11:57 UTC) in progress.** Merged: #287 (#284, D91; follow-up #290). Lanes: **#286** PR #288 (review round 2), **#283** PR #291 (replaces #289 after review round 1, `f/283-passed-rule-2`; round 2 review, D90), **#285** (exam writer on `f/285-median-threshold`, D92). Worktrees `C:\projects\lf-283`, `lf-285`, `lf-286` (and `lf-284`, shipped). If this pass dies, continue those branches.
 
 _Previous:_ **Pass lf-x3r8 (laptop, 10:25-~11:50 UTC) stopped at 3 merged PRs:** #280 (#127), #282 (#137, replaced #281), #279 (#271 exam). **#127, #137 and #271 are closed with evidence. No claims held, nothing in flight. Production: `bd596e7` (Deploy 44729635504, smoke success, `/api/health` ok database ok).** Decisions D87, D88, D89. New issues: #283, #284, #285, #286.
 

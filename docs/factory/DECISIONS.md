@@ -892,3 +892,25 @@ in force · factory · 2026-11-20
 **Alternatives.** Make `n_items` required (edits every exam that calls the parser with two arguments). A separate `check_passed(...)` function (two functions that can drift again).
 
 **Revert.** Revert the #283 squash commit.
+
+## D91 · #284: the #89 completion harness keeps the janitor out (amends D87)
+in force · factory · 2026-11-20
+
+**Decision.** Shipped in PR #287. The `env` fixture of the #89 exam patches `app.janitor.run_once` to a no-op before the app starts, and the #137 exam's local copy of that patch is removed. D87's "the #89 harness itself is unchanged" and its rejected alternative "fix the #89 harness" no longer hold. Nine other harnesses with the same latent race are #290.
+
+**Why.** One guard in the shared fixture, rather than one per exam module. No case using this fixture tests the janitor (review of #287).
+
+**Alternatives.** Make `FakeRuntime.list_lab_containers()` report the started sessions as running (the #8 harness's way). That keeps the janitor live, but it would then end the sessions that cases age on purpose (`age`, heartbeat helpers).
+
+**Revert.** Revert the #287 squash commit; the #137 exam then needs its own patch back.
+
+## D92 · #285: the stored median threshold is the ceiling of the median
+in force · factory · 2026-11-20
+
+**Decision.** `fast_lab_detail` stores `threshold = ceil(median)` for the median rule. The reason text prints that stored value, so the reason, `fast_threshold` and the web all show one whole number. The fast test itself still compares against the raw median (`active < 0.3 * median`). The web needs no change: `Math.round` of a whole number is the same number. Existing rows are not backfilled (#285 criterion 3).
+
+**Why.** #137 rounds active time up; the same direction for the median keeps the numbers consistent, and the server decides the value once.
+
+**Alternatives.** Round half to even on both sides (two places that can drift again). Floor (shows a median smaller than the real one).
+
+**Revert.** Revert the #285 squash commit.
