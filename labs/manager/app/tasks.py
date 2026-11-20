@@ -115,15 +115,16 @@ class _Ctx:
     def started(self) -> float:
         """The request start: `_start` copies the middleware's; else the request clock."""
         state = getattr(self.request, "state", None)
-        return getattr(state, "started", None) or db._request_started.get() or self._bare_started
+        return getattr(state, "started", None) or db.request_started() or self._bare_started
 
 
 async def _start(request: Request) -> None:
-    """Resolved before the auth dependencies: the request's deadline starts here.
+    """Resolved before the auth dependencies: takes the middleware's request start and stamps
+    its own only when no middleware ran (bare test apps).
 
     A coroutine, so it runs on the event loop at once; a sync dependency would first wait for a
     free thread-pool worker and that wait would not count against the deadline."""
-    request.state.started = db._request_started.get() or time.monotonic()  # the middleware start
+    request.state.started = db.request_started() or time.monotonic()  # the middleware start
 
 
 async def _ctx(
@@ -233,9 +234,8 @@ async def _record_shown(ctx: _Ctx, task: Task, bound: float = DB_STEP_BOUND_S) -
 
 def _left(ctx: _Ctx) -> float:
     """Seconds of the request budget still unspent."""
-    now = time.monotonic()
-    started = getattr(ctx, "started", None) or db._request_started.get() or now
-    return db.REQUEST_DEADLINE_S - (now - started)  # the one request clock, read at request time
+    left = db.time_left(getattr(ctx, "started", None))  # the one request clock
+    return db.REQUEST_DEADLINE_S if left is None else left
 
 
 def _step_bound(ctx: _Ctx, code: str = "setup_timeout") -> float:

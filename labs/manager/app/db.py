@@ -29,6 +29,20 @@ REQUEST_DEADLINE_S = 55.0
 _request_started: ContextVar[float | None] = ContextVar("lf_request_started", default=None)
 
 
+def request_started() -> float | None:
+    """The monotonic start of the current request (set by the middleware), if any."""
+    return _request_started.get()
+
+
+def time_left(start: float | None = None) -> float | None:
+    """Seconds of the request deadline unspent, from `start` or the request's own start;
+    None when no request clock runs. The one deadline formula."""
+    started = start or _request_started.get()
+    if started is None:
+        return None
+    return started + REQUEST_DEADLINE_S - time.monotonic()
+
+
 def mark_request_start() -> None:
     """Start the request clock (once per HTTP request, before any dependency runs)."""
     _request_started.set(time.monotonic())
@@ -117,9 +131,9 @@ class BoundedPool:
     @asynccontextmanager
     async def acquire(self) -> AsyncIterator[Any]:
         wait = POOL_ACQUIRE_TIMEOUT
-        started = _request_started.get()
-        if started is not None:
-            wait = min(wait, started + REQUEST_DEADLINE_S - time.monotonic())
+        left = time_left()
+        if left is not None:
+            wait = min(wait, left)
         if wait <= 0:
             raise _db_busy()
         try:
@@ -146,9 +160,9 @@ class BoundedPool:
     async def _run(self, method: str, *args: Any) -> Any:
         async with self.acquire() as conn:
             budget: float = POOL_COMMAND_TIMEOUT
-            started = _request_started.get()
-            if started is not None:
-                budget = min(budget, started + REQUEST_DEADLINE_S - time.monotonic())
+            left = time_left()
+            if left is not None:
+                budget = min(budget, left)
             if budget <= 0:
                 raise _db_busy()
             try:  # the statement may not outlive the request deadline
