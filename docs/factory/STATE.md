@@ -4,9 +4,11 @@
 
 ## Now
 
-**In flight (pass lf-h3q9, started ~19:27 UTC):** #263 (`f/263-previous-race-order`, worktree `C:\projects\lf-263`), #264 (`f/264-live-region-empty`, `C:\projects\lf-264`), #257 (`f/257-one-request-clock`, `C:\projects\lf-257`). All three claimed; exam writers running. Merge order: #263 (exam-only) before #257 (both read `tasks.py` navigate/show).
+**In flight (pass lf-p7w2, started 2026-11-20 ~06:56 UTC):** #257 (PR #270, `f/257-one-request-clock`, `C:\projects\lf-257`: CI green, review round 2 running), #269 (`f/269-one-live-region`, `C:\projects\lf-269`: exam writer), #98 slice (`f/98-ci-cancel`, `C:\projects\lf-98`: implementer; D82, rest split to #271). All three claimed by lf-p7w2.
 
-_Previous: 2026-11-19 ~19:20 UTC, laptop pass **lf-v6k1** stopped at 3 merged PRs (#258, #262, #265) after ~80 minutes. Closed #255, #186, #245 with evidence. No claims held, nothing in flight. New follow-ups: #257 (one request clock), #263 (Previous race ordering), #264 (live region present before its text)._
+_Previous: pass lf-h3q9 (~19:27-20:35 UTC) shipped #263 (#266) and #264 (#268), opened PR #270 for #257 (review round 1 fixed, D81) and #269; it left no STATE update._
+
+_Before that: 2026-11-19 ~19:20 UTC, laptop pass **lf-v6k1** stopped at 3 merged PRs (#258, #262, #265) after ~80 minutes. Closed #255, #186, #245 with evidence. No claims held, nothing in flight. New follow-ups: #257 (one request clock), #263 (Previous race ordering), #264 (live region present before its text)._
 
 - **Resume here, in this order:** the Next list below, starting with **#263** and **#264** (small, exam-first) and **#257**.
 - Parked for the owner: **#230** guard half = **O21**; **#155** = optional **O22** (D77).
