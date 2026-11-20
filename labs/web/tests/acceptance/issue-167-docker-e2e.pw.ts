@@ -17,8 +17,6 @@ test("smoke student: login, My labs, Start, terminal iframe, End lab", async ({ 
   const password = need("LF_E2E_PASSWORD");
   const labId = need("LF_E2E_LAB_ID");
   const labTitle = need("LF_E2E_LAB_TITLE");
-  const result = need("LF_E2E_RESULT");
-  const { writeFileSync } = await import("node:fs");
   const wait = { timeout: 120_000 };
 
   await page.addInitScript(() => window.localStorage.setItem("lf-lang", "en"));
@@ -38,7 +36,9 @@ test("smoke student: login, My labs, Start, terminal iframe, End lab", async ({ 
   const src = (await terminal.getAttribute("src")) ?? "";
   const m = /^\/s\/([0-9a-f-]{36})\/term\/$/.exec(src);
   expect(m, `terminal iframe src was ${src}`).not.toBeNull();
-  writeFileSync(result, JSON.stringify({ session: m![1] }));
+  // The pytest exam reads the session id from the JSON report (no Node modules here: the
+  // app's tsconfig has no Node types, and `tsc --noEmit` checks this file too).
+  test.info().annotations.push({ type: "lf-session", description: m![1] });
 
   await page.getByRole("button", { name: "End lab" }).click();
   await expect(page).toHaveURL(/\/labs$/, wait);

@@ -229,6 +229,20 @@ def test_manager_serves_the_built_web_app_next_to_the_api(manager):
         assert res.status == 200
 
 
+def _annotations(node: object, kind: str) -> list[str]:
+    """Every distinct `kind` annotation in a Playwright JSON report, wherever it sits."""
+    found: list[str] = []
+    if isinstance(node, dict):
+        if node.get("type") == kind and isinstance(node.get("description"), str):
+            found.append(node["description"])
+        for value in node.values():
+            found += _annotations(value, kind)
+    elif isinstance(node, list):
+        for value in node:
+            found += _annotations(value, kind)
+    return sorted(set(found))
+
+
 def _watch(stop: threading.Event, seen: set[str]) -> None:
     while not stop.is_set():
         names = docker("ps", "-a", "--filter", "name=^lab-", "--format", "{{.Names}}", check=False)
@@ -246,7 +260,6 @@ def test_smoke_student_runs_the_lab_in_chromium_and_the_container_is_gone_after(
     )
     assert (WEB_DIR / PW_CONFIG).is_file(), f"labs/web/{PW_CONFIG} is missing"
     report = tmp_path / "report.json"
-    result = tmp_path / "result.json"
     env = {k: v for k, v in os.environ.items() if not k.startswith(("LF_", "SMOKE_"))}
     env.update(
         CI="1",
@@ -255,7 +268,6 @@ def test_smoke_student_runs_the_lab_in_chromium_and_the_container_is_gone_after(
         LF_E2E_PASSWORD=SMOKE_PASSWORD,
         LF_E2E_LAB_ID=LAB_ID,
         LF_E2E_LAB_TITLE=LAB_TITLE,
-        LF_E2E_RESULT=str(result),
         LF_E2E_REPORT=str(report),
     )
     stop = threading.Event()
@@ -280,7 +292,9 @@ def test_smoke_student_runs_the_lab_in_chromium_and_the_container_is_gone_after(
         assert stats["expected"] == 1, f"the browser test did not run and pass once: {stats}"
         assert not (stats["unexpected"] or stats["skipped"] or stats["flaky"]), stats
         assert SMOKE_PASSWORD not in run.stdout + run.stderr
-        session = json.loads(result.read_text(encoding="utf-8"))["session"]
+        sessions = _annotations(json.loads(report.read_text(encoding="utf-8")), "lf-session")
+        assert len(sessions) == 1, f"want one lf-session annotation in the report: {sessions}"
+        session = sessions[0]
         name = f"lab-{session}"
         assert name in seen, f"{name} was never seen running; saw {sorted(seen)}"
         deadline = time.time() + 30
