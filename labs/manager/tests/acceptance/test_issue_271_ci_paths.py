@@ -204,8 +204,9 @@ def test_fresh_is_true_when_the_push_was_code_then_a_revert_then_docs(tmp_path):
         {"README.md": "v1\n"},
         {"labs/content/lab-עברית/משימה.md": "x\n"},
         {"labs/manager/app.py": "v2\n"},
+        {"labs/web/index.html": "v1\n"},
     ],
-    ids=["content-md", "root-readme", "non-ascii-content", "manager-code"],
+    ids=["content-md", "root-readme", "non-ascii-content", "manager-code", "web-code"],
 )
 @needs_bash
 def test_fresh_is_false_when_newer_code_is_on_top(tmp_path, files):
@@ -323,3 +324,54 @@ def test_a_push_is_always_heavy(tmp_path):
     r, out = _changes(tmp_path, {"labs/web/index.html": "v1\n"}, event="push")
     assert r.returncode == 0, r.stderr
     assert out.get("heavy") == "true"
+
+
+# ---------------------------------------------------------------- exact wiring of the workflows
+
+TAG_SOURCE_EXPR = "${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}"
+
+
+def _env(step: dict) -> dict:
+    return {k: str(v).strip() for k, v in (step.get("env") or {}).items()}
+
+
+def _checkout(wf: dict, job: str) -> dict:
+    for s in wf["jobs"][job]["steps"]:
+        if str(s.get("uses", "")).startswith("actions/checkout@"):
+            return s
+    raise AssertionError(f"job {job!r} has no actions/checkout step")
+
+
+def test_changes_job_output_heavy_is_the_heavy_step_output():
+    out = _load(CI)["jobs"]["changes"].get("outputs") or {}
+    assert str(out.get("heavy", "")).strip() == "${{ steps.heavy.outputs.heavy }}"
+
+
+def test_docker_and_image_jobs_have_exactly_the_expected_conditions():
+    jobs = _load(CI)["jobs"]
+    assert str(jobs["docker"].get("if", "")).strip() == "needs.changes.outputs.heavy == 'true'"
+    for n in ("image-term", "image-manager"):
+        assert "if" not in jobs[n], f"{n} must have no job-level condition, it follows docker"
+        assert _needs(jobs[n]) == ["docker"]
+
+
+def test_heavy_step_reads_the_pull_request_context():
+    env = _env(_step(_load(CI), "changes", "heavy"))
+    assert env == {
+        "EVENT_NAME": "${{ github.event_name }}",
+        "BASE_REF": "${{ github.base_ref }}",
+        "HEAD_SHA": "${{ github.event.pull_request.head.sha }}",
+    }
+
+
+def test_fresh_step_reads_the_same_tag_source_as_the_deploy_step():
+    wf = _load(DEPLOY)
+    fresh = _env(_step(wf, "deploy", "fresh"))
+    deploy = _env(_step(wf, "deploy", "deploy"))
+    assert fresh["TAG_SOURCE"] == deploy["TAG_SOURCE"] == TAG_SOURCE_EXPR
+    assert fresh["EVENT_NAME"] == "${{ github.event_name }}"
+
+
+def test_checkouts_fetch_full_history():
+    for wf, job in ((_load(DEPLOY), "deploy"), (_load(CI), "changes")):
+        assert str((_checkout(wf, job).get("with") or {}).get("fetch-depth")).strip() == "0", job
