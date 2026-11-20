@@ -80,6 +80,7 @@ def test_the_check_route_uses_the_parsers_rule_with_the_checklist_size(monkeypat
     monkeypatch.setattr(tasks, "parse_check_output", spy)
     body = asyncio.run(tasks.check_task("t1", SimpleNamespace(sid=uuid.uuid4())))
     assert calls and calls[0][2] == len(THREE)
+    assert calls[0][1] == 0  # _run_check said exit_ok=True, so the parser gets exit code 0
     assert body["passed"] is True  # mirrors the parser's value
 
     spy_false = lambda *a, **k: SimpleNamespace(passed=False, items={})  # noqa: E731
@@ -89,6 +90,30 @@ def test_the_check_route_uses_the_parsers_rule_with_the_checklist_size(monkeypat
     monkeypatch.setattr(tasks, "_run_check", run_ok)
     body = asyncio.run(tasks.check_task("t1", SimpleNamespace(sid=uuid.uuid4())))
     assert body["passed"] is False
+
+
+def test_the_route_hands_a_nonzero_exit_code_to_the_parser(monkeypatch):
+    calls = []
+
+    def spy(stdout, exit_code, n_items=None):
+        calls.append(exit_code)
+        return SimpleNamespace(passed=False, items={})
+
+    async def gradable(ctx, task_id, kind):
+        return SimpleNamespace(id="t1", checklist=THREE)
+
+    async def run_bad(ctx, t):
+        return None, ALL_PASS, False
+
+    async def count(ctx, t, passed):
+        return 1
+
+    monkeypatch.setattr(tasks, "_gradable", gradable)
+    monkeypatch.setattr(tasks, "_run_check", run_bad)
+    monkeypatch.setattr(tasks, "_count_attempt", count)
+    monkeypatch.setattr(tasks, "parse_check_output", spy)
+    asyncio.run(tasks.check_task("t1", SimpleNamespace(sid=uuid.uuid4())))
+    assert calls and calls[0] != 0
 
 
 def _route_with_real_parser(monkeypatch, output: str, exit_ok: bool):
@@ -121,3 +146,8 @@ def test_the_route_fails_a_missing_item_with_the_real_parser(monkeypatch):
     body = _route_with_real_parser(monkeypatch, "PASS 1\nPASS 2\n", True)
     assert body["passed"] is False
     assert [i["passed"] for i in body["checklist"]] == [True, True, False]
+
+
+def test_the_route_fails_a_nonzero_exit_even_when_every_item_passed(monkeypatch):
+    body = _route_with_real_parser(monkeypatch, ALL_PASS, False)
+    assert body["passed"] is False

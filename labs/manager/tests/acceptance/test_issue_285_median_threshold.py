@@ -55,6 +55,13 @@ def test_the_threshold_is_the_ceiling_of_the_median_for_other_halves():
     assert got["threshold"] == math.ceil(35.5) == 36
 
 
+def test_the_threshold_is_ceil_not_round_half_up_for_a_non_half_fraction():
+    # Synthetic float priors: median 1000.2. ceil gives 1001; floor(m + 0.5) would give 1000.
+    got = _flags.fast_lab_detail(100, prior_active_seconds=[1000.2] * 6)
+    assert got["threshold"] == 1001
+    assert "(1001 s)" in _flags.fast_lab_reason(100, prior_active_seconds=[1000.2] * 6)
+
+
 def test_the_comparison_uses_the_raw_median_not_the_shown_threshold():
     # Median 1016.5: limit 0.3 * 1016.5 = 304.95. The shown threshold is 1017 (limit 305.1), but
     # 305 s is not under the raw limit, so it is not fast; 304 s is.

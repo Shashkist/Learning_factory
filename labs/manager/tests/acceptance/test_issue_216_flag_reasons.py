@@ -31,7 +31,8 @@ Pure functions in app.flags (the builders; the *_reason functions stay as they a
       -> {"code": "fast_task", "seconds": int(seconds), "threshold": min_task_seconds} | None
   fast_lab_detail(active_seconds, fast_lab_min=None, prior_active_seconds=(), repeat=False)
       -> {"code": "fast_lab_min" | "fast_lab_median", "seconds": math.ceil(active_seconds),
-          "threshold": fast_lab_min * 60 | median(prior_active_seconds)} | None
+          "threshold": fast_lab_min * 60 | math.ceil(median(prior_active_seconds))} | None
+      (the median threshold is ceil(median(...)) since #285, D92)
   A detail is None exactly when the matching *_reason is None; when both lab rules hold the
   minimum wins, as in the sentence.
 
