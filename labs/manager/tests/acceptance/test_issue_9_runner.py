@@ -443,6 +443,9 @@ def test_working_directory_is_root_and_env_is_path_and_home_only(engine):
     body = engine.creates[0]
     assert body["WorkingDir"] == "/"
     env = dict(e.split("=", 1) for e in body["Env"])
+    # #306 (D98): one extra variable, the timeout kill's marker for this exec, nothing else.
+    marker = env.pop("LF_EXEC_ID", None)
+    assert marker is None or re.fullmatch(r"[0-9a-f]{32}", marker), marker
     assert set(env) == {"PATH", "HOME"}, env
     assert env["HOME"] == "/root"
     assert env["PATH"]
