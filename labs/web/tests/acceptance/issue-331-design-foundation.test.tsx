@@ -14,8 +14,8 @@
  *   - labs/web/src/styles/tokens.css exists and is reached from src/main.tsx (main.tsx imports
  *     it, or imports a stylesheet that @imports it). It is the ONLY file in src with colour
  *     literals. Light values on `:root`, dark values in
- *     `@media (prefers-color-scheme: dark) { :root { ... } }`. Colour tokens (all 12):
- *     --color-bg --color-surface --color-text --color-text-muted --color-border --color-primary
+ *     `@media (prefers-color-scheme: dark) { :root { ... } }`. Colour tokens (all 13):
+ *     --color-bg --color-surface --color-text --color-text-muted --color-border --color-border-strong --color-primary
  *     --color-on-primary --color-success --color-warning --color-danger --color-on-danger
  *     --color-focus. Values may be hex, rgb() or hsl(), or var(--other-token).
  *   - Every page (student: /login signed out, /labs, /labs/<id>, unknown path; admin: /admin,
@@ -370,7 +370,7 @@ function resolve(name: string, vars: Record<string, string>, depth = 0): string 
 }
 
 const COLOUR_TOKENS = [
-  "bg", "surface", "text", "text-muted", "border", "primary", "on-primary",
+  "bg", "surface", "text", "text-muted", "border", "border-strong", "primary", "on-primary",
   "success", "warning", "danger", "on-danger", "focus",
 ].map((n) => `--color-${n}`);
 // D105 (2): [foreground, background, minimum ratio]
@@ -381,6 +381,7 @@ const PAIRS: [string, string, number][] = (
     ["on-primary", "primary", 4.5], ["on-danger", "danger", 4.5],
     ["primary", "bg", 4.5], ["primary", "surface", 4.5],
     ["focus", "bg", 3], ["focus", "surface", 3],
+    ["border-strong", "bg", 3], ["border-strong", "surface", 3],
   ] as [string, string, number][]
 ).map(([f, b, r]) => [`--color-${f}`, `--color-${b}`, r]);
 
@@ -511,6 +512,6 @@ describe("AC5: the built app makes no other-origin request", () => {
     // @fontsource-variable/rubik splits the font by unicode-range; the Hebrew subset must ship.
     expect(assets(/hebrew.*\.woff2$/i).length, "a Hebrew-subset woff2 in assets/").toBeGreaterThan(0);
     const css = assets(/\.css$/).map(read).join("\n");
-    expect(css).toMatch(/U\+05[0-9A-F]{2}/i); // the Hebrew block U+0590-05FF in a unicode-range
+    expect(css).toMatch(/U\+0?5[0-9A-F]{2}/i); // the Hebrew block U+0590-05FF in a unicode-range
   });
 });
