@@ -4,7 +4,7 @@
 
 ## Now
 
-**Pass lf-r2k6 (laptop, from 15:27 UTC) in flight:** #167 (`f/167-docker-e2e`, worktree `C:\projects\lf-167`) and #151 (`f/151-kill-followups`, worktree `C:\projects\lf-151`), both claimed by lf-r2k6.
+**Pass lf-r2k6 (laptop, from 15:27 UTC) in flight:** #167 (`f/167-docker-e2e`, worktree `C:\projects\lf-167`) and #151 (`f/151-kill-followups`, worktree `C:\projects\lf-151`), and #126 (`f/126-linux1-check-privacy`, worktree `C:\projects\lf-126`, exam only), all claimed by lf-r2k6. Exam writers running.
 
 _Previous:_ **Pass lf-w4t7 (laptop, 14:25-~15:20 UTC) stopped at 3 merged PRs:** #300 (#67), #302 (#298), #299 (#293). **#67, #293, #298 are closed with evidence. Production: `bd37773` (Deploy 44760760376: deploy + smoke success; `/api/health` ok, database ok).** D94 amended (a tag failure does not fall back to Docker Hub). No new issues. No claims held, nothing in flight.
 
