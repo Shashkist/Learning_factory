@@ -5,7 +5,7 @@
 # looks at. Root parses the facts and decides; no answer, hint or comparison reaches a student
 # process, command line or file (D52).
 facts=$(su student -s /bin/sh -c '/bin/sh -s' <<'READER'
-# f key path: type, mode, owner, group. c key path: readable flag, a truncation flag and the lines.
+# f key path: type, mode, owner, group. c key path: readable flag and the lines.
 f() {
   if [ -d "$2" ]; then t=d; elif [ -f "$2" ]; then t=f; elif [ -e "$2" ]; then t=o
   else printf '%s\n' "F $1 - - - -"; return; fi
@@ -14,11 +14,9 @@ f() {
 c() {
   if [ -f "$2" ] && ( : < "$2" ) 2>/dev/null; then
     printf '%s\n' "R $1 1"
-    # Truncation fact: more than 64 KiB or more than 200 lines, so root knows it saw only a part.
-    if [ "$(head -c 65537 "$2" | wc -c)" -gt 65536 ] || [ -n "$(head -c 65536 "$2" | sed -n '201{s/.*/x/p;q;}')" ]; then
-      printf '%s\n' "T $1 1"
-    fi
-    head -c 65536 "$2" | head -n 200 | while IFS= read -r l || [ -n "$l" ]; do
+    # One read of the file: at most 64 KiB, NUL bytes turned into ? (dash read drops them unseen), at most 201 lines. Root counts a 201st line (blank or not)
+    # as truncation; a line cut at 64 KiB already shows root an extra line, so no separate flag.
+    head -c 65536 "$2" | tr '\000' '?' | head -n 201 | while IFS= read -r l || [ -n "$l" ]; do
       printf '%s\n' "C $1 $l"
     done
   else
@@ -78,16 +76,25 @@ else
 fi
 
 extra=1
+lines=0
+dups=0
 if [ "$ty" = f ] && [ -s "$tmp/got" ]; then
   extra=$(grep -cvxF -f "$tmp/exp" "$tmp/got")
 fi
-if [ "$ty" = f ] && printf '%s\n' "$facts" | grep -qx "T out 1"; then
+if [ "$ty" = f ]; then
+  lines=$(wc -l < "$tmp/got")
+  dups=$(sort "$tmp/got" | uniq -d | wc -l)
+fi
+if [ "$ty" = f ] && [ "$lines" -gt 200 ]; then
   echo "FAIL 3 errors.txt is far longer than the ERROR lines of the log; grep should print only matching lines"
   rc=1
-elif [ "$extra" -eq 0 ]; then
-  echo "PASS 3"
-else
+elif [ "$extra" -ne 0 ]; then
   echo "FAIL 3 errors.txt is empty or has lines that are not ERROR lines; grep should print only matching lines"
   rc=1
+elif [ "$dups" -ne 0 ]; then
+  echo "FAIL 3 errors.txt repeats a line; each ERROR line should appear once, probably from running >> twice; > replaces the file, so run it again with a single >"
+  rc=1
+else
+  echo "PASS 3"
 fi
 exit $rc

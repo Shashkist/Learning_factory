@@ -68,8 +68,8 @@ tasks:
         he: "הקובץ ‎~/errors.txt‎ קיים"
       - en: errors.txt has every ERROR line of the log
         he: "הקובץ ‎errors.txt‎ מכיל את כל שורות ה-‎ERROR‎ של הלוג"
-      - en: errors.txt has only ERROR lines
-        he: "הקובץ ‎errors.txt‎ מכיל רק שורות ‎ERROR‎"
+      - en: errors.txt has only ERROR lines, each once
+        he: "הקובץ ‎errors.txt‎ מכיל רק שורות ‎ERROR‎, כל אחת פעם אחת"
   - id: 07-chmod
     kind: hands-on
     checklist:
