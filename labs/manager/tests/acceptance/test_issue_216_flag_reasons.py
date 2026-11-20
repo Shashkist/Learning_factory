@@ -30,7 +30,7 @@ Pure functions in app.flags (the builders; the *_reason functions stay as they a
   fast_task_detail(task_id, kind, seconds, min_task_seconds=20, repeat=False)
       -> {"code": "fast_task", "seconds": int(seconds), "threshold": min_task_seconds} | None
   fast_lab_detail(active_seconds, fast_lab_min=None, prior_active_seconds=(), repeat=False)
-      -> {"code": "fast_lab_min" | "fast_lab_median", "seconds": int(active_seconds),
+      -> {"code": "fast_lab_min" | "fast_lab_median", "seconds": math.ceil(active_seconds),
           "threshold": fast_lab_min * 60 | median(prior_active_seconds)} | None
   A detail is None exactly when the matching *_reason is None; when both lab rules hold the
   minimum wins, as in the sentence.
@@ -110,8 +110,8 @@ def test_no_task_detail_when_the_task_is_not_fast(args):
 
 
 def test_a_lab_under_the_minimum_gives_the_minimum_code_with_the_limit_in_seconds():
-    got = fast_lab_detail(95.4, fast_lab_min=10)
-    assert got == {"code": "fast_lab_min", "seconds": 95, "threshold": 600}
+    got = fast_lab_detail(95.4, fast_lab_min=10)  # whole seconds rounded up once (#137)
+    assert got == {"code": "fast_lab_min", "seconds": 96, "threshold": 600}
 
 
 def test_a_fractional_minimum_is_converted_to_seconds():
