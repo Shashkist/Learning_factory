@@ -53,12 +53,15 @@ fi
 first=$(body todo | head -n 1)
 lines=$(body todo | grep -c "")
 
-if printf '%s\n' "$first" | grep -qi linux; then
+case $first in
+*[Ll][Ii][Nn][Uu][Xx]*) # a builtin match, so the word is never on a command line (D52)
   echo "PASS 2"
-else
+  ;;
+*)
   echo "FAIL 2 the first line does not contain the word linux; look at the file with cat, and remember that > replaces what was there"
   rc=1
-fi
+  ;;
+esac
 
 if [ "${lines:-0}" -ge 2 ]; then
   echo "PASS 3"

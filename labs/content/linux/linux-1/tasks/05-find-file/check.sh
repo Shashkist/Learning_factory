@@ -34,6 +34,17 @@ fact() {
 }
 rd() { printf '%s\n' "$facts" | grep -qx "R $1 1"; }
 body() { printf '%s\n' "$facts" | sed -n "s/^C $1 //p"; }
+# tally: reads lines on stdin, prints "non-empty-lines lines-equal-to-want other-lines". A builtin
+# loop, so the expected path is never an argument of an external command (D52).
+tally() {
+  t=0; m=0; o=0
+  while IFS= read -r l; do
+    [ -n "$l" ] || continue
+    t=$((t + 1))
+    if [ "$l" = "$want" ]; then m=$((m + 1)); else o=$((o + 1)); fi
+  done
+  echo "$t $m $o"
+}
 rc=0
 
 want=/home/student/archive/2023/spring/misc/secret-recipe.txt
@@ -48,9 +59,9 @@ fi
 
 if [ "$ty" = f ]; then
   if rd found; then
-    n=$(body found | grep -c .)
-    other=$(body found | grep . | grep -cvxF "$want")
-    if body found | grep -qxF "$want" && [ "$n" -eq 1 ]; then
+    set -- $(body found | tally)
+    n=$1; right=$2; other=$3
+    if [ "$right" -ge 1 ] && [ "$n" -eq 1 ]; then
       echo "PASS 2"
     elif [ "$n" -gt 1 ] && [ "$other" -eq 0 ]; then
       echo "FAIL 2 found.txt holds the right path more than once (duplicate lines), probably from running >> twice; > replaces the file, so run it again with a single >"
