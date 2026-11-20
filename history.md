@@ -380,3 +380,15 @@ The #283 reviewer found the other classic gap: the route case used a spy parser 
 A review round on the CI exam is now a familiar pattern: three rounds have each found three or four more one-line workflow edits (needs on a pull-request-only job, an `if:` on a step, a value declared but not used). Each fix is a single assertion checked by its own mutation.
 
 Tips: make test fixtures look like the real checkout (which refs exist, not only which files). Give a spy-based route case a twin with the real collaborator. A reviewer who leaves a full local test suite running in the background can be stopped once its verdict is in.
+
+## The word "latest" and the throwaway red run (2026-11-20)
+
+Pass lf-q5m8 ran for about an hour on the flakes the last pass left behind. First it merged the parked CI exam (#288), green after a Docker Hub 429 re-run. Then two lanes ran side by side: #290 (keep the janitor out of nine more exam harnesses) and #294 (the bootstrap's gVisor check pulled `hello-world` anonymously from Docker Hub, and a 429 failed every bootstrap case).
+
+The #294 exam could not run on the laptop: the bootstrap exams need `jq` and Linux. Instead of trusting a hand-traced "these 11 should fail", the manager pushed the exam alone as a throwaway draft PR. CI ran it against the old script: exactly 10 of the new cases failed, all of them on the behaviour still to build, and the other 1,954 tests passed. That is a red run for the price of one CI job, with no Docker or `jq` needed on the laptop. The PR was then closed.
+
+The best catch came from an old exam, not from the reviewer. The fix used `hello-world:latest`, and the #50 bootstrap exam says the word `latest` may not appear anywhere in the script (it guards the pinned gVisor download). The new exam normalised image refs, so dropping the tag (`hello-world`, which Docker treats as `:latest`) satisfied both exams without editing either.
+
+On #290 the reviewer found that the exam writer had been too helpful. It also guarded a tenth harness (#8) that was not on the list, and that harness's own janitor exam calls `janitor.run_once` directly. Patching `run_once` to a no-op turned that exam into `assert True`. The #8 harness never raced in the first place, because its fake runtime lists the containers it started.
+
+Tips: when the laptop cannot run an exam, a draft PR with only the exam is a cheap way to see it fail. Before using a common word in a script (`latest`, `sudo`, `curl`), grep the exams that read the script as text. A shared "make the test quiet" fixture must never reach a test of the thing it silences.

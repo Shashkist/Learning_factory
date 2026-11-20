@@ -4,7 +4,13 @@
 
 ## Now
 
-**Pass lf-q5m8 (laptop, from ~13:15 UTC), in flight:** #288 merged (#286, 3958118; main CI 44744479600 running). Claims: **#290** (`f/290-janitor-guard`, worktree `C:\projects\lf-290`, exam-only) and **#294** (`f/294-runsc-local-image`, worktree `C:\projects\lf-294`, D94: exam first, then code). If this pass dies, continue those branches.
+**Pass lf-q5m8 (laptop, 13:15-~14:15 UTC) stopped at 3 merged PRs:** #288 (#286), #295 (#290), #297 (#294). **#286, #290, #294 are closed with evidence. Production: `abe1f74` (Deploy 44751820829 success, smoke success; `/api/health` ok, database ok).** Decisions D94, D95. New issue: #298 (review nits of #297). No claims held, nothing in flight.
+
+- **Resume here:** the Next list, starting with **#293** and **#298** (both small; #298 starts with an exam edit). Worktrees `C:\projects\lf-286`, `lf-290`, `lf-294` are shipped and safe to remove.
+- **Lesson (pass lf-q5m8):** when the laptop cannot run an exam (the bootstrap exams need `jq` and Linux), push the exam alone as a throwaway draft PR to see it red in CI, then close it (#296: 10 new cases red, 1954 others green).
+- **Lesson (pass lf-q5m8):** some exams read scripts as text. The #50 exam forbids the word `latest` anywhere in bootstrap.sh; `hello-world:latest` failed it in CI. Grep `tests/acceptance` for `_code()` pins before adding common words to a script.
+- **Lesson (pass lf-q5m8):** a "keep X out of the test" patch must never reach a test of X. The #290 exam writer also patched the #8 harness, whose #105 case calls `janitor.run_once` directly; the no-op turned it into `assert True` (review round 1).
+- **Lesson (pass lf-q5m8):** `gh run watch` can exit early on a network drop; poll `gh run view <id> --json status` in an until-loop instead.
 
 _Previous:_ **Pass lf-n6q2 (laptop, 11:57-~12:58 UTC) stopped at 3 merged PRs:** #287 (#284), #291 (#283, replaced #289), #292 (#285). **#283, #284, #285 are closed with evidence. Production: `e0eca95` (Deploy 44739270984 shipped #291 + #292; smoke `ok check-fail`, `ok check-pass`; `/api/health` ok, database ok).** Decisions D90, D91, D92, D93. New issues: #290, #293, #294. No claims held.
 
@@ -114,7 +120,7 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
 ## Next (in order)
 
-1. **#288** (see Now), then the small follow-ups: **#290** (janitor race in nine more harnesses, exam-only), **#293** (exam nits from #291/#292), **#294** (bootstrap runsc check without Docker Hub).
+1. **#293** (exam nits from #291/#292, exam-only) and **#298** (runsc check follow-ups from the review of #297: exam edit first, then the tag-failure message and the dry-run plan).
 2. **#167** docker end-to-end browser test against the real manager (split from #131, D60). **#151** kill follow-ups, **#154** Solution tab (D57 b), **#126**, **#142** (reuse the #153 helpers).
 3. **#85** deploy follow-ups (its "docs-only redeploys" item is done by #278), **#94**, **#93**; p2 list: #81, #76, #67, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
@@ -128,6 +134,11 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 - O16/O7 resolved by D43 (public repository). O12 (back up `.env`), O13 (re-deploy after recreating nginx-proxy3), O5 reopened.
 
 ## Recently done
+
+- 2026-11-20 · Pass lf-q5m8: **3 PRs merged, 3 issues closed.**
+  - #288 → **#286** (#271 exam: base-branch copy decides; D93). Main CI 44744479600 green.
+  - #295 → **#290** (opt-in `no_janitor` fixture in nine exam harnesses; #89 wait anchored to app start). Round 1: #8 patch reverted (D95). Main CI 44748197054 green.
+  - #297 → **#294** (runsc check: local image with `--pull=never`, else mirror.gcr.io, then Docker Hub; D94, D95). Red run in draft #296. Main CI 44749977686, Deploy 44751820829, smoke success. Nits → #298.
 
 - 2026-11-20 · Pass lf-n6q2: **3 PRs merged, 3 issues closed.**
   - #287 → **#284** (the #89 harness patches the janitor out; #137's copy removed; D91). Round 1 approved; follow-up #290. Main CI 44734348356: 1597 exam cases, no skips.
