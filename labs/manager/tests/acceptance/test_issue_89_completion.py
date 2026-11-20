@@ -1034,8 +1034,9 @@ def test_sessions_outlive_the_janitors_startup_retry(env):
     other, _ = env.student()
     later = env.open_lab(other, "slow")
     pass_task(env, client, sid, "slow", PLAIN)
-    time.sleep(3.5)
-    assert time.monotonic() - env.started > 2.5, "the wait must cover the janitor's 2 s retry"
+    # Wait until 3.5 s after app start, so the janitor's 2 s retry has fired, however long the
+    # setup above took.
+    time.sleep(max(0.0, env.started + 3.5 - time.monotonic()))
     pass_task(env, client, sid, "slow", SHORT)
     assert len(env.completions(h, "slow")) == 1
     assert env.run(sid)["first_completion"] is True

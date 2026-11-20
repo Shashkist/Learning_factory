@@ -481,15 +481,7 @@ def env(_db, tmp_path_factory):
     mp = pytest.MonkeyPatch()
     mp.setenv("LF_DATABASE_URL", _app_dsn(_db))
     _set_env(mp, write_content(tmp / "content"), tmp / "meminfo", tmp)
-    import app.janitor as janitor
     from app.main import app
-
-    async def idle(_app):
-        return True
-
-    # FakeRuntime is swapped in after the app starts; the janitor's retry would end every
-    # running session as an orphan (#290). No case here tests the janitor.
-    mp.setattr(janitor, "run_once", idle)
 
     async def end_all(conn):
         await conn.execute(
