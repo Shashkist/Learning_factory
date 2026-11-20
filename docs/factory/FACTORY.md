@@ -40,6 +40,14 @@ The factory turns the spec into a running lab platform at `labs.shashkist.com` w
 | **CI red on `main`, a failed deploy, or a failed smoke test** | a workflow opens an issue `type:incident` with `priority:p0`; the next run takes it first |
 | **Nightly at 02:00 Israel time** | a smoke workflow starts and ends 30 lab sessions and checks that memory and disk returned to baseline (the cleanup guarantee) |
 
+## Minute budget
+
+A full CI run (on a PR or on a push to main) costs about **29 billable minutes**: `manager` ~12, `docker` ~10, `web` ~3, every other job ~1 (three green PR runs, 2026-11-20, each job rounded up the way GitHub bills). Since the repository went public (D43, D46) hosted minutes are free, so these rules now save queue and wall-clock time (public repositories still have a concurrent-job limit). For scale, from the private-repository period (#98, 737 runs over about two days of factory work): CI on push to main 886 minutes, CI on pull requests 681, dashboard publish on push 215; the account hit its 2,000-minute limit (#96).
+
+- Batch state commits: one per step, not one per sub-step. Every push to main runs the full CI (until #271).
+- PR runs are cancelled when a newer commit lands on the same PR. Main runs are never cancelled.
+- The dashboard publishes on push only when `docs/factory/**` or the dashboard code changed.
+
 ## Labels
 
 - `status:ready` · `status:in-progress` · `status:in-review` · `status:needs-owner` · `status:blocked` · `status:done` · `status:superseded`
