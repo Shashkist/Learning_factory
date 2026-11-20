@@ -5,9 +5,9 @@
 ## Now
 
 **Pass lf-d3a2 (laptop, from 17:27 UTC) in flight, all claimed by lf-d3a2:**
-- **#314** (incident, main red after #303 + #307): fix PR **#315** reviewed (APPROVE, 2 notes added to #308) and merged as 2db2d26. Waiting for main CI + Deploy; then close #314, the duplicate auto-incident **#313**, and #126/#167/#151 with deploy evidence (they closed on merge without it).
-- **#306** stale timeout killer: worktree `C:\projects\lf-306`, branch `f/306-stale-killer`, exam being written.
-- **#312** browser exam follow-ups: worktree `C:\projects\lf-312`, branch `f/312-browser-exam`, exam being written.
+- **#314 done**: #315 merged (2db2d26), Deploy 44786065212 shipped ee3f734, smoke ok, health ok. #313 closed as its duplicate; #126, #151, #167 got their deploy evidence and `status:done`.
+- **#306** stale timeout killer: PR **#318** (`f/306-stale-killer`, worktree `C:\projects\lf-306`): 306 exam → #9 exam edit (allows `LF_EXEC_ID`, D98 amended) → code. Round 1 CI found the #9 env pin and a unit test outside `tests/unit/` (counts as exam); branch rebuilt. CI + reviewer running. Draft **#316** = the exam alone on main (red run; close it, never merge).
+- **#312** browser exam follow-ups: PR **#317** (`f/312-browser-exam`, worktree `C:\projects\lf-312`): two exam commits → `HEAVY` code commit (D99). Round 1 CI: the new `.xterm` check failed because the host-run manager cannot resolve `lab-<session>`; the exam now runs a host TCP forwarder behind `LF_TERM_UPSTREAM`. CI + reviewer running.
 
 _Previous:_ **Pass lf-r2k6 (laptop, 15:27-~17:05 UTC):** merged #307 (#151), #304 + #309 + #310 (#167), #303 (#126); main went red from a semantic conflict between #303 and #307 (incident #314, fix PR #315 opened). Leftovers: #306, #308, #311, #312. D96, D97.
 
