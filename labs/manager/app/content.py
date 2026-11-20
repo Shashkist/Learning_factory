@@ -234,30 +234,65 @@ def _validate(lab_dir: Path, data: Any) -> tuple[Lab | None, list[str]]:
 
 
 _SEPARATORS = re.compile(r"(\|\||&&|;|\|)")
-_QUOTED = re.compile(r"'[^']*'|\"[^\"]*\"")
-_HEREDOC = re.compile(r"<<(-?)\s*(['\"]?)(\w+)\2")
+_ARITHMETIC = re.compile(r"\$\(\(.*?\)\)")
+_HEREDOC = re.compile(r"<<(-?)\s*([^\s;&|<>()]+)")
 _REDIRECTS = re.compile(r"\d*>&\d+|\d*>>?\s*\S+")
 _FD_REDIRECT = re.compile(r"&>>?\s*\S+|(\d*)>>?&(\d)|(\d*)>>?\s*\S+")
-_FD0_DUP = re.compile(r"\d*<&0")
+_FD0_DUP = re.compile(r"\d*<&\s*0")
 _LEAD = re.compile(r"^(?:(?:do|then|else)\s+)*(?:\w+\s*\(\s*\)\s*)?(?:\{\s*)?")
 _WHILE_READ = re.compile(r"while\s+(?:\w+=\S*\s+)*read\b")
 _CAT_SUBSHELL = re.compile(r"\$\(\s*cat(?:\s+-\w*)*\s*\)|`\s*cat(?:\s+-\w*)*\s*`")
-_SU_READER = re.compile(
-    r"\bsu\b.*?\s-c\s+(['\"])\s*(?:read\b[^'\"]*|cat(?:\s+-\w*)*\s*|(?:/bin/)?sh\s+-s\s*)\1"
-)
+_SU_COMMAND = re.compile(r"\bsu\b[^|;&]*?\s-c\s+(['\"])")
+_SH_STDIN = re.compile(r"(?:/bin/)?sh\s+-s\s*$")
 
 
-def _strip_comment(line: str) -> str:
-    """Cut a trailing `# ...` comment; a `#` inside quotes is text."""
+def _scan(line: str) -> tuple[str, str]:
+    """Cut a trailing comment; also return the line with quoted text blanked to `x`.
+
+    A `#` inside quotes is text; a backslash outside single quotes escapes the next character.
+    The two results have the same length, so positions in one are positions in the other.
+    """
+    code: list[str] = []
+    masked: list[str] = []
     quote = ""
-    for i, ch in enumerate(line):
+    i = 0
+    while i < len(line):
+        ch = line[i]
+        if ch == "\\" and quote != "'" and i + 1 < len(line):
+            code.append(line[i : i + 2])
+            masked.append("xx" if quote else line[i : i + 2])
+            i += 2
+            continue
         if quote:
             quote = "" if ch == quote else quote
+            masked.append(ch if not quote else "x")
         elif ch in "'\"":
             quote = ch
+            masked.append(ch)
         elif ch == "#" and (i == 0 or line[i - 1].isspace()):
-            return line[:i].rstrip()
-    return line
+            break
+        else:
+            masked.append(ch)
+        code.append(ch)
+        i += 1
+    return "".join(code).rstrip(), "".join(masked).rstrip()
+
+
+def _su_reads_stdin(line: str, masked: str) -> bool:
+    """`su ... -c '<reader>'` with no input redirect on the su command itself."""
+    m = _SU_COMMAND.search(masked)
+    if not m:
+        return False
+    close = masked.find(m.group(1), m.end())
+    if close < 0:
+        return False
+    body = line[m.end() : close]
+    own_tail = re.split(r"[;&|]", masked[close + 1 :], maxsplit=1)[0]
+    if _redirects_input(own_tail):
+        return False
+    return any(
+        _reads_stdin(seg) or bool(_SH_STDIN.match(seg.strip())) for seg in _SEPARATORS.split(body)
+    )
 
 
 def _redirects_input(text: str) -> bool:
@@ -314,21 +349,20 @@ def _script_warnings(text: str, label: str) -> list[str]:
             if (raw.lstrip("\t") if dash_tabs else raw) == heredoc_end:
                 heredoc_end = ""
             continue
-        line = _strip_comment(raw.strip())
-        if not line or line.startswith("#"):
+        line, masked = _scan(raw.strip())
+        if not line:
             continue
-        masked = _QUOTED.sub('""', line)
-        doc = _HEREDOC.search(line) if "<<" in masked else None
+        no_math = _ARITHMETIC.sub(lambda m: " " * len(m.group()), masked)
+        doc = _HEREDOC.search(no_math)
         if doc:
-            dash_tabs, heredoc_end = doc.group(1) == "-", doc.group(3)
+            dash_tabs = doc.group(1) == "-"
+            heredoc_end = re.sub(r"['\"\\]", "", line[doc.start(2) : doc.end(2)])
         parts = _SEPARATORS.split(masked)
         for i in range(0, len(parts), 2):
             segments.append((n, parts[i], (i > 0 and parts[i - 1] == "|") or (i == 0 and piped)))
         piped = masked.endswith("|") and not masked.endswith("||")
-        su = _SU_READER.search(line)
         cat = _CAT_SUBSHELL.search(line)
-        reader = su or cat
-        if reader and not _redirects_input(line[reader.start() :]):
+        if _su_reads_stdin(line, masked) or (cat and not _redirects_input(line[cat.start() :])):
             found.append(f"{label} line {n}: {stdin_msg}")
         if masked.endswith("&") and not masked.endswith("&&"):
             if not _background_is_quiet(masked):
