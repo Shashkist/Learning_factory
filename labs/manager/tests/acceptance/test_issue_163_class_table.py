@@ -389,7 +389,7 @@ class Student:
 
 
 @pytest.fixture
-def env(_db, monkeypatch, tmp_path):
+def env(_db, monkeypatch, tmp_path, no_janitor):
     meminfo = tmp_path / "meminfo"
     meminfo.write_text(
         "MemTotal: 32768000 kB\nMemFree: 8192000 kB\nMemAvailable: 16384000 kB\nSwapTotal: 0 kB\n",

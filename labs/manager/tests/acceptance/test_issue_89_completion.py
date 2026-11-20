@@ -405,6 +405,7 @@ def env(_db, monkeypatch, tmp_path):
     with TestClient(app, base_url="https://testserver", client=(fresh_ip(), 50000)) as c:
         app.state.runtime = runtime
         e = Env(_db, c, runtime)
+        e.started = time.monotonic()  # after startup, so the elapsed time is never overstated
         e.sql(end_all)
         yield e
         e.sql(end_all)
@@ -1027,13 +1028,14 @@ def test_the_median_uses_first_completions_not_repeat_runs(env):
 
 def test_sessions_outlive_the_janitors_startup_retry(env):
     # The janitor's failed startup pass retries about 2 s after the app starts (#284). A run
-    # that spans more than 3 s, with a second session opened after the wait, still completes.
+    # that spans the 2 s mark, with both sessions open before the wait, still completes.
     client, h = env.student()
     sid = env.open_lab(client, "slow")
-    pass_task(env, client, sid, "slow", PLAIN)
-    time.sleep(3.5)
     other, _ = env.student()
     later = env.open_lab(other, "slow")
+    pass_task(env, client, sid, "slow", PLAIN)
+    time.sleep(3.5)
+    assert time.monotonic() - env.started > 2.5, "the wait must cover the janitor's 2 s retry"
     pass_task(env, client, sid, "slow", SHORT)
     assert len(env.completions(h, "slow")) == 1
     assert env.run(sid)["first_completion"] is True
