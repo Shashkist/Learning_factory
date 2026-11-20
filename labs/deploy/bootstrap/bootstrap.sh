@@ -422,13 +422,24 @@ apply_runtime() {
     if ! runsc_loaded; then err "docker does not list runsc after the reload"; return 1; fi
     if ! runsc_loaded_overlay; then err "docker lists runsc without $RUNSC_OVERLAY after the reload: $(runtimes_json)"; return 1; fi
   fi
+  # The check image comes from a local copy; a missing one is pulled from a mirror first, because
+  # Docker Hub answers anonymous pulls with 429 (#294). The runsc runs below never pull.
+  if ! dry && ! docker image inspect hello-world:latest >/dev/null 2>&1; then
+    if ! run docker pull mirror.gcr.io/library/hello-world:latest ||
+      ! run docker tag mirror.gcr.io/library/hello-world:latest hello-world:latest; then
+      if ! run docker pull hello-world:latest; then
+        err "cannot get the hello-world image for the runsc check: mirror.gcr.io and Docker Hub both refused the pull"
+        return 1
+      fi
+    fi
+  fi
   # The first runsc start right after a reload can fail once ("OCI runtime start failed ...
   # oom_score_adj: no such process", #153). Retry that one start; a second failure fails the step.
-  if ! run docker run --rm --name lf-runsc-check --runtime=runsc hello-world; then
+  if ! run docker run --rm --name lf-runsc-check --pull=never --runtime=runsc hello-world:latest; then
     err "the runsc test container did not start; retrying once"
     docker rm -f lf-runsc-check >/dev/null 2>&1 || true
     sleep 2
-    run docker run --rm --name lf-runsc-check --runtime=runsc hello-world
+    run docker run --rm --name lf-runsc-check --pull=never --runtime=runsc hello-world:latest
   fi
 }
 
