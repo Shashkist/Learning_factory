@@ -340,7 +340,13 @@ class CheckResult:
     items: dict[int, ItemResult] = field(default_factory=dict)
 
 
-def parse_check_output(stdout: str, exit_code: int) -> CheckResult:
+def parse_check_output(stdout: str, exit_code: int, n_items: int | None = None) -> CheckResult:
+    """Parse `PASS <n>` / `FAIL <n> [hint]` lines.
+
+    With `n_items` (the checklist length), `passed` is True exactly when the exit code is 0
+    and every item 1..n_items has a PASS and no FAIL; lines for an n outside that range are
+    noise for `passed` (they stay in `items`). Without it, `passed` is exit 0 and no FAIL.
+    """
     items: dict[int, ItemResult] = {}
     failed = False
     for line in stdout.splitlines():
@@ -353,4 +359,7 @@ def parse_check_output(stdout: str, exit_code: int) -> CheckResult:
         else:
             failed = True
             items[n] = ItemResult(False, (m.group(3) or "").strip()[:MAX_HINT] or None)
-    return CheckResult(exit_code == 0 and not failed, items)
+    if n_items is None:
+        return CheckResult(exit_code == 0 and not failed, items)
+    ok = all(n in items and items[n].passed for n in range(1, n_items + 1))
+    return CheckResult(exit_code == 0 and ok, items)
