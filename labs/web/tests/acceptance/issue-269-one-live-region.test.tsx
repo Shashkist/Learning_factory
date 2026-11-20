@@ -170,15 +170,50 @@ describe.each(LANGS)("one live region for the lab screen (%s)", (lang) => {
     expect(text(region())).toContain(d["lab.complete"]);
   });
 
-  test("from the open-tasks view to complete, still one region, the same element", async () => {
-    await start(["passed", "shown", "not_started", "passed"]);
+  /** Last task passed, Next answers no_next_task, the list shows two open tasks; the second list answer is
+   * all passed. Opening task 2 from the list gives a hands-on task that passes on Check. */
+  const viaOpenTasks = async () => {
+    backend(
+      lastOf({
+        [`GET ${API}/tasks`]: [
+          list(["passed", "shown", "not_started", "passed"]),
+          list(["passed", "passed", "passed", "passed"]),
+        ],
+        [`POST ${API}/tasks/t2/show`]: ok(HANDS),
+        [`POST ${API}/tasks/02-make-file/check`]: PASS(),
+      }),
+    );
+    await open(lang);
+    const before = region();
+    expect(text(before)).toBe("");
     fireEvent.click(button(d["lab.check"]));
     fireEvent.click(await within(panel()).findByRole("button", { name: d["lab.next"] }));
     await screen.findByRole("button", { name: title(2) });
-    const before = region();
-    expect(text(before)).toContain(d["lab.open.many"]);
+    expect(text(region())).toContain(d["lab.open.many"]);
+    return before;
+  };
+
+  test("from the open-tasks view to complete, still one region, the same element", async () => {
+    const before = await viaOpenTasks();
+    expect(region()).toBe(before);
+    fireEvent.click(screen.getByRole("button", { name: title(2) }));
+    await within(panel()).findByRole("heading", { level: 2, name: HANDS.title[lang] });
+    expect(region()).toBe(before);
+    await toComplete();
     expect(screen.getAllByRole("status")).toHaveLength(1);
     expect(region()).toBe(before);
+    expect(text(before)).toContain(d["lab.complete"]);
+  });
+
+  test("completing from the open-tasks view leaves no open-task buttons, one status and the way back", async () => {
+    await viaOpenTasks();
+    // stale-list scenario (#274): the other tasks got passed elsewhere; Next from the open view completes the lab
+    fireEvent.click(within(panel()).getByRole("button", { name: d["lab.next"] }));
+    await waitFor(() => expect(text(region())).toContain(d["lab.complete"]));
+    for (const i of [1, 2, 3, 4]) expect(screen.queryByRole("button", { name: title(i) })).toBeNull();
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(text(region())).not.toContain(d["lab.open.many"]);
+    expect(screen.getByRole("link", { name: d["lab.to_labs"] })).toBeTruthy();
   });
 
   test("at complete there is exactly one status element and the open-tasks line is gone", async () => {
