@@ -5,7 +5,7 @@
 # looks at. Root parses the facts and decides; no answer, hint or comparison reaches a student
 # process, command line or file (D52).
 facts=$(su student -s /bin/sh -c '/bin/sh -s' <<'READER'
-# f key path: type, mode, owner, group. c key path: readable flag and the lines.
+# f key path: type, mode, owner, group. c key path: readable flag and the lines (up to 201: root counts a 201st as truncation).
 f() {
   if [ -d "$2" ]; then t=d; elif [ -f "$2" ]; then t=f; elif [ -e "$2" ]; then t=o
   else printf '%s\n' "F $1 - - - -"; return; fi
@@ -14,7 +14,7 @@ f() {
 c() {
   if [ -f "$2" ] && ( : < "$2" ) 2>/dev/null; then
     printf '%s\n' "R $1 1"
-    head -c 65536 "$2" | head -n 200 | while IFS= read -r l || [ -n "$l" ]; do
+    head -c 65536 "$2" | head -n 201 | while IFS= read -r l || [ -n "$l" ]; do
       printf '%s\n' "C $1 $l"
     done
   else
@@ -63,7 +63,11 @@ if [ "$ty" = f ]; then
   if rd found; then
     set -- $(tally "$(body found)")
     n=$1; right=$2; other=$3
-    if [ "$right" -ge 1 ] && [ "$n" -eq 1 ]; then
+    lines=$(body found | wc -l)
+    if [ "$lines" -gt 200 ]; then
+      echo "FAIL 2 found.txt is far longer than one path; find should print only the file you search for"
+      rc=1
+    elif [ "$right" -ge 1 ] && [ "$n" -eq 1 ]; then
       echo "PASS 2"
     elif [ "$n" -gt 1 ] && [ "$other" -eq 0 ]; then
       echo "FAIL 2 found.txt holds the right path more than once (duplicate lines), probably from running >> twice; > replaces the file, so run it again with a single >"
