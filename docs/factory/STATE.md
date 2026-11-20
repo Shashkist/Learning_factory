@@ -4,7 +4,7 @@
 
 ## Now
 
-**Pass lf-b7m3 (laptop, from 19:26 UTC) in flight:** #311 (`f/311-linux1-check-leftovers`, worktree `C:\projects\lf-311`), #308 (`f/308-validator-followups`, `lf-308`), #320 (`f/320-kill-followups`, `lf-320`; split from #308 by D102). D101, D102. All three at the exam step.
+**Pass lf-b7m3 (laptop, from 19:26 UTC) in flight:** #311 merged (#322, `10776e8`; deploy pending behind the history commits). **#328** (#308, `f/308-validator-followups-2`, worktree `C:\projects\lf-308`) and **#329** (#320, `f/320-kill-followups-3`, worktree `lf-320`) are reviewed twice, manager-fixed, and merge on green CI (D103, D104). Follow-ups: #325, #326.
 
 _Previous:_ **Pass lf-d3a2 (laptop, 17:27-~19:05 UTC) stopped at 3 merged PRs:** #315 (#314), #317 (#312), #318 (#306). **#314, #312, #306 closed with evidence; #313 closed as duplicate; #126, #151, #167 got deploy evidence. Production: `56aacca` (Deploy 44798811736: all checks passed, smoke ok, `/api/health` ok, database ok).** No claims held, nothing in flight. Decisions D98 (+ amendment, accepted risk), D99 (+ amendment), D100. New issue: #319.
 
