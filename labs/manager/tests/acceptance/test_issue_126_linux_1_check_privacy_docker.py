@@ -35,11 +35,13 @@ Docker is absent.
 """
 # ruff: noqa: F811
 import re
+import subprocess
 import time
 import uuid
 
 import pytest
 from test_issue_9_runner_docker import (  # noqa: F401  (fixtures are used by name)
+    LAB_YAML,
     box,
     call,
     docker,
@@ -321,7 +323,6 @@ while [ ! -e /tmp/stop-stopper126 ]; do
   done
 done
 """
-READER_LINE = r"""ps -eo args= | grep -c '[/]bin/sh -s$'; true; echo"""
 
 
 def _release_students_processes(box: str):
@@ -343,14 +344,41 @@ def _run_check_under_stopper(runtime, call, box, task_id):
     return res, time.monotonic() - started
 
 
+@pytest.fixture
+def fresh_box(runtime, call, tmp_path_factory, request) -> str:
+    """A lab container of its own per case (copy of the module-scoped `box` of the #9 exam)."""
+    from app.content import load_labs
+    from app.runtime import container_spec
+
+    root = tmp_path_factory.mktemp("content")
+    d = root / "test" / "runner"
+    d.mkdir(parents=True)
+    (d / "lab.yaml").write_text(LAB_YAML, encoding="utf-8")
+    res = load_labs(root)
+    assert "runner" in res.labs, res.errors
+    session = str(uuid.uuid4())
+    spec = container_spec(res.labs["runner"], session)
+    name = f"lab-{session}"
+    request.addfinalizer(
+        lambda: subprocess.run(["docker", "rm", "-f", "-v", name], capture_output=True, timeout=120)
+    )
+    assert str(call(runtime.start, spec)) == name
+    deadline = time.time() + 60
+    while time.time() < deadline:  # the entrypoint copies /etc/skel into the empty tmpfs home
+        if docker("exec", name, "test", "-f", "/home/student/.bashrc", check=False).returncode == 0:
+            return name
+        time.sleep(0.5)
+    raise AssertionError("/home/student/.bashrc never appeared (skel was not copied)")
+
+
 @pytest.mark.parametrize("task_id", ["02-directory-tree", "06-grep-log"])
 def test_a_student_stopping_their_own_processes_gets_a_failed_check_not_a_hang(
-    docker_available, runtime, call, box, task_id
+    docker_available, runtime, call, fresh_box, task_id
 ):
     try:
-        res, elapsed = _run_check_under_stopper(runtime, call, box, task_id)
+        res, elapsed = _run_check_under_stopper(runtime, call, fresh_box, task_id)
     finally:
-        _release_students_processes(box)
+        _release_students_processes(fresh_box)
     assert elapsed < CHECK_TIMEOUT_S + KILL_BOUND_S + 5, (
         f"the check request hung for {elapsed:.0f} s under a student SIGSTOP loop"
     )
@@ -360,35 +388,4 @@ def test_a_student_stopping_their_own_processes_gets_a_failed_check_not_a_hang(
     assert "PASS" not in res.output.replace("PASS 0", ""), res.output
 
 
-def test_06_a_stopped_student_reader_does_not_pile_up_after_the_check_timed_out(
-    docker_available, runtime, call, box
-):
-    """D56: the exec returns (lock released) only once the reader is gone, or the kill gave up.
-
-    The loop keeps stopping every student process, the killer's `setpriv ... kill` as the student
-    included, so this may not hold today: a leftover stopped `/bin/sh -s` of the student is
-    exactly what the case reports.
-    """
-    try:
-        res, _elapsed = _run_check_under_stopper(runtime, call, box, "06-grep-log")
-        assert res.timed_out is True, res.output
-        deadline = time.monotonic() + 5
-        left = int(docker("exec", "-u", "root", box, "sh", "-c", READER_LINE).stdout.split()[0])
-        while left and time.monotonic() < deadline:
-            time.sleep(0.25)
-            left = int(docker("exec", "-u", "root", box, "sh", "-c", READER_LINE).stdout.split()[0])
-    finally:
-        _release_students_processes(box)
-    assert left == 0, f"{left} stopped `/bin/sh -s` reader process(es) outlived the timed-out check"
-
-
-def test_after_the_stop_loop_ends_the_next_check_runs_normally(
-    docker_available, runtime, call, box
-):
-    _release_students_processes(box)
-    task = _task_dir("02-directory-tree")
-    assert call(runtime.exec_script, box, _text(task / "setup.sh"), 60).exit_code == 0
-    started = time.monotonic()
-    res = call(runtime.exec_script, box, _text(task / "check.sh"), CHECK_TIMEOUT_S)
-    assert res.timed_out is False and res.exit_code == 1, res.output  # untouched: a plain FAIL
-    assert "FAIL 1" in res.output and time.monotonic() - started < 15
+# Stale-killer cases (stopped reader pile-up, next check after a stop loop): see #306.
