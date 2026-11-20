@@ -11,6 +11,13 @@ Then the docker CLI must show the lab-<uuid> container of the run gone.
 Contract for the CI `docker` job (pinned by test_issue_167_ci_wiring.py): Node 22, `npm ci` and
 `npm run build` in labs/web, Chromium installed for Playwright, all before the docker gate.
 
+Terminal upstream: the manager's proxy dials `lab-<session>:7681` by Docker DNS name, which only
+resolves for a manager that is a container on the lab network. Here the manager is a host process,
+so the exam runs a small TCP forwarder on 127.0.0.1 (LF_TERM_UPSTREAM) that looks up the IP of the
+running lab-* container on the lab network and pipes bytes both ways (HTTP and the WebSocket
+upgrade). The forwarder replaces only name resolution; the manager's proxy code (auth, header
+filtering, WebSocket relay) is the real one.
+
 Lab content (decision, see the hand-back of #167): the catalog never lists `internal` or `draft`
 labs, not even to the smoke cohort (#129 exam). So the exam gives the manager its own content
 folder (LF_CONTENT_DIR) holding a copy of the smoke lab `smoke-tasks` with `status: published`;
@@ -160,7 +167,7 @@ def content_dir(tmp_path_factory) -> Path:
 
 
 @pytest.fixture(scope="module")
-def manager(admin_dsn, network, image, content_dir, tmp_path_factory):
+def manager(admin_dsn, network, image, content_dir, tmp_path_factory, request):
     """The real manager process, serving the built UI, and the smoke student from the real CLI."""
     assert (DIST / "index.html").is_file(), (
         f"{DIST}/index.html is missing: build the web app first (`npm run build` in labs/web)"
@@ -172,6 +179,9 @@ def manager(admin_dsn, network, image, content_dir, tmp_path_factory):
         await conn.execute(f"alter role {APP_ROLE} password '{APP_PASSWORD}'")
 
     _run_as(admin_dsn, reset)
+    fwd_stop = threading.Event()
+    request.addfinalizer(fwd_stop.set)
+    fwd_port = _start_forwarder(network, fwd_stop)
     app_dsn = _app_dsn(admin_dsn)
     env = {k: v for k, v in os.environ.items() if not k.startswith("LF_")}
     env.update(
@@ -184,6 +194,7 @@ def manager(admin_dsn, network, image, content_dir, tmp_path_factory):
         LF_JANITOR_INTERVAL_S="3600",
         LF_CONTENT_DIR=str(content_dir),
         LF_WEB_DIR=str(DIST),
+        LF_TERM_UPSTREAM=f"127.0.0.1:{fwd_port}",
     )
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
@@ -250,6 +261,80 @@ def _log_tail(chars: int = 3000) -> str:
     if not MANAGER_LOG or not MANAGER_LOG[0].is_file():
         return "(no manager log)"
     return MANAGER_LOG[0].read_text(encoding="utf-8", errors="replace")[-chars:]
+
+
+def _lab_ip(network: str) -> str | None:
+    names = docker("ps", "--filter", "name=^lab-", "--format", "{{.Names}}", check=False)
+    for name in names.stdout.split():
+        res = docker("inspect", name, check=False)
+        if res.returncode != 0:
+            continue
+        nets = json.loads(res.stdout)[0]["NetworkSettings"]["Networks"]
+        ip = nets.get(network, {}).get("IPAddress")
+        if ip:
+            return ip
+    return None
+
+
+def _pipe(src: socket.socket, dst: socket.socket) -> None:
+    try:
+        while True:
+            data = src.recv(65536)
+            if not data:
+                break
+            dst.sendall(data)
+    except OSError:
+        pass
+    finally:
+        for s in (src, dst):
+            try:
+                s.close()
+            except OSError:
+                pass
+
+
+def _serve_one(client: socket.socket, network: str) -> None:
+    upstream = None
+    deadline = time.time() + 15
+    while upstream is None and time.time() < deadline:
+        ip = _lab_ip(network)
+        if ip:
+            try:
+                upstream = socket.create_connection((ip, 7681), timeout=5)
+                upstream.settimeout(None)
+            except OSError:
+                upstream = None
+        if upstream is None:
+            time.sleep(0.3)
+    if upstream is None:
+        client.close()
+        return
+    threading.Thread(target=_pipe, args=(client, upstream), daemon=True).start()
+    threading.Thread(target=_pipe, args=(upstream, client), daemon=True).start()
+
+
+def _start_forwarder(network: str, stop: threading.Event) -> int:
+    """127.0.0.1:<port> -> <running lab container ip>:7681, until `stop` is set."""
+    listener = socket.socket()
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(16)
+    listener.settimeout(0.5)
+
+    def loop() -> None:
+        try:
+            while not stop.is_set():
+                try:
+                    client, _ = listener.accept()
+                except TimeoutError:
+                    continue
+                except OSError:
+                    break
+                threading.Thread(target=_serve_one, args=(client, network), daemon=True).start()
+        finally:
+            listener.close()
+
+    threading.Thread(target=loop, daemon=True).start()
+    return listener.getsockname()[1]
 
 
 def _watch(stop: threading.Event, seen: set[str]) -> None:
