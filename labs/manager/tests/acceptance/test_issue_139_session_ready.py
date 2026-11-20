@@ -396,7 +396,7 @@ def _db():
 
 
 @pytest.fixture
-def env(_db, monkeypatch, tmp_path):
+def env(_db, monkeypatch, tmp_path, no_janitor):
     from fastapi.testclient import TestClient
 
     meminfo = tmp_path / "meminfo"
