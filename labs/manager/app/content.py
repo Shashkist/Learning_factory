@@ -235,7 +235,7 @@ def _validate(lab_dir: Path, data: Any) -> tuple[Lab | None, list[str]]:
 
 _SEPARATORS = re.compile(r"(\|\||&&|;|\|)")
 _ARITHMETIC = re.compile(r"\$\(\(.*?\)\)")
-_HEREDOC = re.compile(r"<<(-?)\s*([^\s;&|<>()]+)")
+_HEREDOC = re.compile(r"(?<!<)<<(?!<)(-?)\s*([^\s;&|<>()]+)")  # not `<<<`, a here-string
 _REDIRECTS = re.compile(r"\d*>&\d+|\d*>>?\s*\S+")
 _FD_REDIRECT = re.compile(r"&>>?\s*\S+|(\d*)>>?&(\d)|(\d*)>>?\s*\S+")
 _FD0_DUP = re.compile(r"\d*<&\s*0")
@@ -287,7 +287,8 @@ def _su_reads_stdin(line: str, masked: str) -> bool:
     if close < 0:
         return False
     body = line[m.end() : close]
-    own_tail = re.split(r"[;&|]", masked[close + 1 :], maxsplit=1)[0]
+    # the su command ends at a separator or a lone `&`; the `&` of `2>&1`, `<&0` or `&>` does not
+    own_tail = re.split(r"[;|]|(?<![<>])&(?!>)", masked[close + 1 :], maxsplit=1)[0]
     if _redirects_input(own_tail):
         return False
     return any(
