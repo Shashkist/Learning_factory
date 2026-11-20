@@ -59,6 +59,7 @@ import hmac
 import itertools
 import os
 import stat
+import time
 import uuid
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
@@ -119,6 +120,8 @@ LABS: dict[str, tuple[list[tuple], int | None]] = {
     "comp": ([(QUIZ, "quiz"), (PLAIN, "hands-on"), (SHORT, "hands-on")], None),
     "comp2": ([(PLAIN, "hands-on"), (SHORT, "hands-on")], None),
     "comp3": ([(PLAIN, "hands-on")], None),
+    # a run that outlives the janitor's startup retry (#284)
+    "slow": ([(PLAIN, "hands-on"), (SHORT, "hands-on")], None),
     # per-task overrides, quiz, and an absolute lab limit of 10 minutes
     "speedy": (
         [(QUIZ, "quiz"), (PLAIN, "hands-on"), (SHORT, "hands-on", 5), (LONG, "hands-on", 120)],
@@ -361,6 +364,16 @@ class Env:
 @pytest.fixture
 def env(_db, monkeypatch, tmp_path):
     from fastapi.testclient import TestClient
+
+    import app.janitor as janitor
+
+    async def idle(_app):
+        return True
+
+    # FakeRuntime is swapped in after the app has started. The janitor's startup pass fails on
+    # the missing Docker socket and retries 2 s later; FakeRuntime lists no containers, so that
+    # retry would end every running session as an orphan (#284). No case here tests the janitor.
+    monkeypatch.setattr(janitor, "run_once", idle)
 
     meminfo = tmp_path / "meminfo"
     meminfo.write_text(
@@ -1010,3 +1023,19 @@ def test_the_median_uses_first_completions_not_repeat_runs(env):
     run = env.run(last)
     assert run["first_completion"] is True
     assert run["fast_flag"] is True
+
+
+def test_sessions_outlive_the_janitors_startup_retry(env):
+    # The janitor's failed startup pass retries about 2 s after the app starts (#284). A run
+    # that spans more than 3 s, with a second session opened after the wait, still completes.
+    client, h = env.student()
+    sid = env.open_lab(client, "slow")
+    pass_task(env, client, sid, "slow", PLAIN)
+    time.sleep(3.5)
+    other, _ = env.student()
+    later = env.open_lab(other, "slow")
+    pass_task(env, client, sid, "slow", SHORT)
+    assert len(env.completions(h, "slow")) == 1
+    assert env.run(sid)["first_completion"] is True
+    assert env.session(sid)["status"] == "running"
+    assert env.session(later)["status"] == "running"
