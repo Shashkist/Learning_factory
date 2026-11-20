@@ -120,9 +120,10 @@ def _loop_time(deadline: float) -> float:
 
 async def wait_ready(runtime: LabRuntime, name: str, deadline: float) -> None:
     """Running means the entrypoint copied the skel (ttyd starts after it). Bounded by
-    LF_READY_TIMEOUT_S (default 45, capped at 48 s, below nginx's 60 s) counted from the start of
-    the request: `deadline` is a time.monotonic() value, so a slow forced end or create/start
-    leaves the wait only what is left. A runtime without `wait_ready` is ready at once."""
+    LF_READY_TIMEOUT_S (default and cap 42 s: with the kill and cleanups, below nginx's 60 s)
+    counted from the start of the request: `deadline` is a time.monotonic() value, so a slow
+    forced end or create/start leaves the wait only what is left. A runtime without `wait_ready`
+    is ready at once."""
     waiter = getattr(runtime, "wait_ready", None)
     if waiter is None:
         log.warning("runtime %s has no wait_ready; assuming ready", type(runtime).__name__)
@@ -143,7 +144,7 @@ async def start(
     # The route dependency stamps the request before authentication; a direct call (the #177
     # exam calls start() with a bare request) counts from here.
     started = getattr(getattr(request, "state", None), "started", None) or time.monotonic()
-    budget = min(admission.env_num("LF_READY_TIMEOUT_S", 45), READY_TIMEOUT_MAX_S)
+    budget = min(admission.env_num("LF_READY_TIMEOUT_S", READY_TIMEOUT_MAX_S), READY_TIMEOUT_MAX_S)
     deadline = started + budget
     state = request.app.state
     labs: dict[str, Lab] = state.labs
