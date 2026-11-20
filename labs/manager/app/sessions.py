@@ -102,8 +102,9 @@ def _conflict(labs: dict[str, Lab], row: Any) -> HTTPException:
 
 
 # nginx answers 504 at 60 s (its default proxy_read_timeout; labs/deploy/nginx/labs.conf sets none).
-# The worst case of a failed start is the budget plus the two cleanup bounds: 48 + 2 x 5 = 58 s.
-READY_TIMEOUT_MAX_S = 48.0
+# The worst case of a failed start is the budget, the kill of a readiness exec cancelled by it
+# (KILL_BOUND_S) and the two cleanup bounds: 42 + 5 + 2 x 5 = 57 s.
+READY_TIMEOUT_MAX_S = 42.0
 CLEANUP_BOUND_S = 5.0  # what is left after a failed start is the janitor's (LF_START_DEADLINE_S)
 
 
@@ -119,9 +120,10 @@ def _loop_time(deadline: float) -> float:
 
 async def wait_ready(runtime: LabRuntime, name: str, deadline: float) -> None:
     """Running means the entrypoint copied the skel (ttyd starts after it). Bounded by
-    LF_READY_TIMEOUT_S (default 45, capped at 48 s, below nginx's 60 s) counted from the start of
-    the request: `deadline` is a time.monotonic() value, so a slow forced end or create/start
-    leaves the wait only what is left. A runtime without `wait_ready` is ready at once."""
+    LF_READY_TIMEOUT_S (default and cap 42 s: with the kill and cleanups, below nginx's 60 s)
+    counted from the start of the request: `deadline` is a time.monotonic() value, so a slow
+    forced end or create/start leaves the wait only what is left. A runtime without `wait_ready`
+    is ready at once."""
     waiter = getattr(runtime, "wait_ready", None)
     if waiter is None:
         log.warning("runtime %s has no wait_ready; assuming ready", type(runtime).__name__)
@@ -142,7 +144,7 @@ async def start(
     # The route dependency stamps the request before authentication; a direct call (the #177
     # exam calls start() with a bare request) counts from here.
     started = getattr(getattr(request, "state", None), "started", None) or time.monotonic()
-    budget = min(admission.env_num("LF_READY_TIMEOUT_S", 45), READY_TIMEOUT_MAX_S)
+    budget = min(admission.env_num("LF_READY_TIMEOUT_S", READY_TIMEOUT_MAX_S), READY_TIMEOUT_MAX_S)
     deadline = started + budget
     state = request.app.state
     labs: dict[str, Lab] = state.labs

@@ -91,15 +91,16 @@ def inner_cmd(cmd: list[str]) -> list[str]:
 
 
 def is_kill_exec(cmd: list[str]) -> bool:
-    """#117/#151: the kill exec (mechanism (b)) is recognised by its command alone. A script exec
-    always ends in `-s` (with or without a `timeout` wrapper); the kill exec runs a shell
-    program (`sh -c <program> ...`) that mentions kill and does not end in a bare `-s`. What a
-    script says on stdin (a script may well contain the word kill) never decides."""
+    """#117/#151/#320: the kill exec (mechanism (b)) is recognised by the shape of its command: a
+    root shell program (`/bin/sh -c <program> ...`) whose program runs `setpriv` (it signals each
+    student group as that student). A script exec ends in `-s` (the program is read from stdin)
+    and never has that shape. The word "kill" decides nothing (a reworded program, or a script
+    that says kill, must not change what the fake sees), nor does what a script says on stdin."""
     return (
         timeout_wrapper(cmd) is None
-        and bool(cmd)
+        and cmd[:2] == ["/bin/sh", "-c"]
         and cmd[-1] != "-s"
-        and "kill" in " ".join(cmd).lower()
+        and "setpriv" in " ".join(cmd[2:])
     )
 
 

@@ -23,11 +23,11 @@ Criteria covered (the numbers are the issue's):
    deadline are checked against it. The kill really is bounded by `runtime.KILL_BOUND_S`.
 3. "Kill left it alive" and "kill hung" are different ERROR lines of the logger `lab-manager`
    and both are produced inside the kill bound (the still-running poll fits in it):
-       ALIVE_LOG = "kill left the timed-out script running"
-       HUNG_LOG = "kill of the timed-out script hung"
+       ALIVE_LOG = "kill left the script running"
+       HUNG_LOG = "kill of the script hung"
    (substrings of the record message). A kill that fails otherwise (the engine refuses the
    kill exec) logs neither text, a successful kill logs no error at all. Each case: exactly
-   one ERROR record that mentions "timed-out script".
+   one ERROR record that mentions "script".
 4. The kill program reads and signals real ids: `ruid=`/`rgid=` in the `ps -o` list, no bare
    effective `uid=`/`gid=`.
 5. The image requirement is written down in the spec (sections 6 and 7 name `procps`,
@@ -58,8 +58,8 @@ from test_issue_117_kill_timeouts import (
     stdin_warnings,
 )
 
-ALIVE_LOG = "kill left the timed-out script running"
-HUNG_LOG = "kill of the timed-out script hung"
+ALIVE_LOG = "kill left the script running"
+HUNG_LOG = "kill of the script hung"
 REPO_ROOT = next(p for p in Path(__file__).resolve().parents if (p / "labs").is_dir())
 LABS_CONF = REPO_ROOT / "labs" / "deploy" / "nginx" / "labs.conf"
 SPEC = REPO_ROOT / "docs" / "superpowers" / "specs" / "2026-11-14-lab-platform-design.md"
@@ -314,7 +314,7 @@ def test_a_kill_that_left_the_script_alive_logs_its_own_line_inside_the_kill_bou
     lines = _error_lines(caplog)
     assert [ln for ln in lines if ALIVE_LOG in ln], lines
     assert not [ln for ln in lines if HUNG_LOG in ln], lines
-    assert len([ln for ln in lines if "timed-out script" in ln]) == 1, lines
+    assert len([ln for ln in lines if "script" in ln]) == 1, lines
 
 
 def test_a_kill_that_hung_logs_its_own_line_inside_the_kill_bound(engine, caplog):
@@ -326,7 +326,7 @@ def test_a_kill_that_hung_logs_its_own_line_inside_the_kill_bound(engine, caplog
     lines = _error_lines(caplog)
     assert [ln for ln in lines if HUNG_LOG in ln], lines
     assert not [ln for ln in lines if ALIVE_LOG in ln], lines
-    assert len([ln for ln in lines if "timed-out script" in ln]) == 1, lines
+    assert len([ln for ln in lines if "script" in ln]) == 1, lines
 
 
 def test_a_kill_the_engine_refuses_logs_neither_the_alive_nor_the_hung_line(
@@ -343,7 +343,7 @@ def test_a_kill_the_engine_refuses_logs_neither_the_alive_nor_the_hung_line(
     assert exc is None and res.timed_out is True
     lines = _error_lines(caplog)
     assert not [ln for ln in lines if ALIVE_LOG in ln or HUNG_LOG in ln], lines
-    assert len([ln for ln in lines if "timed-out script" in ln]) == 1, lines
+    assert len([ln for ln in lines if "script" in ln]) == 1, lines
 
 
 def test_a_kill_that_works_logs_no_error(engine, caplog):

@@ -20,6 +20,7 @@ MB = 1024 * 1024
 DEFAULT_DOCKER_HOST = "unix:///var/run/docker.sock"
 _TIMEOUT = 60.0
 KILL_BOUND_S = 5.0  # longest kill of a timed-out script
+_KILLS: set[asyncio.Future[None]] = set()  # kills still running after their caller left
 MAX_OUTPUT = 256 * 1024  # the exam reassembles 200 KiB, so not the 64 KiB asked for
 TRUNCATED = b"\n[output truncated]\n"
 
@@ -291,10 +292,28 @@ class DockerRuntime:
         except Exception as exc:
             timed_out = isinstance(exc, TimeoutError) and deadline.expired()
             if ids:  # returns only once the script has stopped, so the session lock outlives it
-                await self._kill_bounded(name, marker, ids[0], timeout)
+                await self._kill_shielded(name, marker, ids[0], timeout)
             if not timed_out:
                 raise  # a failure (even a timeout while connecting), not a slow script
             return ExecResult(None, out.decode("utf-8", "replace"), True)
+        except asyncio.CancelledError:
+            if ids:  # a cancel (shutdown, outer timeout) must not leave the script running
+                await self._kill_shielded(name, marker, ids[0], timeout)
+            raise
+
+    async def _kill_shielded(self, name: str, marker: str, exec_id: str, timeout: float) -> None:
+        """The bounded kill, which a cancel of the caller does not cut."""
+        kill = asyncio.ensure_future(self._kill_bounded(name, marker, exec_id, timeout))
+        # a second cancel may leave at once while the kill goes on: the loop keeps only a weak
+        # reference to a task, so hold it here (the D98 marker keeps the next exec safe)
+        _KILLS.add(kill)
+        kill.add_done_callback(_KILLS.discard)
+        try:
+            await asyncio.shield(kill)  # the kill bounds itself by KILL_BOUND_S
+        except asyncio.CancelledError:  # a cancel landed during the kill: let it finish, then go on
+            with contextlib.suppress(asyncio.CancelledError):
+                await asyncio.shield(kill)  # a second cancel leaves at once
+            raise
 
     async def _kill_bounded(self, name: str, marker: str, exec_id: str, timeout: float) -> None:
         """The kill of a script that must not outlive its call; never raises, logs one line."""
@@ -305,11 +324,11 @@ class DockerRuntime:
                 give_up_at = loop.time() + bound - 0.3
                 await self._kill(name, marker, exec_id, give_up_at, max(1.0, bound - 1.5))
         except TimeoutError:
-            log.error("kill of the timed-out script hung")
+            log.error("kill of the script hung")
         except _StillRunning:
-            log.error("kill left the timed-out script running")
+            log.error("kill left the script running")
         except Exception as exc:  # the lock is released anyway; class only, no data
-            log.error("killing a timed-out script failed (%s)", type(exc).__name__)
+            log.error("killing the script failed (%s)", type(exc).__name__)
 
     async def _kill(
         self, name: str, marker: str, exec_id: str, give_up_at: float, deadline_s: float

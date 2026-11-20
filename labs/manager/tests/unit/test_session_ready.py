@@ -5,7 +5,7 @@ import httpx
 import pytest
 
 from app import sessions
-from app.runtime import DockerRuntime, ExecResult
+from app.runtime import KILL_BOUND_S, DockerRuntime, ExecResult
 
 
 def _runtime(results):
@@ -56,8 +56,10 @@ def test_wait_gets_only_what_is_left_of_the_deadline():
     with pytest.raises(TimeoutError):
         asyncio.run(sessions.wait_ready(R(), "lab-x", time.monotonic() - 1))
     assert len(seen) == 1
-    # the worst failed start (budget + the two cleanup bounds) keeps a margin to nginx's 60 s
-    assert sessions.READY_TIMEOUT_MAX_S + 2 * sessions.CLEANUP_BOUND_S < 60
+    # the worst failed start (budget + the kill of a cancelled readiness exec + the two cleanup
+    # bounds) keeps a margin to nginx's 60 s
+    worst = sessions.READY_TIMEOUT_MAX_S + KILL_BOUND_S + 2 * sessions.CLEANUP_BOUND_S
+    assert worst < 60
 
 
 @pytest.mark.parametrize(

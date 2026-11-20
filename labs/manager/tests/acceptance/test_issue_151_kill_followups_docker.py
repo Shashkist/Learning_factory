@@ -9,6 +9,7 @@ a script that closes its own output (`exec >/dev/null 2>&1`) and then blocks mus
 `exec_script`, and a process whose effective uid differs from its real uid is killed.
 """
 # ruff: noqa: F811
+import asyncio
 import time
 
 import pytest
@@ -22,7 +23,7 @@ from test_issue_9_runner_docker import (  # noqa: F401  (fixtures are used by na
     run,
     runtime,
 )
-from test_issue_117_kill_timeouts_docker import sleepers, wait_gone  # noqa: F401
+from test_issue_117_kill_timeouts_docker import mentioning, sleepers, wait_gone  # noqa: F401
 
 pytestmark = pytest.mark.docker
 
@@ -87,3 +88,52 @@ def test_a_process_with_a_changed_effective_uid_is_killed_on_timeout(runtime, ca
     assert res.timed_out is True
     assert sleepers(box, 6102) == 0, "the euid-changed sleeper outlived exec_script"
     assert wait_gone(box, 6102) == 0 and wait_gone(box, 6103) == 0
+
+
+# ---------------------------------------------------------------- #320: a saved uid that stays 0
+
+
+def test_a_process_whose_saved_uid_stays_root_is_killed_on_timeout(runtime, call, box):
+    """#320. `setpriv --euid=1001` (the case above) sets the saved uid to 1001 too, so even the
+    old kill passes it: the old program read `ps uid=` (the effective uid, 1001) and signalled as
+    student (`setpriv --reuid=1001` makes real, effective and saved uid 1001). The kernel lets a
+    sender kill a target only when the sender's real or effective uid equals the target's real or
+    SAVED uid. Perl's `$> = 1001` changes only the effective uid: real 0, effective 1001, saved 0.
+    The student-owned signal gets EPERM, the process lives on. Only a kill that reads the real
+    uid (`ruid=`, 0 here) and signals as root reaches it. So this case fails on the old kill and
+    passes on the real-id kill."""
+    probe = docker(
+        "exec", "-u", "root", box, "perl", "-e",
+        '$> = 1001; open F, "/proc/self/status"; print grep { /^Uid/ } <F>',
+    )
+    ids = probe.stdout.split()[1:4]
+    assert probe.returncode == 0 and ids == ["0", "1001", "0"], (
+        "the case needs real 0, effective 1001, saved 0 (perl in the lab image?)",
+        probe.stdout,
+        probe.stderr,
+    )
+    script = (
+        "#!/bin/sh\n"
+        "perl -e '$> = 1001; sleep 6102' </dev/null >/dev/null 2>&1 &\n"
+        "sleep 6103\n"
+    )
+    seen_alive: list[int] = []
+
+    async def go():
+        task = asyncio.ensure_future(runtime.exec_script(box, script, 6))
+        for _ in range(12):  # poll: an exec start under runsc can take a second on a busy runner
+            await asyncio.sleep(0.25)
+            seen = await asyncio.to_thread(mentioning, box, 6102)
+            if seen:
+                seen_alive.append(seen)
+                break
+        return await task
+
+    res = call(go)
+    assert seen_alive == [1], f"the perl sleeper was not running before the kill: {seen_alive}"
+    assert res.timed_out is True
+    deadline = time.monotonic() + 5.0  # a process just sent SIGKILL may be listed for a moment
+    while mentioning(box, 6102) and time.monotonic() < deadline:
+        time.sleep(0.25)
+    assert mentioning(box, 6102) == 0, "the saved-uid-0 process outlived exec_script"
+    assert wait_gone(box, 6103) == 0
