@@ -1032,3 +1032,12 @@ in force · factory · 2026-11-20
 **Alternatives.** Document `<&0` in spec §7 (rejected: hides a real read of the script).
 
 **Revert.** Accept `<&0` again in `labs/manager/app/content.py` and restore the `done <&0` lines in 04 and 05.
+
+## D103 · #308 merges on green after the manager fixed review round 2; review fixes re-sequence into `-2` branches
+in force · factory · 2026-11-20
+
+**Decision.** (1) Review round 2 of #308 resolved all round 1 findings and found one new blocking hole (a `<<<` here-string was read as a here-document, so the rest of the script went unchecked) and one false positive (`2>&1` ended the `su` command early). The manager added both as exam cases (red on the round 1 code, 10 cases) and fixed them in two regex lines; #328 merges on green CI with no third round, as D95 and D100. (2) Review fixes that add exam cases after a code commit fail exam integrity ("changes the exam after non-test code was added"), and force-pushes are refused here, so such a branch is rebuilt as `f/<n>-<slug>-2` with every exam commit first, a new PR, the old PR closed (#323 → #327, #324 → #328), as D52 (3).
+
+**Why.** Two review rounds is the limit (FACTORY.md); the fix is small and exam-guarded. The leftovers that predate the PR are #326.
+
+**Revert.** Revert the #308 squash commit.
