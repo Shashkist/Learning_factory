@@ -938,6 +938,8 @@ in force · factory · 2026-11-20
 
 **Revert.** Revert the #294 squash commit; the check goes back to `docker run --runtime=runsc hello-world`.
 
+**Note (#298).** The #3 and #50 exams' `--pull=never` calls depend on the bootstrap leaving `hello-world` local; changing the check image means changing them too.
+
 ## D95 · #290 and #294: review findings fixed by the manager, merged without a second round
 in force · factory · 2026-11-20
 

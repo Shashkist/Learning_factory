@@ -424,13 +424,16 @@ apply_runtime() {
   fi
   # The check image comes from a local copy; a missing one is pulled from a mirror first, because
   # Docker Hub answers anonymous pulls with 429 (#294). The runsc runs below never pull.
-  if ! dry && ! docker image inspect hello-world >/dev/null 2>&1; then
-    if ! run docker pull mirror.gcr.io/library/hello-world ||
-      ! run docker tag mirror.gcr.io/library/hello-world hello-world; then
-      if ! run docker pull hello-world; then
-        err "cannot get the hello-world image for the runsc check: mirror.gcr.io and Docker Hub both refused the pull"
+  # (The read-only inspect also runs in a dry run, so the plan shows the pull only when it is needed.)
+  if ! docker image inspect hello-world >/dev/null 2>&1; then
+    if run docker pull mirror.gcr.io/library/hello-world; then
+      if ! run docker tag mirror.gcr.io/library/hello-world hello-world; then
+        err "could not pull or tag the hello-world image for the runsc check (the pull worked, docker tag failed)"
         return 1
       fi
+    elif ! run docker pull hello-world; then
+      err "cannot get the hello-world image for the runsc check: mirror.gcr.io and Docker Hub both refused the pull"
+      return 1
     fi
   fi
   # The first runsc start right after a reload can fail once ("OCI runtime start failed ...
