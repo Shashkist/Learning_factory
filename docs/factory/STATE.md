@@ -4,7 +4,12 @@
 
 ## Now
 
-**Pass lf-w4t7 (laptop, from ~14:25 UTC) in flight:** #293 on `f/293-exam-nits` (worktree `C:\projects\lf-293`), #298 on `f/298-runsc-followups` (worktree `C:\projects\lf-298`). Both claimed by lf-w4t7.
+**Pass lf-w4t7 (laptop, 14:25-~15:20 UTC) stopped at 3 merged PRs:** #300 (#67), #302 (#298), #299 (#293). **#67, #293, #298 are closed with evidence. Production: `bd37773` (Deploy 44760760376: deploy + smoke success; `/api/health` ok, database ok).** D94 amended (a tag failure does not fall back to Docker Hub). No new issues. No claims held, nothing in flight.
+
+- **Resume here:** the Next list, starting with **#167** and **#151**. Worktrees `C:\projects\lf-67`, `lf-293`, `lf-298` are shipped and safe to remove.
+- **Lesson (pass lf-w4t7):** Deploy runs report main's *newest* head as their `headSha`, not the commit whose CI started them. A watcher that filters Deploy runs by the merge sha never matches; wait on the CI run ids instead, then read the Deploy logs ("deployed <sha>" or "Deploy skipped: ... no longer the head").
+- **Lesson (pass lf-w4t7):** a push that touches `labs/deploy/bootstrap/**` starts a Server bootstrap dry run on the real server. That is free evidence for bootstrap changes, but on today's server the runtime step says "already in place", so the hello-world check is not reached there; its paths are proven only by the CI exam.
+- **Seen (pass lf-w4t7):** the exam-alone draft PR trick (#301) predicted exactly 4 red cases; the code PR then went green on its first CI though the code had never run anywhere before.
 
 _Previous:_ **Pass lf-q5m8 (laptop, 13:15-~14:15 UTC) stopped at 3 merged PRs:** #288 (#286), #295 (#290), #297 (#294). **#286, #290, #294 are closed with evidence. Production: `abe1f74` (Deploy 44751820829 success, smoke success; `/api/health` ok, database ok).** Decisions D94, D95. New issue: #298 (review nits of #297). No claims held, nothing in flight.
 
@@ -122,9 +127,8 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
 ## Next (in order)
 
-1. **#293** (exam nits from #291/#292, exam-only) and **#298** (runsc check follow-ups from the review of #297: exam edit first, then the tag-failure message and the dry-run plan).
-2. **#167** docker end-to-end browser test against the real manager (split from #131, D60). **#151** kill follow-ups, **#154** Solution tab (D57 b), **#126**, **#142** (reuse the #153 helpers).
-3. **#85** deploy follow-ups (its "docs-only redeploys" item is done by #278), **#94**, **#93**; p2 list: #81, #76, #67, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
+1. **#167** docker end-to-end browser test against the real manager (split from #131, D60). **#151** kill follow-ups, **#154** Solution tab (D57 b), **#126**, **#142** (reuse the #153 helpers).
+2. **#85** deploy follow-ups (its "docs-only redeploys" item is done by #278), **#94**, **#93**; p2 list: #81, #76, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
 
@@ -136,6 +140,12 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 - O16/O7 resolved by D43 (public repository). O12 (back up `.env`), O13 (re-deploy after recreating nginx-proxy3), O5 reopened.
 
 ## Recently done
+
+- 2026-11-20 · Pass lf-w4t7: **3 PRs merged, 3 issues closed.**
+  - #300 → **#67** (one-off liveness diagnostic removed; the `--init` cause written in `isolation.sh`; D30 note). Exam edited by hand, exam commit first.
+  - #302 → **#298** (tag failure is not blamed on a refused pull; dry run shows the planned pull and tag; D94 note + amendment). Red run in draft #301 (4 red, 1965 green). Server bootstrap dry run 44757297271 ok.
+  - #299 → **#293** (#283 exam pins the route's exit code; #216 comment; #285 ceil case). Main CI on bd37773 green.
+  - Deploy 44760760376 shipped bd37773 (all three), smoke success; the two earlier Deploys skipped as superseded.
 
 - 2026-11-20 · Pass lf-q5m8: **3 PRs merged, 3 issues closed.**
   - #288 → **#286** (#271 exam: base-branch copy decides; D93). Main CI 44744479600 green.

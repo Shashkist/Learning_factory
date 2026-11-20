@@ -2,6 +2,14 @@
 
 Short entries with insights and fun facts about building this with Claude Code, for the POC presentation.
 
+## 2026-11-20 · Pass lf-w4t7: three small issues in ~45 minutes, and a red test on purpose
+
+- **Three lanes, one manager.** #293 (exam nits), #298 (bootstrap follow-ups) and #67 (remove a diagnostic) ran side by side, each in its own worktree. All three merged within about 45 minutes of the first claim.
+- **Proving a test is red when the laptop can't run it.** The bootstrap exams need Linux and jq. So the exam commit went up alone as a throwaway draft PR. CI showed exactly the 4 cases the exam writer had predicted red, with 1965 others green, and the PR was closed. The real PR then went green on its first CI run, though nobody had run that code before CI.
+- **The smallest issue was done by hand.** For a 3-line exam edit plus one deleted script, the manager wrote the exam and the change itself (exam commit first) and kept a fresh reviewer for the check. Spawning two agents would have cost more than the work.
+- **A reviewer caught a document, not a bug.** The code was right, but D94 still described a Docker Hub fallback that the new code had dropped on purpose. In this repo DECISIONS.md wins when documents disagree, so a stale decision is a real defect. It was fixed in one line straight on main.
+- **The deploy guard worked again.** The first merge's Deploy skipped ("no longer the head of main's code") because a second merge had landed, and the newer Deploy shipped both.
+
 ## 2026-11-15 · Fifth pass (#7, #3): two issues in parallel, and the CI runner as a stand-in server
 
 - **Two issues at once, one conductor.** The manager claimed #7 (lab sessions) and #3 (server bootstrap) together. Each got its own git worktree, exam writer, implementer and reviewer, and the agents ran side by side. 2 PRs merged in about 70 minutes, with 4 review rounds and 6 CI rounds between them.
