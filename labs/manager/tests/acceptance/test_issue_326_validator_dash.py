@@ -191,3 +191,26 @@ def test_r1_exec_quiet_variants(tmp_path, name, line):
 @pytest.mark.parametrize("name", NAMES)
 def test_r1_clobber_redirect_is_not_a_pipe(tmp_path, name):
     _quiet_bg(tmp_path, "#!/bin/sh\n", "sleep 600 >|/tmp/log 2>&1 &", name)
+
+
+# ------------------------------------------------------------------ review round 2
+
+# An `&` inside $(( )) is a bitwise AND and an escaped `\&` is a literal: neither ends a job.
+NOT_A_JOB = [
+    "echo $((x & 1))",
+    "[ $((n & 1)) -eq 0 ] && echo even",
+    "x=$((a&b)); echo $x",
+    "echo a \& b",
+]
+
+
+@pytest.mark.parametrize("name", NAMES)
+@pytest.mark.parametrize("head", ["#!/bin/sh\n", "#!/bin/bash\n"])
+@pytest.mark.parametrize("line", NOT_A_JOB)
+def test_r2_arithmetic_and_escaped_amp_are_not_background_jobs(tmp_path, name, head, line):
+    _quiet_bg(tmp_path, head, line, name)
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_r2_a_real_job_after_arithmetic_still_warns(tmp_path, name):
+    _warns_bg(tmp_path, "#!/bin/sh\n", "x=$((a & 1)); sleep 600 &", name)
