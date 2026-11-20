@@ -857,3 +857,16 @@ The same CI run showed a second, harness-level failure: the #89 test harness ins
 **Alternatives.** Keep floor for `seconds` only (two roundings again, rejected by the issue). Fix the #89 harness (a wider exam edit for a race no current #89 case hits).
 
 **Revert.** Revert the #137 squash commit; the #216 pin then goes back to 95 with it.
+
+## D88 · #127: stray FAIL lines are noise, item numbers are ASCII, a show during a check is `session_busy` (amends D51(2))
+in force · factory · 2026-11-20
+
+**Decision.** Shipped in PR #280. A check passes when the script exits 0 and every checklist item printed `PASS <n>`. A `FAIL` line that is not `FAIL <n>` for an item of the checklist (a tool's `FAIL: ...`, `FAIL 9` on a 3-item task, `FAIL 1: reason` with a colon) is noise; an item that never gets a `PASS` still fails. Item numbers match `[0-9]{1,4}` only (`FAIL ١` is not item 1). The per-session lock records its holder's busy slug: any request that finds the lock held by a check gets 409 `session_busy`; a show that finds it held by another show still gets `setup_running` (#255, #263 exams). This replaces D51(2)'s "no `FAIL` line" wording and the matching sentence in the check-output decision above it.
+
+**Known gap.** `parse_check_output(...).passed` still fails on an out-of-range `FAIL <n>`, while the route no longer reads it; the content exams use the parser's value. One rule for both is #283 (review of #280, accepted as a follow-up).
+
+**Why.** A student whose items are all ticked must not see `passed: false` with no reason. The UI already maps both busy slugs to "busy, try again".
+
+**Alternatives.** Keep failing on any `FAIL` line (the bug #127 reports). Fix #283's gap in the same PR (one more CI and review round for a case no published lab hits).
+
+**Revert.** Revert the #280 squash commit.
