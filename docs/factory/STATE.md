@@ -4,7 +4,13 @@
 
 ## Now
 
-**Pass lf-x3r8 (laptop, from 10:25 UTC) in flight:** #271 exam PR #279 (branch `f/271-exam-2`, worktree `C:\projects\lf-271e`, CI running); #127 (`f/127-check-parser-nits`, worktree `C:\projects\lf-127`) and #137 (`f/137-completion-followups`, worktree `C:\projects\lf-137`) at the exam step. All three claimed by lf-x3r8.
+**Pass lf-x3r8 (laptop, 10:25-~11:50 UTC) stopped at 3 merged PRs:** #280 (#127), #282 (#137, replaced #281), #279 (#271 exam). **#127, #137 and #271 are closed with evidence. No claims held, nothing in flight. Production: `bd596e7` (Deploy 44729635504, smoke success, `/api/health` ok database ok).** Decisions D87, D88, D89. New issues: #283, #284, #285, #286.
+
+- **Resume here:** the Next list. Worktrees `C:\projects\lf-127`, `lf-137`, `lf-271e` are shipped and safe to remove.
+- **Lesson (pass lf-x3r8):** the #89 completion harness swaps in its FakeRuntime after the app starts; the janitor's failed startup pass retries ~2 s later and ends every running session as an orphan. A database case that runs longer than ~2 s fails with `session_ended`. The #137 exam patches `app.janitor.run_once` locally; the harness fix is #284. Until then, keep #89-harness cases short or copy that fixture.
+- **Lesson (pass lf-x3r8):** before changing a rounding or a format, grep every exam for the old value (`fast_lab_detail(95.4` pinned floor in the #216 exam). The exam edit must come first, so a miss costs a `-2` rebuild and one more CI (D87).
+- **Lesson (pass lf-x3r8):** two review rounds on an exam-only CI PR found nine one-line workflow edits the exam missed (substring checks, env read from the test instead of the workflow). Ask the exam writer up front to pin exact `if:` and `env:` values and to prove each with a mutation.
+- **Seen live (pass lf-x3r8):** merging a second code PR before the first one's Deploy started made the older Deploy skip ("no longer the head of main's code"), and the newer one shipped both. That is the #271 rule working; one smoke result covers both.
 
 _Previous:_ **Pass lf-k9d4 (laptop, 08:27-~10:00 UTC) stopped at 3 merged PRs:** #276 (#275), #277 (#273), #278 (code + CI half of #271, D85, D86). #275 and #273 are closed with evidence (Deploy 44708217902 deployed e9fe57e, smoke success). **#271 stays open (exam PR next); claim released, no claims held. Production: `6d03964` (Deploy 44715640313, smoke success, `/api/health` 200 database ok).**
 
@@ -97,8 +103,8 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
 ## Next (in order)
 
-1. **#271** exam PR from `f/271-exam` (see Now). Since #278, a PR that touches only `labs/web/**` skips docker and the image jobs. Do not read a skipped `docker` as missing evidence.
-2. **#167** docker end-to-end browser test against the real manager (split from #131, D60). **#151** kill follow-ups, **#154** Solution tab (D57 b), **#137**, **#126**, **#127**, **#142** (reuse the #153 helpers).
+1. Small follow-ups from this pass: **#284** (harness janitor race, exam-only; do it before the next #89-harness exam), **#283** (one rule for a passed check), **#285** (median threshold rounding), **#286** (#271 exam nits). Since #278, a PR that touches only `labs/web/**` skips docker and the image jobs; do not read a skipped `docker` as missing evidence.
+2. **#167** docker end-to-end browser test against the real manager (split from #131, D60). **#151** kill follow-ups, **#154** Solution tab (D57 b), **#126**, **#142** (reuse the #153 helpers).
 3. **#85** deploy follow-ups (its "docs-only redeploys" item is done by #278), **#94**, **#93**; p2 list: #81, #76, #67, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
@@ -111,6 +117,11 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 - O16/O7 resolved by D43 (public repository). O12 (back up `.env`), O13 (re-deploy after recreating nginx-proxy3), O5 reopened.
 
 ## Recently done
+
+- 2026-11-20 · Pass lf-x3r8: **3 PRs merged, 3 issues closed.**
+  - #280 → **#127** (stray FAIL lines are noise, ASCII item numbers, `session_busy` during a check; D88). Round 1 approved; its should-fix items became D88 and #283. Deploy 44724443029, smoke check-fail/check-pass ok.
+  - #282 → **#137** (one ceil rounding of active time; smoke runs are not classmates). #281's CI failed on the #216 floor pin and the harness janitor race; rebuilt as `-2` with exam edits first (D87). Round 1 approved; follow-ups #284, #285.
+  - #279 → **#271** exam (36 checks after two review rounds; D89). Deploy 44729635504 shipped #282 and #279 together, smoke success.
 
 - 2026-11-20 · Pass lf-k9d4: **3 PRs merged, 2 issues closed.**
   - #276 → **#275** (exam-only). The manager checked two mutations. Review round 1 approved; its should-fix (the case reached complete through a `no_next_task` the server only sends from the last task) was fixed in eab657f.

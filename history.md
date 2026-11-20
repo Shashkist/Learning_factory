@@ -356,3 +356,16 @@ The CI lane is the story. The first design deployed a green CI when it was "the 
 The best finding was this: GitHub's `paths-ignore` compares only the start and the end of a push. So a push of "code change, revert it, docs" counts as docs-only and runs no CI. Under the first rule, the code commit before that push would never deploy. The fix compares code *trees* instead of commits, which is exactly what GitHub compares. It now sits in a separate step with no secrets, and it runs main's copy of the rule.
 
 Tips: when your rule must agree with a platform's rule, copy the platform's comparison, not your own model of it. Put any repository code you add to a deploy job in its own step with no secrets in its environment. Grep the exams for the exact log line you are about to reword.
+
+## The janitor who cleaned up the test (2026-11-20)
+A pass of about 85 minutes with three lanes and three merges (#280, #282, #279). Two lanes were small follow-ups from older reviews; the third finished the CI change of the morning with its exam.
+
+The surprise came from a test that failed for a reason nobody had written. The completion lane opened ten fake student sessions in one test, and the tenth answered "session ended". The cause was the test harness, not the product: it swaps in a fake container runtime after the app has started, so the janitor's first sweep fails on the missing Docker socket and retries two seconds later. The fake runtime lists no containers, so the retry ends every running session as an orphan. Every older test in that harness had simply been faster than two seconds. One autouse fixture that turns the janitor off fixed the new test; the harness fix is its own issue.
+
+The same lane hit a quieter trap: the issue asked to round active time up once, and an older exam pinned the old rounding down (95.4 s → 95). Exams may only change before the code, so the branch was rebuilt as `-2`, with the old pin moved first and recorded as a decision.
+
+The exam-only lane needed two review rounds. Each reviewer copied the workflows to a scratch folder and tried one-line edits: delete the job output, add `github.event_name == 'pull_request' &&` to a condition, swap `&&` for `||` in the deploy condition, move a secret to the job level. Nine such edits passed the first version of the exam. Now each fails it.
+
+The CI rule from the morning also proved itself live: two code PRs merged eleven minutes apart, the older one's Deploy said "no longer the head of main's code" and skipped, and the newer one shipped both.
+
+Tips: a test that passes only because it is fast hides a race; long tests find it. Before you change a rounding or a format, grep the exams for the old number. When an exam reads a workflow, ask for exact `if:` and `env:` values and one mutation per assertion.
