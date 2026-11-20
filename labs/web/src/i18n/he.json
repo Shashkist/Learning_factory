@@ -148,5 +148,10 @@
   "admin.live.end_error": "לא ניתן לסיים את המפגש. נסו שוב.",
   "lab.pane.tasks": "משימות",
   "lab.pane.terminal": "מסוף",
-  "lab.timer": "הזמן שנותר"
+  "lab.timer": "הזמן שנותר",
+  "admin.cohorts.create.legend": "יצירת קבוצה",
+  "admin.import.legend": "ייבוא תלמידים",
+  "admin.student.card.labs": "מעבדות שהושלמו",
+  "admin.student.card.time": "זמן פעיל",
+  "admin.student.card.last": "פעילות אחרונה שנראתה"
 }

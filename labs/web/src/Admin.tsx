@@ -7,6 +7,7 @@ import LiveSessions from "./LiveSessions";
 import { useI18n } from "./i18n";
 import { usePath } from "./router";
 import StudentPage from "./StudentPage";
+import "./styles/teacher.css";
 
 type State = "loading" | "admin" | "google" | "none" | "error";
 
@@ -59,9 +60,10 @@ export default function Admin() {
     );
   if (state === "admin")
     return (
-      <AppShell onLogout={logout}>
-        <p>Signed in as admin</p>
-        <nav>
+      <AppShell
+        onLogout={logout}
+        nav={
+        <nav className="admin-nav">
           {[
             ["/admin", "admin.nav.cohorts"],
             ["/admin/class", "admin.nav.class"],
@@ -80,6 +82,9 @@ export default function Admin() {
             </a>
           ))}
         </nav>
+        }
+      >
+        <p>Signed in as admin</p>
         {student !== null ? (
           <StudentPage key={student} studentKey={student} go={go} />
         ) : path === "/admin/class" ? (
