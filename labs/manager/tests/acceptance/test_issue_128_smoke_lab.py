@@ -245,8 +245,9 @@ def _as_root(machine: str, script: Path):
 def _check(machine: str):
     from app.content import parse_check_output
 
+    # the hands-on task has exactly one checklist item
     res = _as_root(machine, task_dir(HANDS_ON) / "check.sh")
-    return res, parse_check_output(res.stdout, res.returncode)
+    return res, parse_check_output(res.stdout, res.returncode, 1)
 
 
 @pytest.mark.docker
