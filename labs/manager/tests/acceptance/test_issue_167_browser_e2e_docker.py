@@ -14,9 +14,11 @@ Contract for the CI `docker` job (pinned by test_issue_167_ci_wiring.py): Node 2
 Terminal upstream: the manager's proxy dials `lab-<session>:7681` by Docker DNS name, which only
 resolves for a manager that is a container on the lab network. Here the manager is a host process,
 so the exam runs a small TCP forwarder on 127.0.0.1 (LF_TERM_UPSTREAM) that looks up the IP of the
-running lab-* container on the lab network and pipes bytes both ways (HTTP and the WebSocket
-upgrade). The forwarder replaces only name resolution; the manager's proxy code (auth, header
-filtering, WebSocket relay) is the real one.
+lab-<session> container on the lab network (the session id comes from the request line) and pipes
+bytes both ways (HTTP and the WebSocket upgrade). The forwarder replaces only name resolution;
+the manager's proxy code (auth, header filtering, WebSocket relay) is the real one.
+The `.xterm` check in the browser flow proves the HTTP path to ttyd under this session's base path;
+it does not prove the WebSocket relay (ttyd draws .xterm before it connects).
 
 Lab content (decision, see the hand-back of #167): the catalog never lists `internal` or `draft`
 labs, not even to the smoke cohort (#129 exam). So the exam gives the manager its own content
@@ -32,6 +34,7 @@ removed.
 import asyncio
 import json
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -263,17 +266,12 @@ def _log_tail(chars: int = 3000) -> str:
     return MANAGER_LOG[0].read_text(encoding="utf-8", errors="replace")[-chars:]
 
 
-def _lab_ip(network: str) -> str | None:
-    names = docker("ps", "--filter", "name=^lab-", "--format", "{{.Names}}", check=False)
-    for name in names.stdout.split():
-        res = docker("inspect", name, check=False)
-        if res.returncode != 0:
-            continue
-        nets = json.loads(res.stdout)[0]["NetworkSettings"]["Networks"]
-        ip = nets.get(network, {}).get("IPAddress")
-        if ip:
-            return ip
-    return None
+def _lab_ip(network: str, name: str) -> str | None:
+    res = docker("inspect", name, check=False)
+    if res.returncode != 0:
+        return None
+    nets = json.loads(res.stdout)[0]["NetworkSettings"]["Networks"]
+    return nets.get(network, {}).get("IPAddress") or None
 
 
 def _pipe(src: socket.socket, dst: socket.socket) -> None:
@@ -288,26 +286,55 @@ def _pipe(src: socket.socket, dst: socket.socket) -> None:
     finally:
         for s in (src, dst):
             try:
+                s.shutdown(socket.SHUT_RDWR)  # wakes the sibling thread's blocked recv
+            except OSError:
+                pass
+            try:
                 s.close()
             except OSError:
                 pass
 
 
+_REQUEST_LINE = re.compile(rb"^[A-Z]+ /s/([0-9a-f-]{36})/")
+
+
 def _serve_one(client: socket.socket, network: str) -> None:
+    """Dial exactly lab-<uuid>, the uuid taken from the first request line (HTTP and the
+    WebSocket upgrade both start with `GET /s/<uuid>/term/...`); bytes read go upstream first."""
     upstream = None
-    deadline = time.time() + 15
-    while upstream is None and time.time() < deadline:
-        ip = _lab_ip(network)
-        if ip:
-            try:
-                upstream = socket.create_connection((ip, 7681), timeout=5)
-                upstream.settimeout(None)
-            except OSError:
-                upstream = None
+    try:
+        head = b""
+        client.settimeout(15)
+        while b"\r\n" not in head and len(head) < 8192:
+            chunk = client.recv(4096)
+            if not chunk:
+                break
+            head += chunk
+        client.settimeout(None)
+        m = _REQUEST_LINE.match(head)
+        if not m:
+            client.close()
+            return
+        name = f"lab-{m.group(1).decode()}"
+        deadline = time.time() + 15
+        while upstream is None and time.time() < deadline:
+            ip = _lab_ip(network, name)
+            if ip:
+                try:
+                    upstream = socket.create_connection((ip, 7681), timeout=5)
+                    upstream.settimeout(None)
+                except OSError:
+                    upstream = None
+            if upstream is None:
+                time.sleep(0.3)
         if upstream is None:
-            time.sleep(0.3)
-    if upstream is None:
+            client.close()
+            return
+        upstream.sendall(head)
+    except OSError:
         client.close()
+        if upstream is not None:
+            upstream.close()
         return
     threading.Thread(target=_pipe, args=(client, upstream), daemon=True).start()
     threading.Thread(target=_pipe, args=(upstream, client), daemon=True).start()
@@ -365,6 +392,10 @@ def test_smoke_student_runs_the_lab_in_chromium_and_the_container_is_gone_after(
         LF_E2E_REPORT=str(report),
         LF_E2E_OUTPUT_DIR=str(tmp_path / "pw-output"),  # failures must not write into the repo
     )
+    before = set(
+        docker("ps", "-a", "--filter", "name=^lab-", "--format", "{{.Names}}", check=False)
+        .stdout.split()
+    )
     stop = threading.Event()
     seen: set[str] = set()
     watcher = threading.Thread(target=_watch, args=(stop, seen), daemon=True)
@@ -375,10 +406,8 @@ def test_smoke_student_runs_the_lab_in_chromium_and_the_container_is_gone_after(
             ["npx", "--no-install", "playwright", "test", "-c", PW_CONFIG],
             cwd=WEB_DIR, env=env, capture_output=True, text=True, timeout=600,
         )
-    finally:
         stop.set()
         watcher.join(timeout=10)
-    try:
         assert run.returncode == 0, (
             "the browser flow failed (is Chromium installed? `npx playwright install chromium`):\n"
             + (run.stdout + run.stderr)[-4000:]
@@ -399,11 +428,13 @@ def test_smoke_student_runs_the_lab_in_chromium_and_the_container_is_gone_after(
             assert time.time() < deadline, f"{name} still exists after End lab"
             time.sleep(1)
     finally:
-        # Only this run's container: `lab-<session>` from the report. Another lab-* container
-        # (another run, the owner's) is none of this exam's business, even if the watcher saw it.
+        stop.set()
+        watcher.join(timeout=10)
+        # Only this run's containers: names that were not there before the run, plus the
+        # session of the report. Any other lab-* container is none of this exam's business.
         try:
             mine = _annotations(json.loads(report.read_text(encoding="utf-8")), "lf-session")
         except (OSError, ValueError):
             mine = []
-        for session in mine:
-            _rm(f"lab-{session}")
+        for name in (seen - before) | {f"lab-{s}" for s in mine}:
+            _rm(name)
