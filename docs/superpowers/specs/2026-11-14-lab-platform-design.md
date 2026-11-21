@@ -171,7 +171,7 @@ Access is valid while today ≤ (student override or cohort `access_until`) and 
 
 **Teacher/admin**
 - **Class table**: students down the side, labs across the top, cells ✓ / n/m / –, a ⚡ on cells with a fast-work flag, last activity; filter by cohort and "flagged only"; CSV export.
-- **Student page**: per lab: tasks passed, attempts, time spent per task next to the class median, ⚡ flags with the reason ("task 4 passed 9 s after it appeared"); actions: extend access, disable, dismiss a flag. Active time is the finished runs plus the heartbeat time of labs not finished yet.
+- **Student page**: per lab: tasks passed, attempts, time spent per task next to the class median, ⚡ flags with the reason ("task 4 passed 9 s after it appeared"); actions: extend access, disable, dismiss a flag. Active time is the heartbeat time of every session of the student; for a session that finished its lab, the larger of that and its run's recorded time.
 - **Cohorts**: create a cohort with a name, class password and access date; change the password or the date later; paste a list "ID, name" to add students (the IDs are hashed on arrival and the list is not kept). Students are shown by name; two students with the same name get a manual note field to tell them apart.
 - **Live sessions**: who is in which lab now; end a session.
 
