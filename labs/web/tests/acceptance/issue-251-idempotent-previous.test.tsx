@@ -28,7 +28,7 @@ const task = (id: string, index: number) => ({
   id, index, total: 4, kind: "hands-on", state: "shown",
   title: { en: `Task ${id}`, he: `משימה ${id}` },
   text: { en: `# Task ${id}\n\nDo it.\n`, he: `# משימה ${id}\n\nעשו.\n` },
-  checklist: [{ n: 1, text: { en: "Done", he: "בוצע" } }],
+  checklist: [{ en: "Done", he: "בוצע" }],
 });
 const T2 = task("02-make-file", 2);
 const T3 = task("03-edit-file", 3);

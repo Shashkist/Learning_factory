@@ -48,7 +48,7 @@ const HANDS = {
     en: "Create the notes file.\n\n```\ntouch notes.txt\n```\n\nThen run `ls`.\n",
     he: "צרו את קובץ ההערות.\n\n```\ntouch notes.txt\n```\n\nואז הריצו `ls`.\n",
   },
-  checklist: [{ n: 1, text: { en: "The file exists", he: "הקובץ קיים" } }],
+  checklist: [{ en: "The file exists", he: "הקובץ קיים" }],
 };
 
 function backend(routes: Record<string, Handler> = {}) {
