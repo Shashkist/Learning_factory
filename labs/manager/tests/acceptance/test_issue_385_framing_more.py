@@ -20,6 +20,7 @@ No-database tests run anywhere; the proxy cases need LF_TEST_DATABASE_URL (skip 
 it). It reuses the fixtures of the #8 exam. Student ids are fake.
 """
 # ruff: noqa: F811  (imported fixtures are used by name)
+import asyncio
 import importlib
 import re
 import socket
@@ -43,6 +44,62 @@ from test_issue_374_term_frame_ancestors import (
 )
 
 INDEX = "<!doctype html><html><body><div id=root>lf-fake-spa-385</div></body></html>"
+
+
+def asgi_get(app, path: str, raw_path: bytes | None = None, headers=None):
+    """Drive the app with a raw ASGI scope, as uvicorn does: `path` is decoded, `raw_path` is not.
+    No client-side limit applies. Returns (status, headers, body); an exception the app re-raises
+    after sending its 500 is swallowed here (the response is what is checked)."""
+    sent: list[dict] = []
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": "GET",
+        "scheme": "https",
+        "path": path,
+        "raw_path": raw_path if raw_path is not None else path.encode(),
+        "query_string": b"",
+        "root_path": "",
+        "headers": [(b"host", b"testserver")] + list(headers or []),
+        "client": ("127.0.0.1", 50000),
+        "server": ("testserver", 443),
+    }
+
+    first = True
+
+    async def receive():
+        nonlocal first
+        if first:
+            first = False
+            return {"type": "http.request", "body": b"", "more_body": False}
+        await asyncio.Event().wait()  # a client that stays connected (no busy disconnect loop)
+        return {"type": "http.disconnect"}
+
+    async def send(message):
+        sent.append(message)
+
+    async def run():
+        try:
+            await app(scope, receive, send)
+        except Exception:
+            pass
+
+    asyncio.run(run())
+    start = next((m for m in sent if m["type"] == "http.response.start"), None)
+    assert start is not None, "the app sent no response at all"
+    body = b"".join(m.get("body", b"") for m in sent if m["type"] == "http.response.body")
+    return start["status"], start["headers"], body
+
+
+class _RawResp:
+    """Enough of a response for assert_framing_headers: .headers.get_list / .get."""
+
+    def __init__(self, headers, status_code=0):
+        import httpx
+
+        self.headers = httpx.Headers(headers)
+        self.status_code = status_code
 
 
 def comma_policy_sources(resp) -> list[list[str]]:
@@ -138,7 +195,16 @@ def test_a_500_outside_the_terminal_prefix_is_not_given_the_framing_headers(fres
 
 @pytest.mark.parametrize(
     "path",
-    ["/", "/index.html", "/lab/some-lab", "/lab/a/b/c", "/admin", "/teacher/dashboard", "/login"],
+    [
+        "/",
+        "/index.html",
+        "/lab/some-lab",
+        "/lab/a/b/c",
+        "/labs/some-lab",
+        "/admin",
+        "/teacher/dashboard",
+        "/login",
+    ],
 )
 def test_the_ui_pages_carry_the_framing_headers(fresh_app, path):
     from fastapi.testclient import TestClient
@@ -149,6 +215,29 @@ def test_the_ui_pages_carry_the_framing_headers(fresh_app, path):
     assert "lf-fake-spa-385" in resp.text, "the page still serves the UI shell"
     assert "text/html" in resp.headers["content-type"]
     assert_framing_headers(resp, f"UI page {path}")
+
+
+@pytest.mark.parametrize(
+    "decoded,raw",
+    [
+        ("/labs/../index.html", b"/labs/..%2Findex.html"),
+        ("/assets/../index.html", b"/assets/..%2Findex.html"),
+        ("/labs/x/../../index.html", b"/labs/x/..%2F..%2Findex.html"),
+    ],
+)
+def test_the_shell_reached_by_an_encoded_dot_dot_path_carries_the_framing_headers(
+    fresh_app, decoded, raw
+):
+    """uvicorn decodes %2F, so the app sees `/labs/../index.html`, which resolves to the shell
+    file. Either that is a 404, or the shell comes with the framing headers."""
+    status, headers, body = asgi_get(fresh_app, decoded, raw)
+    if status == 404:
+        return
+    resp = _RawResp(headers, status)
+    if b"lf-fake-spa-385" in body:
+        assert_framing_headers(resp, f"shell served for {raw!r} (status {status})")
+    else:
+        assert status in (400, 403, 404), (status, body[:100])
 
 
 def test_head_on_the_ui_shell_carries_the_framing_headers(fresh_app):
@@ -231,16 +320,18 @@ def test_a_frame_ancestors_after_a_comma_in_the_upstream_csp_is_not_passed_on(en
 
 
 def test_an_unhandled_error_in_the_proxy_is_500_with_the_framing_headers(env, upstream):
-    """A ~70 000-character path makes the HTTP client raise `InvalidURL` (not caught by the
-    proxy). If the proxy ever handles it itself, the answer must still carry the headers."""
+    """A ~70 000-character path makes the proxy's HTTP client raise `InvalidURL`. The app is driven
+    with a raw ASGI scope (httpx would refuse such a URL on the client side). If the proxy ever
+    handles it itself, the answer must still carry the headers."""
     from fastapi.testclient import TestClient
 
     from app.main import app
 
     client, sid, _ = env.owner_with_session()
-    with TestClient(
-        app, base_url="https://testserver", raise_server_exceptions=False, cookies=client.cookies
-    ) as c:
-        resp = c.get(f"/s/{sid}/term/{'a' * 70000}")
-    assert resp.status_code >= 400, resp.status_code
-    assert_framing_headers(resp, f"{resp.status_code} for a very long path")
+    cookie = "; ".join(f"{k}={v}" for k, v in client.cookies.items()).encode()
+    with TestClient(app, base_url="https://testserver", raise_server_exceptions=False):
+        status, headers, _ = asgi_get(
+            app, f"/s/{sid}/term/{'a' * 70000}", headers=[(b"cookie", cookie)]
+        )
+    assert status >= 400, status
+    assert_framing_headers(_RawResp(headers, status), f"{status} for a very long path")
