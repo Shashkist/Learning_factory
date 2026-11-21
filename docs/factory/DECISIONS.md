@@ -1186,3 +1186,20 @@ in force · factory · 2026-11-21
 
 ## D24 amendment (2026-11-21, #55)
 The start-deadline end is guarded in the UPDATE itself (`end_session(..., stale_start_s=...)`: `status = 'starting' and started_at < now() - make_interval(...)`), so a row that turns `running` after the janitor's snapshot keeps running, and so does its container. `LF_START_DEADLINE_S` falls back to 180 on non-finite, zero, negative or unparsable values, with one warning per bad value. Janitor step logging: the first ERROR of an outage carries the traceback. A changed error type logs at once but keeps the outage start. The ERROR repeats every 15 minutes with the outage duration, with DEBUG lines in between. `janitor step <name> recovered after N min` is logged at INFO. **Accepted risk:** a small positive deadline (for example `5`) is accepted, and it would end starts still in progress. The setting is ours, the default is 180, and a floor above about 58 s would break the #49 exam's 30 s case. #376 adds a warning below the longest legitimate start.
+
+## D118 · #364's exam gets a third, manager-checked fix round instead of a follow-up issue
+in force · factory · 2026-11-21
+
+**Decision.** After review round 2 of #375 (the #364 exam alone), its blocking findings are fixed in one more exam-only commit on the same PR, not split into a follow-up:
+- the gate is matched only on real command lines;
+- the exam step's script is an allow-list;
+- `shell:` overrides and `PYTEST*` env keys are rejected;
+- the `--ignore` match is anchored;
+- working directories are normalised;
+- the exam job may have no matrix.
+
+The manager checks that round by running the round-2 reviewer's mutation harness (42+ mutated workflows) against the new exam, instead of a third review. The PR touches no code, so a weak exam does not ship a defect; it only loosens a guard.
+**Why.** The workflow fix itself (#370) is already live and approved. The gaps are all in one file and mechanical to prove with the existing harness. A follow-up issue would leave the guard open for longer for no gain.
+**Alternatives.** Merge #375 as is and open a follow-up: faster, but it ships an exam that a commented-out gate line can defeat. A full third review: costs another ~15 minutes for a check the harness already does.
+**Leftover.** `scripts/ci/junit_gate.py` counts only skips and empty runs, not failures. Under the default `bash -e` a failing pytest already fails the step. Counting failures too is defence in depth and goes to its own issue (a `scripts/ci` change cannot share a PR with an exam).
+**Revert.** Revert the squash commit of #375; the workflow from #370 is unaffected.
