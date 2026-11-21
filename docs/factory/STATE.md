@@ -4,7 +4,12 @@
 
 ## Now
 
-**Pass lf-r7j3 (laptop, 19:25-~20:55 UTC) stopped at 3 merged PRs.** The merges were #413 (#410), #419 (#417) and #422 (#416 criterion 4: CI lints `labs/deploy/smoke`).
+**Pass lf-k5p9 (laptop, from 21:25 UTC) is running.**
+- #426 (#414) merged as d53bcbd at ~21:30; main CI and Deploy are running; close #414 after the Deploy and smoke.
+- #425 (#416) rebased onto d53bcbd (e8549cc), CI running; merge when green.
+- **New p0 #427** (owner report: Next from Linux 1 task 1 errors and the screen seems to reload). Claimed by lf-k5p9, branch `f/427-linux1-next`, worktree `C:\projects\lf-427`. Step: an exam writer is writing the docker-job browser exam with the real Linux 1 content. That exam is also the diagnostic: agents cannot read the server's logs, so the red CI run must print the manager's answer and its log.
+
+_Previous:_ **Pass lf-r7j3 (laptop, 19:25-~20:55 UTC) stopped at 3 merged PRs.** The merges were #413 (#410), #419 (#417) and #422 (#416 criterion 4: CI lints `labs/deploy/smoke`).
 
 **Closed with evidence.**
 - **#410:** Deploy 44942690907 deployed c9bad68; smoke green through `ok end`.
