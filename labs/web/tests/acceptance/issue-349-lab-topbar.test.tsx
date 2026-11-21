@@ -43,7 +43,7 @@ const LAST = {
   id: "04-last", index: 4, total: 4, kind: "hands-on", state: "shown",
   title: { en: "The last one", he: "האחרונה" },
   text: { en: "Do it.\n", he: "עשו.\n" },
-  checklist: [{ n: 1, text: { en: "Done", he: "בוצע" } }],
+  checklist: [{ en: "Done", he: "בוצע" }],
 };
 const PASSED_LIST = {
   lab_id: "lab-1", current: null,

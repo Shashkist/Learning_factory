@@ -30,7 +30,7 @@ const task = (id: string, index: number) => ({
   id, index, total: 4, kind: "hands-on", state: "shown",
   title: { en: `Task ${id}`, he: `משימה ${id}` },
   text: { en: `# Task ${id}\n\nDo it.\n`, he: `# משימה ${id}\n\nעשו.\n` },
-  checklist: [{ n: 1, text: { en: "Done", he: "בוצע" } }],
+  checklist: [{ en: "Done", he: "בוצע" }],
 });
 const T2 = task("02-make-file", 2);
 const T3 = task("03-edit-file", 3);
@@ -122,7 +122,7 @@ describe("Next and Skip send the task on screen", () => {
     const calls = backend({
       [`GET ${API}/tasks/current`]: [ok(T2)],
       [`POST ${API}/tasks/02-make-file/check`]: [
-        ok({ passed: true, attempts: 1, reason: null, checklist: [{ n: 1, text: T2.checklist[0].text, passed: true, hint: null }] }),
+        ok({ passed: true, attempts: 1, reason: null, checklist: [{ n: 1, passed: true, hint: null }] }),
       ],
       [`POST ${API}/tasks/current/next`]: [ok(T3)],
     });

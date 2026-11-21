@@ -46,8 +46,8 @@ const HANDS = {
     he: "# יוצרים קובץ\n\nצרו את קובץ ההערות בתיקיית הבית.\n",
   },
   checklist: [
-    { n: 1, text: { en: "The file exists", he: "הקובץ קיים" } },
-    { n: 2, text: { en: "The file has the right content", he: "לקובץ התוכן הנכון" } },
+    { en: "The file exists", he: "הקובץ קיים" },
+    { en: "The file has the right content", he: "לקובץ התוכן הנכון" },
   ],
 };
 const LAST = { ...HANDS, id: "04-last", index: 4, total: 4, title: { en: "The last one", he: "האחרונה" } };
@@ -56,7 +56,7 @@ const err = (status: number, detail: unknown): Reply => ({ status, body: { detai
 const PASS = (): Reply =>
   ok({
     passed: true, attempts: 1, reason: null,
-    checklist: HANDS.checklist.map((c) => ({ n: c.n, text: c.text, passed: true, hint: null })),
+    checklist: HANDS.checklist.map((_, i) => ({ n: i + 1, passed: true, hint: null })),
   });
 
 const entry = (i: number, state: string) => ({

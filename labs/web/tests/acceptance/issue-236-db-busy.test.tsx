@@ -25,11 +25,11 @@ const HANDS = {
   id: "02-make-file", index: 2, total: 4, kind: "hands-on", state: "shown",
   title: { en: "Make a file", he: "יוצרים קובץ" },
   text: { en: "# Make a file\n\nCreate it.\n", he: "# יוצרים קובץ\n\nצרו אותו.\n" },
-  checklist: [{ n: 1, text: { en: "The file exists", he: "הקובץ קיים" } }],
+  checklist: [{ en: "The file exists", he: "הקובץ קיים" }],
 };
 const PASS = ok({
   passed: true, attempts: 1, reason: null,
-  checklist: [{ n: 1, text: HANDS.checklist[0].text, passed: true, hint: null }],
+  checklist: [{ n: 1, passed: true, hint: null }],
 });
 const DB_BUSY = err(503, { code: "db_busy", message: "The service is busy." });
 

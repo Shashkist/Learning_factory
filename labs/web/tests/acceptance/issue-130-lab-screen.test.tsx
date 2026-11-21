@@ -84,8 +84,8 @@ const HANDS = {
     he: "# יוצרים קובץ\n\nצרו את קובץ ההערות בתיקיית הבית.\n",
   },
   checklist: [
-    { n: 1, text: { en: "The file exists", he: "הקובץ קיים" } },
-    { n: 2, text: { en: "The file has the right content", he: "לקובץ התוכן הנכון" } },
+    { en: "The file exists", he: "הקובץ קיים" },
+    { en: "The file has the right content", he: "לקובץ התוכן הנכון" },
   ],
 };
 const QUIZ = {
@@ -104,8 +104,8 @@ const busy = (code = "session_busy"): Reply => ({ status: 409, body: { detail: c
 const CHECK_PART = {
   passed: false, attempts: 1, reason: null,
   checklist: [
-    { n: 1, text: HANDS.checklist[0].text, passed: true, hint: null },
-    { n: 2, text: HANDS.checklist[1].text, passed: false, hint: "Put the word hello in it" },
+    { n: 1, passed: true, hint: null },
+    { n: 2, passed: false, hint: "Put the word hello in it" },
   ],
 };
 const CHECK_PASS = {
@@ -245,8 +245,8 @@ describe.each(LANGS)("lab screen in %s", (lang) => {
     expect(p.getByRole("tab", { name: d["lab.solution.tab"] }).getAttribute("aria-selected")).toBe("false");
     const rows = p.getAllByRole("listitem");
     expect(rows.map((r) => r.textContent)).toEqual([
-      expect.stringContaining(HANDS.checklist[0].text[lang]),
-      expect.stringContaining(HANDS.checklist[1].text[lang]),
+      expect.stringContaining(HANDS.checklist[0][lang]),
+      expect.stringContaining(HANDS.checklist[1][lang]),
     ]);
     for (const r of rows) expect(marks(r)).toEqual({ ok: false, bad: false });
     expect(p.getByRole("button", { name: d["lab.check"] })).toBeTruthy();
@@ -262,7 +262,7 @@ describe.each(LANGS)("lab screen in %s", (lang) => {
     expect(p.getByRole("tab", { name: d["lab.task.tab"] }).getAttribute("aria-selected")).toBe("false");
     fireEvent.click(p.getByRole("tab", { name: d["lab.task.tab"] }));
     expect(p.getByRole("tab", { name: d["lab.task.tab"] }).getAttribute("aria-selected")).toBe("true");
-    expect(panel().textContent).toContain(HANDS.checklist[0].text[lang]);
+    expect(panel().textContent).toContain(HANDS.checklist[0][lang]);
   });
 
   test("Check POSTs /<task>/check and marks passed rows with a check and failed rows with a cross and the hint", async () => {
