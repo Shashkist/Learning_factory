@@ -58,9 +58,11 @@ def _step(wf: dict, job: str, step_id: str) -> dict:
 # ---------------------------------------------------------------- criterion 1: triggers
 
 
-def test_push_trigger_ignores_exactly_docs_courses_and_claude():
+def test_push_trigger_ignores_exactly_docs_courses_claude_optionally_history_md():
+    # #395: history.md is optional for now; a later PR pins the four-entry list.
     push = _on(_load(CI))["push"]
-    assert sorted(push.get("paths-ignore") or []) == sorted(["docs/**", "courses/**", ".claude/**"])
+    base = ["docs/**", "courses/**", ".claude/**"]
+    assert sorted(push.get("paths-ignore") or []) in (sorted(base), sorted([*base, "history.md"]))
     assert "paths" not in push, "a positive `paths` filter would change the meaning"
 
 
