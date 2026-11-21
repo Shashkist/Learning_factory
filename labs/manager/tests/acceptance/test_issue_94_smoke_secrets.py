@@ -74,20 +74,33 @@ _TOKEN = re.compile(r"(?<![\w.])secrets(?![\w-])", re.I)
 _NAMED = re.compile(r"secrets(?:\.|\[\s*['\"])([A-Za-z0-9_]+)", re.I)
 
 
-def _strip_comments(text: str) -> str:
-    return "\n".join(ln for ln in text.splitlines() if not ln.lstrip().startswith("#"))
+def _strings(node):
+    """Every string in a parsed YAML tree, keys and values. YAML comments are gone; a `#` line
+    inside a `run: |` block stays part of the scalar (the shell sees it, GitHub still evaluates it)."""
+    if isinstance(node, str):
+        yield node
+    elif isinstance(node, dict):
+        for k, v in node.items():
+            yield from _strings(k)
+            yield from _strings(v)
+    elif isinstance(node, (list, tuple)):
+        for v in node:
+            yield from _strings(v)
 
 
 def _secrets_in(text: str) -> set:
-    """Upper-cased names of secrets read anywhere inside a `${{ ... }}` expression (dot or bracket
-    form, any case). A `secrets` token that cannot be named (`toJSON(secrets)`, `secrets[inputs.x]`)
-    raises AssertionError. Comment lines and `steps.secrets.*` are not reads."""
+    """Upper-cased names of secrets read anywhere inside a `${{ ... }}` expression of the parsed
+    workflow (dot or bracket form, any case). A `secrets` token that cannot be named
+    (`toJSON(secrets)`, `secrets[inputs.x]`) raises AssertionError. YAML comments and
+    `steps.secrets.*` are not reads."""
+    yaml = pytest.importorskip("yaml")
     found = set()
-    for expr in _EXPR.findall(_strip_comments(text)):
-        for tok in _TOKEN.finditer(expr):
-            m = _NAMED.match(expr, tok.start())
-            assert m, f"secret read that cannot be named statically: {expr.strip()!r}"
-            found.add(m.group(1).upper())
+    for string in _strings(yaml.safe_load(text)):
+        for expr in _EXPR.findall(string):
+            for tok in _TOKEN.finditer(expr):
+                m = _NAMED.match(expr, tok.start())
+                assert m, f"secret read that cannot be named statically: {expr.strip()!r}"
+                found.add(m.group(1).upper())
     return found - IMPLICIT
 
 
@@ -108,8 +121,10 @@ def test_the_secret_finder_sees_compound_and_bracket_reads_but_not_text_outside_
         "f: ${{ Secrets.mixed_Case }}\n"
         "g: ${{ secrets.github_token }}\n"
         "h: ${{ steps.secrets.outputs.X }}\n"
+        "i: |\n"
+        "  # echo ${{ secrets.IN_RUN_COMMENT }}\n"
     )
-    assert _secrets_in(text) == {"START", "FOO", "BAR", "BAZ", "MIXED_CASE"}
+    assert _secrets_in(text) == {"START", "FOO", "BAR", "BAZ", "MIXED_CASE", "IN_RUN_COMMENT"}
 
 
 @pytest.mark.parametrize(
