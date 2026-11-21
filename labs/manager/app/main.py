@@ -137,7 +137,9 @@ def _public_origin_problem(value: str) -> str | None:
     else:
         if any(c in _FORBIDDEN_HOST_CHARS or c <= " " or c == "\x7f" for c in host):
             return "host has a character a browser refuses in a host"
-        if _IPV4_LAST_LABEL.match(host.rstrip(".").rsplit(".", 1)[-1]) and not (
+        # A browser drops exactly one trailing dot; with two or more the host is a domain.
+        bare = host[:-1] if host.endswith(".") else host
+        if _IPV4_LAST_LABEL.match(bare.rsplit(".", 1)[-1]) and not (
             _CANONICAL_IPV4.match(host) and all(int(o) <= 255 for o in host.split("."))
         ):
             return "IPv4 host is not in the dotted form a browser sends"
