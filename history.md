@@ -591,3 +591,20 @@ Tips:
 - Start the reviewer as soon as the PR is open. It finished before the docker job did, so CI was the only wait.
 - After each merge, rebase the next PR right away. Its CI then runs on the right base while you do other work.
 - If a reviewer's mutant survives an exam-only PR, add the case to that PR rather than filing an issue.
+
+## Pass lf-t5w2: three PRs at once, and a Python patch release that moved the goalposts (2026-11-21, laptop, 17:55-~19:20 UTC)
+
+The pass ran three issues side by side (#410 manager, #408 CI script, #337 validator), each in its own worktree, with the exam writers and implementers running in the background. It ended with three merges (#401, #412, #418), #391 and #408 closed with evidence, and #413 approved and rebased for the next pass.
+
+- **"Same Python" is not the same Python.** #410's exam expects a warning for `[::ffff:192.168.0.1]`, because browsers send IPv4-mapped addresses in hex (`[::ffff:c0a8:1]`). It passed on the laptop (CPython 3.12.10) and failed in CI (3.12.16): a later 3.12 patch release prints mapped addresses dotted, so `.compressed` equalled what was written. The reviewer had flagged this as "3.13+ only, nothing breaks today". CI proved it wrong within the hour. The fix builds the browser form by hand instead of trusting the standard library's text format.
+- **Read the empty report, not the summary.** One exam writer finished in 4 tool calls and handed back the single word "placeholder". The commit was there and turned out to be good, but only running it (16 red, 18 green, exactly the warning cases) showed that. Every hand-back gets a check: `git log`, then the test run, before the next agent builds on it.
+- **Two review rounds, two re-sequences.** Both #337 rounds added exam cases. The exam gate refuses an exam change after a code commit, and force-push is off the table, so each round meant a fresh branch: exam commits, then the new cases, then the code (PRs #411 → #415 → #418). Round 1 caught a real regression (`( sleep 600 | cat ) >/dev/null 2>&1 &` began to warn). Round 2 caught a subtler one: blanking backtick spans with spaces made `2>`mktemp`` lose its redirect target. The fix was one character (`"x"` instead of `" "`), already tested by the reviewer's probe, so the manager took it without a third round (D121).
+- **A git pathspec trick.** To exclude only the root *file* `history.md` and not a directory of that name, `:(exclude,top,glob)history.md` is not enough: git treats a wildcard-free glob as a path prefix. `history.m[d]` forces a whole-path match. The reviewer confirmed it in scratch repos with `core.ignorecase` on and off. The first Deploy after the merge was the live test: main was the fix plus a docs-only commit, and the Deploy shipped the fix's image.
+- **A guard hook shapes the shell style.** A plugin's guard refuses git commands whose arguments are built at runtime (`git -C ../lf-$n`) while its own clone is registered. A loop over worktrees became three literal commands, and the worktree cleanup sweep waits for another pass.
+
+Numbers: 3 merged PRs (#401, #412, #418), 1 more approved and rebased (#413), 2 exam writers, 4 implementer runs, 5 review rounds (2 approved, 3 changes requested), 2 superseded PRs (#411, #415), 3 follow-up issues (#414, #416, #417), 1 decision (D121).
+
+Tips:
+- Pin behaviour, not the standard library's string format. If an exam compares with `str()` of a library object, a patch release can change the answer.
+- Ask agents for their final report in the final message. "Not a placeholder" in the prompt fixed it for the next three agents.
+- When a reviewer hands you a tested one-line fix after the last allowed round, add the exam case first, apply the fix, and record why there is no third round.

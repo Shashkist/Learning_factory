@@ -4,7 +4,14 @@
 
 ## Now
 
-**Pass lf-t5w2 (laptop, started ~17:55 UTC), in progress:** merged PR #401 (#391) as 1225f34; main CI 44932880926 running (closes #391 when green). Claimed, worktrees `C:\projects\lf-<n>`: **#410** (`f/410-origin-check-hosts`, exam being written), **#408** (`f/408-ci-paths-dirs`, unit tests + fix in `scripts/`), **#337** (`f/337-pipeline-stderr`, exam being written). If this pass dies: continue each branch from its last commit; nothing is pushed yet.
+**Pass lf-t5w2 (laptop, 17:55-~19:20 UTC) stopped at 3 merged PRs:** #401 (#391), #412 (#408), #418 (#337, after #411 and #415 were re-sequenced). **Closed with evidence: #391 (main CI 44932880926 green on 1225f34, docker job incl.), #408 (main CI 44934730508; Deploy 44936571157 on ff12d82 + a docs-only commit deployed ff12d82, smoke green), #337 (Deploy 44939668791 deployed b08ed9a, smoke `ok start` + `ok terminal`).** Decision D121 (#337 merged after round 2 with the reviewer's tested fix). New issues: #414 (validator: and-or lists, continued lines, pipes in `$(...)` right of a pipe), #416 (review of #410), #417 (review of #408). All claims released.
+
+- **Resume here, first:** **#410 / PR #413** (branch `f/410-origin-check-hosts`, worktree `C:\projects\lf-410`): **approved in round 1**, head f328bb4 rebased on main b08ed9a, **CI all green** (run 44938007969). If main has moved only by docs: `gh pr merge 413 --squash --delete-branch`; otherwise rebase, wait for green, merge. Then Deploy + smoke: the smoke's `ok terminal` must stay green. Close #410 with: the exam (8 red before, 24 green), the CI-only failure that fac2b72 fixed (CPython 3.12.16 prints IPv4-mapped IPv6 dotted; `_browser_ipv6` builds the hex form by hand), and the Deploy.
+- Then the Next list.
+- Worktrees: keep `lf-410`; `lf-408`, `lf-337`, `lf-391` are shipped and safe to remove. The qa plugin's guard refuses git commands with runtime-built arguments (`git -C ../lf-$n`), so the cleanup sweep must use literal paths, one command per worktree.
+- **Lesson (pass lf-t5w2):** the laptop's Python (3.12.10) and CI's (3.12.16) differ in a patch release, and `ipaddress` output changed between them. Exams that compare with a library's string form can pass locally and fail in CI; build the expected form yourself.
+- **Lesson (pass lf-t5w2):** check every agent hand-back with `git log` and a test run before building on it (one exam writer reported only "placeholder"; its commit was good, but only the run showed it). Ask for the report "in the final message".
+- **Lesson (pass lf-t5w2):** a review round that adds exam cases costs a re-sequenced branch and a new PR (exam gate + no force-push). Ask the exam writer up front for the false-positive controls reviewers keep finding (groups, `case` patterns, substitutions, redirect targets that are substitutions).
 
 _Previous:_ **Pass lf-m8r2 (laptop, 16:10-~17:45 UTC) stopped at 3 merged PRs:** #406 (#400), #407 (#395 C), #409 (#399). **Closed with evidence: #400 (Dashboard CI on the PR, run 44920984247, and on main 9e9f95f, run 44924721514), #395 (main CI 44927424876 green; the STATE+`history.md` commit a2c2657 started no CI and Deploy 44922347898 still deployed 7cb9f7c), #399 (Deploy 44931215561 deployed a5671bf, smoke green incl. `ok terminal`; live HTML has `frame-ancestors 'self'` + `SAMEORIGIN`, JS has neither).** No decisions needed. New issues: #408 (`ci_paths.py`: a directory named `history.md` counts as docs-only), #410 (review of #409). All claims released.
 
@@ -248,9 +255,9 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 ## Next (in order)
 
 1. **#332** after O23.
-2. **#401** (#391), see Resume.
-3. Small follow-ups: **#410** (review of #409: startup check pins the rebuild, canonical hosts, smoke 403 cause), **#408** (`ci_paths.py` directory named `history.md`; exam and script in separate PRs, D19).
-4. Review leftovers: **#337** (pipelines); **#319** (now also the 390 px typed-command proof from #349) WebSocket relay proof, **#154** Solution tab (D57 b), **#142**.
+2. **#413** (#410), see Resume.
+3. Small follow-ups (p3): **#416** (origin check: mapped-IPv6 quiet case, non-manager 403s, rewritten IPv4 forms, lint `labs/deploy/smoke`), **#417** (`ci_paths` parity by kind, safe `DOCS_FILES`, `GIT_LITERAL_PATHSPECS`), **#414** (validator misses).
+4. Review leftovers: **#319** (now also the 390 px typed-command proof from #349) WebSocket relay proof, **#154** Solution tab (D57 b), **#142**.
 5. **#85** deploy follow-ups, **#93**; p2 list: #81, #76, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
@@ -266,6 +273,7 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
 ## Recently done
 
+- 2026-11-21 pass lf-t5w2: #391 (#401; main CI 44932880926), #408 (#412; main CI 44934730508, Deploy 44936571157 deployed ff12d82 past a docs-only commit), #337 (#418 after #411/#415, D121; Deploy 44939668791, smoke ok).
 - 2026-11-21 pass lf-m8r2: #400 (#406; Dashboard CI runs 44920984247, 44924721514), #395 (#402, #405, #407; main CI 44927424876, Deploy 44922347898 deployed past a `history.md` commit), #399 (#409; Deploy 44931215561, smoke ok, live framing headers).
 - 2026-11-21 pass lf-w3n7: #364 (#375 exam; main CI 44889775470), #376 (#382; Deploy 44894087812, smoke ok), #355 (#367); closed #55, #378, #380 with Deploy 44889309740.
 - 2026-11-21 pass lf-p4w9: #94 (#358, named smoke secrets; Deploy 44867263764 smoke green), #348 (#357, active time and last activity; live bundle verified), #343 (#361; Deploy 44869288333, smoke ok).
