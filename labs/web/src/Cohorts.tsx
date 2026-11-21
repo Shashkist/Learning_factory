@@ -67,7 +67,7 @@ function CohortRow({
       {cohort.name} {cohort.access_until} {`${cohort.students} ${t("admin.cohorts.students")}`}
       <form data-testid={`cohort-edit-${cohort.id}`} onSubmit={save}>
         <fieldset>
-        <legend>{t("admin.cohorts.edit.legend")}</legend>
+        <legend>{`${t("admin.cohorts.edit.legend")}: ${cohort.name}`}</legend>
         <label>
           {t("admin.cohorts.edit.name")}
           <input value={name} onChange={(e) => setName(e.target.value)} />

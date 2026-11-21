@@ -69,12 +69,3 @@
 .teacher-page li { margin-block-end: var(--space-2); }
 
 .table-scroll td.num { text-align: end; }
-.sr-only {
-  position: absolute;
-  inline-size: 1px;
-  block-size: 1px;
-  margin: -1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
