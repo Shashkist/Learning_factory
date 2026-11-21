@@ -269,14 +269,23 @@ def test_solution_sh_exists_only_in_hands_on_task_dirs():
     assert found == set(HANDS_ON_IDS)
 
 
-def test_owner_md_asks_owner_to_read_and_publish_linux_1():
+def test_owner_md_asks_owner_to_read_and_publish_linux_1_until_published():
     text = _text(OWNER_MD)
-    lines = [
-        ln for ln in text.splitlines()
-        if ln.lstrip().startswith("- [ ]") and re.search(r"Linux 1", ln)
-        and re.search(r"publish", ln, re.I) and re.search(r"\bread\b", ln, re.I)
-    ]
-    assert lines, "OWNER.md needs an open `- [ ]` line asking to read and publish Linux 1"
+
+    def item_lines(box: str) -> list[str]:
+        return [
+            ln for ln in text.splitlines()
+            if ln.lstrip().startswith(box) and re.search(r"Linux 1", ln)
+            and re.search(r"publish", ln, re.I) and re.search(r"\bread\b", ln, re.I)
+        ]
+
+    if item_lines("- [ ]"):
+        return
+    published = _raw().get("status") == "published"
+    assert published and item_lines("- [x]"), (
+        "OWNER.md needs an open `- [ ]` line asking to read and publish Linux 1, "
+        "unless the lab is `status: published` and the item is ticked `- [x]`"
+    )
 
 
 # ---------------------------------------------------------------- non-docker: quizzes
