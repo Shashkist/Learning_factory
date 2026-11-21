@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 
 import { useI18n } from "./i18n";
 import { localStamp } from "./localStamp";
-import "./styles/teacher.css";
 
 type Sess = {
   id: string;
@@ -72,14 +71,16 @@ export default function LiveSessions({ open }: { open: (key: string) => void }) 
       {endFailed && <p role="alert">{t("admin.live.end_error")}</p>}
       {rows && rows.length === 0 && <p>{t("admin.live.empty")}</p>}
       {rows && rows.length > 0 && (
-        <div className="table-scroll">
+        <div className="table-scroll" role="region" aria-label={t("admin.live.title")} tabIndex={0}>
         <table data-testid="live-table">
           <thead>
             <tr>
               {["name", "cohort", "lab", "started", "heartbeat"].map((c) => (
                 <th scope="col" key={c}>{t(`admin.live.col.${c}`)}</th>
               ))}
-              <th scope="col" />
+              <th scope="col">
+                <span className="sr-only">{t("admin.live.col.actions")}</span>
+              </th>
             </tr>
           </thead>
           <tbody>

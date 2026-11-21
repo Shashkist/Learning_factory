@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 
 import { useI18n } from "./i18n";
 import { localStamp } from "./localStamp";
-import "./styles/teacher.css";
 
 type Cell = { status: string; flag: boolean };
 type Row = { key?: string; name: string; cohort: string; last_activity: string | null; cells: Record<string, Cell> };
@@ -81,7 +80,7 @@ export default function ClassTable({ open }: { open?: (key: string) => void } = 
       {failed && <p role="alert">{t("admin.class.error")}</p>}
       {table && table.rows.length === 0 && <p>{t("admin.class.empty")}</p>}
       {table && table.rows.length > 0 && (
-        <div className="table-scroll">
+        <div className="table-scroll" role="region" aria-label={t("admin.class.title")} tabIndex={0}>
         <table data-testid="class-table">
           <thead>
             <tr>
@@ -119,14 +118,14 @@ export default function ClassTable({ open }: { open?: (key: string) => void } = 
                 {table.labs.map((l) => {
                   const c = r.cells[l.id];
                   return (
-                    <td key={l.id} data-testid={`class-cell-${i}-${l.id}`}>
+                    <td key={l.id} className="num" data-testid={`class-cell-${i}-${l.id}`}>
                       {mark(c.status)}
                       {c.flag && (
                         <span className="badge warning">
                           <span role="img" aria-label={t("admin.class.flag")} title={t("admin.class.flag")}>
                             ⚡
                           </span>{" "}
-                          {t("admin.class.flag")}
+                          <span aria-hidden="true">{t("admin.class.flag")}</span>
                         </span>
                       )}
                     </td>
