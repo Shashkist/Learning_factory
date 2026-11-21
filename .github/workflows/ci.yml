@@ -21,9 +21,11 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # The manager checks are split in two parallel jobs so the acceptance exam runs once,
+  # not twice, and the wall time is the longer of the two (#364, D116).
   manager:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     services:
       postgres:
         image: postgres:16
@@ -45,7 +47,30 @@ jobs:
       - run: uv sync
       - run: uv run ruff check .
       - run: uv run mypy app
-      - run: uv run pytest -q
+      - run: uv run pytest -q --ignore=tests/acceptance
+
+  manager-exam:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      LF_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+    defaults:
+      run:
+        working-directory: labs/manager
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync
       - name: Acceptance exam must run fully (no skips)
         # confcutdir and the addopts override keep conftest.py files above tests/
         # and pyproject addopts from skipping or deselecting exam tests.
