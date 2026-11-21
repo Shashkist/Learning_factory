@@ -196,7 +196,8 @@ def _run(base: str, student: str, password: str, timeout: float) -> tuple[str, s
         sid = start(base, cookie, LAB_ID)
     except Fail as exc:
         raise StepFail("start", str(exc)) from None
-    print(f"ok start {sid}", flush=True)  # a session id (UUID): lets the workflow check the container
+    # a session id (UUID): lets the workflow check the container
+    print(f"ok start {sid}", flush=True)
     failure: tuple[str, str] | None = None
 
     def on_failure(step: str, reason: str) -> None:
