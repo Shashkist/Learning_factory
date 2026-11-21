@@ -108,6 +108,20 @@ def _gated(script: str) -> str:
     return "\n".join(lines[: idx[0] + 1] + gate + lines[idx[0] + 1 :])
 
 
+def _assert_gate_held(box: str) -> None:
+    """A timed-out gated check proves something only if the reader was stopped. The reader is
+    either stopped before it wrote READY (valid), or it wrote READY and then waited for SEEN,
+    which only a live stopper writes. READY without SEEN means the stopper died or stalled and
+    the timeout came from the reader's own spin: the case tested nothing (review of #401)."""
+    res = docker(
+        "exec", "-u", "root", box, "sh", "-c", f"[ ! -e {READY} ] || [ -e {SEEN} ]", check=False
+    )
+    assert res.returncode == 0, (
+        "the reader passed READY but the stopper never wrote SEEN (a dead or stalled stop "
+        "loop), so the timeout stopped nothing and the case tested nothing"
+    )
+
+
 def _ps(box: str) -> list[tuple[int, int, str, str, str]]:
     """(pid, ppid, real user, state, args) of all processes, as root, minus this call's own."""
     script = 'echo "$$"; ps -eo pid=,ppid=,ruser=,stat=,args='
@@ -164,7 +178,9 @@ def _timed_out_check_under_stopper(runtime, call, box, before: set | None = None
         f"the stop loop did not make the check time out (exit {res.exit_code}), so the case "
         f"tested nothing:\n{res.output}"
     )
-    return time.monotonic()
+    returned = time.monotonic()
+    _assert_gate_held(box)
+    return returned
 
 
 # ---------------- 1. the killer never outlives the call
@@ -185,6 +201,7 @@ def test_no_root_killer_process_survives_exec_script_under_a_stop_loop(
             runtime.exec_script, fresh_box, _gated(_text(task / "check.sh")), CHECK_TIMEOUT_S
         )
         assert res.timed_out is True, f"the case tested nothing (exit {res.exit_code})"
+        _assert_gate_held(fresh_box)
         time.sleep(1.5)
         left = [r for r in _ps(fresh_box) if r[2] == "root" and r[0] not in before]
     finally:
