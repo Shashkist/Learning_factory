@@ -399,14 +399,10 @@ def _is_bash(argv: list[str]) -> bool:
     )
 
 
-def _background_is_quiet(job: str, bash: bool) -> bool:
-    """Both outputs end in files, reading the redirects left to right (`2>&1` copies as it is).
-
-    Only the redirects of the backgrounded command count (after the last separator), and `&>`
-    only under bash: dash reads `cmd &>file &` as a background job, then `>file`.
-    """
-    job = _SEPARATORS.split(job)[-1]
-    out_file = err_file = False
+def _redirect_state(job: str, bash: bool, out_file: bool = False) -> tuple[bool, bool]:
+    """(stdout, stderr) end in files after the redirects of `job`, read left to right (`2>&1`
+    copies as it is). `out_file` is where stdout starts: True when it already goes into a pipe."""
+    err_file = False
     for m in _FD_REDIRECT.finditer(job):
         if m.group(2):  # n>&m
             if m.group(1) == "2":
@@ -424,6 +420,27 @@ def _background_is_quiet(job: str, bash: bool) -> bool:
                 err_file = True
             elif fd in ("", "1"):
                 out_file = True
+    return out_file, err_file
+
+
+def _background_is_quiet(job: str, bash: bool) -> bool:
+    """Both outputs of the backgrounded command end in files, and so does the stderr of every
+    element before a plain `|` (the pipe carries only stdout; `2>&1` sends stderr into it).
+
+    Only the redirects of the backgrounded command count (after the last separator), and `&>`
+    only under bash: dash reads `cmd &>file &` as a background job, then `>file`. `|&` covers the
+    element before it under bash only: dash reads it as `|` then `&`.
+    """
+    parts = _SEPARATORS.split(job)
+    last = len(parts) - 1
+    out_file, err_file = _redirect_state(parts[last], bash)
+    k = last
+    while k >= 2 and parts[k - 1] == "|":
+        k -= 2
+        if bash and parts[k + 2].startswith("&") and not parts[k + 2].startswith("&>"):
+            continue  # `|&`: the element's stderr goes into the pipe
+        if not _redirect_state(parts[k], bash, True)[1]:
+            return False
     return out_file and err_file
 
 
