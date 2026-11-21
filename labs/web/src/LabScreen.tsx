@@ -300,16 +300,16 @@ export default function LabScreen({
 
   // On phones the terminal sits hidden while the tasks tab is shown; ttyd focuses its shell on connect, so take the focus back.
   useEffect(() => {
-    if (pane !== "tasks" || !window.matchMedia?.("(max-width: 48rem)").matches) return;
-    const back = () => {
-      const f = document.activeElement;
-      if (f instanceof HTMLIFrameElement && f.closest(".lab-term")) {
+    if (pane !== "tasks") return;
+    const back = () =>
+      setTimeout(() => {
+        // Decided now, not at mount: the window may have been resized since.
+        const f = document.activeElement;
+        const phone = window.matchMedia?.("(max-width: 48rem)").matches;
+        if (!phone || !(f instanceof HTMLIFrameElement) || !f.closest(".lab-term")) return;
         f.blur();
-        const target = heading.current ?? document.getElementById("lab-panel-tasks");
-        target?.setAttribute("tabindex", "-1");
-        target?.focus();
-      }
-    };
+        (heading.current ?? document.getElementById("lab-panel-tasks"))?.focus();
+      }, 0);
     window.addEventListener("blur", back);
     return () => window.removeEventListener("blur", back);
   }, [pane]);
@@ -512,7 +512,7 @@ export default function LabScreen({
               tabIndex={pane === k ? 0 : -1}
               onClick={() => setPane(k)}
               onKeyDown={(e) => {
-                if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+                if (done || (e.key !== "ArrowRight" && e.key !== "ArrowLeft")) return;
                 e.preventDefault();
                 const next = pane === "tasks" ? "terminal" : "tasks";
                 setPane(next);
@@ -544,6 +544,7 @@ export default function LabScreen({
         role="tabpanel"
         aria-labelledby="lab-pane-tasks"
         data-testid="task-panel"
+        tabIndex={-1}
         dir={rtl ? "rtl" : "ltr"}
         className="lab-tasks"
       >

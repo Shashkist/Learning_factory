@@ -504,18 +504,37 @@ describe("open tasks view", () => {
 });
 
 describe("phone focus", () => {
-  test("focus that lands in the hidden terminal goes back to the tasks pane", async () => {
-    window.matchMedia = ((q: string) => ({ matches: true, media: q, addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia;
+  afterEach(() => vi.unstubAllGlobals());
+  const media = (on: () => boolean) =>
+    vi.stubGlobal("matchMedia", (q: string) => ({ get matches() { return on(); }, media: q, addEventListener() {}, removeEventListener() {} }));
+  const focusFrame = async () => {
     backend({});
     await open();
     const frame = document.querySelector("iframe") as HTMLIFrameElement;
     frame.focus();
     expect(document.activeElement).toBe(frame);
     fireEvent.blur(window);
-    expect(document.activeElement).not.toBe(frame);
+    return frame;
+  };
+
+  test("focus that lands in the hidden terminal goes back to the tasks pane", async () => {
+    media(() => true);
+    const frame = await focusFrame();
+    await waitFor(() => expect(document.activeElement).not.toBe(frame));
     expect(screen.getByTestId("task-panel").contains(document.activeElement)).toBe(true);
-    // @ts-expect-error restore the jsdom default (no matchMedia)
-    delete window.matchMedia;
+  });
+
+  test("a terminal that is visible (window grew wide since mount) keeps its focus", async () => {
+    let phone = true;
+    media(() => phone);
+    backend({});
+    await open();
+    const frame = document.querySelector("iframe") as HTMLIFrameElement;
+    frame.focus();
+    phone = false;
+    fireEvent.blur(window);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(document.activeElement).toBe(frame);
   });
 });
 
