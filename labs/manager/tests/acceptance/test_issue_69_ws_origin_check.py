@@ -20,6 +20,7 @@ a plain TCP listener that counts connections (`LF_TERM_UPSTREAM`), or the stub t
 in the database tests, which skip locally without LF_TEST_DATABASE_URL (CI has it). Student ids
 are fake.
 """
+# ruff: noqa: F811  (imported fixtures are used by name)
 import logging
 import socket
 import threading
@@ -28,7 +29,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from test_issue_8_term_proxy import (  # noqa: F401  (fixtures are used by name)
+from test_issue_8_term_proxy import (  # noqa: F401, F811  (fixtures are used by name)
     NGINX_HEADERS,
     SCHEMA,
     Env,
