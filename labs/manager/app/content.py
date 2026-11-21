@@ -241,7 +241,7 @@ _HEREDOC = re.compile(r"(?<!<)<<(?!<)(-?)\s*([^\s;&|<>()]+)")  # not `<<<`, a he
 _FD = r"((?<!\d)\d+|)"
 _REDIRECTS = re.compile(_FD + r">&\d+|" + _FD + r">>?\s*\S+")
 _FD_REDIRECT = re.compile(
-    r"&>>?\s*\S+|" + _FD + r">>?&\s*(\d)|"
+    r"&>>?\s*\S+|" + _FD + r">>?&\s*(?:(\d)|\\[\d-])|"
     r"(?P<wfd>(?<!\d)\d+|)>&\s*[^\s\d$`'\x22\\-]\S*|" + _FD + r">>?\s*\S+"
 )
 _FD0_DUP = re.compile(r"(?<!\d)\d*<&\s*0")
@@ -323,16 +323,28 @@ def _su_commands(masked: str) -> Iterator[tuple[int, str]]:
             continue
         if dash_c is None and dash_from >= 0:
             return  # the last search found no ` -c <quote>` further on
-        if dash_from < from_pos and (dash_c is None or dash_c.start() < from_pos):
-            dash_c, dash_from = _DASH_C.search(masked, from_pos), from_pos
+        if dash_c is None or dash_c.start() < from_pos:
+            dash_c = _DASH_C.search(masked, from_pos)
+            dash_from = from_pos
             if dash_c is None:
                 return
         if job_end < from_pos:
             sep = _JOB_END.search(masked, from_pos)
             job_end = sep.start() if sep else len(masked) + 1
-        if dash_c is not None and dash_c.start() < job_end:
+        if dash_c.start() < job_end:
             resume = dash_c.end()
-            yield dash_c.end(), dash_c.group(1)
+            if not _after_pipe(masked, su.start()):
+                yield dash_c.end(), dash_c.group(1)
+
+
+def _after_pipe(masked: str, at: int) -> bool:
+    """The job at `at` follows a `|` or `|&` (its stdin is the pipe); a look-back over blanks."""
+    i = at - 1
+    while i >= 0 and masked[i].isspace():
+        i -= 1
+    if i >= 0 and masked[i] == "&" and i > 0 and masked[i - 1] == "|":
+        i -= 1
+    return i >= 0 and masked[i] == "|" and (i == 0 or masked[i - 1] not in "|>")
 
 
 def _su_reads_stdin(line: str, masked: str, amp: re.Pattern[str]) -> bool:
