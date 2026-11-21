@@ -1250,3 +1250,12 @@ The non-blocking items go to #423: a group that spans lines is not joined, plus 
 **Why.** Both fixes are small, proven by the reviewer's probes and by the exam. A third round would cost about 25 minutes and bring no new information.
 **Alternatives.** A third review round. Or ship #424 as is and file the misses: no, because the first miss is the shape that the new warning message itself suggests.
 **Revert.** Revert the #414 merge. For the `cd` amendment alone, drop `cd` from `_INSTANT` and its quiet case.
+
+## D124 · #427: the manager's plain checklist texts are the contract; the lab screen numbers them by position
+
+**Cause found.** The task API answers a hands-on task with `checklist: [{en, he}, ...]`, which the manager exam `test_issue_9_task_api.py` pins. The lab screen read `c.text[lang]` and `c.n`, a shape that only the UI's own fakes used (`LabScreen.test.tsx`, `e2e/fake-backend.ts`, the #333 exam). So every hands-on task threw while rendering, and React dropped the whole lab screen, terminal iframe included. That is the "reload" the owner saw. Quiz tasks have no checklist, and the smoke and browser exams never drew a hands-on task in a real browser, so nothing caught it. The CI docker run of the #427 exam showed it: the manager answered `next` with 200 and task 2, then the title was missing and the iframe had been replaced.
+**Decision.** The API stays as it is. The lab screen accepts both shapes and gives each item the number of its position (1..N). That number is the `n` that `check.sh` prints as `PASS <n>` (spec section 7), so check results line up with the items.
+**Why.** This is the smallest change: one function in `LabScreen.tsx`. The many UI exams written with `{n, text}` stay green and unchanged, and no manager exam moves.
+**Alternatives.** (a) Change the manager to send `{n, text}`, which means changing the #9 exam and redeploying the manager. (b) Change every UI fake to the real shape, which edits about eight exam files.
+**Revert.** Restore the old `checklist` type and the `.map` in `LabScreen.tsx`. The real Linux 1 browser exam (#427) will then go red.
+**Lesson.** A UI exam whose fake backend invents the API shape proves nothing about the real API. The docker-job browser exam with real content is what found this.
