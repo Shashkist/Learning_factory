@@ -145,8 +145,17 @@ def test_assemble_student_fields_carry_the_key_and_no_hash():
         "disabled": False,
         "access_until": "2027-05-20",
         "cohort_access_until": "2027-03-01",
+        "last_activity": None,
+        "active_seconds": 0,
         "labs": [],
     }
+
+
+def test_assemble_activity_figures():
+    at = dt.datetime(2026, 11, 20, 9, 0, tzinfo=dt.UTC)
+    body = assemble([], STUDENT, [], [], [], [], [], at, 3725.0)
+    assert body["last_activity"] == at.isoformat()
+    assert body["active_seconds"] == 3725.0
 
 
 def test_assemble_done_and_untouched_labs():

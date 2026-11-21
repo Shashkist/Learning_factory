@@ -88,7 +88,7 @@ export default function ClassTable({ open }: { open?: (key: string) => void } = 
               <th scope="col">{t("admin.class.col.cohort")}</th>
               <th scope="col">{t("admin.class.col.last_activity")}</th>
               {table.labs.map((l) => (
-                <th scope="col" key={l.id}>{l.title[lang]}</th>
+                <th scope="col" className="num" key={l.id}>{l.title[lang]}</th>
               ))}
             </tr>
           </thead>
@@ -121,7 +121,7 @@ export default function ClassTable({ open }: { open?: (key: string) => void } = 
                     <td key={l.id} className="num" data-testid={`class-cell-${i}-${l.id}`}>
                       {mark(c.status)}
                       {c.flag && (
-                        <span className="badge warning">
+                        <span className="badge warning td-flag">
                           <span role="img" aria-label={t("admin.class.flag")} title={t("admin.class.flag")}>
                             ⚡
                           </span>{" "}

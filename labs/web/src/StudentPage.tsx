@@ -28,10 +28,20 @@ type Student = {
   disabled: boolean;
   access_until: string | null;
   cohort_access_until: string;
+  active_seconds?: number;
+  last_activity?: string | null;
   labs: Lab[];
 };
 
 type Load = "loading" | "ok" | "not_found" | "error";
+
+/** Total active time as "<h> h <m> min" through the dictionary; the bdi keeps its own direction (he reads right to left). */
+function activeTime(seconds: number, t: (key: string) => string): string {
+  const total = Math.max(0, seconds);
+  // A started first minute counts as one, so a short session never reads like no time at all.
+  const minutes = total > 0 && total < 60 ? 1 : Math.floor(total / 60);
+  return t("admin.student.active_fmt").replace("{h}", String(Math.floor(minutes / 60))).replace("{m}", String(minutes % 60));
+}
 
 /** Whole seconds, or an en dash when there is no time. */
 function secs(value: number | null): string {
@@ -240,6 +250,14 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
           <bdi dir="ltr" className="card__value">{`${student.labs.reduce((n, l) => n + l.tasks_passed, 0)} / ${student.labs.reduce((n, l) => n + l.tasks_total, 0)}`}</bdi>
         </div>
         <div className="card">
+          <div className="card__label">{t("admin.student.card.active")}</div>
+          <bdi className="card__value">{activeTime(student.active_seconds ?? 0, t)}</bdi>
+        </div>
+        <div className="card">
+          <div className="card__label">{t("admin.student.card.last_activity")}</div>
+          <bdi dir="ltr" className="card__value">{student.last_activity ? localStamp(student.last_activity) : t("admin.class.never")}</bdi>
+        </div>
+        <div className="card">
           <div className="card__label">{t("admin.student.card.flags")}</div>
           <bdi dir="ltr" className="card__value">{student.labs.reduce((n, l) => n + l.flags.filter((f) => !f.dismissed_at).length, 0)}</bdi>
         </div>
@@ -271,13 +289,20 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
           <div className="table-scroll" role="region" aria-label={`${lab.title[lang]}: ${t("admin.student.tasks")}`} tabIndex={0}>
           <table>
             <caption>{t("admin.student.tasks")}</caption>
+            <thead>
+              <tr>
+                <td />
+                <th scope="col" className="num">{t("admin.student.attempts")}</th>
+                <td colSpan={2} />
+              </tr>
+            </thead>
             <tbody>
               {lab.tasks.map((task) => (
                 <tr key={task.id} data-testid={`student-task-${lab.id}-${task.id}`}>
                   <th scope="row">
                     <bdi dir="ltr">{task.id}</bdi> {task.passed ? "✓" : ""}
                   </th>
-                  <td className="num">{`${t("admin.student.attempts")}: ${task.attempts}`}</td>
+                  <td className="num">{task.attempts}</td>
                   <td className="num">{`${t("admin.student.time")}: ${secs(task.seconds)}`}</td>
                   <td className="num">{`${t("admin.student.median")}: ${secs(task.median_seconds)}`}</td>
                 </tr>

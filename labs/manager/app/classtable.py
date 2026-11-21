@@ -17,6 +17,13 @@ from app.smoke import NOT_SMOKE_SQL
 T = db.SCHEMA
 PG_INT_MAX = 2**31 - 1
 
+# The "seen" time of each student: the latest session start, heartbeat or end. Shared with the
+# student page so both show the same value.
+SEEN_SQL = (
+    "select student, max(greatest(started_at, last_heartbeat, ended_at)) as at "
+    f"from {T}.lab_sessions where student = any($1) group by student"
+)
+
 router = APIRouter(prefix="/api/admin", dependencies=[Depends(current_admin)])
 
 
@@ -94,11 +101,7 @@ async def build(request: Request, cohort: int | None, flagged: int | None) -> di
             keys,
             lab_ids,
         )
-        seen = await pool.fetch(
-            "select student, max(greatest(started_at, last_heartbeat, ended_at)) as at "
-            f"from {T}.lab_sessions where student = any($1) group by student",
-            keys,
-        )
+        seen = await pool.fetch(SEEN_SQL, keys)
     passed_by: dict[tuple[str, str], set[str]] = {}
     for r in passed:
         passed_by.setdefault((r["student"], r["lab_id"]), set()).add(r["task_id"])

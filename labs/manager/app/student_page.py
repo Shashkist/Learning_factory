@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field, StrictBool, field_validator
 
 from app import auth, db
 from app.auth import current_admin, db_guard
-from app.classtable import cell_status, published
+from app.classtable import SEEN_SQL, cell_status, published
 from app.content import Lab
 from app.smoke import NOT_SMOKE_SQL
 from app.teacher import Day, read_body
@@ -80,6 +80,8 @@ def assemble(
     medians: Iterable[Row],
     done: Iterable[Row],
     flags: Iterable[Row],
+    last_activity: Any = None,
+    active_seconds: float = 0,
 ) -> dict[str, Any]:
     """The page body from the query rows (no database here, so it is unit-tested)."""
     by_task = {(r["lab_id"], r["task_id"]): r for r in tasks}
@@ -153,6 +155,8 @@ def assemble(
         "disabled": student["disabled"],
         "access_until": until.isoformat() if until else None,
         "cohort_access_until": student["cohort_until"].isoformat(),
+        "last_activity": last_activity.isoformat() if last_activity else None,
+        "active_seconds": active_seconds,
         "labs": out,
     }
 
@@ -193,6 +197,10 @@ select lab_id, task_id, percentile_cont(0.5) within group (order by secs) as med
 from firsts where secs is not null group by lab_id, task_id
 """
 
+_ACTIVE_SQL = (
+    f"select coalesce(sum(active_seconds), 0)::float8 from {T}.lab_runs where student = $1"
+)
+
 _DONE_SQL = f"select lab_id from {T}.lab_completions where student = $1 and lab_id = any($2)"
 
 _FLAGS_SQL = (
@@ -229,6 +237,8 @@ async def _page(request: Request, pool: Any, key: str) -> dict[str, Any]:
         await pool.fetch(_MEDIANS_SQL, ids),
         await pool.fetch(_DONE_SQL, h, ids),
         await pool.fetch(_FLAGS_SQL, h, ids),
+        await pool.fetchval("select max(at) from (" + SEEN_SQL + ") q", [h]),
+        await pool.fetchval(_ACTIVE_SQL, h),
     )
 
 
