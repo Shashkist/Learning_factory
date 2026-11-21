@@ -1213,3 +1213,11 @@ The manager checks that round by running the round-2 reviewer's mutation harness
 **Why.** The issue allows either. A warning keeps the configured value the single truth (what the owner typed is what is compared) and the smoke turns a wrong value into a red Deploy, which is the real safety net. Normalising would hide a typo that might also be wrong elsewhere (other uses of the same value).
 **Alternatives.** Normalise to `scheme://host[:non-default port]`: friendlier, but silently differs from the configured string. Refuse to start: too harsh for a value that is optional.
 **Revert.** Revert the squash commit of #373; switching to normalising is a change inside the same startup check.
+
+## D120 · #395: `history.md` becomes docs-only in three PRs (exam accepts both, workflow, exam pins)
+in force · factory · 2026-11-21
+
+**Decision.** #395 ships as three PRs, because `scripts/ci/exam_integrity.py` refuses a PR that changes the exam together with `ci.yml`, and the #271 exam pins the push `paths-ignore` list exactly: (A) exam only, the #271 trigger case accepts the three-entry list or the same list plus `"history.md"`; (B) `ci.yml` push `paths-ignore` gains `"history.md"`, `scripts/ci_paths.py` excludes the single root file with a literal top-level pathspec, `scripts/test_ci_paths.py` (not exam) keeps the parity check and covers `history.md` vs `a/history.md`, `history.md.bak`; (C) exam only, the #271 case pins the four entries and adds behaviour cases for `deploys`.
+**Why.** This is the D19 pattern. Each PR is green on its own base; the window where the exam is loose is one merge long.
+**Alternatives.** Loosen the parity rule in `scripts/test_ci_paths.py` and ship the script change with the exam: fewer PRs, but the script and the workflow could drift apart in between. Leave `history.md` as code: costs one extra CI run (~17 minutes) per pass that writes it.
+**Revert.** Revert B (and C); A alone changes nothing in behaviour.
