@@ -4,7 +4,13 @@
 
 ## Now
 
-**Pass lf-m8r2 (laptop, from ~16:10 UTC) in progress:** merged #406 → **#400 closed** (Dashboard CI ran on the PR, run 44920984247, and on main for 9e9f95f, run 44924721514). Reviewers on #407 (#395 C) and #401 (#391). **#399** claimed (`f/399-origin-framing-leftovers`, worktree `C:\projects\lf-399`), exam writer running.
+**Pass lf-m8r2 (laptop, 16:10-~17:45 UTC) stopped at 3 merged PRs:** #406 (#400), #407 (#395 C), #409 (#399). **Closed with evidence: #400 (Dashboard CI on the PR, run 44920984247, and on main 9e9f95f, run 44924721514), #395 (main CI 44927424876 green; the STATE+`history.md` commit a2c2657 started no CI and Deploy 44922347898 still deployed 7cb9f7c), #399 (Deploy 44931215561 deployed a5671bf, smoke green incl. `ok terminal`; live HTML has `frame-ancestors 'self'` + `SAMEORIGIN`, JS has neither).** No decisions needed. New issues: #408 (`ci_paths.py`: a directory named `history.md` counts as docs-only), #410 (review of #409). All claims released.
+
+- **Resume here, first:** **#391 / PR #401** (exam only, branch `f/391-stop-loop-precondition`, worktree `C:\projects\lf-391`): **approved in review round 2**, head 23659bf is rebased on main a5671bf, **CI all green**. If main has not moved: `gh pr merge 401 --squash --delete-branch`; otherwise rebase, wait for green, merge. Evidence for closing #391: the 10/10 scratch runs (run 44919705425) and the mutation run (44919716836) on the PR, plus main CI for the merge (the docker job runs the 5 #306 cases). Round 2 added `_assert_gate_held` (READY without SEEN fails as "tested nothing").
+- Then the Next list. `history.md` is docs-only now (#395): commit it with any state commit.
+- Worktrees: keep `lf-391`; `lf-395c`, `lf-399`, `lf-400` are removed. Many older `C:\projects\lf-*` worktrees of shipped issues remain (about 70); a cleanup sweep (remove those whose branch is gone on origin and whose tree is clean) is worth a few minutes some pass.
+- **Lesson (pass lf-m8r2):** a handshake gate that waits for the other side turns a dead partner into a timeout, and a "timed out" guard then reads it as success. After a gated call, assert the handshake completed (marker A implies marker B), not only that the call timed out.
+- **Lesson (pass lf-m8r2):** start the reviewer while CI runs, not after: both finished in ~8 minutes, so the docker job was the only wait. Rebase a PR onto the new main right after each merge, while its CI would run anyway, so the green run is already on the right base at merge time.
 
 _Previous:_ **Pass lf-n4c7 (laptop, 14:55-~16:05 UTC) stopped at 3 merged PRs:** #396 (#373), #402 (#395 PR A, exam accepts both lists), #405 (#395 PR B: `ci.yml` + `scripts/ci_paths.py`, root `history.md` is docs-only). **Closed with evidence: #373 (Deploy 44918996027 deployed 16d6dc9; smoke `ok terminal` now sends the browser Origin and requires 403 for a foreign one; live foreign Origin → 403).** Decision D120. All claims released; three PRs open for the next pass.
 
@@ -240,9 +246,10 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 ## Next (in order)
 
 1. **#332** after O23.
-2. **#407** (#395 C), **#406** (#400), **#401** (#391), see Resume; then **#399** (#373 is done, so it is unblocked).
-3. Review leftovers: **#337** (pipelines); **#319** (now also the 390 px typed-command proof from #349) WebSocket relay proof, **#154** Solution tab (D57 b), **#142**.
-4. **#85** deploy follow-ups, **#93**; p2 list: #81, #76, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
+2. **#401** (#391), see Resume.
+3. Small follow-ups: **#410** (review of #409: startup check pins the rebuild, canonical hosts, smoke 403 cause), **#408** (`ci_paths.py` directory named `history.md`; exam and script in separate PRs, D19).
+4. Review leftovers: **#337** (pipelines); **#319** (now also the 390 px typed-command proof from #349) WebSocket relay proof, **#154** Solution tab (D57 b), **#142**.
+5. **#85** deploy follow-ups, **#93**; p2 list: #81, #76, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
 
@@ -257,6 +264,7 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
 ## Recently done
 
+- 2026-11-21 pass lf-m8r2: #400 (#406; Dashboard CI runs 44920984247, 44924721514), #395 (#402, #405, #407; main CI 44927424876, Deploy 44922347898 deployed past a `history.md` commit), #399 (#409; Deploy 44931215561, smoke ok, live framing headers).
 - 2026-11-21 pass lf-w3n7: #364 (#375 exam; main CI 44889775470), #376 (#382; Deploy 44894087812, smoke ok), #355 (#367); closed #55, #378, #380 with Deploy 44889309740.
 - 2026-11-21 pass lf-p4w9: #94 (#358, named smoke secrets; Deploy 44867263764 smoke green), #348 (#357, active time and last activity; live bundle verified), #343 (#361; Deploy 44869288333, smoke ok).
 - 2026-11-21 pass lf-k9p4: #331 (#345 exam; Deploy 44839011018, smoke ok), #333 (#347 lab screen: full-width terminal, pane tabs on phones, D108), #340 (#350: #311 cases pin the truncation hint, 05 counts the reader's fact lines). #334 in PR #351 (approved), #332 parked (O23).

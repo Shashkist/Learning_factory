@@ -574,3 +574,20 @@ Tips:
 - For a flaky concurrency exam, run it 10 times in a scratch PR before you call it fixed. 9 out of 10 is not "fixed".
 - When a test signals processes, check which user each process runs as. EPERM hidden by `2>/dev/null` looks exactly like success.
 - Use a scratch draft PR that edits the CI workflow to repeat one test file, or to run it against a reverted fix. Close it when you have the numbers.
+
+## Pass lf-m8r2: a timeout that only looked like proof (2026-11-21, laptop, 16:10-~17:45 UTC)
+
+The pass had three PRs left over from the previous one and two parallel reviewers. It ended with three merges, three issues closed with evidence, and one exam fix that a reviewer caught before it merged.
+
+- **When the partner dies, the timeout still says yes.** #391's exam makes a check wait until a SIGSTOP loop has frozen it. Then a guard asserts "the check timed out", which proves the loop did its job. The reviewer asked what happens if the loop itself dies: the check spins on its gate until the 20 s timeout, the guard sees "timed out" and passes, and nothing was ever frozen. The fix is one assertion as root after the call: "ready" implies "seen". It costs one `docker exec`, adds no timing, and turns a silent green back into a loud red.
+- **Proof from the state commit itself.** #395 made the root `history.md` docs-only for CI. The best evidence was already in the history: the previous pass's last state commit (`STATE.md` plus `history.md`) started no CI run, and the Deploy that ran on top of it logged `deployed lf-manager:7cb9f7c`. One pass earlier, the same kind of commit had made a Deploy stand down.
+- **A reviewer's mutant became an exam case.** The #407 reviewer wrote a wrong `deploys()` that returns true whenever `history.md` changed, and all 44 cases still passed. The fix was a one-line parametrize entry (`history.md` plus code on top of the tag must not deploy the old tag), added before the merge. That was cheaper than a follow-up issue.
+- **Media type, not file name.** #399 moved the framing-header decision from a suffix list (`.html`, `.htm`) to the response's media type. A `.xhtml` page, or any file a mime map serves as HTML, now gets `frame-ancestors 'self'`. Live check after the Deploy: HTML has both headers, the JS bundle has neither.
+
+Numbers: 3 merged PRs (#406, #407, #409), 1 PR approved and rebased for the next pass (#401), 1 exam writer, 1 implementer (22 lines over 3 files), 4 review rounds (3 approved, 1 changes requested on #401 and then approved in round 2), 2 follow-up issues (#408, #410), 0 decisions.
+
+Tips:
+- When a test waits for another process, assert that the handshake completed, not only that the call ended. A timeout is the symptom of both success and a dead partner.
+- Start the reviewer as soon as the PR is open. It finished before the docker job did, so CI was the only wait.
+- After each merge, rebase the next PR right away. Its CI then runs on the right base while you do other work.
+- If a reviewer's mutant survives an exam-only PR, add the case to that PR rather than filing an issue.
