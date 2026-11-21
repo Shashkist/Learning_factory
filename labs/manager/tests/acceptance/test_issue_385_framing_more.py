@@ -46,10 +46,10 @@ from test_issue_374_term_frame_ancestors import (
 INDEX = "<!doctype html><html><body><div id=root>lf-fake-spa-385</div></body></html>"
 
 
-def asgi_get(app, path: str, raw_path: bytes | None = None, headers=None):
+async def asgi_call(app, path: str, raw_path: bytes | None = None, headers=None):
     """Drive the app with a raw ASGI scope, as uvicorn does: `path` is decoded, `raw_path` is not.
-    No client-side limit applies. Returns (status, headers, body); an exception the app re-raises
-    after sending its 500 is swallowed here (the response is what is checked)."""
+    No client-side limit applies. Runs on the caller's loop. Returns (status, headers, body,
+    exc); `exc` is the exception the app re-raised after sending its response, or None."""
     sent: list[dict] = []
     scope = {
         "type": "http",
@@ -79,17 +79,21 @@ def asgi_get(app, path: str, raw_path: bytes | None = None, headers=None):
     async def send(message):
         sent.append(message)
 
-    async def run():
-        try:
-            await app(scope, receive, send)
-        except Exception:
-            pass
-
-    asyncio.run(run())
+    raised: Exception | None = None
+    try:
+        await app(scope, receive, send)
+    except Exception as exc:
+        raised = exc
     start = next((m for m in sent if m["type"] == "http.response.start"), None)
-    assert start is not None, "the app sent no response at all"
+    assert start is not None, f"the app sent no response at all (raised {raised!r})"
     body = b"".join(m.get("body", b"") for m in sent if m["type"] == "http.response.body")
-    return start["status"], start["headers"], body
+    return start["status"], start["headers"], body, raised
+
+
+def asgi_get(app, path: str, raw_path: bytes | None = None, headers=None):
+    """`asgi_call` on a fresh loop (no database pool); returns (status, headers, body)."""
+    status, resp_headers, body, _ = asyncio.run(asgi_call(app, path, raw_path, headers))
+    return status, resp_headers, body
 
 
 class _RawResp:
@@ -229,15 +233,14 @@ def test_the_shell_reached_by_an_encoded_dot_dot_path_carries_the_framing_header
     fresh_app, decoded, raw
 ):
     """uvicorn decodes %2F, so the app sees `/labs/../index.html`, which resolves to the shell
-    file. Either that is a 404, or the shell comes with the framing headers."""
+    file. The app answers with the shell (200, no-cache), the same as for `/`, and so the framing
+    headers are pinned here: a 404 would also be safe, but is not what the code gives (#392)."""
     status, headers, body = asgi_get(fresh_app, decoded, raw)
-    if status == 404:
-        return
+    assert status == 200, (status, body[:100])
+    assert b"lf-fake-spa-385" in body, "the shell is served"
     resp = _RawResp(headers, status)
-    if b"lf-fake-spa-385" in body:
-        assert_framing_headers(resp, f"shell served for {raw!r} (status {status})")
-    else:
-        assert status in (400, 403, 404), (status, body[:100])
+    assert_framing_headers(resp, f"shell served for {raw!r}")
+    assert resp.headers.get("cache-control") == "no-cache"
 
 
 def test_head_on_the_ui_shell_carries_the_framing_headers(fresh_app):
@@ -320,18 +323,20 @@ def test_a_frame_ancestors_after_a_comma_in_the_upstream_csp_is_not_passed_on(en
 
 
 def test_an_unhandled_error_in_the_proxy_is_500_with_the_framing_headers(env, upstream):
-    """A ~70 000-character path makes the proxy's HTTP client raise `InvalidURL`. The app is driven
-    with a raw ASGI scope (httpx would refuse such a URL on the client side). If the proxy ever
-    handles it itself, the answer must still carry the headers."""
-    from fastapi.testclient import TestClient
-
-    from app.main import app
+    """A ~70 000-character path makes the proxy's HTTP client raise `InvalidURL`, which the proxy
+    does not catch. The app is driven with a raw ASGI scope (httpx would refuse such a URL on the
+    client side) on the lifespan client's own loop, where the app's pool lives (see the Env note
+    in the #8 exam): no second lifespan, no second janitor, no replaced runtime. The exception
+    is the proxy's `InvalidURL`, so the case does reach the proxy (not a wrong-loop error)."""
+    import httpx
 
     client, sid, _ = env.owner_with_session()
     cookie = "; ".join(f"{k}={v}" for k, v in client.cookies.items()).encode()
-    with TestClient(app, base_url="https://testserver", raise_server_exceptions=False):
-        status, headers, _ = asgi_get(
-            app, f"/s/{sid}/term/{'a' * 70000}", headers=[(b"cookie", cookie)]
+    status, headers, _, exc = env.client.portal.call(
+        lambda: asgi_call(
+            env.app, f"/s/{sid}/term/{'a' * 70000}", headers=[(b"cookie", cookie)]
         )
-    assert status >= 400, status
-    assert_framing_headers(_RawResp(headers, status), f"{status} for a very long path")
+    )
+    assert isinstance(exc, httpx.InvalidURL), f"expected the proxy's InvalidURL, got {exc!r}"
+    assert status == 500, status
+    assert_framing_headers(_RawResp(headers, status), "500 for a very long path")

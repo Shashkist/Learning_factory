@@ -204,7 +204,8 @@ def _mount_web(web_dir: str | None) -> None:
             if target == index.resolve():  # an encoded `..%2F` path can still reach the shell
                 return page()
             if target.is_relative_to(root) and target.is_file():
-                return FileResponse(target)
+                is_html = target.suffix.lower() in (".html", ".htm")
+                return FileResponse(target, headers=framing.FRAME_HEADERS if is_html else None)
         except (ValueError, OSError):
             raise HTTPException(status_code=404) from None
         # A missing asset must fail as 404 (stale bundle after a deploy), not come back as HTML.
