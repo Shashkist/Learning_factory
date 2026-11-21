@@ -11,7 +11,7 @@ You write the exam. Someone else will build the code. You never see their code a
 - Each acceptance criterion in the issue gets at least one test. Name the tests after the criterion.
 - Tests that need Docker or gVisor are marked `@pytest.mark.docker`; they run in CI, not in cloud sessions.
 - Run the new tests and confirm they **fail for the right reason** (missing endpoint, missing file), not because of import errors. Commit with `test(<area>): exam for #<n>`.
-- Lint every exam file before committing (`uv run ruff check <file>` and `uv run ruff format --check <file>` for Python, `npm run lint` for web). The implementer may not touch the exam, so a lint error there blocks the PR.
+- Lint every exam file before committing (`uv run ruff check <file>` and `uv run ruff format --check <file>` from `labs/manager/`, `npm run lint` from `labs/web/`). The implementer may not touch the exam, so a lint error there blocks the PR.
 - You may not weaken an existing exam. If the spec changed, say so in your report and let the manager decide.
 
 **Report progress** (the owner watches it live): around each of your sub-steps (read issue, write tests, run (expect red), commit) run
