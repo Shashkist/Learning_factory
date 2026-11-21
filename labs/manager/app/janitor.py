@@ -1,6 +1,8 @@
 """Janitor (D24): end sessions that must end, remove stray lab containers, mark orphans."""
 import asyncio
 import logging
+import math
+import os
 import time
 from typing import Any
 
@@ -45,22 +47,44 @@ async def _remove(runtime: Any, name: str) -> None:
         log.error("janitor could not remove %s (%s)", name, type(exc).__name__)
 
 
+_REPEAT_S = 900.0  # an ongoing outage is logged again about every 15 minutes
+_warned_deadlines: set[str] = set()
+
+
+def _start_deadline() -> float:
+    """LF_START_DEADLINE_S; a non-finite, non-positive or unparsable value falls back to 180."""
+    raw = os.environ.get("LF_START_DEADLINE_S")
+    try:
+        value = float(raw) if raw is not None else 180.0
+    except ValueError:
+        value = math.nan
+    if math.isfinite(value) and value > 0:
+        return value
+    if raw not in _warned_deadlines:
+        _warned_deadlines.add(raw or "")
+        log.warning("LF_START_DEADLINE_S=%r is not a positive number; using 180", raw)
+    return 180.0
+
+
 async def _sweep_containers(pool: Any, runtime: Any) -> None:
     live_sql = (
         f"select id, container, status, "
         f"started_at < now() - make_interval(secs => $1) as stale from {T}.lab_sessions "
         f"where {LIVE}"
     )
-    deadline = admission.env_num("LF_START_DEADLINE_S", 180)
+    deadline = _start_deadline()
     before = await pool.fetch(live_sql, deadline)
     containers = await runtime.list_lab_containers()
     after = await pool.fetch(live_sql, deadline)  # a row can flip while the listing runs
     status = {str(r["id"]): r["status"] for r in after}
     starting = {str(r["id"]) for r in (*before, *after) if r["status"] == "starting"}
     # A start that never finished (crash between create and the row update, DB error): end it.
-    stale = {str(r["id"]) for r in after if r["status"] == "starting" and r["stale"]}
-    for sid in stale:
-        if await end_session(pool, runtime, sid, "orphan"):
+    # The end is guarded in the database: a row that flipped to running meanwhile is kept.
+    candidates = {str(r["id"]) for r in after if r["status"] == "starting" and r["stale"]}
+    stale = set()
+    for sid in candidates:
+        if await end_session(pool, runtime, sid, "orphan", stale_start_s=deadline):
+            stale.add(sid)
             log.info("janitor ended session %s (orphan, start deadline)", sid)
     present = set()
     for info in containers:
@@ -86,20 +110,35 @@ async def _sweep_expired(runtime: Any) -> None:
             await _remove(runtime, info[0])
 
 
-_failing: dict[str, str] = {}  # step name -> the error already logged for it
+# step name -> (error type, outage start, time of the last ERROR line), monotonic seconds
+_failing: dict[str, tuple[str, float, float]] = {}
 
 
 async def _step(name: str, coro: Any) -> bool:
     try:
         await coro
-        _failing.pop(name, None)
-        return True
     except Exception as exc:
-        msg = "janitor step %s failed (%s)" % (name, type(exc).__name__)  # noqa: UP031
-        # an outage is logged once, not on every pass; a different error is logged again
-        log.log(logging.DEBUG if _failing.get(name) == msg else logging.ERROR, msg)
-        _failing[name] = msg
+        now = time.monotonic()
+        kind = type(exc).__name__
+        prev = _failing.get(name)
+        if prev is None or prev[0] != kind:
+            # the outage start survives a type change; only its first failure has a traceback
+            _failing[name] = (kind, prev[1] if prev else now, now)
+            log.error("janitor step %s failed (%s)", name, kind, exc_info=prev is None)
+        elif now - prev[2] >= _REPEAT_S:
+            _failing[name] = (kind, prev[1], now)
+            log.error(
+                "janitor step %s still failing (%s) for %d min", name, kind, (now - prev[1]) // 60
+            )
+        else:
+            log.debug("janitor step %s failed again (%s)", name, kind)
         return False
+    prev = _failing.pop(name, None)
+    if prev is not None:
+        log.info(
+            "janitor step %s recovered after %d min", name, (time.monotonic() - prev[1]) // 60
+        )
+    return True
 
 
 async def run_once(app: Any) -> bool:
@@ -115,6 +154,8 @@ async def run_once(app: Any) -> bool:
     if pool is not None:
         await _step("end_due", _end_due(pool, runtime))
         ok = await _step("sweep", _sweep_containers(pool, runtime))
+        if ok:
+            _failing.pop("sweep_expired", None)  # it only runs while the database is down
     if not ok:
         await _step("sweep_expired", _sweep_expired(runtime))
     return ok
