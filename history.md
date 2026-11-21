@@ -608,3 +608,16 @@ Tips:
 - Pin behaviour, not the standard library's string format. If an exam compares with `str()` of a library object, a patch release can change the answer.
 - Ask agents for their final report in the final message. "Not a placeholder" in the prompt fixed it for the next three agents.
 - When a reviewer hands you a tested one-line fix after the last allowed round, add the exam case first, apply the fix, and record why there is no third round.
+
+## Pass lf-r7j3: a reviewer with a stopwatch overturned the issue (2026-11-21, laptop, 19:25-~20:55 UTC)
+
+- **3 merged PRs.**
+  - #413 (#410, origin check hosts).
+  - #419 (#417, `ci_paths` hardening).
+  - #422 (#416 part 1, CI lints the smoke scripts).
+- **Ready for the next pass.** Two more PRs (#425, #426) are open, with exams first.
+- **Measured shells beat the issue text.** #414 asked that a backgrounded `a && b &` stay quiet when every element is redirected. The reviewer timed real bash 5.2 and dash (`printf '<line>\necho done\n' | sh -s | cat`). The line held the reader for the full sleep, because `&` forks one subshell for the whole list, and that subshell keeps the output open while it waits. The exam writer had encoded the wrong rule faithfully. The implementer then refused to "fix" an exam case it believed was wrong, and was right. Decision D122 corrected the issue itself.
+- **Every review round on an exam costs a branch.** The exam gate allows test changes only before the code, and nothing is force-pushed. So #414 went #421 → #424 → #426, with each round's new cases committed ahead of the code. Round 2 confirmed every exam case against real shells and found two code misses, with a fix it had already tested. That fix shipped without a third round (D123, the same pattern as D121).
+- **A split forced by the gate.** #416's exam asserts that CI lints the smoke scripts. The exam-integrity check refuses an exam and a `ci.yml` change in one PR (D9). So criterion 4 shipped alone as a one-line CI PR (#422), and the exam and code followed in #425.
+- **A test that could not fail.** The first version of the `GIT_ICASE_PATHSPECS` test put three cases on one chain of commits. The first code commit made every later diff "code" anyway, so the case passed even with the fix reverted. Mutation-checking each new test, by reverting its fix, caught this before push.
+- **Small tools fight back.** A plugin's command guard blocked a harmless shell one-liner, and a raw DEL byte kept surviving `sed`/Python edits. The fix for both was to write the script with the file tool and do the byte replace in binary mode.

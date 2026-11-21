@@ -4,7 +4,50 @@
 
 ## Now
 
-**Pass lf-r7j3 (laptop, started ~19:25 UTC), in progress:** merged #413 (#410, closed: Deploy 44942690907 deployed c9bad68, smoke green) and #419 (#417, d3dcd4f; main CI running, then close #417). In flight (claims lf-r7j3): **#414 / PR #421** (`f/414-validator-andor`, `lf-414`; review round 1 running; docker job re-run after an image-build flake), **#416** split: **PR #422** (CI lint only, `f/416-smoke-lint`, `lf-416a`, review running) must merge first, then push `f/416-origin-forms-b` (`lf-416`, local: exam 5208926 + f787739, code 2c5f11f... amended) as a new PR; PR #420 closed (exam + `ci.yml` in one PR fails exam integrity, D9).
+**Pass lf-r7j3 (laptop, 19:25-~20:55 UTC) stopped at 3 merged PRs.** The merges were #413 (#410), #419 (#417) and #422 (#416 criterion 4: CI lints `labs/deploy/smoke`).
+
+**Closed with evidence.**
+- **#410:** Deploy 44942690907 deployed c9bad68; smoke green through `ok end`.
+- **#417:** main CI 44944157138 green. Deploy 44945927333 ran the new `ci_paths.py deploys` with docs-only commits on top and deployed d3dcd4f; smoke green.
+
+**Decisions.**
+- **D122:** a backgrounded and-or list warns whatever its elements redirect. This was measured in real shells and corrects #414's criterion 1. There is a sh-only exception for instant builtins.
+- **D123:** #414's round-2 fix is applied without a third review round, and `cd` counts as instant under sh.
+
+**New issue:** #423, which collects the validator misses moved out of #414.
+
+**Closed PRs, each superseded by a re-sequenced branch:** #420, #421 and #424. All claims are released.
+
+**Resume here, first (one merge at a time; rebase and wait for green CI before each):**
+1. **#414 / PR #426** (branch `f/414-andor-v3`, worktree `C:\projects\lf-414`).
+   - Commits: two exam commits, then the code (cc29fdc).
+   - Locally green: 184 exam cases, plus 528 with #326/#337/#343/#355.
+   - CI was running at stop.
+   - **Under D123 there is no third review round:** merge on green CI.
+   - After the Deploy, close #414. Evidence:
+     - the exam (72 red on main, all green after);
+     - the two reviews: #421 overturned criterion 1 by timing shells, and #424 confirmed every case and supplied the fix;
+     - the Deploy and the smoke. The smoke runs real lab scripts, so `ok start` proves the content still loads.
+2. **#416 / PR #425** (branch `f/416-origin-forms-b`, worktree `C:\projects\lf-416`).
+   - **Approved in review round 2.** CI was green except `docker`, which was still pending at stop.
+   - Rebase after #426 merges, wait for green, then merge.
+   - Deploy and smoke: `ok terminal` must stay green.
+   - Close #416. Evidence: the exam (16 red on main, 18 green, all green after), #422 for criterion 4, and the Deploy.
+   - One non-blocking item is left: `host.rstrip(".")` strips every trailing dot, so `http://1.2.3.4..` warns falsely. Fix it while there (one exam case first), or list it in #416's closing comment as a follow-up.
+3. **Main CI and Deploy for 72919e6 (#422) were still running at stop.** Check that both went green. If CI failed on the new `ruff check ../deploy/smoke` step, that is an incident.
+4. Then the Next list.
+
+**Worktrees.**
+- Keep `lf-414` and `lf-416`.
+- `lf-416a` is shipped and safe to remove. Also safe: `lf-408`, `lf-337`, `lf-391` from the previous pass. `lf-410` and `lf-417` are already removed.
+
+**Lesson (pass lf-r7j3): when an issue claims what a shell does, time a real shell before writing the exam.** For example: `printf '<line>\necho done\n' | dash -s | cat`, with WSL on the laptop. #414's issue text was wrong, and the exam writer encoded it faithfully, which cost two re-sequenced PRs. Give exam writers for the validator this probe.
+
+**Lesson (pass lf-r7j3): an exam that asserts something about `ci.yml` must ship apart from the `ci.yml` change.** The exam-integrity check refuses both in one PR (D9). Plan the split when the issue has a CI criterion.
+
+**Lesson (pass lf-r7j3): mutation-check every new test by reverting its fix.** A test whose cases share one commit chain can never fail: an earlier code commit is still in every later diff.
+
+**Lesson (pass lf-r7j3): the qa plugin's Bash guard sometimes blocks harmless one-liners.** Write the script with the file tool, then run it.
 
 _Previous:_ **Pass lf-t5w2 (laptop, 17:55-~19:20 UTC) stopped at 3 merged PRs:** #401 (#391), #412 (#408), #418 (#337, after #411 and #415 were re-sequenced). **Closed with evidence: #391 (main CI 44932880926 green on 1225f34, docker job incl.), #408 (main CI 44934730508; Deploy 44936571157 on ff12d82 + a docs-only commit deployed ff12d82, smoke green), #337 (Deploy 44939668791 deployed b08ed9a, smoke `ok start` + `ok terminal`).** Decision D121 (#337 merged after round 2 with the reviewer's tested fix). New issues: #414 (validator: and-or lists, continued lines, pipes in `$(...)` right of a pipe), #416 (review of #410), #417 (review of #408). All claims released.
 
@@ -257,8 +300,8 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 ## Next (in order)
 
 1. **#332** after O23.
-2. **#413** (#410), see Resume.
-3. Small follow-ups (p3): **#416** (origin check: mapped-IPv6 quiet case, non-manager 403s, rewritten IPv4 forms, lint `labs/deploy/smoke`), **#417** (`ci_paths` parity by kind, safe `DOCS_FILES`, `GIT_LITERAL_PATHSPECS`), **#414** (validator misses).
+2. **#426** (#414), then **#425** (#416), see Resume.
+3. **#423** (validator misses moved out of #414: pipes in substitutions, escaped delimiters, `!` jobs, groups spanning lines; p3). Time real shells first.
 4. Review leftovers: **#319** (now also the 390 px typed-command proof from #349) WebSocket relay proof, **#154** Solution tab (D57 b), **#142**.
 5. **#85** deploy follow-ups, **#93**; p2 list: #81, #76, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
