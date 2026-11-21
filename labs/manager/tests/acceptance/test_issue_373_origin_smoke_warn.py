@@ -211,6 +211,13 @@ def test_a_clean_public_origin_logs_no_startup_warning(make_client, caplog, valu
         assert _origin_warnings(caplog) == []
 
 
+def test_a_bare_trailing_slash_logs_no_malformed_origin_warning(make_client, caplog):
+    # the #69 exam ignores a trailing slash on the setting, so it is not malformed
+    with caplog.at_level(logging.INFO, logger="lab-manager"):
+        make_client(PUBLIC + "/")
+        assert _origin_warnings(caplog) == []
+
+
 def test_the_malformed_warning_is_logged_once_not_per_request(make_client, caplog):
     with caplog.at_level(logging.INFO, logger="lab-manager"):
         client = make_client("https://labs.shashkist.com/app")
