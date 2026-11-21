@@ -399,14 +399,10 @@ def _is_bash(argv: list[str]) -> bool:
     )
 
 
-def _background_is_quiet(job: str, bash: bool) -> bool:
-    """Both outputs end in files, reading the redirects left to right (`2>&1` copies as it is).
-
-    Only the redirects of the backgrounded command count (after the last separator), and `&>`
-    only under bash: dash reads `cmd &>file &` as a background job, then `>file`.
-    """
-    job = _SEPARATORS.split(job)[-1]
-    out_file = err_file = False
+def _redirect_state(job: str, bash: bool, out_file: bool = False) -> tuple[bool, bool]:
+    """(stdout, stderr) end in files after the redirects of `job`, read left to right (`2>&1`
+    copies as it is). `out_file` is where stdout starts: True when it already goes into a pipe."""
+    err_file = False
     for m in _FD_REDIRECT.finditer(job):
         if m.group(2):  # n>&m
             if m.group(1) == "2":
@@ -424,7 +420,62 @@ def _background_is_quiet(job: str, bash: bool) -> bool:
                 err_file = True
             elif fd in ("", "1"):
                 out_file = True
+    return out_file, err_file
+
+
+def _background_is_quiet(job: str, bash: bool) -> bool:
+    """Both outputs of the backgrounded command end in files, and so does the stderr of every
+    element before a plain `|` (the pipe carries only stdout; `2>&1` sends stderr into it).
+
+    Only the redirects of the backgrounded command count (after the last separator), and `&>`
+    only under bash: dash reads `cmd &>file &` as a background job, then `>file`. `|&` covers the
+    element before it under bash only: dash reads it as `|` then `&`.
+    """
+    parts = _SEPARATORS.split(_blank_backticks(job))
+    last = len(parts) - 1
+    out_file, err_file = _redirect_state(parts[last], bash)
+    k = last
+    while k >= 2 and parts[k - 1] == "|":
+        if _closes_group(parts[k]):
+            break  # this `|` is inside a subshell, a `case` pattern or a `$(`, not our pipeline
+        k -= 2
+        out, err = _redirect_state(parts[k], bash, True)
+        if bash and parts[k + 2].startswith("&") and not parts[k + 2].startswith("&>"):
+            err = out  # `|&`: an implicit `2>&1` after the element's own redirects
+        if not (out and err):
+            return False
     return out_file and err_file
+
+
+def _closes_group(text: str) -> bool:
+    """`text` has a `)` that no `(` in it opened (it ends a subshell, a `case` pattern, a `$(`)."""
+    depth = 0
+    for ch in text:
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth < 0:
+                return True
+    return False
+
+
+def _blank_backticks(text: str) -> str:
+    """Mask every `` `...` `` span as one word, in one left-to-right pass (a lone one stays).
+
+    A non-space fill keeps a span that is a redirect target (`` 2>`mktemp` ``) a target.
+    """
+    out: list[str] = []
+    pos = 0
+    while (start := text.find("`", pos)) >= 0:
+        end = text.find("`", start + 1)
+        if end < 0:
+            break
+        out.append(text[pos:start])
+        out.append("x" * (end + 1 - start))
+        pos = end + 1
+    out.append(text[pos:])
+    return "".join(out)
 
 
 def _reads_stdin(segment: str) -> bool:
