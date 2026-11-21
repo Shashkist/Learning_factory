@@ -17,6 +17,7 @@ services:
       LF_LOGIN_IP_LIMIT: "100"
       LF_TRUSTED_PROXY: ${LF_TRUSTED_PROXY:?LF_TRUSTED_PROXY must be set}
       LF_LAB_NETWORK: lf-labs
+      LF_PUBLIC_ORIGIN: https://labs.shashkist.com
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     mem_limit: 512m
