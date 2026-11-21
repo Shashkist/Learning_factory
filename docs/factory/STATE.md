@@ -4,7 +4,9 @@
 
 ## Now
 
-**Pass lf-n4c7 (laptop, 14:55-~16:05 UTC) stopped at 3 merged PRs:** #396 (#373), #402 (#395 PR A, exam accepts both lists), #405 (#395 PR B: `ci.yml` + `scripts/ci_paths.py`, root `history.md` is docs-only). **Closed with evidence: #373 (Deploy 44918996027 deployed 16d6dc9; smoke `ok terminal` now sends the browser Origin and requires 403 for a foreign one; live foreign Origin → 403).** Decision D120. All claims released; three PRs open for the next pass.
+**Pass lf-m8r2 (laptop, from ~16:10 UTC) in progress:** merged #406 → **#400 closed** (Dashboard CI ran on the PR, run 44920984247, and on main for 9e9f95f, run 44924721514). Reviewers on #407 (#395 C) and #401 (#391). **#399** claimed (`f/399-origin-framing-leftovers`, worktree `C:\projects\lf-399`), exam writer running.
+
+_Previous:_ **Pass lf-n4c7 (laptop, 14:55-~16:05 UTC) stopped at 3 merged PRs:** #396 (#373), #402 (#395 PR A, exam accepts both lists), #405 (#395 PR B: `ci.yml` + `scripts/ci_paths.py`, root `history.md` is docs-only). **Closed with evidence: #373 (Deploy 44918996027 deployed 16d6dc9; smoke `ok terminal` now sends the browser Origin and requires 403 for a foreign one; live foreign Origin → 403).** Decision D120. All claims released; three PRs open for the next pass.
 
 - **Resume here, first (in this order, merges one at a time, rebase + green CI before each):**
   1. **#395 / PR #407** (PR C, exam only, branch `f/395-exam-pin`, worktree `C:\projects\lf-395c`): pins the four `paths-ignore` entries and adds `deploys` cases for the root `history.md` (3 cases fail against the pre-#405 script). Needs: green CI, one review round, merge. Then close #395 with evidence: main CI for 7cb9f7c (#405) green, and the first docs+`history.md`-only push after it starts **no** CI run (check `gh run list --workflow ci.yml`).
