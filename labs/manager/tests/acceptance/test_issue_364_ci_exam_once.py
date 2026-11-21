@@ -2,7 +2,12 @@
 
 The `manager` job keeps ruff, mypy and the unit tests; a parallel `manager-exam` job runs the
 exam once with the no-skip command line. Parses ci.yml and runs the real gate; no Docker.
+
+The exam line must start with `uv run pytest` (no `timeout` prefix, no `python -m`): the
+allow-list below pins the exam step to exactly the exam line and the gate line, so a prefix
+would need an exam change on purpose.
 """
+import posixpath
 import re
 import shlex
 import subprocess
@@ -15,32 +20,46 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[4]
 CI = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 GATE = REPO_ROOT / "scripts" / "ci" / "junit_gate.py"
-IGNORE_EXAM = re.compile(r"--ignore[= ]\S*tests/acceptance")
-BACKSLASH_NEWLINE = "\\\n"
+IGNORE_EXAM = re.compile(r"--ignore[= ](\./)?tests/acceptance/?(?=\s|$)")
+MANAGER_DIR_IN_LINE = re.compile(r"(\bcd\s+|--directory[= ]\s*)(\./)?labs/manager/?(?=\s|$|;|&|\|)")
+EXAM_PREFIX = ["uv", "run", "pytest"]
+EXAM_ARGS = ["tests/acceptance", "-q", "--confcutdir=tests", "-o", "addopts=", "-m", "not docker"]
+
+
+def _wf() -> dict:
+    return yaml.safe_load(CI.read_text(encoding="utf-8"))
 
 
 def _jobs() -> dict:
-    return yaml.safe_load(CI.read_text(encoding="utf-8"))["jobs"]
+    return _wf()["jobs"]
+
+
+def _logical_lines(run: str) -> list[str]:
+    """The command lines of a run script: backslash lines joined, comments and blanks dropped."""
+    out = []
+    for line in run.replace("\\\n", " ").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#"):
+            out.append(line)
+    return out
 
 
 def _runs(job: dict) -> list[str]:
     return [s["run"] for s in job.get("steps", []) if "run" in s]
 
 
-def _in_manager_dir(job: dict, step: dict) -> bool:
+def _in_manager_dir(job: dict, step: dict, line: str) -> bool:
     where = step.get("working-directory") or job.get("defaults", {}).get("run", {}).get(
         "working-directory")
-    return where == "labs/manager"
+    if where and posixpath.normpath(str(where)) == "labs/manager":
+        return True
+    return MANAGER_DIR_IN_LINE.search(line) is not None
 
 
 def _step_pytest_lines(job: dict) -> list[tuple[dict, str]]:
-    """(step, logical line) for every line of the job's run steps that runs pytest."""
-    out = []
-    for step in job.get("steps", []):
-        for line in step.get("run", "").replace(BACKSLASH_NEWLINE, " ").splitlines():
-            if not line.lstrip().startswith("#") and re.search(r"\bpytest\b", line):
-                out.append((step, line.strip()))
-    return out
+    """(step, logical line) for every command line of the job that runs pytest."""
+    return [(step, line) for step in job.get("steps", [])
+            for line in _logical_lines(step.get("run", "")) if re.search(r"\bpytest\b", line)]
 
 
 def _pytest_lines(job: dict) -> list[str]:
@@ -48,7 +67,18 @@ def _pytest_lines(job: dict) -> list[str]:
 
 
 def _is_docker_run(line: str) -> bool:
-    return re.search(r"-m\s+docker\b", line) is not None
+    """True when the marker pytest ends up using (the last -m wins) is exactly `docker`."""
+    try:
+        tokens = shlex.split(line)
+    except ValueError:
+        return False
+    marker = None
+    for i, tok in enumerate(tokens):
+        if tok == "-m" and i + 1 < len(tokens):
+            marker = tokens[i + 1]
+        elif tok.startswith("-m") and not tok.startswith("--") and len(tok) > 2:
+            marker = tok[2:].lstrip("=")
+    return marker == "docker"
 
 
 def _only_unit(line: str) -> bool:
@@ -63,7 +93,7 @@ def _runs_exam(job: dict, step: dict, line: str) -> bool:
         return False
     if "tests/acceptance" in line:
         return True
-    return _in_manager_dir(job, step) and not _only_unit(line)
+    return _in_manager_dir(job, step, line) and not _only_unit(line)
 
 
 def _exam_runs() -> list[tuple[str, dict, dict, str]]:
@@ -93,8 +123,26 @@ def _exam_step() -> dict:
     return _exam_runs()[0][2]
 
 
+def _report() -> str:
+    m = re.search(r"--junitxml[= ](\S+)", _exam_line())
+    assert m, "the exam run writes no junit report"
+    return m.group(1)
+
+
+def _gate_re() -> re.Pattern:
+    return re.compile(r"^python3?\s+(-I\s+)?\S*scripts/ci/junit_gate\.py\s+"
+                      + re.escape(_report()) + r"$")
+
+
 def _gate_steps(job: dict) -> list[dict]:
-    return [s for s in job.get("steps", []) if "junit_gate.py" in s.get("run", "")]
+    """Steps with a command line that is the gate call on the exam's own report."""
+    pattern = _gate_re()
+    return [s for s in job.get("steps", [])
+            if any(pattern.match(ln) for ln in _logical_lines(s.get("run", "")))]
+
+
+def _gate_line(step: dict) -> str:
+    return next(ln for ln in _logical_lines(step["run"]) if _gate_re().match(ln))
 
 
 # 1. the exam runs once
@@ -118,6 +166,7 @@ def test_the_exam_is_its_own_parallel_job():
     assert name != "manager"
     assert "needs" not in job, "the exam job must run in parallel, not wait for another job"
     assert "needs" not in _jobs()["manager"]
+    assert "strategy" not in job, "the exam job must not be a matrix"
 
 
 def test_the_docker_job_still_runs_its_own_docker_exam():
@@ -136,45 +185,60 @@ def test_the_exam_run_keeps_confcutdir_and_clears_addopts():
 
 def test_the_exam_run_writes_a_junit_report_and_the_gate_reads_that_same_report():
     _, job = _exam_job()
-    m = re.search(r"--junitxml[= ](\S+)", _exam_line())
-    assert m, "the exam run writes no junit report"
-    report = m.group(1)
-    gate = [r for r in _runs(job)
-            if re.search(r"junit_gate\.py\s+" + re.escape(report) + r"(\s|$)", r)]
-    assert gate, f"no junit_gate.py call on {report}"
-    assert "scripts/ci/junit_gate.py" in gate[0]
-
-
-def test_the_gate_step_runs_in_or_after_the_exam_step():
-    _, job = _exam_job()
-    runs = _runs(job)
-    exam = next(i for i, r in enumerate(runs) if "tests/acceptance" in r and "not docker" in r)
-    assert any("junit_gate.py" in r for r in runs[exam:])
+    gates = _gate_steps(job)
+    assert len(gates) == 1, f"want one gate call on {_report()}, as a command of its own"
+    assert "scripts/ci/junit_gate.py" in _gate_line(gates[0])
 
 
 def test_the_exam_run_is_not_filtered_by_any_other_option():
     line = re.sub(r"\s--junitxml[= ]\S+", "", _exam_line())
     args = shlex.split(line)
-    assert args[args.index("tests/acceptance"):] == [
-        "tests/acceptance", "-q", "--confcutdir=tests", "-o", "addopts=", "-m", "not docker"]
-    assert args[:args.index("tests/acceptance")][-1] == "pytest"
+    assert args == EXAM_PREFIX + EXAM_ARGS, args
+
+
+def test_the_exam_step_holds_only_the_exam_and_the_gate():
+    """Allow-list: the exam step is the exam line (plus the gate line when they share a step);
+    a separate gate step is the gate line alone and comes after the exam step."""
+    _, job = _exam_job()
+    step = _exam_step()
+    gates = _gate_steps(job)
+    assert len(gates) == 1
+    lines = _logical_lines(step["run"])
+    if gates[0] == step:
+        assert lines == [_exam_line(), _gate_line(step)], lines
+    else:
+        assert lines == [_exam_line()], lines
+        assert _logical_lines(gates[0]["run"]) == [_gate_line(gates[0])]
+        assert job["steps"].index(gates[0]) > job["steps"].index(step)
 
 
 def test_the_exam_job_and_steps_cannot_fail_or_skip_softly():
     _, job = _exam_job()
     gates = _gate_steps(job)
-    assert gates, "no junit_gate step"
-    checked = [("job", job), ("exam step", _exam_step())]
-    checked += [("gate step", g) for g in gates]
+    assert len(gates) == 1
+    checked = [("job", job), ("exam step", _exam_step()), ("gate step", gates[0])]
     for what, item in checked:
         assert "continue-on-error" not in item, f"{what} has continue-on-error"
         assert "if" not in item, f"{what} has an if condition"
-    for step in [_exam_step(), *gates]:
-        text = step["run"]
-        assert not re.search(r"\bset\s+\+e\b", text), text
-        assert not re.search(r"(^|[;&|\s])exit\s+0\s*$", text.strip()), text
-        assert not re.search(r";\s*true\b", text), text
-        assert "|| true" not in text and "|| :" not in text, text
+
+
+def test_no_shell_override_can_drop_the_fail_fast_flag():
+    _, job = _exam_job()
+    for what, step in [("exam step", _exam_step()), ("gate step", _gate_steps(job)[0])]:
+        assert "shell" not in step, f"{what} overrides the shell"
+    assert "shell" not in job.get("defaults", {}).get("run", {}), "the exam job sets a shell"
+    assert "shell" not in (_wf().get("defaults") or {}).get("run", {}), "the workflow sets a shell"
+
+
+def test_no_pytest_environment_variable_can_change_the_exam_run():
+    _, job = _exam_job()
+    gates = _gate_steps(job)
+    scopes = [("workflow", _wf()), ("exam job", job), ("exam step", _exam_step()),
+              ("gate step", gates[0])]
+    for what, scope in scopes:
+        env = scope.get("env") or {}
+        bad = [k for k in env if str(k).upper().startswith("PYTEST")]
+        assert not bad, f"{what} sets {bad}"
 
 
 def _scratch(tmp_path: Path, body: str) -> Path:
