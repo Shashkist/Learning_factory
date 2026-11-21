@@ -58,7 +58,6 @@ from test_issue_12_linux_1 import (  # noqa: F401
 )
 from test_issue_126_linux_1_check_privacy_docker import (  # noqa: F401
     CHECK_TIMEOUT_S,
-    STOPPER,
     _alive,
     _wait_loop_gone,
     fresh_box,
@@ -70,6 +69,57 @@ TASK = "02-directory-tree"
 STOP_FILE = "/tmp/stop-stopper126"  # the STOPPER of the #126 exam ends when this file exists
 REPO_ROOT = next(p for p in Path(__file__).resolve().parents if (p / "labs").is_dir())
 DECISIONS = REPO_ROOT / "docs" / "factory" / "DECISIONS.md"
+
+
+# The #126 STOPPER, plus a handshake (issue #391). A check that is merely started "after the
+# stopper" can still finish before the loop reaches its processes (a pass walks all of /proc
+# and CI runners are slow), and then the case tested nothing. exec_script runs check.sh as
+# ROOT, and the stopper runs as student, so it cannot signal that root shell (EPERM). A gate
+# in the root part would open without anything having been stopped. So the gate goes into the
+# STUDENT reader (`su student ... /bin/sh -s <<'READER'`, see _gated): it writes `READY`, then
+# spins until the stopper writes `SEEN`. The stopper writes `SEEN` only at the end of a pass
+# that STARTED after `READY` existed; such a pass saw the reader in /proc and sent it SIGSTOP
+# (same uid, allowed). The reader therefore cannot get past its gate before it has been
+# stopped, and a stopped reader cannot finish: the check times out deterministically,
+# whatever the runner speed. Builtins only (`:>`, `[`), so no helper process can be missed.
+# The loop keeps the `stop-stopper126` stop file name, which `_alive` / `_wait_loop_gone` of
+# the #126 exam look for; the #126 STOPPER itself is untouched.
+READY = "/tmp/ready-check306"
+SEEN = "/tmp/seen-check306"
+STOPPER = rf"""
+while [ ! -e {STOP_FILE} ]; do
+  flag=
+  [ -e {READY} ] && flag=1
+  for p in /proc/[0-9]*; do
+    p=${{p#/proc/}}
+    [ "$p" = "$$" ] || kill -STOP "$p" 2>/dev/null
+  done
+  [ -n "$flag" ] && : > {SEEN}
+done
+"""
+
+
+def _gated(script: str) -> str:
+    """The check script with the handshake as the first lines of its student reader."""
+    lines = script.split("\n")
+    idx = [i for i, ln in enumerate(lines) if ln.rstrip().endswith("<<'READER'")]
+    assert len(idx) == 1, f"expected exactly one <<'READER' line in the check, found {len(idx)}"
+    gate = [f": > {READY}", f"while [ ! -e {SEEN} ]; do :; done"]
+    return "\n".join(lines[: idx[0] + 1] + gate + lines[idx[0] + 1 :])
+
+
+def _assert_gate_held(box: str) -> None:
+    """A timed-out gated check proves something only if the reader was stopped. The reader is
+    either stopped before it wrote READY (valid), or it wrote READY and then waited for SEEN,
+    which only a live stopper writes. READY without SEEN means the stopper died or stalled and
+    the timeout came from the reader's own spin: the case tested nothing (review of #401)."""
+    res = docker(
+        "exec", "-u", "root", box, "sh", "-c", f"[ ! -e {READY} ] || [ -e {SEEN} ]", check=False
+    )
+    assert res.returncode == 0, (
+        "the reader passed READY but the stopper never wrote SEEN (a dead or stalled stop "
+        "loop), so the timeout stopped nothing and the case tested nothing"
+    )
 
 
 def _ps(box: str) -> list[tuple[int, int, str, str, str]]:
@@ -90,7 +140,7 @@ def _ps(box: str) -> list[tuple[int, int, str, str, str]]:
 
 
 def _start_stopper(box: str):
-    docker("exec", "-u", "root", box, "rm", "-f", STOP_FILE, check=False)
+    docker("exec", "-u", "root", box, "rm", "-f", STOP_FILE, READY, SEEN, check=False)
     docker("exec", "-d", "-u", "student", box, "sh", "-c", STOPPER)
     time.sleep(1.0)
     assert _alive(box, "stop-stopper126") >= 1, "the stopping loop did not start"
@@ -111,7 +161,7 @@ def _cleanup(box: str):
         "exec", "-u", "student", box, "sh", "-c", "kill -CONT -1; kill -KILL -1",
         check=False, timeout=30,
     )
-    docker("exec", "-u", "root", box, "rm", "-f", STOP_FILE, check=False, timeout=30)
+    docker("exec", "-u", "root", box, "rm", "-f", STOP_FILE, READY, SEEN, check=False, timeout=30)
 
 
 def _timed_out_check_under_stopper(runtime, call, box, before: set | None = None) -> float:
@@ -123,12 +173,14 @@ def _timed_out_check_under_stopper(runtime, call, box, before: set | None = None
     _start_stopper(box)
     if before is not None:
         before.update(r[0] for r in _ps(box))
-    res = call(runtime.exec_script, box, _text(task / "check.sh"), CHECK_TIMEOUT_S)
+    res = call(runtime.exec_script, box, _gated(_text(task / "check.sh")), CHECK_TIMEOUT_S)
     assert res.timed_out is True, (
         f"the stop loop did not make the check time out (exit {res.exit_code}), so the case "
         f"tested nothing:\n{res.output}"
     )
-    return time.monotonic()
+    returned = time.monotonic()
+    _assert_gate_held(box)
+    return returned
 
 
 # ---------------- 1. the killer never outlives the call
@@ -145,8 +197,11 @@ def test_no_root_killer_process_survives_exec_script_under_a_stop_loop(
     _start_stopper(fresh_box)
     before = {r[0] for r in _ps(fresh_box)}
     try:
-        res = call(runtime.exec_script, fresh_box, _text(task / "check.sh"), CHECK_TIMEOUT_S)
+        res = call(
+            runtime.exec_script, fresh_box, _gated(_text(task / "check.sh")), CHECK_TIMEOUT_S
+        )
         assert res.timed_out is True, f"the case tested nothing (exit {res.exit_code})"
+        _assert_gate_held(fresh_box)
         time.sleep(1.5)
         left = [r for r in _ps(fresh_box) if r[2] == "root" and r[0] not in before]
     finally:
