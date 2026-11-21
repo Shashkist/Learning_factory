@@ -16,6 +16,7 @@ from app import (
     catalog,
     classtable,
     db,
+    framing,
     google_auth,
     janitor,
     live,
@@ -143,6 +144,7 @@ class _RequestClock:
 
 
 app.add_middleware(_RequestClock)
+app.add_middleware(framing.FrameGuard)
 app.include_router(auth.router)
 app.include_router(google_auth.router)
 app.include_router(catalog.router)
