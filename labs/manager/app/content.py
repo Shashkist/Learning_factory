@@ -252,6 +252,7 @@ _EXEC_FD0_DUP = re.compile(r"exec\s(?:.*\s)?\d+<&\s*0(?!\d)")
 # `&>` redirects only in bash. The caller splits the line with $(( )) blanked (bitwise AND).
 _BASH_AMP = re.compile(r"(?<![&<>|\\])&(?![&>])")
 _SH_AMP = re.compile(r"(?<![&<>|\\])&(?!&)")
+_SILENT = ([":"], ["true"], ["false"])  # builtins that print nothing, so need no redirect
 _LEAD = re.compile(r"^(?:(?:do|then|else)\s+)*(?:\w+\s*\(\s*\)\s*)?(?:\{\s*)?")
 _WHILE_READ = re.compile(r"while\s+(?:\w+=\S*\s+)*read\b")
 _CAT_SUBSHELL = re.compile(r"\$\(\s*cat(?:\s+-\w*)*\s*\)|`\s*cat(?:\s+-\w*)*\s*`")
@@ -425,7 +426,8 @@ def _redirect_state(job: str, bash: bool, out_file: bool = False) -> tuple[bool,
 
 def _background_is_quiet(job: str, bash: bool) -> bool:
     """Both outputs of the backgrounded command end in files, and so does the stderr of every
-    element before a plain `|` (the pipe carries only stdout; `2>&1` sends stderr into it).
+    element before a plain `|` (the pipe carries only stdout; `2>&1` sends stderr into it). A
+    trailing `&` backgrounds the whole and-or list, so each element before `&&` / `||` needs both.
 
     Only the redirects of the backgrounded command count (after the last separator), and `&>`
     only under bash: dash reads `cmd &>file &` as a background job, then `>file`. `|&` covers the
@@ -435,16 +437,33 @@ def _background_is_quiet(job: str, bash: bool) -> bool:
     last = len(parts) - 1
     out_file, err_file = _redirect_state(parts[last], bash)
     k = last
-    while k >= 2 and parts[k - 1] == "|":
+    while k >= 2 and parts[k - 1] != ";":
         if _closes_group(parts[k]):
-            break  # this `|` is inside a subshell, a `case` pattern or a `$(`, not our pipeline
+            break  # this separator is inside a subshell, a `case` pattern or a `$(`, not our list
+        sep = parts[k - 1]
         k -= 2
-        out, err = _redirect_state(parts[k], bash, True)
-        if bash and parts[k + 2].startswith("&") and not parts[k + 2].startswith("&>"):
+        # before `|` stdout is the pipe; before `&&` / `||` both outputs must end in files
+        out, err = _redirect_state(parts[k], bash, sep == "|")
+        if (
+            sep == "|"
+            and bash
+            and parts[k + 2].startswith("&")
+            and not parts[k + 2].startswith("&>")
+        ):
             err = out  # `|&`: an implicit `2>&1` after the element's own redirects
-        if not (out and err):
+        if not (out and err) and parts[k].split()[:1] not in _SILENT:
             return False
     return out_file and err_file
+
+
+def _continues(raw: str, code: str, masked: str) -> bool:
+    """The line goes on in the next one: it ends in `|`, `||`, `&&`, or an unescaped backslash
+    (not one inside a comment or quotes: `masked` blanks quoted text, `code` ends where the
+    comment was cut)."""
+    if masked.endswith(("|", "&&")):
+        return True
+    slashes = len(masked) - len(masked.rstrip("\\"))
+    return len(code) == len(raw) and slashes % 2 == 1
 
 
 def _closes_group(text: str) -> bool:
@@ -508,12 +527,14 @@ def _script_warnings(text: str, label: str) -> list[str]:
     bash = _is_bash(shebang_argv(text))
     amp = _BASH_AMP if bash else _SH_AMP
     piped = False  # the previous line ended with a pipe
+    joined: list[str] = []  # lines of a job continued over lines, checked as one
     for n, raw in enumerate(text.splitlines(), 1):
         if heredoc_end:
             if (raw.lstrip("\t") if dash_tabs else raw) == heredoc_end:
                 heredoc_end = ""
             continue
-        line, masked = _scan(raw.strip())
+        stripped = raw.strip()
+        line, masked = _scan(stripped)
         if not line:
             continue
         no_math = _blank_arithmetic(masked)
@@ -530,11 +551,21 @@ def _script_warnings(text: str, label: str) -> list[str]:
             cat and not _redirects_input(line[cat.start() :])
         ):
             found.append(f"{label} line {n}: {stdin_msg}")
-        if not all(_background_is_quiet(job, bash) for job in amp.split(no_math)[:-1]):
+        if _continues(stripped, line, masked):
+            joined.append(no_math[:-1] if masked.endswith("\\") else no_math)
+            continue
+        joined.append(no_math)
+        if not all(_background_is_quiet(job, bash) for job in amp.split(" ".join(joined))[:-1]):
             found.append(
                 f"{label} line {n}: a background job keeps the exec open; "
                 "redirect it with >/dev/null 2>&1"
             )
+        joined = []
+    if joined and not all(_background_is_quiet(j, bash) for j in amp.split(" ".join(joined))[:-1]):
+        found.append(
+            f"{label} line {len(text.splitlines())}: a background job keeps the exec open; "
+            "redirect it with >/dev/null 2>&1"
+        )
     for k, (n, seg, piped_in) in enumerate(segments):
         if piped_in:
             continue
