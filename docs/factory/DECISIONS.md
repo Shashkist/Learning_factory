@@ -1125,3 +1125,5 @@ in force · factory · 2026-11-21 · revertible
 **Alternatives.** Keep End lab in both places (ambiguous queries, two focus stops for the same action); keep it in the task panel only (the review asked for the top bar).
 
 **Revert.** Revert the #349 squash commit; the older exams return with it.
+
+**Amendment (review round 1 of #352).** End lab is now the first tab stop of the lab screen on wide screens (the pane tabs are hidden there). Accepted: the #349 exam pins the bar before the task panel in the document, and a confirmation is a behaviour change outside D108. A confirmation or a different tab order needs its own issue.
