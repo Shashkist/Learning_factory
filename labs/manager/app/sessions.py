@@ -115,7 +115,9 @@ def _conflict(labs: dict[str, Lab], row: Any) -> HTTPException:
 
 # nginx answers 504 at 60 s (its default proxy_read_timeout; labs/deploy/nginx/labs.conf sets none).
 # The worst case of a failed start is the budget, the kill of a readiness exec cancelled by it
-# (KILL_BOUND_S) and the two cleanup bounds: 42 + 5 + 2 x 5 = 57 s.
+# (at most KILL_BOUND_S) and the two cleanup bounds: at most 42 + 5 + 2 x 5 = 57 s end to end.
+# The row stays in `starting` only for the first three parts (at most 52 s,
+# janitor.start_deadline_minimum).
 READY_TIMEOUT_MAX_S = 42.0
 CLEANUP_BOUND_S = 5.0  # what is left after a failed start is the janitor's (LF_START_DEADLINE_S)
 
