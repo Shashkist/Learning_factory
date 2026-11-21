@@ -201,6 +201,8 @@ def _mount_web(web_dir: str | None) -> None:
             return page()
         try:
             target = (root / path).resolve()
+            if target == index.resolve():  # an encoded `..%2F` path can still reach the shell
+                return page()
             if target.is_relative_to(root) and target.is_file():
                 return FileResponse(target)
         except (ValueError, OSError):

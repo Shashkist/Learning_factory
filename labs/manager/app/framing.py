@@ -38,8 +38,7 @@ def merge_headers(raw: list[tuple[bytes, bytes]]) -> list[tuple[bytes, bytes]]:
                 continue
             v = ", ".join(policies).encode("latin-1")
         out.append((k, v))
-    out.append((b"content-security-policy", FRAME_ANCESTORS.encode()))
-    out.append((b"x-frame-options", b"SAMEORIGIN"))
+    out.extend((k.lower().encode(), v.encode()) for k, v in FRAME_HEADERS.items())
     return out
 
 
