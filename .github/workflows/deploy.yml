@@ -168,6 +168,10 @@ jobs:
       contents: read
       actions: read
     uses: ./.github/workflows/server-smoke.yml
-    secrets: inherit
+    # Only the secrets the smoke reads (#94), not every repository secret.
+    secrets:
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      SERVER_HOST: ${{ secrets.SERVER_HOST }}
+      SERVER_USER: ${{ secrets.SERVER_USER }}
     with:
       from_deploy: true

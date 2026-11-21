@@ -22,6 +22,16 @@ on:
         description: "Called by the Deploy run, which already holds the host lock"
         type: boolean
         default: false
+    # A caller must pass each environment secret (by name or `inherit`); the value comes from
+    # this job's `environment: production`. Deploy passes only these three, so a called smoke
+    # cannot read the other production secrets (#94, least privilege).
+    secrets:
+      SSH_PRIVATE_KEY:
+        required: true
+      SERVER_HOST:
+        required: true
+      SERVER_USER:
+        required: true
   schedule:
     - cron: "30 3 * * *"
 
