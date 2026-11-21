@@ -35,9 +35,11 @@ type Student = {
 
 type Load = "loading" | "ok" | "not_found" | "error";
 
-/** Total active time as "<h> h <m> min" through the dictionary. */
+/** Total active time as "<h> h <m> min" through the dictionary; the bdi keeps its own direction (he reads right to left). */
 function activeTime(seconds: number, t: (key: string) => string): string {
-  const minutes = Math.floor(Math.max(0, seconds) / 60);
+  const total = Math.max(0, seconds);
+  // A started first minute counts as one, so a short session never reads like no time at all.
+  const minutes = total > 0 && total < 60 ? 1 : Math.floor(total / 60);
   return t("admin.student.active_fmt").replace("{h}", String(Math.floor(minutes / 60))).replace("{m}", String(minutes % 60));
 }
 
@@ -249,7 +251,7 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
         </div>
         <div className="card">
           <div className="card__label">{t("admin.student.card.active")}</div>
-          <bdi dir="ltr" className="card__value">{activeTime(student.active_seconds ?? 0, t)}</bdi>
+          <bdi className="card__value">{activeTime(student.active_seconds ?? 0, t)}</bdi>
         </div>
         <div className="card">
           <div className="card__label">{t("admin.student.card.last_activity")}</div>
