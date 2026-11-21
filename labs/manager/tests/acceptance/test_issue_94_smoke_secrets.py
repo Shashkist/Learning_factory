@@ -69,9 +69,70 @@ def test_the_called_run_still_gets_a_group_that_is_not_the_host_lock():
     assert any(lit and "server-lab-host" not in lit for lit in literals) or "run_id" in expr
 
 
+_EXPR = re.compile(r"\$\{\{(.*?)\}\}", re.S | re.I)
+_TOKEN = re.compile(r"(?<![\w.])secrets(?![\w-])", re.I)
+_NAMED = re.compile(r"secrets(?:\.|\[\s*['\"])([A-Za-z0-9_]+)", re.I)
+
+
+def _strings(node):
+    """Every string in a parsed YAML tree, keys and values. YAML comments are gone; a `#` line
+    inside a `run: |` block stays part of the scalar (the shell sees it, GitHub still evaluates it)."""
+    if isinstance(node, str):
+        yield node
+    elif isinstance(node, dict):
+        for k, v in node.items():
+            yield from _strings(k)
+            yield from _strings(v)
+    elif isinstance(node, (list, tuple)):
+        for v in node:
+            yield from _strings(v)
+
+
+def _secrets_in(text: str) -> set:
+    """Upper-cased names of secrets read anywhere inside a `${{ ... }}` expression of the parsed
+    workflow (dot or bracket form, any case). A `secrets` token that cannot be named
+    (`toJSON(secrets)`, `secrets[inputs.x]`) raises AssertionError. YAML comments and
+    `steps.secrets.*` are not reads."""
+    yaml = pytest.importorskip("yaml")
+    found = set()
+    for string in _strings(yaml.safe_load(text)):
+        for expr in _EXPR.findall(string):
+            for tok in _TOKEN.finditer(expr):
+                m = _NAMED.match(expr, tok.start())
+                assert m, f"secret read that cannot be named statically: {expr.strip()!r}"
+                found.add(m.group(1).upper())
+    return found - IMPLICIT
+
+
 def _read() -> set:
-    text = SMOKE.read_text(encoding="utf-8")
-    return set(re.findall(r"\$\{\{\s*secrets\.([A-Za-z0-9_]+)", text)) - IMPLICIT
+    return _secrets_in(SMOKE.read_text(encoding="utf-8"))
+
+
+def test_the_secret_finder_sees_compound_and_bracket_reads_but_not_text_outside_expressions():
+    text = (
+        "# secrets.IN_COMMENT is not a read\n"
+        "# old: ${{ secrets.OLD }}\n"
+        "name: secrets.PLAIN_STRING\n"
+        "a: ${{ secrets.START }}\n"
+        "b: ${{ inputs.x && secrets.FOO }}\n"
+        "c: ${{ secrets['BAR'] }}\n"
+        'd: ${{ format("{0}", secrets["BAZ"]) }}\n'
+        "e: ${{ secrets.GITHUB_TOKEN }}\n"
+        "f: ${{ Secrets.mixed_Case }}\n"
+        "g: ${{ secrets.github_token }}\n"
+        "h: ${{ steps.secrets.outputs.X }}\n"
+        "i: |\n"
+        "  # echo ${{ secrets.IN_RUN_COMMENT }}\n"
+    )
+    assert _secrets_in(text) == {"START", "FOO", "BAR", "BAZ", "MIXED_CASE", "IN_RUN_COMMENT"}
+
+
+@pytest.mark.parametrize(
+    "expr", ["toJSON(secrets)", "secrets[inputs.name]", "secrets[format('{0}', inputs.n)]"]
+)
+def test_the_secret_finder_refuses_reads_it_cannot_name(expr):
+    with pytest.raises(AssertionError):
+        _secrets_in("x: ${{ " + expr + " }}\n")
 
 
 def _passed() -> dict:
@@ -93,6 +154,7 @@ def test_the_smoke_workflow_reads_at_least_the_three_server_secrets():
 def test_every_secret_the_smoke_workflow_reads_is_declared_required_under_workflow_call():
     declared = ((_on(_load(SMOKE)).get("workflow_call") or {}).get("secrets")) or {}
     assert isinstance(declared, dict), "on.workflow_call.secrets must be a mapping"
+    declared = {str(k).upper(): v for k, v in declared.items()}
     missing = _read() - set(declared)
     assert not missing, f"read but not declared under on.workflow_call.secrets: {sorted(missing)}"
     for name in _read():
@@ -101,17 +163,17 @@ def test_every_secret_the_smoke_workflow_reads_is_declared_required_under_workfl
 
 
 def test_deploy_passes_every_secret_the_smoke_workflow_reads_by_the_same_name():
-    passed = _passed()
+    passed = {str(k).upper(): v for k, v in _passed().items()}
     for name in _read():
         assert name in passed, f"deploy.yml does not pass {name}"
         value = str(passed[name]).strip()
-        assert re.fullmatch(r"\$\{\{\s*secrets\." + name + r"\s*\}\}", value), (
+        assert re.fullmatch(r"\$\{\{\s*secrets\." + name + r"\s*\}\}", value, re.I), (
             f"{name} must be passed as ${{{{ secrets.{name} }}}}, got {value!r}"
         )
 
 
 def test_deploy_passes_no_secret_the_smoke_workflow_does_not_read():
-    extra = set(_passed()) - _read()
+    extra = {str(k).upper() for k in _passed()} - _read()
     assert not extra, f"passed but not read by the callee: {sorted(extra)}"
 
 
@@ -122,4 +184,4 @@ def test_the_smoke_job_keeps_the_production_environment_that_supplies_the_secret
 
 def test_the_server_host_key_is_read_as_a_variable_not_a_secret():
     text = SMOKE.read_text(encoding="utf-8")
-    assert "secrets.SERVER_HOST_KEY" not in text
+    assert "SERVER_HOST_KEY" not in _secrets_in(text)
