@@ -6,13 +6,12 @@ import logging
 import os
 import struct
 import time
-import uuid
 from dataclasses import dataclass
 from typing import Any, Protocol
 
 import httpx
 
-from app.content import Lab, shebang_argv
+from app.content import Lab
 
 log = logging.getLogger("lab-manager")
 
@@ -20,7 +19,6 @@ MB = 1024 * 1024
 DEFAULT_DOCKER_HOST = "unix:///var/run/docker.sock"
 _TIMEOUT = 60.0
 KILL_BOUND_S = 5.0  # longest kill of a timed-out script
-_KILLS: set[asyncio.Future[None]] = set()  # kills still running after their caller left
 MAX_OUTPUT = 256 * 1024  # the exam reassembles 200 KiB, so not the 64 KiB asked for
 TRUNCATED = b"\n[output truncated]\n"
 
@@ -119,88 +117,50 @@ class LabRuntime(Protocol):
 
 def exec_command(script: str) -> list[str]:
     """The shebang interpreter plus `-s` (read the program from stdin); `/bin/sh` without one."""
-    return [*shebang_argv(script), "-s"]
+    first = script.split("\n", 1)[0]
+    parts = first[2:].split() if first.startswith("#!") else []
+    return [*(parts or ["/bin/sh"]), "-s"]
 
 
-# Run as root by a second exec after a timeout (#117, #306). The script's exec carries a per-exec
-# unique `LF_EXEC_ID` in its environment (the manager's own interpreter, always root). Root can read
-# only root processes' environment (it has SETUID/SETGID, not CAP_DAC_OVERRIDE/CAP_KILL), so the
-# marker finds the root processes of this exec; student processes are found only as descendants by
-# PPid. Orphans (reparented) and children that clear their environment with `env -i` are missed by
-# the scan. So the kill first freezes (STOP) and, when re-collecting, kills the student groups
-# before the root parents, which keeps the tree from orphaning itself. Another exec is never a
-# target (it has another marker). Non-root pids are signalled as their owner (no CAP_KILL) by
-# background children; root is stopped at once and killed after at most four short polls of those
-# children, so a child the student stops cannot hold the killer; the killer is root and runs under
-# `timeout -s KILL` (see `kill_command`), so it ends by its own deadline and never outlives the
-# call, except for the latency between the manager's clock and the `timeout` start inside the
-# container (the margin in `_kill_bounded`). A stopped child that resumes later signals only the
-# pids it was given, as the student (D56). Zombies are not targets.
-# Not `timeout -s KILL` around the script (a script's background jobs would live on)
+# Run as root by a second exec after a timeout (#117). The script's exec has the argv `<interp> -s`
+# (the manager's own, always root, and with no parent in the container: PPid 0); the kill finds it,
+# adds its descendants, freezes the lot so nothing can fork or reparent, then SIGKILLs both the
+# frozen set and a re-collected one. Non-root pids are signalled as their owner (no CAP_KILL).
+# Not `timeout -s KILL` (it kills only its child, and a script's background jobs would live on)
 # and not the exec Pid (under gVisor it is a host pid).
 KILL_SCRIPT = r"""
-id="$1"
+want="$1"
 collect() {
-  roots=$(grep -l -a -z -x "LF_EXEC_ID=$id" /proc/[0-9]*/environ 2>/dev/null |
-    sed 's#^/proc/\([0-9]*\)/environ$#\1#' | tr '\n' ' ')
-  [ -n "$roots" ] || return 0
-  ps -eo pid=,ppid=,ruid=,rgid=,stat= | awk -v roots="$roots" '
-    BEGIN { n = split(roots, r, " "); for (i = 1; i <= n; i++) mark[r[i]] = 1 }
-    { pid=$1; pp[pid]=$2; uid[pid]=$3; gid[pid]=$4; st[pid]=$5 }
+  ps -eo pid=,ppid=,ruid=,rgid=,args= | awk -v want="$want" '
+    BEGIN { sub(/ +$/, "", want) }
+    { pid=$1; pp[pid]=$2; uid[pid]=$3; gid[pid]=$4
+      a=$0; sub(/^ *[0-9]+ +[0-9]+ +[0-9]+ +[0-9]+ +/, "", a); sub(/ +$/, "", a); args[pid]=a }
     END {
+      for (p in pp) if (uid[p] == 0 && pp[p] == 0 && args[p] == want) mark[p] = 1
       do { n = 0
         for (p in pp) if (!(p in mark) && (pp[p] in mark)) { mark[p] = 1; n = 1 }
       } while (n)
-      for (p in mark) if ((p in pp) && st[p] !~ /^Z/) {
-        k = uid[p] " " gid[p]; by[k] = by[k] " " p
-      }
+      for (p in mark) { k = uid[p] " " gid[p]; by[k] = by[k] " " p }
       for (k in by) print k by[k]
     }'
 }
 send() {
-  printf '%s
-' "$2" | {
-    kids=""; rootpids=""
-    while read -r u g pids; do
-      [ -n "$pids" ] || continue
-      if [ "$u" = 0 ]; then rootpids="$rootpids $pids"
-      else
-        setpriv --reuid="$u" --regid="$g" --clear-groups kill -"$1" $pids \
-          </dev/null >/dev/null 2>&1 &
-        kids="$kids $!"
-      fi
-    done
-    # Stopping root orphans nothing: STOP root at once. Before a root KILL, give the student
-    # groups' kill children a few rounds (one `ps` each) so the tree does not orphan itself.
-    if [ "$1" = KILL ] && [ -n "$kids" ]; then
-      i=0
-      while [ "$i" -lt 4 ]; do
-        ps -o stat= -p "$(echo $kids | tr ' ' ',')" 2>/dev/null | grep -qv '^ *Z' || break
-        sleep 0.05; i=$((i + 1))
-      done
+  printf '%s\n' "$2" | while read -r u g pids; do
+    [ -n "$pids" ] || continue
+    if [ "$u" = 0 ]; then kill -"$1" $pids 2>/dev/null
+    else setpriv --reuid="$u" --regid="$g" --clear-groups kill -"$1" $pids 2>/dev/null
     fi
-    [ -z "$rootpids" ] || kill -"$1" $rootpids 2>/dev/null
-  }
+  done
 }
-for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+for _ in 1 2 3; do
   a=$(collect)
   [ -n "$a" ] || exit 0
   send STOP "$a"
-  sleep 0.1
   b=$(collect)
   send KILL "$a"
   send KILL "$b"
-  sleep 0.2
 done
 """
-
-
-def kill_command(marker: str, deadline_s: float) -> list[str]:
-    """The killer's argv: a root `sh` that execs `timeout -s KILL <n> sh -c KILL_SCRIPT` (timeout
-    signals its whole group, so the pipeline subshells go too). The command is not itself a
-    `timeout ...` wrapper: it stays a second exec that runs a kill program (#117)."""
-    wrapper = 'exec timeout -s KILL "$1" /bin/sh -c "$2" sh "$3"'
-    return ["/bin/sh", "-c", wrapper, "sh", f"{deadline_s:.1f}", KILL_SCRIPT, marker]
 
 
 class DockerRuntime:
@@ -270,7 +230,6 @@ class DockerRuntime:
 
     async def exec_script(self, name: str, script: str, timeout: float) -> ExecResult:
         """Run `script` as root in container `name`, streamed on stdin (D45); raises on failures."""
-        marker = uuid.uuid4().hex  # names this exec to its killer (#306)
         create = {
             "AttachStdin": True,
             "AttachStdout": True,
@@ -279,7 +238,7 @@ class DockerRuntime:
             "User": "root",
             "Privileged": False,
             "WorkingDir": "/",
-            "Env": [f"PATH={EXEC_PATH}", "HOME=/root", f"LF_EXEC_ID={marker}"],
+            "Env": [f"PATH={EXEC_PATH}", "HOME=/root"],
             "Cmd": exec_command(script),
         }
         out = bytearray()
@@ -290,47 +249,28 @@ class DockerRuntime:
         except Exception as exc:
             timed_out = isinstance(exc, TimeoutError) and deadline.expired()
             if ids:  # returns only once the script has stopped, so the session lock outlives it
-                await self._kill_shielded(name, marker, ids[0], timeout)
+                await self._kill_bounded(name, script, ids[0], timeout)
             if not timed_out:
                 raise  # a failure (even a timeout while connecting), not a slow script
             return ExecResult(None, out.decode("utf-8", "replace"), True)
-        except asyncio.CancelledError:
-            if ids:  # a cancel (shutdown, outer timeout) must not leave the script running
-                await self._kill_shielded(name, marker, ids[0], timeout)
-            raise
 
-    async def _kill_shielded(self, name: str, marker: str, exec_id: str, timeout: float) -> None:
-        """The bounded kill, which a cancel of the caller does not cut."""
-        kill = asyncio.ensure_future(self._kill_bounded(name, marker, exec_id, timeout))
-        # a second cancel may leave at once while the kill goes on: the loop keeps only a weak
-        # reference to a task, so hold it here (the D98 marker keeps the next exec safe)
-        _KILLS.add(kill)
-        kill.add_done_callback(_KILLS.discard)
-        try:
-            await asyncio.shield(kill)  # the kill bounds itself by KILL_BOUND_S
-        except asyncio.CancelledError:  # a cancel landed during the kill: let it finish, then go on
-            with contextlib.suppress(asyncio.CancelledError):
-                await asyncio.shield(kill)  # a second cancel leaves at once
-            raise
-
-    async def _kill_bounded(self, name: str, marker: str, exec_id: str, timeout: float) -> None:
+    async def _kill_bounded(self, name: str, script: str, exec_id: str, timeout: float) -> None:
         """The kill of a script that must not outlive its call; never raises, logs one line."""
         loop = asyncio.get_running_loop()
         bound = min(KILL_BOUND_S, max(3.0, timeout * 0.2))
         try:
             async with asyncio.timeout(bound):
-                give_up_at = loop.time() + bound - 0.3
-                await self._kill(name, marker, exec_id, give_up_at, max(1.0, bound - 1.5))
+                await self._kill(name, exec_command(script), exec_id, loop.time() + bound - 0.3)
         except TimeoutError:
-            log.error("kill of the script hung")
+            log.error("kill of the timed-out script hung")
         except _StillRunning:
-            log.error("kill left the script running")
+            log.error("kill left the timed-out script running")
         except Exception as exc:  # the lock is released anyway; class only, no data
-            log.error("killing the script failed (%s)", type(exc).__name__)
+            log.error("killing a timed-out script failed (%s)", type(exc).__name__)
 
-    async def _kill(
-        self, name: str, marker: str, exec_id: str, give_up_at: float, deadline_s: float
-    ) -> None:
+    async def _kill(self, name: str, argv: list[str], exec_id: str, give_up_at: float) -> None:
+        if argv[0].rsplit("/", 1)[-1] == "env":  # `env bash -s` replaces itself with `bash -s`
+            argv = argv[1:]
         body = {
             "AttachStdout": True,
             "AttachStderr": True,
@@ -338,7 +278,7 @@ class DockerRuntime:
             "User": "root",
             "Privileged": False,
             "Env": [f"PATH={EXEC_PATH}"],
-            "Cmd": kill_command(marker, deadline_s),
+            "Cmd": ["/bin/sh", "-c", KILL_SCRIPT, "sh", " ".join(argv)],  # as `ps args=` prints it
         }
         async with self._client() as c:
             resp = await c.post(f"/containers/{name}/exec", json=body)
