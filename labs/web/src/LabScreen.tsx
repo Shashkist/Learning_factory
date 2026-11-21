@@ -147,6 +147,7 @@ export default function LabScreen({
   const [dragging, setDragging] = useState(false);
   const [pane, setPane] = useState<Pane>("tasks");
   const [done, setDone] = useState(false);
+  const [labTitle, setTitle] = useState<Bi | null>(null);
   const [pending, setPending] = useState(false);
   const inFlight = useRef(false);
   const alive = useRef(true);
@@ -242,6 +243,20 @@ export default function LabScreen({
     };
   }, [lab]);
 
+  // The lab title for the top bar: a failed lab list only means no title.
+  useEffect(() => {
+    let live = true;
+    call<{ id: string; title: Bi }[]>("GET", "/api/labs")
+      .then((all) => {
+        const mine = all.find((x) => x.id === lab);
+        if (live && mine) setTitle(mine.title);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [lab]);
+
   const sid = session?.id;
   const expires = session?.expires_at ? Date.parse(session.expires_at) : NaN;
   const running = phase === "ready";
@@ -277,6 +292,27 @@ export default function LabScreen({
     focusTask.current = false;
     heading.current.focus();
   });
+
+  // Lab complete shows the message only: pin the tasks pane.
+  useEffect(() => {
+    if (done) setPane("tasks");
+  }, [done]);
+
+  // On phones the terminal sits hidden while the tasks tab is shown; ttyd focuses its shell on connect, so take the focus back.
+  useEffect(() => {
+    if (pane !== "tasks" || !window.matchMedia?.("(max-width: 48rem)").matches) return;
+    const back = () => {
+      const f = document.activeElement;
+      if (f instanceof HTMLIFrameElement && f.closest(".lab-term")) {
+        f.blur();
+        const target = heading.current ?? document.getElementById("lab-panel-tasks");
+        target?.setAttribute("tabindex", "-1");
+        target?.focus();
+      }
+    };
+    window.addEventListener("blur", back);
+    return () => window.removeEventListener("blur", back);
+  }, [pane]);
 
   const run = async (fn: () => Promise<void>, fallback = "lab.error.load") => {
     if (inFlight.current) return;
@@ -452,6 +488,7 @@ export default function LabScreen({
   };
   const dragEnd = () => setDragging(false);
 
+  const title = labTitle?.[lang];
   const hands = task.kind === "hands-on";
   const emptyLine = !done && !open;
   const verdictText = verdict
@@ -460,7 +497,7 @@ export default function LabScreen({
       ? t("lab.check_failed")
       : "";
   return (
-    <div className="lab" data-pane={pane}>
+    <div className="lab" data-pane={pane} data-complete={done || undefined}>
       <div className="lab-bar">
         <div role="tablist" className="lab-panes">
           {(["tasks", "terminal"] as const).map((k) => (
@@ -471,6 +508,7 @@ export default function LabScreen({
               aria-controls={`lab-panel-${k}`}
               type="button"
               aria-selected={pane === k}
+              disabled={done && k === "terminal"}
               tabIndex={pane === k ? 0 : -1}
               onClick={() => setPane(k)}
               onKeyDown={(e) => {
@@ -485,11 +523,16 @@ export default function LabScreen({
             </button>
           ))}
         </div>
+        {title && <h1 className="lab-title">{title}</h1>}
+        <span className="lab-state">{t("lab.state.running")}</span>
         {left !== null && (
           <div role="timer" aria-label={t("lab.timer")} className="lab-timer">
             {clock(left)}
           </div>
         )}
+        <button className="danger lab-end" onClick={end}>
+          {t("lab.end")}
+        </button>
       </div>
       <div
         ref={frame}
@@ -674,9 +717,6 @@ export default function LabScreen({
           <button onClick={() => step("restart")} disabled={pending}>
             {t("lab.restart")}
           </button>
-        <button className="danger lab-end" onClick={end}>
-          {t("lab.end")}
-        </button>
         </div>
       </section>
       <div

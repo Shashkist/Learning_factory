@@ -57,7 +57,9 @@ for (const lang of ["en", "he"] as const) {
     await panel.getByRole("button", { name: x.next, exact: true }).click();
     await expect(panel.getByRole("heading", { name: x.task2 })).toBeVisible();
 
-    await panel.getByRole("button", { name: x.end }).click();
+    // End lab lives in the lab screen top bar since #349 (not in the task panel).
+    await expect(panel.getByRole("button", { name: x.end })).toHaveCount(0);
+    await page.getByRole("button", { name: x.end }).click();
     await expect(page).toHaveURL(/\/labs$/);
     await expect(page.getByRole("heading", { name: x.myLabs })).toBeVisible();
     // Back on My labs: the ended run shows its progress and offers Start again (catalog.py).

@@ -30,6 +30,7 @@ body.lab-wide :is(#root, #root > div) {
 /* Top bar: pane tabs (narrow only), countdown, End lab */
 .lab-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
   padding-block: var(--space-2);
@@ -47,6 +48,19 @@ body.lab-wide :is(#root, #root > div) {
   border-color: var(--color-primary);
   color: var(--color-on-primary);
 }
+.lab-title {
+  margin: 0;
+  font-size: inherit;
+  font-weight: 600;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lab-state {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
 .lab-timer {
   margin-inline-start: auto;
   font-variant-numeric: tabular-nums;
@@ -54,8 +68,16 @@ body.lab-wide :is(#root, #root > div) {
   font-size: var(--text-lg);
 }
 .lab-end {
-  margin-inline-start: auto;
   flex: none;
+}
+
+/* Lab complete: the message takes the whole pane area. The terminal stays mounted, hidden. */
+.lab[data-complete] .lab-term,
+.lab[data-complete] .lab-splitter {
+  display: none;
+}
+.lab[data-complete] .lab-tasks {
+  flex: 1;
 }
 
 /* Panes. The row follows the page direction, so in he the tasks pane is on the right. */
@@ -159,8 +181,16 @@ body.lab-wide :is(#root, #root > div) {
   .lab-splitter {
     display: none;
   }
-  .lab[data-pane="tasks"] .lab-term,
-  .lab[data-pane="terminal"] .lab-tasks {
+  .lab[data-pane="terminal"]:not([data-complete]) .lab-tasks {
     display: none;
+  }
+  /* The hidden terminal keeps its size (laid out, not display:none), so ttyd fits the pane when it is shown. */
+  .lab-body {
+    position: relative;
+  }
+  .lab[data-pane="tasks"] .lab-term {
+    position: absolute;
+    inset: 0;
+    visibility: hidden;
   }
 }

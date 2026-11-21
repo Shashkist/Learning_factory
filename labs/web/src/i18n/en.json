@@ -148,6 +148,7 @@
   "admin.live.end_error": "Could not end the session. Try again.",
   "lab.pane.tasks": "Tasks",
   "lab.pane.terminal": "Terminal",
+  "lab.state.running": "Running",
   "lab.timer": "Time left",
   "admin.cohorts.create.legend": "Create a cohort",
   "admin.import.legend": "Import students",
