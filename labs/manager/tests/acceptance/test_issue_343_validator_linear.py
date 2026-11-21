@@ -138,3 +138,56 @@ def test_ac3_stdout_only_redirect_before_dup_is_unchanged(tmp_path, name):
     # pins: ordering still matters: `2>&1 >/dev/null` leaves stderr on the exec's output.
     result = lab_with_script(tmp_path, f"{BASH}sleep 600 2>&1 >/dev/null &\nexit 0\n", name)
     assert background_warnings(result)
+
+
+# ------------------------------------------------------------------ AC3 guards (review round 1)
+
+# Under bash `>&word` sends both streams to a file only when the word is a plain filename-like
+# word. `-` closes stdout (`>&-`), `$fd`/`"$LOGFD"` may expand to a descriptor number, so in all
+# of these stderr stays open on the exec's output: the backgrounded job is not quiet (main warns).
+BASH_NOT_A_FILE_WORD_LINES = [
+    "sleep 600 >&- &",
+    "sleep 600 1>&- &",
+    "fd=3; sleep 600 >&$fd &",
+    'sleep 600 >&"$LOGFD" &',
+]
+
+
+@pytest.mark.parametrize("name", NAMES)
+@pytest.mark.parametrize("line", BASH_NOT_A_FILE_WORD_LINES)
+def test_ac3_gt_amp_dash_or_expansion_is_not_a_file_and_still_warns(tmp_path, name, line):
+    # pins: the `>&word` quiet rule excludes words starting with `-`, `$`, a backquote or a quote.
+    result = lab_with_script(tmp_path, f"{BASH}{line}\nexit 0\n", name)
+    assert background_warnings(result), f"missed warning for {line!r}: {result.warnings}"
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_ac3_gt_amp_space_digit_is_a_dup_so_stdout_stays_loud(tmp_path, name):
+    # `>& 2` (space before the digit) is the same descriptor copy as `>&2`: stdout goes to the
+    # current stderr. The later `2>/dev/null` then silences only stderr; stdout still points at
+    # the exec's output, so the job is not quiet (the check wants BOTH outputs in files, D107).
+    # Reading `>& 2` as a file named `2` would wrongly call it quiet.
+    line = "sleep 600 >& 2 2>/dev/null &"
+    result = lab_with_script(tmp_path, f"{BASH}{line}\nexit 0\n", name)
+    assert background_warnings(result), f"missed warning for {line!r}: {result.warnings}"
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_ac3_gt_amp_space_digit_after_file_redirect_is_quiet(tmp_path, name):
+    # `>/dev/null 2>& 1`: stderr copies stdout (already a file), so both are in files.
+    line = "sleep 600 >/dev/null 2>& 1 &"
+    result = lab_with_script(tmp_path, f"{BASH}{line}\nexit 0\n", name)
+    assert background_warnings(result) == [], f"false positive for {line!r}: {result.warnings}"
+
+
+# ------------------------------------------------------------------ AC2 guard (review round 1)
+
+
+@pytest.mark.parametrize("name", NAMES)
+@pytest.mark.parametrize("head", [BASH, SH])
+def test_ac2_an_amp_inside_arithmetic_does_not_end_the_su_job(tmp_path, name, head):
+    # pins: the su job split ignores the bitwise `&` of `$(( ))`, like the background check does
+    # (D107), so `</dev/null` after it is su's own input and there is no stdin warning.
+    line = "su student -c 'cat' $((1&2)) </dev/null"
+    result = lab_with_script(tmp_path, f"{head}{line}\nexit 0\n", name)
+    assert stdin_warnings(result) == [], f"false positive for {line!r}: {result.warnings}"
