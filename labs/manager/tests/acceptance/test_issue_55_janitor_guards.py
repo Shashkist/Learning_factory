@@ -194,8 +194,9 @@ def test_an_invalid_start_deadline_falls_back_to_a_positive_value_with_one_warni
     nums = [x for args in result["args"] for x in args]
     assert nums, "the sweep passed no deadline to the database"
     for x in nums:
-        assert isinstance(x, (int, float)), f"LF_START_DEADLINE_S={bad!r} reached the query as {x!r}"
-        assert x > 0, f"LF_START_DEADLINE_S={bad!r} reached the query as {x!r}"
+        shown = f"LF_START_DEADLINE_S={bad!r} reached the query as {x!r}"
+        assert isinstance(x, (int, float)), shown
+        assert x > 0, shown
     warns = _warnings(result)
     assert 1 <= len(warns) <= 2, f"{len(warns)} warning lines over 4 passes: {warns}"
 
@@ -315,7 +316,7 @@ def test_the_error_is_repeated_about_every_15_minutes_and_not_before(caplog, clo
     minutes = [m for m, _ in seen]
     assert minutes[0] == 0
     assert len(minutes) == 4, f"expected errors at about 0, 15, 30, 45 minutes, got {minutes}"
-    for got, want in zip(minutes[1:], (15, 30, 45)):
+    for got, want in zip(minutes[1:], (15, 30, 45), strict=True):
         assert want <= got <= want + 2, f"repeat at minute {got}, expected about {want}: {minutes}"
 
 
