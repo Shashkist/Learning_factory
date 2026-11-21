@@ -157,6 +157,8 @@ def served(admin_dsn, network, image):
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
+    # like production: unset means no Origin check, and the smoke expects a foreign one refused
+    mp.setenv("LF_PUBLIC_ORIGIN", f"http://127.0.0.1:{port}")
     server = uvicorn.Server(
         uvicorn.Config(app, host="127.0.0.1", port=port, log_level="error", ws="auto")
     )
