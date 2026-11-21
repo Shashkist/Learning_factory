@@ -4,7 +4,7 @@
 
 ## Now
 
-**Pass lf-t5k8 (laptop, from 07:25 UTC) in progress:** claims #364 (`f/364-ci-exam-once`, worktree `C:\projects\lf-364`; CI manager job runs the exam once). Leaves #355 (PR #367) and PR #368 to their owner pass.
+**Pass lf-t5k8 (laptop, from 07:25 UTC) in progress:** claims #364 (`f/364-ci-exam-once`, worktree `C:\projects\lf-364`; exam ee4bf1d, implementer running), #69 (`f/69-ws-origin-check`, `lf-69`; exam writer running), #55 (`f/55-janitor-guards`, `lf-55`; exam writer running). Decisions D116, D117. Leaves #355 (PR #367) and PR #368 to their owner pass.
 
 **Pass lf-r6q2 (laptop, from 05:30 UTC) in progress:** claims #355 (`f/355-validator-linear-scans`, worktree `C:\projects\lf-355`), #360 (`f/360-active-time-sessions`, `lf-360`), #359 (`f/359-exam-secrets-compound`, `lf-359`, exam-only). Exam writers running. D115 recorded (#355: linear scans, no cap; stdin warning kept on `&` jobs).
 
