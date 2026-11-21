@@ -70,17 +70,10 @@ FOREIGN_ORIGIN = "https://evil.shashkist.com"
 
 async def _foreign_origin_refused(url: str, cookie: str, timeout: float) -> None:
     """One more upgrade with a foreign Origin: the server must answer 403 (issue #373)."""
-    from websockets.asyncio.client import connect
     from websockets.exceptions import InvalidStatus
 
     try:
-        ws = await connect(
-            url,
-            subprotocols=["tty"],
-            origin=FOREIGN_ORIGIN,
-            additional_headers={"Cookie": f"{COOKIE}={cookie}"},
-            open_timeout=timeout,
-        )
+        ws = await _open(url, cookie, timeout, FOREIGN_ORIGIN)
     except InvalidStatus as exc:
         if exc.response.status_code == 403:
             return
@@ -90,9 +83,20 @@ async def _foreign_origin_refused(url: str, cookie: str, timeout: float) -> None
 
 
 async def _terminal(base: str, sid: str, cookie: str, timeout: float) -> None:
+    from websockets.exceptions import InvalidStatus
+
     url = ("wss" if base.startswith("https") else "ws") + base[base.index("://") :]
     try:
-        async with await _open(f"{url}/s/{sid}/term/ws", cookie, timeout, base) as ws:
+        try:
+            ws_cm = await _open(f"{url}/s/{sid}/term/ws", cookie, timeout, base)
+        except InvalidStatus as exc:
+            if exc.response.status_code == 403:
+                raise Fail(
+                    "the terminal refused the smoke's own Origin (HTTP 403): "
+                    "check LF_PUBLIC_ORIGIN on the server"
+                ) from None
+            raise
+        async with ws_cm as ws:
             await ws.send(json.dumps({"AuthToken": "", "columns": 80, "rows": 24}).encode())
             buf = ""
             try:

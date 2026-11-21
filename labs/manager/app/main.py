@@ -95,7 +95,7 @@ def _public_origin_problem(value: str) -> str | None:
         return "unparsable"
     if parts.scheme not in ("http", "https") or not host:
         return "no scheme or host"
-    if parts.path not in ("", "/"):
+    if parts.path.strip("/"):
         return "has a path"
     if parts.query:
         return "has a query"
@@ -105,6 +105,10 @@ def _public_origin_problem(value: str) -> str | None:
         return "has userinfo"
     if port == (443 if parts.scheme == "https" else 80):
         return "has the default port"
+    netloc = f"[{host}]" if ":" in host else host
+    rebuilt = f"{parts.scheme}://{netloc}" + (f":{port}" if port is not None else "")
+    if value.rstrip("/").lower() != rebuilt:
+        return "is not exactly scheme://host[:port]"
     return None
 
 
@@ -235,8 +239,10 @@ def _mount_web(web_dir: str | None) -> None:
             if target == index.resolve():  # an encoded `..%2F` path can still reach the shell
                 return page()
             if target.is_relative_to(root) and target.is_file():
-                is_html = target.suffix.lower() in (".html", ".htm")
-                return FileResponse(target, headers=framing.FRAME_HEADERS if is_html else None)
+                resp = FileResponse(target)
+                if (resp.media_type or "") in framing.HTML_MEDIA_TYPES:
+                    resp.headers.update(framing.FRAME_HEADERS)
+                return resp
         except (ValueError, OSError):
             raise HTTPException(status_code=404) from None
         # A missing asset must fail as 404 (stale bundle after a deploy), not come back as HTML.
