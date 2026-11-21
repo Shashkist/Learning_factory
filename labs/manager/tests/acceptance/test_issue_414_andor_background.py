@@ -292,3 +292,55 @@ def test_control_a_backslash_ending_a_comment_does_not_join_lines(tmp_path, name
 @pytest.mark.parametrize("head", SHEBANGS)
 def test_control_a_comment_backslash_does_not_hide_a_real_warning(tmp_path, name, head):
     _warns_bg(tmp_path, head, "# note \\\nsleep 600 &", name)
+
+
+# ------------------------------------------------------------------ review round 2 (PR #424)
+
+# An and-or list whose last element is a group: the `;` inside the group must not hide the
+# `&&`/`||` before it. (shell head, body, id), as measured holding by the round-2 reviewer.
+GROUP_LAST_CASES = [
+    (SH, "[ -d / ] && { cd /; sleep 600; } >/dev/null 2>&1 &", "test-and-brace-group-sh"),
+    (BASH, "[ -d / ] && { cd /; sleep 600; } >/dev/null 2>&1 &", "test-and-brace-group-bash"),
+    (SH, "sleep 600 >/dev/null 2>&1 && { true; } >/dev/null 2>&1 &", "slow-and-brace-group-sh"),
+    (BASH, "sleep 600 >/dev/null 2>&1 && { true; } >/dev/null 2>&1 &", "slow-and-brace-group-bash"),
+    (SH, "sleep 600 >/dev/null 2>&1 && ( cd /; true ) >/dev/null 2>&1 &", "slow-and-subshell-sh"),
+    (BASH, "sleep 600 >/dev/null 2>&1 || ( cd /; true ) >/dev/null 2>&1 &", "or-subshell-bash"),
+]
+
+
+@pytest.mark.parametrize("name", NAMES)
+@pytest.mark.parametrize(
+    ("head", "body"),
+    [(h, b) for h, b, _ in GROUP_LAST_CASES],
+    ids=[i for _, _, i in GROUP_LAST_CASES],
+)
+def test_ac1_an_and_or_list_whose_last_element_is_a_group_warns(tmp_path, name, head, body):
+    _warns_bg(tmp_path, head, body, name)
+
+
+# Under sh a subshell element is not an instant builtin, even if it ends in one.
+@pytest.mark.parametrize("name", NAMES)
+@pytest.mark.parametrize(
+    "body",
+    [
+        "( sleep 600 || true ) >/dev/null 2>&1 && true >/dev/null 2>&1 &",
+        "( sleep 600; true ) >/dev/null 2>&1 && true >/dev/null 2>&1 &",
+    ],
+    ids=["subshell-or-ends-in-true", "subshell-semicolon-ends-in-true"],
+)
+def test_ac1_under_sh_a_subshell_element_is_not_an_instant_builtin(tmp_path, name, body):
+    _warns_bg(tmp_path, SH, body, name)
+
+
+# D122 amendment: `cd` is an instant builtin under sh (dash measured 0 s), not under bash.
+CD_BODY = "cd /srv && python3 -m http.server 8000 >/dev/null 2>&1 &"
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_ac1_under_sh_cd_is_an_instant_builtin_and_the_line_stays_quiet(tmp_path, name):
+    _quiet_bg(tmp_path, SH, CD_BODY, name)
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_ac1_under_bash_the_same_cd_line_warns(tmp_path, name):
+    _warns_bg(tmp_path, BASH, CD_BODY, name)
