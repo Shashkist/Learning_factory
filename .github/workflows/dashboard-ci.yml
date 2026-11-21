@@ -5,8 +5,9 @@ on:
     paths:
       - "labs/factory-dashboard/**"
       - "labs/deploy/nginx/**"
-      - ".github/workflows/dashboard-ci.yml"
-      - ".github/workflows/factory-dashboard.yml"
+      # The #25 exam reads every workflow file, so any workflow change runs it (#400).
+      - ".github/workflows/*.yml"
+      - ".github/workflows/*.yaml"
       - "scripts/ci/junit_gate.py"
       - "scripts/factory_progress.py"
       - "scripts/_hook_io.py"
@@ -15,8 +16,9 @@ on:
     paths:
       - "labs/factory-dashboard/**"
       - "labs/deploy/nginx/**"
-      - ".github/workflows/dashboard-ci.yml"
-      - ".github/workflows/factory-dashboard.yml"
+      # The #25 exam reads every workflow file, so any workflow change runs it (#400).
+      - ".github/workflows/*.yml"
+      - ".github/workflows/*.yaml"
       - "scripts/ci/junit_gate.py"
       - "scripts/factory_progress.py"
       - "scripts/_hook_io.py"
