@@ -544,3 +544,18 @@ Tips:
 - When a review asks for an exam change after the code commit, reset the branch to the exam commit, add one exam-only commit, cherry-pick the code back, and add the fix on top. Exam integrity stays happy and the PR keeps its history.
 - Before trusting an exam's expected value for shell syntax, run the line in a real shell. It takes five seconds.
 - CI runs `ruff check`, not `ruff format`; 108 of 144 manager files aren't format-clean. Don't tell agents to run the formatter on old files.
+
+## Pass lf-h3v6: the red that hid behind a path filter (2026-11-21, laptop, 12:57-~14:30 UTC)
+
+A short pass that picked up an approved PR, ran three new issues in parallel, and found two failures that had nothing to do with the code being written.
+
+- **A red exam nobody saw for weeks.** A one-file CI change (#377, the junit gate) turned on Dashboard CI, because that workflow runs only when certain paths change. Its exam reads every workflow file, and a Deploy change (#358) had broken it long ago: main stayed green because nothing triggered the check. The reviewer traced it, an incident (#394) got an exam-only fix in ~15 minutes, and #400 makes that CI run on every workflow change. Path filters save minutes and can hide reds.
+- **The state commit that skipped a deploy.** The pass's first state commit also carried `history.md`, which lives at the repo root, so the CI rules counted it as code. That started a full CI, and the Deploy of the PR merged a minute earlier stood down ("no longer the head of main's code"). The code shipped 17 minutes later with the next CI run. #395 makes `history.md` docs-only.
+- **One function, two callers.** #373 gave the smoke's `_open()` a new `origin` argument. The implementer ran the issue's own exams (all green), but `tasks.py` imports the same function: 22 exam cases went red with a `TypeError` in CI. One line fixed it. Then the docker job found the subtler one: an old exam starts the real manager without `LF_PUBLIC_ORIGIN`, so the new "foreign Origin must get 403" probe failed correctly. The probe worked on its first real run, against the wrong setup.
+
+Numbers: 4 merged PRs (#390, #398, #393, #397), 1 PR rebuilt for the next pass (#396), 5 exam-writer runs, 3 implementers, 4 reviews (1 requested changes twice), 1 incident, 4 new issues (#395, #399, #400 and the incident #394), 1 decision (D119).
+
+Tips:
+- When you change a function's signature, `grep` for every caller before you push. The local exam list is only what you thought of.
+- A reviewer that reads the CI log of an unrelated red job can find the real bug: "this diff didn't cause it" was the most useful line of the pass.
+- Count merges per pass, not per issue: an incident fix is a PR too, and it counted toward the stop rule.
