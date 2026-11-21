@@ -2,7 +2,6 @@ import { Fragment, useEffect, useRef, useState, type FormEvent } from "react";
 
 import { useI18n } from "./i18n";
 import { localStamp } from "./localStamp";
-import "./styles/teacher.css";
 
 type Flag = {
   id: string; scope: "task" | "lab"; task_id: string | null; reason: string; dismissed_at: string | null;
@@ -237,15 +236,15 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
           <bdi dir="ltr" className="card__value">{`${student.labs.filter((l) => l.status === "done").length} / ${student.labs.length}`}</bdi>
         </div>
         <div className="card">
-          <div className="card__label">{t("admin.student.card.time")}</div>
-          <bdi dir="ltr" className="card__value">{`${Math.round(student.labs.flatMap((l) => l.tasks).reduce((s, x) => s + (x.seconds ?? 0), 0))} s`}</bdi>
+          <div className="card__label">{t("admin.student.card.tasks")}</div>
+          <bdi dir="ltr" className="card__value">{`${student.labs.reduce((n, l) => n + l.tasks_passed, 0)} / ${student.labs.reduce((n, l) => n + l.tasks_total, 0)}`}</bdi>
         </div>
         <div className="card">
-          <div className="card__label">{t("admin.student.card.last")}</div>
-          <bdi dir="ltr" className="card__value">–</bdi>
+          <div className="card__label">{t("admin.student.card.flags")}</div>
+          <bdi dir="ltr" className="card__value">{student.labs.reduce((n, l) => n + l.flags.filter((f) => !f.dismissed_at).length, 0)}</bdi>
         </div>
       </div>
-      <button {...mark("disabled")} disabled={pending.includes("disabled")} onClick={() => void write("disabled", "PATCH", url, { disabled: !student.disabled })}>
+      <button {...mark("disabled")} disabled={pending.includes("disabled")} aria-busy={pending.includes("disabled") ? "true" : undefined} onClick={() => void write("disabled", "PATCH", url, { disabled: !student.disabled })}>
         {t(student.disabled ? "admin.student.enable" : "admin.student.disable")}
       </button>
       <form onSubmit={saveNote}>
@@ -269,7 +268,7 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
             <bdi dir="ltr">{`${lab.tasks_passed}/${lab.tasks_total}`}</bdi>
             {lab.status === "done" && " ✓"} · {`${t("admin.student.attempts")}: ${lab.attempts}`}
           </p>
-          <div className="table-scroll">
+          <div className="table-scroll" role="region" aria-label={`${lab.title[lang]}: ${t("admin.student.tasks")}`} tabIndex={0}>
           <table>
             <caption>{t("admin.student.tasks")}</caption>
             <tbody>
@@ -278,9 +277,9 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
                   <th scope="row">
                     <bdi dir="ltr">{task.id}</bdi> {task.passed ? "✓" : ""}
                   </th>
-                  <td>{`${t("admin.student.attempts")}: ${task.attempts}`}</td>
-                  <td>{`${t("admin.student.time")}: ${secs(task.seconds)}`}</td>
-                  <td>{`${t("admin.student.median")}: ${secs(task.median_seconds)}`}</td>
+                  <td className="num">{`${t("admin.student.attempts")}: ${task.attempts}`}</td>
+                  <td className="num">{`${t("admin.student.time")}: ${secs(task.seconds)}`}</td>
+                  <td className="num">{`${t("admin.student.median")}: ${secs(task.median_seconds)}`}</td>
                 </tr>
               ))}
             </tbody>

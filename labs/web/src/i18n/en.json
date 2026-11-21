@@ -152,6 +152,8 @@
   "admin.cohorts.create.legend": "Create a cohort",
   "admin.import.legend": "Import students",
   "admin.student.card.labs": "Labs done",
-  "admin.student.card.time": "Active time",
-  "admin.student.card.last": "Last activity seen"
+  "admin.cohorts.edit.legend": "Edit this cohort",
+  "admin.live.col.actions": "Row actions",
+  "admin.student.card.tasks": "Tasks passed",
+  "admin.student.card.flags": "Open flags"
 }
