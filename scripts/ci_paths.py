@@ -9,7 +9,9 @@ import sys
 
 # Directories and root files whose changes alone never need CI or a Deploy (keep in step with
 # ci.yml paths-ignore: "<dir>/**" for a directory, the bare name for a root file).
-DOCS_ONLY = ("docs", "courses", ".claude", "history.md")
+DOCS_DIRS = ("docs", "courses", ".claude")
+DOCS_FILES = ("history.md",)
+DOCS_ONLY = (*DOCS_DIRS, *DOCS_FILES)
 # Directory prefixes whose changes need the docker and image jobs.
 HEAVY = (
     "labs/images/",
@@ -36,10 +38,17 @@ def git(*args: str, check: bool = True) -> subprocess.CompletedProcess[bytes]:
 
 
 def code_spec() -> list[str]:
-    # Pathspec exclusion: git decides what is docs-only, no path text is parsed here.
-    # Every spec is top-anchored and literal: only the root file history.md is docs, never
-    # a/history.md or history.md.bak, and no name is globbed.
-    return [":(top)", *(f":(exclude,top,literal){d}" for d in DOCS_ONLY)]
+    # Pathspec exclusion: git decides what is docs-only, no path text is parsed here. Same
+    # meaning as ci.yml paths-ignore: "<dir>/**" is the contents of a root directory (a root file
+    # of that name is code); a bare name is the root file only (a directory of that name is code).
+    # A glob spec with no wildcard also matches a directory, so the last character of a file
+    # name goes in a character class ("history.m[d]"), which git matches against the whole path.
+    files = (f[:-1] + "[" + f[-1] + "]" for f in DOCS_FILES)
+    return [
+        ":(top)",
+        *(f":(exclude,top,glob){d}/**" for d in DOCS_DIRS),
+        *(f":(exclude,top,glob){f}" for f in files),
+    ]
 
 
 def deploys(tag: str, head: str) -> bool:
