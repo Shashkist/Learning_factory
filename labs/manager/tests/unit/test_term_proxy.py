@@ -222,6 +222,7 @@ def test_websocket_like_ttyd_waits_for_the_json_init_then_streams(ctx):
 
 def test_websocket_refusal_for_a_coded_detail_sends_the_code(monkeypatch):
     import asyncio
+    import types
 
     from fastapi import HTTPException
 
@@ -235,5 +236,5 @@ def test_websocket_refusal_for_a_coded_detail_sends_the_code(monkeypatch):
 
     monkeypatch.setattr("app.term_proxy._refuse", refuse)
     monkeypatch.setattr("app.term_proxy.auth.current_principal", busy)
-    asyncio.run(term_proxy.ws_proxy("x", object()))
+    asyncio.run(term_proxy.ws_proxy("x", types.SimpleNamespace(headers={})))
     assert sent == [(503, "db_busy")]

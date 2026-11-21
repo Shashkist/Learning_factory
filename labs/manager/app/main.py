@@ -96,6 +96,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     _load_content(app)
     janitor_task = asyncio.create_task(janitor.loop(app))
     task: asyncio.Task[None] | None = None
+    if not (os.environ.get("LF_PUBLIC_ORIGIN") or "").strip():
+        log.warning("LF_PUBLIC_ORIGIN is not set: the terminal WebSocket Origin check is off")
     dsn = db.database_url_from_env()
     if dsn is None:
         log.warning("LF_DATABASE_URL is not set: running without a database (degraded)")

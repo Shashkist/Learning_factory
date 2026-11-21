@@ -141,6 +141,14 @@ async def http_proxy(session: str, request: Request) -> StreamingResponse:
     return resp
 
 
+def origin_allowed(origin: str | None, public: str | None) -> bool:
+    """Is a WebSocket upgrade's Origin header acceptable? No setting: no check. No header:
+    allowed (not a browser). Otherwise it must equal the setting (ignoring case, trailing /)."""
+    if not public or not public.strip() or origin is None:
+        return True
+    return origin.strip().lower() == public.strip().rstrip("/").lower()
+
+
 async def _refuse(websocket: WebSocket, status: int, detail: str) -> None:
     if "websocket.http.response" in websocket.scope.get("extensions", {}):
         await websocket.send_denial_response(JSONResponse({"detail": detail}, status_code=status))
@@ -151,6 +159,9 @@ async def _refuse(websocket: WebSocket, status: int, detail: str) -> None:
 @router.websocket("/s/{session}/term")
 @router.websocket("/s/{session}/term/{rest:path}")
 async def ws_proxy(session: str, websocket: WebSocket) -> None:
+    if not origin_allowed(websocket.headers.get("origin"), os.environ.get("LF_PUBLIC_ORIGIN")):
+        await _refuse(websocket, 403, "origin_not_allowed")
+        return
     try:
         principal = await auth.current_principal(websocket)
         await authorize(websocket, session, principal)
