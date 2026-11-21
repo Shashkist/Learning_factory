@@ -61,9 +61,11 @@ fi
 
 if [ "$ty" = f ]; then
   if rd found; then
+    # Every line the reader sent is one "C found " fact, blank lines too, so counting the facts keeps the trailing blank
+    # lines that $(body found) strips, and needs no temp file (a student can fill /tmp).
+    lines=$(printf '%s\n' "$facts" | grep -c '^C found ')
     set -- $(tally "$(body found)")
     n=$1; right=$2; other=$3
-    lines=$(body found | wc -l)
     if [ "$lines" -gt 200 ]; then
       echo "FAIL 2 found.txt is far longer than one path; find should print only the file you search for"
       rc=1
