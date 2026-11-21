@@ -4,7 +4,13 @@
 
 ## Now
 
-**Pass lf-h3v6 (laptop, 12:57-~14:30 UTC) stopped at 4 merged PRs:** #390 (#385, handed over), #398 (incident #394: the #25 Dashboard exam accepts a caller of a local reusable workflow), #393 (#377: junit gate fails on failed/errored cases, counted from elements), #397 (#392: framing headers on every `.html` file). **Closed with evidence: #392 (Deploy 44914006845 deployed 76737ac, smoke green, live headers), #385 (Deploy 44908291227, live `/labs/` and `/labs/..%2Findex.html` carry `frame-ancestors 'self'` + `SAMEORIGIN`), #377 (main CI 44910734175 + Dashboard CI 44910734128 green), incident #394 (Dashboard CI 44910016307 green on main).** Decision D119. New issues: #395 (`history.md` is docs-only for CI), #399 (review leftovers of #396/#397), #400 (Dashboard CI on every workflow change).
+**Pass lf-n4c7 (laptop, from 14:55 UTC), in progress.** Merged #396 (#373 closed: Deploy 44918996027 deployed 16d6dc9, smoke `ok terminal` with the browser Origin and the foreign-Origin 403 probe; live foreign Origin → 403) and #402 (#395 PR A). Decision D120 (#395 in three PRs).
+
+- In flight (claims lf-n4c7):
+  1. **#395**: PR A #402 merged; **PR B #405** (`f/395-ci-history`, worktree `C:\projects\lf-395b`) in CI + review; then PR C (exam only: pin the four entries, behaviour cases for `deploys`).
+  2. **#391 / PR #401** (`f/391-stop-loop-precondition`, worktree `C:\projects\lf-391`): the first gate ran in check.sh's root shell, which the student stopper cannot stop (scratch #403: 9/10 green, run 10 "tested nothing"); being moved into the student reader. Scratch PRs #403 (10 runs) and #404 (pre-#318 killer: the same 3 cases fail as in #316) are evidence only, close them.
+
+_Previous:_ **Pass lf-h3v6 (laptop, 12:57-~14:30 UTC) stopped at 4 merged PRs:** #390 (#385, handed over), #398 (incident #394: the #25 Dashboard exam accepts a caller of a local reusable workflow), #393 (#377: junit gate fails on failed/errored cases, counted from elements), #397 (#392: framing headers on every `.html` file). **Closed with evidence: #392 (Deploy 44914006845 deployed 76737ac, smoke green, live headers), #385 (Deploy 44908291227, live `/labs/` and `/labs/..%2Findex.html` carry `frame-ancestors 'self'` + `SAMEORIGIN`), #377 (main CI 44910734175 + Dashboard CI 44910734128 green), incident #394 (Dashboard CI 44910016307 green on main).** Decision D119. New issues: #395 (`history.md` is docs-only for CI), #399 (review leftovers of #396/#397), #400 (Dashboard CI on every workflow change).
 
 - **Resume here, first:**
   1. **#373 / PR #396** first (see 2); #392 is closed (Deploy 44914006845 deployed 76737ac, smoke green).
