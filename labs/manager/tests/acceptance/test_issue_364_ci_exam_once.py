@@ -16,6 +16,7 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 CI = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 GATE = REPO_ROOT / "scripts" / "ci" / "junit_gate.py"
 IGNORE_EXAM = re.compile(r"--ignore[= ]\S*tests/acceptance")
+BACKSLASH_NEWLINE = "\\\n"
 
 
 def _jobs() -> dict:
@@ -26,58 +27,90 @@ def _runs(job: dict) -> list[str]:
     return [s["run"] for s in job.get("steps", []) if "run" in s]
 
 
-def _pytest_lines(job: dict) -> list[str]:
-    """Every logical line of the job's run steps that runs pytest (joins backslash lines)."""
+def _in_manager_dir(job: dict, step: dict) -> bool:
+    where = step.get("working-directory") or job.get("defaults", {}).get("run", {}).get(
+        "working-directory")
+    return where == "labs/manager"
+
+
+def _step_pytest_lines(job: dict) -> list[tuple[dict, str]]:
+    """(step, logical line) for every line of the job's run steps that runs pytest."""
     out = []
-    for run in _runs(job):
-        for line in run.replace("\\\n", " ").splitlines():
-            if re.search(r"\bpytest\b", line):
-                out.append(line.strip())
+    for step in job.get("steps", []):
+        for line in step.get("run", "").replace(BACKSLASH_NEWLINE, " ").splitlines():
+            if not line.lstrip().startswith("#") and re.search(r"\bpytest\b", line):
+                out.append((step, line.strip()))
     return out
 
 
-def _runs_exam(line: str) -> bool:
-    return "tests/acceptance" in line and "-m docker" not in line and not IGNORE_EXAM.search(line)
+def _pytest_lines(job: dict) -> list[str]:
+    return [ln for _, ln in _step_pytest_lines(job)]
 
 
-def _exam_jobs() -> dict:
-    """Jobs that run the acceptance folder in the non-docker path, with their pytest lines."""
-    found = {}
-    for name, job in _jobs().items():
-        lines = [ln for ln in _pytest_lines(job) if _runs_exam(ln)]
-        if lines:
-            found[name] = lines
-    return found
+def _is_docker_run(line: str) -> bool:
+    return re.search(r"-m\s+docker\b", line) is not None
+
+
+def _only_unit(line: str) -> bool:
+    return bool(re.search(r"\btests/unit\b", line)) and "tests/acceptance" not in line
+
+
+def _runs_exam(job: dict, step: dict, line: str) -> bool:
+    """True when this pytest run executes the non-docker acceptance exam, named or through
+    testpaths: any pytest in labs/manager, unless it ignores the exam, targets only
+    tests/unit, or is the docker-marked run."""
+    if _is_docker_run(line) or IGNORE_EXAM.search(line):
+        return False
+    if "tests/acceptance" in line:
+        return True
+    return _in_manager_dir(job, step) and not _only_unit(line)
+
+
+def _exam_runs() -> list[tuple[str, dict, dict, str]]:
+    return [(name, job, step, ln) for name, job in _jobs().items()
+            for step, ln in _step_pytest_lines(job) if _runs_exam(job, step, ln)]
+
+
+def _once_message(runs: list) -> str:
+    return (f"the non-docker exam is started {len(runs)} times: "
+            f"{[(n, ln) for n, _, _, ln in runs]}")
 
 
 def _exam_job() -> tuple[str, dict]:
-    jobs = _exam_jobs()
-    assert len(jobs) == 1, f"want exactly one job running the non-docker exam, got {sorted(jobs)}"
-    name = next(iter(jobs))
+    names = {name for name, *_ in _exam_runs()}
+    assert len(names) == 1, f"want one job running the non-docker exam, got {sorted(names)}"
+    name = next(iter(names))
     return name, _jobs()[name]
 
 
 def _exam_line() -> str:
-    name, _ = _exam_job()
-    lines = _exam_jobs()[name]
-    assert len(lines) == 1, f"job {name} runs the exam {len(lines)} times: {lines}"
-    return lines[0]
+    runs = _exam_runs()
+    assert len(runs) == 1, _once_message(runs)
+    return runs[0][3]
+
+
+def _exam_step() -> dict:
+    return _exam_runs()[0][2]
+
+
+def _gate_steps(job: dict) -> list[dict]:
+    return [s for s in job.get("steps", []) if "junit_gate.py" in s.get("run", "")]
 
 
 # 1. the exam runs once
 
 def test_the_exam_runs_in_exactly_one_non_docker_place():
-    count = sum(len(v) for v in _exam_jobs().values())
-    assert count == 1, f"the non-docker exam is started {count} times in ci.yml"
+    runs = _exam_runs()
+    assert len(runs) == 1, _once_message(runs)
     assert "not docker" in _exam_line()
 
 
 def test_the_manager_job_does_not_run_the_exam():
-    job = _jobs()["manager"]
-    assert _pytest_lines(job), "the manager job runs no pytest at all"
-    assert "manager" not in _exam_jobs(), "the manager job still runs tests/acceptance"
-    assert any(IGNORE_EXAM.search(ln) or "tests/unit" in ln for ln in _pytest_lines(job)), \
-        "the manager unit run must exclude the exam"
+    lines = _pytest_lines(_jobs()["manager"])
+    assert lines, "the manager job runs no pytest at all"
+    assert "manager" not in {n for n, *_ in _exam_runs()}, "the manager job runs the exam"
+    assert all(IGNORE_EXAM.search(ln) or _only_unit(ln) for ln in lines), (
+        f"every manager pytest run must exclude the exam: {lines}")
 
 
 def test_the_exam_is_its_own_parallel_job():
@@ -119,13 +152,29 @@ def test_the_gate_step_runs_in_or_after_the_exam_step():
     assert any("junit_gate.py" in r for r in runs[exam:])
 
 
-def test_the_exam_step_cannot_fail_softly():
+def test_the_exam_run_is_not_filtered_by_any_other_option():
+    line = re.sub(r"\s--junitxml[= ]\S+", "", _exam_line())
+    args = shlex.split(line)
+    assert args[args.index("tests/acceptance"):] == [
+        "tests/acceptance", "-q", "--confcutdir=tests", "-o", "addopts=", "-m", "not docker"]
+    assert args[:args.index("tests/acceptance")][-1] == "pytest"
+
+
+def test_the_exam_job_and_steps_cannot_fail_or_skip_softly():
     _, job = _exam_job()
-    for step in job["steps"]:
-        text = step.get("run", "")
-        if "tests/acceptance" in text or "junit_gate" in text:
-            assert not step.get("continue-on-error"), step
-            assert "|| true" not in text and "|| :" not in text
+    gates = _gate_steps(job)
+    assert gates, "no junit_gate step"
+    checked = [("job", job), ("exam step", _exam_step())]
+    checked += [("gate step", g) for g in gates]
+    for what, item in checked:
+        assert "continue-on-error" not in item, f"{what} has continue-on-error"
+        assert "if" not in item, f"{what} has an if condition"
+    for step in [_exam_step(), *gates]:
+        text = step["run"]
+        assert not re.search(r"\bset\s+\+e\b", text), text
+        assert not re.search(r"(^|[;&|\s])exit\s+0\s*$", text.strip()), text
+        assert not re.search(r";\s*true\b", text), text
+        assert "|| true" not in text and "|| :" not in text, text
 
 
 def _scratch(tmp_path: Path, body: str) -> Path:
@@ -194,10 +243,10 @@ def test_both_manager_jobs_install_the_environment(which):
 # 4. the unit run still covers everything but the exam
 
 def test_the_unit_run_covers_everything_in_tests_except_acceptance():
-    lines = [ln for ln in _pytest_lines(_jobs()["manager"]) if "uv run pytest" in ln]
-    ok = [ln for ln in lines if IGNORE_EXAM.search(ln)
-          or (re.search(r"\btests/unit\b", ln) and "tests/acceptance" not in ln)]
-    assert ok, f"no manager pytest run excludes the exam: {lines}"
-    for ln in ok:
+    lines = _pytest_lines(_jobs()["manager"])
+    assert lines, "no unit pytest run in the manager job"
+    for ln in lines:
+        assert IGNORE_EXAM.search(ln) or _only_unit(ln), ln
         for flag in (" -k ", "--deselect", "--collect-only", "--lf ", "-m docker"):
             assert flag not in ln + " ", ln
+    assert any(IGNORE_EXAM.search(ln) or "tests/unit" in ln for ln in lines)
