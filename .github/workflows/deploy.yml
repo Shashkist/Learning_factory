@@ -168,6 +168,7 @@ jobs:
       contents: read
       actions: read
     uses: ./.github/workflows/server-smoke.yml
-    secrets: inherit
+    # No secrets: inherit (#94): the called job reads SSH_PRIVATE_KEY, SERVER_HOST and
+    # SERVER_USER from its own `environment: production`; nothing else is handed over.
     with:
       from_deploy: true
