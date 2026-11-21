@@ -157,8 +157,32 @@ def test_paths_ignore_matches_docs_only() -> None:
     block = ci.split("paths-ignore:", 1)[1].split("\n\n", 1)[0]
     entries = [ln.strip()[2:].strip() for ln in block.splitlines() if ln.strip().startswith("- ")]
     # Every entry must have the one shape the script understands, so no extra rule hides here.
-    assert entries and all(re.fullmatch(r'"[^"*/]+/\*\*"', e) for e in entries), entries
-    assert sorted(e[1:-4] for e in entries) == sorted(DOCS_ONLY)
+    # Two shapes only: "<dir>/**" for a directory, "<name>" for an exact root file.
+    shape = r'"[^"*/]+(/\*\*)?"'
+    assert entries and all(re.fullmatch(shape, e) for e in entries), entries
+    names = [e[1:-4] if e.endswith('/**"') else e[1:-1] for e in entries]
+    assert sorted(names) == sorted(DOCS_ONLY)
+
+
+def test_root_history_after_code_still_deploys(repo: Path) -> None:
+    code = commit(repo, "labs/web/a.ts")
+    head = commit(repo, "history.md")
+    assert deploys(repo, code, head) == "true"
+
+
+def test_history_with_docs_is_docs_only(repo: Path) -> None:
+    code = commit(repo, "labs/web/a.ts")
+    head = commit(repo, "history.md", "docs/x.md")
+    assert deploys(repo, code, head) == "true"
+
+
+@pytest.mark.parametrize(
+    "path", ["a/history.md", "history.md.bak", "docs-history.md", "history.mdx"]
+)
+def test_lookalike_history_is_code(repo: Path, path: str) -> None:
+    code = commit(repo, "labs/web/a.ts")
+    head = commit(repo, path)
+    assert deploys(repo, code, head) == "false"
 
 
 def test_docs_commit_before_newer_code_does_not_deploy(repo: Path) -> None:

@@ -10,6 +10,7 @@ on:
       - "docs/**"
       - "courses/**"
       - ".claude/**"
+      - "history.md"
 
 permissions:
   contents: read

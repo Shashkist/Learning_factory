@@ -7,8 +7,9 @@
 import subprocess
 import sys
 
-# Directories whose changes alone never need CI or a Deploy (keep in step with ci.yml paths-ignore).
-DOCS_ONLY = ("docs", "courses", ".claude")
+# Directories and root files whose changes alone never need CI or a Deploy (keep in step with
+# ci.yml paths-ignore: "<dir>/**" for a directory, the bare name for a root file).
+DOCS_ONLY = ("docs", "courses", ".claude", "history.md")
 # Directory prefixes whose changes need the docker and image jobs.
 HEAVY = (
     "labs/images/",
@@ -36,7 +37,9 @@ def git(*args: str, check: bool = True) -> subprocess.CompletedProcess[bytes]:
 
 def code_spec() -> list[str]:
     # Pathspec exclusion: git decides what is docs-only, no path text is parsed here.
-    return [".", *(f":(exclude){d}" for d in DOCS_ONLY)]
+    # Every spec is top-anchored and literal: only the root file history.md is docs, never
+    # a/history.md or history.md.bak, and no name is globbed.
+    return [":(top)", *(f":(exclude,top,literal){d}" for d in DOCS_ONLY)]
 
 
 def deploys(tag: str, head: str) -> bool:
