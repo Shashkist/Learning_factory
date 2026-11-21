@@ -1127,3 +1127,14 @@ in force · factory · 2026-11-21 · revertible
 **Revert.** Revert the #349 squash commit; the older exams return with it.
 
 **Amendment (review round 1 of #352).** End lab is now the first tab stop of the lab screen on wide screens (the pane tabs are hidden there). Accepted: the #349 exam pins the bar before the task panel in the document, and a confirmation is a behaviour change outside D108. A confirmation or a different tab order needs its own issue.
+
+## D112 · #349 merges after review round 2 on the manager's own check of the fixes
+in force · factory · 2026-11-21 · revertible
+
+**Decision.** Review round 2 of #349 (on #352, rebuilt as #353) asked for four code-only fixes: the phone blur guard decides at event time (a rotate from 390 px to landscape no longer steals focus from a visible terminal), the pane-tab arrows do nothing at lab complete, the task panel declares `tabIndex={-1}` instead of a DOM write, and the test stub cannot leak. They landed in 3437e5d with a unit case for the rotate scenario. The two review rounds are used up, so the manager read the diff, checked each ask is met, and merges on green CI without a third round. AC5 (390 px live: tap Terminal, the prompt fits, typing works, focus stays in Tasks after load) is checked after deploy before #349 closes.
+
+**Why.** The fixes are small, local and covered by tests; FACTORY.md caps reviews at two rounds.
+
+**Alternatives.** A third review round (about 10 more minutes, no open question left).
+
+**Revert.** Revert the #349 squash commit.
