@@ -1221,3 +1221,11 @@ in force · factory · 2026-11-21
 **Why.** This is the D19 pattern. Each PR is green on its own base; the window where the exam is loose is one merge long.
 **Alternatives.** Loosen the parity rule in `scripts/test_ci_paths.py` and ship the script change with the exam: fewer PRs, but the script and the workflow could drift apart in between. Leave `history.md` as code: costs one extra CI run (~17 minutes) per pass that writes it.
 **Revert.** Revert B (and C); A alone changes nothing in behaviour.
+
+## D121 · #337 merges after review round 2 with the reviewer's tested fix, no third round
+in force · factory · 2026-11-21
+
+**Decision.** Review round 2 of #337 (PR #415) approved the round-1 fixes and found one new false positive: backtick spans were blanked with spaces, so a backtick substitution used as a redirect target (`2>`mktemp``) lost its target. The reviewer tested the one-line fix (a non-space fill) against the inputs. The round limit is two, so the manager applies that fix with a new exam commit first (16 cases, red on #415's code), re-sequences onto `f/337-pipeline-stderr-v3` (PR #418), and merges on green CI without a third review round. The non-blocking misses (a pipe inside `$(...)`, `<(...)` or `>(...)` on the right of a pipe stops the walk, an escaped `)` or backtick, `$((...(...)))`) go to #414 with the older and-or-list and continued-line gaps; none of them warned before #337 either.
+**Why.** The fix is one character class, proven by the reviewer's probe and by the exam; a third round would cost ~25 minutes for no new information. Misses are acceptable for a warning-only validator; new false positives are not, and there are none left in the reviewers' probes.
+**Alternatives.** A third review round. Or rewrite the walk to blank balanced `$(...)` spans now (more code, more risk, in a PR already two rounds deep).
+**Revert.** Revert the #418 squash; the validator goes back to checking only the last element.
