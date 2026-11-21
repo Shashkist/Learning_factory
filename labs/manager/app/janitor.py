@@ -8,7 +8,7 @@ from typing import Any
 
 from app import admission, db
 from app.auth import _today
-from app.sessions import LIVE, end_session
+from app.sessions import CLEANUP_BOUND_S, LIVE, READY_TIMEOUT_MAX_S, end_session
 
 log = logging.getLogger("lab-manager")
 T = db.SCHEMA
@@ -59,6 +59,15 @@ def _start_deadline() -> float:
     except ValueError:
         value = math.nan
     if math.isfinite(value) and value > 0:
+        minimum = READY_TIMEOUT_MAX_S + 2 * CLEANUP_BOUND_S
+        if value < minimum and raw not in _warned_deadlines:
+            _warned_deadlines.add(raw or "")
+            log.warning(
+                "LF_START_DEADLINE_S=%g is below the longest legitimate start (minimum %g); "
+                "a slow start can be ended as an orphan",
+                value,
+                minimum,
+            )
         return value
     if raw not in _warned_deadlines:
         _warned_deadlines.add(raw or "")

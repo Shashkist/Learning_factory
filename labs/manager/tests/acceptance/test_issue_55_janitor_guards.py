@@ -127,6 +127,43 @@ def test_a_row_that_is_still_starting_and_past_the_deadline_is_still_ended_as_or
     assert f"lab-{sid}" in rt.removed
 
 
+class RefreshingPool(FlippingPool):
+    """Like FlippingPool, but the row stays `starting` and only its `started_at` moves to now."""
+
+    async def fetch(self, *a, **k):
+        rows = await self._real.fetch(*a, **k)
+        if self.listed and self._flip and not self.flipped:
+            self.flipped = True
+            await self._real.execute(
+                f"update {SCHEMA}.lab_sessions set started_at = now() where id = $1", self._sid
+            )
+        return rows
+
+
+def test_a_starting_row_moved_forward_after_the_snapshot_keeps_running_and_its_container(
+    env, monkeypatch
+):
+    """Time half of the guarded end (#376): still `starting`, but no longer past the deadline."""
+    monkeypatch.setenv("LF_START_DEADLINE_S", "30")
+    _, _, h = env.student()
+    sid = _insert_session(env, h, "starting")
+    env.update(sid, "started_at = now() - interval '120 seconds'")
+    holder: list = [None]
+    rt = ListingRuntime(holder)
+    rt.add_foreign(f"lab-{sid}", sid, running=False)
+    pool = RefreshingPool(env.app.state.pool, sid, True)
+    holder[0] = pool
+    env.app.state.runtime = rt
+    env.app.state.pool = pool
+    env.janitor()
+    assert pool.flipped, "the janitor never took a snapshot after listing the containers"
+    row = env.row(sid)
+    assert row["status"] == "starting", f"a fresh start was ended: {row['end_reason']!r}"
+    assert row["end_reason"] is None
+    assert f"lab-{sid}" in rt.containers
+    assert f"lab-{sid}" not in rt.removed
+
+
 # ---------------------------------------------------------------- LF_START_DEADLINE_S validation
 
 _DRIVER = r"""
@@ -164,9 +201,10 @@ print("RESULT" + json.dumps({"args": [[num(x) for x in a] for a in pool.args], "
 """
 
 
-def _run_driver(value: str) -> dict:
+def _run_driver(value: str | None) -> dict:
     envv = {k: v for k, v in os.environ.items() if k != "LF_START_DEADLINE_S"}
-    envv["LF_START_DEADLINE_S"] = value
+    if value is not None:
+        envv["LF_START_DEADLINE_S"] = value
     out = subprocess.run(
         [sys.executable, "-c", _DRIVER],
         cwd=MANAGER_DIR,
@@ -206,6 +244,41 @@ def test_a_valid_start_deadline_is_used_without_a_warning():
     nums = [x for args in result["args"] for x in args]
     assert 90 in nums, f"90 was not passed to the query: {nums}"
     assert _warnings(result) == []
+
+
+# ------------------------------------------- too-short LF_START_DEADLINE_S warning (#376)
+
+
+def _minimum_deadline() -> float:
+    from app import sessions
+
+    return sessions.READY_TIMEOUT_MAX_S + 2 * sessions.CLEANUP_BOUND_S
+
+
+@pytest.mark.parametrize("short", ["30", "10", "1"])
+def test_a_positive_start_deadline_below_the_longest_start_logs_one_warning_and_is_not_clamped(
+    short,
+):
+    result = _run_driver(short)
+    warns = _warnings(result)
+    assert len(warns) == 1, f"{len(warns)} warning lines over 4 passes: {warns}"
+    msg = warns[0]
+    assert short in msg, f"the warning does not name the value {short}: {msg}"
+    numbers = [float(x) for x in re.findall(r"\d+(?:\.\d+)?", msg)]
+    assert _minimum_deadline() in numbers or int(_minimum_deadline()) in numbers, (
+        f"the warning does not name the minimum {_minimum_deadline()}: {msg}"
+    )
+    nums = [x for args in result["args"] for x in args]
+    assert float(short) in nums, f"the deadline was clamped, the query got {nums}"
+
+
+@pytest.mark.parametrize("ok", [None, "180", "90"])
+def test_an_unset_or_long_enough_start_deadline_logs_no_warning(ok):
+    assert _warnings(_run_driver(ok)) == []
+
+
+def test_a_start_deadline_at_exactly_the_minimum_logs_no_warning():
+    assert _warnings(_run_driver(str(_minimum_deadline()))) == []
 
 
 # ---------------------------------------------------------------- recovery logging (_step)
