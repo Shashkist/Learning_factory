@@ -5,6 +5,7 @@ import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import asyncpg
 from fastapi import FastAPI, HTTPException, Request
@@ -84,6 +85,29 @@ async def _retry_db(app: FastAPI, dsn: str) -> None:
             return
 
 
+def _public_origin_problem(value: str) -> str | None:
+    """What is wrong with an LF_PUBLIC_ORIGIN value, or None. Never rewrites it (D119)."""
+    try:
+        parts = urlsplit(value)
+        port = parts.port
+        host = parts.hostname
+    except ValueError:
+        return "unparsable"
+    if parts.scheme not in ("http", "https") or not host:
+        return "no scheme or host"
+    if parts.path not in ("", "/"):
+        return "has a path"
+    if parts.query:
+        return "has a query"
+    if parts.fragment:
+        return "has a fragment"
+    if parts.username is not None or parts.password is not None:
+        return "has userinfo"
+    if port == (443 if parts.scheme == "https" else 80):
+        return "has the default port"
+    return None
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Only the manager's own logger: never turn on INFO for every library.
@@ -97,8 +121,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     _load_content(app)
     janitor_task = asyncio.create_task(janitor.loop(app))
     task: asyncio.Task[None] | None = None
-    if not (os.environ.get("LF_PUBLIC_ORIGIN") or "").strip():
+    public_origin = (os.environ.get("LF_PUBLIC_ORIGIN") or "").strip()
+    if not public_origin:
         log.warning("LF_PUBLIC_ORIGIN is not set: the terminal WebSocket Origin check is off")
+    elif problem := _public_origin_problem(public_origin):
+        log.warning(
+            "LF_PUBLIC_ORIGIN is malformed (%s): it must be scheme://host[:port] as the browser "
+            "sends it, so the terminal WebSocket Origin check may refuse every browser",
+            problem,
+        )
     dsn = db.database_url_from_env()
     if dsn is None:
         log.warning("LF_DATABASE_URL is not set: running without a database (degraded)")
