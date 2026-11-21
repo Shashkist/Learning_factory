@@ -1150,3 +1150,10 @@ in force · factory · 2026-11-21
 
 ## D38 amendment (2026-11-21, #94)
 Deploy's smoke job no longer passes `secrets: inherit`. It passes exactly `SSH_PRIVATE_KEY`, `SERVER_HOST` and `SERVER_USER` by name, and `server-smoke.yml` declares them `required` under `on.workflow_call.secrets`. A caller must pass each environment secret (by name or `inherit`); the value comes from the called job's `environment: production`. Passing only three is least privilege: with `inherit`, a called smoke could read every production secret. Do not put `inherit` back.
+
+## D114 · #343 merges after review round 2; two rare-input regressions move to #355
+in force · factory · 2026-11-21
+
+**Decision.** Review round 2 of #361 approved it. All round 1 findings are fixed, the scans stay linear, and the full CI is green. It also found two missed warnings that main used to give, both on unusual input: `cat 2>&1>/dev/null` (the `(?<!\d)` anchor skips a redirect that comes right after a digit) and `sleep 600 >&\2 &` (no backslash exclusion in the `>&word` class). Each fix is one line, but each needs a guard in the exam, and that means a third rebuild. Under the two-round limit, #361 merges as is. Both items and their guards move to #355, which reworks the same scans exam-first. The reviewer also noted that a non-interactive shell gives a background job `/dev/null` as stdin, so the stdin warning for `... &` jobs is conservative. #355 decides that point too.
+**Why.** The regressions only drop a warning shown to a lab author on rare lines. Students and the server are not affected. The fixes ship sooner inside #355 than through another rebuild.
+**Revert.** Revert the squash commit of #361; main's scans come back, including their quadratic cases.
