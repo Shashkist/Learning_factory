@@ -7,6 +7,7 @@ import re
 
 FRAME_ANCESTORS = "frame-ancestors 'self'"
 FRAME_HEADERS = {"Content-Security-Policy": FRAME_ANCESTORS, "X-Frame-Options": "SAMEORIGIN"}
+HTML_MEDIA_TYPES = ("text/html", "application/xhtml+xml")
 # Add the next lab route here (for example `ide`).
 LAB_FRAME_PATTERNS = (re.compile(r"^/s/[^/]+/term(/|$)"),)
 

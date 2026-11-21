@@ -27,6 +27,8 @@ def web_app(monkeypatch, tmp_path: Path):
     (web / "other.html").write_text(OTHER, encoding="utf-8")
     (web / "docs" / "guide.html").write_text(OTHER, encoding="utf-8")
     (web / "assets" / "page.html").write_text(OTHER, encoding="utf-8")
+    (web / "upper.HTML").write_text(OTHER, encoding="utf-8")
+    (web / "legacy.htm").write_text(OTHER, encoding="utf-8")
     (web / "assets" / "app.js").write_text("console.log(1);", encoding="utf-8")
     try:  # a hard link of the shell under another name, as the issue describes
         os.link(web / "index.html", web / "copy-of-shell.html")
@@ -47,6 +49,8 @@ def web_app(monkeypatch, tmp_path: Path):
         ("/docs/guide.html", "lf-fake-other-page-392"),
         ("/assets/page.html", "lf-fake-other-page-392"),
         ("/copy-of-shell.html", "lf-fake-spa-392"),
+        ("/upper.HTML", "lf-fake-other-page-392"),
+        ("/legacy.htm", "lf-fake-other-page-392"),
     ],
 )
 def test_a_second_html_file_is_served_with_the_framing_headers(web_app, path, marker):
