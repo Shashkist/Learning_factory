@@ -1140,3 +1140,13 @@ in force · factory · 2026-11-21 · revertible
 **Revert.** Revert the #349 squash commit.
 
 **Amendment (after deploy).** AC5's live check (390 px: tap Terminal, the prompt fits, typing works, focus stays in Tasks) needs a real student session, and only the Deploy smoke student (CI, per-run password) has one; the laptop has no student login. #349 closes on Deploy 44858724121 (smoke `ok terminal` through the production path) plus the live CSS and bundle (the phone terminal pane is `visibility: hidden`, not `display: none`; the blur guard's `(max-width: 48rem)` query is in the bundle). The typed-command proof at 390 px joins #319's browser exam; the owner can tap it on a phone any time (O24, optional).
+
+## D113 · #348 ships active time from finished runs only; unfinished-lab time follows in #360
+in force · factory · 2026-11-21
+
+**Decision.** The student page's "Active time" sums `lab_runs.active_seconds`, as #348's criterion and its exam say. A run row exists only for a completed lab, so time spent in labs that are not finished is not counted yet. The review of #357 called this a figure that can mislead (D110), and that is correct, but fixing it needs an exam change, so it is not part of this PR. #360 adds the session time of unfinished labs, with an exam-first commit. Also from that review: under a minute of time shows as 1 minute, never as 0, and the Hebrew value is isolated with the default `dir=auto` (an LTR isolate reversed the number and unit pairs).
+**Alternatives.** Relabel the card "Active time, finished labs" now. The exam finds the card by the exact English label, so this needs an exam change too, and the label goes away again with #360.
+**Revert.** #360 replaces the source; nothing else depends on it.
+
+## D38 amendment (2026-11-21, #94)
+Deploy's smoke job no longer passes `secrets: inherit`. It passes exactly `SSH_PRIVATE_KEY`, `SERVER_HOST` and `SERVER_USER` by name, and `server-smoke.yml` declares them `required` under `on.workflow_call.secrets`. A caller must pass each environment secret (by name or `inherit`); the value comes from the called job's `environment: production`. Passing only three is least privilege: with `inherit`, a called smoke could read every production secret. Do not put `inherit` back.
