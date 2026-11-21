@@ -1264,6 +1264,6 @@ The non-blocking items go to #423: a group that spans lines is not joined, plus 
 
 **Measured.** The WHATWG URL parser (Node `new URL(u).host`) drops exactly one trailing dot and then reads the host as IPv4 when its last label is a number: `1.2.3.4.` → `1.2.3.4`, `127.1.` → `127.0.0.1`. With two or more trailing dots the last label is empty, so the host is a domain and is sent unchanged: `1.2.3.4..` stays `1.2.3.4..`, `labs.shashkist.com..` stays as written.
 **Decision (assumption, revertible).** The origin check removes one trailing dot before its IPv4 checks. A value with two or more trailing dots gets no warning, because the browser sends exactly that host. This corrects the issue text, which assumed a browser refuses `1.2.3.4..`.
-**Why.** The check exists to warn when the configured origin differs from what the browser sends (D119). Here it does not differ.
-**Alternatives.** Warn on any empty label as "a host a browser cannot send". Not done: a browser does send it, so the warning would be false.
+**Why.** The check exists to warn when the configured origin differs from what the browser sends (D119). The URL parser keeps this host unchanged, so it is not a rewritten IPv4 form. Measured with the WHATWG parser (Node) only, not with Chromium's own URL code. A host with an empty label cannot be resolved, so no browser loads a page from it; a warning for that is follow-up #434.
+**Alternatives.** Warn on any empty label in this issue. Moved to #434, which needs its own reason text.
 **Revert.** Restore `host.rstrip(".")` in `_public_origin_problem` and flip the #428 exam's criterion-2 cases.
