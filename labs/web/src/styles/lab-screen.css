@@ -1,13 +1,13 @@
 /* Lab screen (D105, #333): tasks and terminal side by side, panes behind tabs on narrow screens. */
 
 /* The lab fills the window below the header: no page scroll while working. */
-body:has(.app-content--wide) {
+body.lab-wide {
   block-size: 100dvh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
-body:has(.app-content--wide) :is(#root, #root > div) {
+body.lab-wide :is(#root, #root > div) {
   display: contents;
 }
 .app-content.app-content--wide {
@@ -91,7 +91,7 @@ body:has(.app-content--wide) :is(#root, #root > div) {
 }
 
 /* Task pane content */
-[role="progressbar"] {
+.lab-tasks [role="progressbar"] {
   background: var(--color-border);
   margin-block-end: var(--space-2);
 }
@@ -132,9 +132,6 @@ body:has(.app-content--wide) :is(#root, #root > div) {
 .lab-checklist li.bad::marker { color: var(--color-danger); }
 .lab-tasks label {
   display: block;
-}
-.lab-status-empty {
-  margin: 0;
 }
 .lab-actions {
   display: flex;

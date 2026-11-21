@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 
 import { useI18n } from "./i18n";
 
@@ -16,6 +16,12 @@ export default function AppShell({
   children: ReactNode;
 }) {
   const { lang, toggle, t } = useI18n();
+  // The full-height lab layout hangs on a body class (no :has needed).
+  useEffect(() => {
+    if (!wide) return;
+    document.body.classList.add("lab-wide");
+    return () => document.body.classList.remove("lab-wide");
+  }, [wide]);
   return (
     <>
       <header className="app-header">

@@ -312,20 +312,20 @@ export default function LabScreen({
 
   if (fatal)
     return (
-      <p role="alert" className="alert danger">
+      <p role="alert" className="alert danger lab-message">
         {t(fatal)}
       </p>
     );
   if (phase === "loading") return null;
   if (phase === "preparing")
     return (
-      <p role="status" className="alert">
+      <p role="status" className="alert lab-message">
         {t("lab.preparing")}
       </p>
     );
   if (phase === "mismatch")
     return (
-      <p role="alert" className="alert warning">
+      <p role="alert" className="alert warning lab-message">
         {t("lab.error.other_lab")} {toLabs}
       </p>
     );
@@ -468,6 +468,7 @@ export default function LabScreen({
               key={k}
               id={`lab-pane-${k}`}
               role="tab"
+              aria-controls={`lab-panel-${k}`}
               type="button"
               aria-selected={pane === k}
               tabIndex={pane === k ? 0 : -1}
@@ -495,7 +496,14 @@ export default function LabScreen({
         className="lab-body"
         style={{ "--split": `${split}%` } as CSSProperties}
       >
-      <section data-testid="task-panel" dir={rtl ? "rtl" : "ltr"} className="lab-tasks">
+      <section
+        id="lab-panel-tasks"
+        role="tabpanel"
+        aria-labelledby="lab-pane-tasks"
+        data-testid="task-panel"
+        dir={rtl ? "rtl" : "ltr"}
+        className="lab-tasks"
+      >
         <div
           role="progressbar"
           aria-valuemin={1}
@@ -539,7 +547,7 @@ export default function LabScreen({
           <p
             role="status"
             style={emptyLine ? { margin: 0 } : undefined}
-            className={emptyLine ? "lab-status-empty" : done ? "alert success" : "alert warning"}
+            className={emptyLine ? undefined : done ? "alert success" : "alert warning"}
           >
             {done
               ? t("lab.complete")
@@ -687,7 +695,13 @@ export default function LabScreen({
         onLostPointerCapture={dragEnd}
         className="lab-splitter"
       />
-      <div className="lab-term" dir="ltr">
+      <div
+        id="lab-panel-terminal"
+        role="tabpanel"
+        aria-labelledby="lab-pane-terminal"
+        className="lab-term"
+        dir="ltr"
+      >
         <iframe
           title={t("lab.terminal")}
           src={`/s/${session.id}/term/`}
