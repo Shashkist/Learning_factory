@@ -65,19 +65,22 @@ export default function LiveSessions({ open }: { open: (key: string) => void }) 
   };
 
   return (
-    <section>
+    <section className="teacher-page">
       <h1>{t("admin.live.title")}</h1>
       {failed && <p role="alert">{t("admin.live.error")}</p>}
       {endFailed && <p role="alert">{t("admin.live.end_error")}</p>}
       {rows && rows.length === 0 && <p>{t("admin.live.empty")}</p>}
       {rows && rows.length > 0 && (
+        <div className="table-scroll" role="region" aria-label={t("admin.live.title")} tabIndex={0}>
         <table data-testid="live-table">
           <thead>
             <tr>
               {["name", "cohort", "lab", "started", "heartbeat"].map((c) => (
-                <th key={c}>{t(`admin.live.col.${c}`)}</th>
+                <th scope="col" key={c}>{t(`admin.live.col.${c}`)}</th>
               ))}
-              <th />
+              <th scope="col">
+                <span className="sr-only">{t("admin.live.col.actions")}</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -110,6 +113,7 @@ export default function LiveSessions({ open }: { open: (key: string) => void }) 
                     <button
                       data-testid={`live-end-${i}`}
                       disabled={pending.includes(s.id)}
+                      aria-busy={pending.includes(s.id) ? "true" : undefined}
                       onClick={() => ask(s.id, true)}
                     >
                       {t("admin.live.end")}
@@ -120,6 +124,7 @@ export default function LiveSessions({ open }: { open: (key: string) => void }) 
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </section>
   );

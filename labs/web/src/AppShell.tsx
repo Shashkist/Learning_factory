@@ -7,12 +7,14 @@ export default function AppShell({
   userName,
   onLogout,
   wide,
+  nav,
   children,
 }: {
   userName?: string;
   onLogout?: () => void;
   /** Full-width content column (the lab screen). */
   wide?: boolean;
+  nav?: ReactNode;
   children: ReactNode;
 }) {
   const { lang, toggle, t } = useI18n();
@@ -37,6 +39,7 @@ export default function AppShell({
             </button>
           )}
         </div>
+        {nav}
       </header>
       <main className={wide ? "app-content app-content--wide" : "app-content"}>{children}</main>
     </>

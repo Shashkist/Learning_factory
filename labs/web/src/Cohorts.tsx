@@ -66,6 +66,8 @@ function CohortRow({
     <li data-testid={`cohort-${cohort.id}`}>
       {cohort.name} {cohort.access_until} {`${cohort.students} ${t("admin.cohorts.students")}`}
       <form data-testid={`cohort-edit-${cohort.id}`} onSubmit={save}>
+        <fieldset>
+        <legend>{t("admin.cohorts.edit.legend")}</legend>
         <label>
           {t("admin.cohorts.edit.name")}
           <input value={name} onChange={(e) => setName(e.target.value)} />
@@ -79,6 +81,7 @@ function CohortRow({
           <input type="date" value={until} onChange={(e) => setUntil(e.target.value)} />
         </label>
         <button type="submit" disabled={busy}>{t("admin.cohorts.save")}</button>
+        </fieldset>
       </form>
       <button type="button" onClick={() => void show()}>
         {t("admin.students.show")}
@@ -191,11 +194,10 @@ export default function Cohorts({ open }: { open?: (key: string) => void } = {})
   };
 
   return (
-    <section>
+    <section className="teacher-page">
       <h1>{t("admin.cohorts.title")}</h1>
       {loadFailed && <p role="alert">{t("admin.error.load")}</p>}
       {saveFailed && <p role="alert">{t("admin.error.save")}</p>}
-      {tooMany && <p role="alert">{t("admin.import.too_many")}</p>}
       {cohorts && cohorts.length === 0 && <p>{t("admin.cohorts.empty")}</p>}
       {cohorts && cohorts.length > 0 && (
         <ul>
@@ -206,6 +208,8 @@ export default function Cohorts({ open }: { open?: (key: string) => void } = {})
       )}
 
       <form onSubmit={create}>
+        <fieldset>
+        <legend>{t("admin.cohorts.create.legend")}</legend>
         <label>
           {t("admin.cohorts.name")}
           <input value={name} onChange={(e) => setName(e.target.value)} />
@@ -221,10 +225,13 @@ export default function Cohorts({ open }: { open?: (key: string) => void } = {})
         <button type="submit" disabled={busy}>
           {t("admin.cohorts.create")}
         </button>
+        </fieldset>
       </form>
 
       {cohorts && cohorts.length > 0 && (
         <form onSubmit={runImport}>
+          <fieldset>
+          <legend>{t("admin.import.legend")}</legend>
           <label>
             {t("admin.import.cohort")}
             <select value={target || String(cohorts[0].id)} onChange={(e) => setTarget(e.target.value)}>
@@ -237,16 +244,22 @@ export default function Cohorts({ open }: { open?: (key: string) => void } = {})
           </label>
           <label>
             {t("admin.import.text")}
-            <textarea value={text} onChange={(e) => setText(e.target.value)} />
+            <textarea value={text} aria-invalid={tooMany ? "true" : undefined} aria-describedby={tooMany ? "import-too-many" : undefined} onChange={(e) => setText(e.target.value)} />
           </label>
+          {tooMany && (
+            <p role="alert" id="import-too-many">
+              {t("admin.import.too_many")}
+            </p>
+          )}
           <button type="submit" disabled={busy}>
             {t("admin.import.submit")}
           </button>
+          </fieldset>
         </form>
       )}
 
       {result && (
-        <div>
+        <div className={`alert ${result.rows.some((r) => r.status === "error") ? "warning" : "success"}`} role="status">
           <p data-testid="import-summary">{`${t("admin.import.summary")} ${result.added}`}</p>
           <ul>
             {result.rows.map((r) => (

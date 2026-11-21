@@ -1,0 +1,80 @@
+/* Teacher pages (D105): tokens only, logical properties only. */
+.app-header .admin-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  max-inline-size: var(--content-max);
+  margin-inline: auto;
+  padding-block: 0 var(--space-3);
+  padding-inline: var(--space-4);
+}
+.admin-nav a[aria-current="page"] {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.teacher-page { min-inline-size: 0; }
+.teacher-page .toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-4);
+  margin-block-end: var(--space-3);
+}
+.teacher-page .toolbar label { margin-block-end: 0; }
+
+/* Wide tables scroll inside their own box; the page never does. */
+.table-scroll {
+  max-inline-size: 100%;
+  overflow: auto;
+  max-block-size: 70vh;
+  margin-block-end: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+.table-scroll table { inline-size: max-content; min-inline-size: 100%; }
+.table-scroll thead th {
+  position: sticky;
+  inset-block-start: 0;
+  background: var(--color-surface);
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--space-3);
+  margin-block: var(--space-3);
+}
+.card__label {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+.card__value {
+  display: block;
+  font-size: var(--text-xl);
+  font-weight: 600;
+}
+
+.teacher-page fieldset {
+  min-inline-size: 0;
+  margin-block-end: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+.teacher-page legend {
+  padding-inline: var(--space-2);
+  font-weight: 600;
+}
+.teacher-page li { margin-block-end: var(--space-2); }
+
+.table-scroll td.num { text-align: end; }
+.sr-only {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

@@ -216,7 +216,7 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
     );
 
   return (
-    <section data-testid="student-page">
+    <section data-testid="student-page" className="teacher-page">
       {back}
       <h1>
         <bdi>{student.name}</bdi>
@@ -229,8 +229,22 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
           {t("admin.error.save")} {failedNames.join(", ")}
         </p>
       )}
-      {student.disabled && <p>{t("admin.student.disabled_notice")}</p>}
-      <button {...mark("disabled")} disabled={pending.includes("disabled")} onClick={() => void write("disabled", "PATCH", url, { disabled: !student.disabled })}>
+      {student.disabled && <p className="alert warning">{t("admin.student.disabled_notice")}</p>}
+      <div className="summary">
+        <div className="card">
+          <div className="card__label">{t("admin.student.card.labs")}</div>
+          <bdi dir="ltr" className="card__value">{`${student.labs.filter((l) => l.status === "done").length} / ${student.labs.length}`}</bdi>
+        </div>
+        <div className="card">
+          <div className="card__label">{t("admin.student.card.tasks")}</div>
+          <bdi dir="ltr" className="card__value">{`${student.labs.reduce((n, l) => n + l.tasks_passed, 0)} / ${student.labs.reduce((n, l) => n + l.tasks_total, 0)}`}</bdi>
+        </div>
+        <div className="card">
+          <div className="card__label">{t("admin.student.card.flags")}</div>
+          <bdi dir="ltr" className="card__value">{student.labs.reduce((n, l) => n + l.flags.filter((f) => !f.dismissed_at).length, 0)}</bdi>
+        </div>
+      </div>
+      <button {...mark("disabled")} disabled={pending.includes("disabled")} aria-busy={pending.includes("disabled") ? "true" : undefined} onClick={() => void write("disabled", "PATCH", url, { disabled: !student.disabled })}>
         {t(student.disabled ? "admin.student.enable" : "admin.student.disable")}
       </button>
       <form onSubmit={saveNote}>
@@ -238,14 +252,14 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
           {t("admin.student.note")}
           <textarea {...mark("note")} value={note} maxLength={1000} onChange={(e) => setNote(e.target.value)} />
         </label>
-        <button type="submit" disabled={pending.includes("note")}>{t("admin.student.save_note")}</button>
+        <button type="submit" disabled={pending.includes("note")} aria-busy={pending.includes("note") ? "true" : undefined}>{t("admin.student.save_note")}</button>
       </form>
       <form onSubmit={extend}>
         <label>
           {t("admin.student.access")}
           <input type="date" {...mark("access")} value={until} onChange={(e) => setUntil(e.target.value)} />
         </label>
-        <button type="submit" disabled={pending.includes("access")}>{t("admin.student.extend")}</button>
+        <button type="submit" disabled={pending.includes("access")} aria-busy={pending.includes("access") ? "true" : undefined}>{t("admin.student.extend")}</button>
       </form>
       {student.labs.map((lab) => (
         <article key={lab.id} data-testid={`student-lab-${lab.id}`}>
@@ -254,6 +268,7 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
             <bdi dir="ltr">{`${lab.tasks_passed}/${lab.tasks_total}`}</bdi>
             {lab.status === "done" && " ✓"} · {`${t("admin.student.attempts")}: ${lab.attempts}`}
           </p>
+          <div className="table-scroll" role="region" aria-label={`${lab.title[lang]}: ${t("admin.student.tasks")}`} tabIndex={0}>
           <table>
             <caption>{t("admin.student.tasks")}</caption>
             <tbody>
@@ -262,13 +277,14 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
                   <th scope="row">
                     <bdi dir="ltr">{task.id}</bdi> {task.passed ? "✓" : ""}
                   </th>
-                  <td>{`${t("admin.student.attempts")}: ${task.attempts}`}</td>
-                  <td>{`${t("admin.student.time")}: ${secs(task.seconds)}`}</td>
-                  <td>{`${t("admin.student.median")}: ${secs(task.median_seconds)}`}</td>
+                  <td className="num">{`${t("admin.student.attempts")}: ${task.attempts}`}</td>
+                  <td className="num">{`${t("admin.student.time")}: ${secs(task.seconds)}`}</td>
+                  <td className="num">{`${t("admin.student.median")}: ${secs(task.median_seconds)}`}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
           <h3>{t("admin.student.flags")}</h3>
           {lab.flags.length === 0 ? (
             <p>{t("admin.student.no_flags")}</p>
@@ -292,7 +308,7 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
                   <bdi>{flagReason(f)}</bdi>{" "}
                   {f.dismissed_at ? (
                     <>
-                      <span>{t("admin.student.dismissed")}</span>{" "}
+                      <span className="badge success">{t("admin.student.dismissed")}</span>{" "}
                       <bdi dir="ltr">{localStamp(f.dismissed_at)}</bdi>
                     </>
                   ) : (
@@ -306,6 +322,7 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
                       data-dismiss={f.id}
                       {...mark(`flag-${f.id}`)}
                       disabled={pending.includes(`flag-${f.id}`)}
+                      aria-busy={pending.includes(`flag-${f.id}`) ? "true" : undefined}
                       onClick={() => {
                         void write(
                           `flag-${f.id}`,
