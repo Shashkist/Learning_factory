@@ -15,6 +15,13 @@ Choices beyond the issue text (the build must follow them or change the exam via
   on a recording pool; every numeric query argument must be finite and positive and at least one
   must exist; one or two WARNING lines name `LF_START_DEADLINE_S` over the 4 passes. A valid
   `90` is passed on as 90 and logs no such line.
+* The #376 case (time half of the guarded end) shares `_stale_starting` with the #55 cases through
+  its `pool_cls` parameter (`FlippingPool` or `RefreshingPool`). `RefreshingPool` records the
+  status the refreshed fetch returned for the session in `refreshed_status`; the case asserts it
+  is `starting`, so it cannot pass when the candidates come from another fetch.
+* Too-short deadline (#376, #384): the minimum is `READY_TIMEOUT_MAX_S + runtime.KILL_BOUND_S +
+  CLEANUP_BOUND_S` (52 s today). The warning prints the raw value (`%r`), so `51.9999999` shows
+  verbatim and not as 52.
 * Recovery logging goes through `janitor._step(name, coro)` on a fake clock. The clock is
   injected by replacing the name `time` in the janitor module with a proxy whose `monotonic()`,
   `time()` and `perf_counter()` return the fake clock (so `time.monotonic()` and `time.time()`
@@ -29,6 +36,7 @@ Choices beyond the issue text (the build must follow them or change the exam via
   interval (`LF_JANITOR_INTERVAL_S`) after every pass from the first healthy one on, and logs
   `recovered`.
 """
+
 # ruff: noqa: F811, F401  (fixtures imported from the #7 and #49 exams are used by name)
 import asyncio
 import json
@@ -89,7 +97,7 @@ class ListingRuntime(FakeRuntime):
         return super().list_lab_containers()
 
 
-def _stale_starting(env, monkeypatch, flip: bool):
+def _stale_starting(env, monkeypatch, flip: bool, pool_cls=FlippingPool):
     monkeypatch.setenv("LF_START_DEADLINE_S", "30")
     _, _, h = env.student()
     sid = _insert_session(env, h, "starting")
@@ -97,7 +105,7 @@ def _stale_starting(env, monkeypatch, flip: bool):
     holder: list = [None]
     rt = ListingRuntime(holder)
     rt.add_foreign(f"lab-{sid}", sid, running=False)
-    pool = FlippingPool(env.app.state.pool, sid, flip)
+    pool = pool_cls(env.app.state.pool, sid, flip)
     holder[0] = pool
     env.app.state.runtime = rt
     env.app.state.pool = pool
@@ -130,10 +138,15 @@ def test_a_row_that_is_still_starting_and_past_the_deadline_is_still_ended_as_or
 class RefreshingPool(FlippingPool):
     """Like FlippingPool, but the row stays `starting` and only its `started_at` moves to now."""
 
+    refreshed_status = None  # status of the session in the fetch that was refreshed
+
     async def fetch(self, *a, **k):
         rows = await self._real.fetch(*a, **k)
         if self.listed and self._flip and not self.flipped:
             self.flipped = True
+            self.refreshed_status = next(
+                (r["status"] for r in rows if str(r["id"]) == str(self._sid)), None
+            )
             await self._real.execute(
                 f"update {SCHEMA}.lab_sessions set started_at = now() where id = $1", self._sid
             )
@@ -144,19 +157,12 @@ def test_a_starting_row_moved_forward_after_the_snapshot_keeps_running_and_its_c
     env, monkeypatch
 ):
     """Time half of the guarded end (#376): still `starting`, but no longer past the deadline."""
-    monkeypatch.setenv("LF_START_DEADLINE_S", "30")
-    _, _, h = env.student()
-    sid = _insert_session(env, h, "starting")
-    env.update(sid, "started_at = now() - interval '120 seconds'")
-    holder: list = [None]
-    rt = ListingRuntime(holder)
-    rt.add_foreign(f"lab-{sid}", sid, running=False)
-    pool = RefreshingPool(env.app.state.pool, sid, True)
-    holder[0] = pool
-    env.app.state.runtime = rt
-    env.app.state.pool = pool
-    env.janitor()
+    sid, rt, pool = _stale_starting(env, monkeypatch, flip=True, pool_cls=RefreshingPool)
     assert pool.flipped, "the janitor never took a snapshot after listing the containers"
+    assert pool.refreshed_status == "starting", (
+        "the fetch the exam refreshed did not return the session as starting "
+        f"(got {pool.refreshed_status!r}), so it proves nothing about the time half"
+    )
     row = env.row(sid)
     assert row["status"] == "starting", f"a fresh start was ended: {row['end_reason']!r}"
     assert row["end_reason"] is None
@@ -215,14 +221,12 @@ def _run_driver(value: str | None) -> dict:
     )
     assert out.returncode == 0, out.stderr[-2000:]
     line = next(x for x in out.stdout.splitlines() if x.startswith("RESULT"))
-    return json.loads(line[len("RESULT"):])
+    return json.loads(line[len("RESULT") :])
 
 
 def _warnings(result: dict) -> list[str]:
     return [
-        m
-        for lvl, m in result["records"]
-        if lvl >= logging.WARNING and "LF_START_DEADLINE_S" in m
+        m for lvl, m in result["records"] if lvl >= logging.WARNING and "LF_START_DEADLINE_S" in m
     ]
 
 
@@ -250,9 +254,9 @@ def test_a_valid_start_deadline_is_used_without_a_warning():
 
 
 def _minimum_deadline() -> float:
-    from app import sessions
+    from app import runtime, sessions
 
-    return sessions.READY_TIMEOUT_MAX_S + 2 * sessions.CLEANUP_BOUND_S
+    return sessions.READY_TIMEOUT_MAX_S + runtime.KILL_BOUND_S + sessions.CLEANUP_BOUND_S
 
 
 @pytest.mark.parametrize("short", ["30", "10", "1"])
@@ -270,6 +274,19 @@ def test_a_positive_start_deadline_below_the_longest_start_logs_one_warning_and_
     )
     nums = [x for args in result["args"] for x in args]
     assert float(short) in nums, f"the deadline was clamped, the query got {nums}"
+
+
+def test_the_start_deadline_minimum_is_52_seconds_today():
+    assert _minimum_deadline() == 52.0
+
+
+def test_the_too_short_warning_shows_the_raw_value_not_a_rounded_one():
+    result = _run_driver("51.9999999")
+    warns = _warnings(result)
+    assert len(warns) == 1, f"{len(warns)} warning lines over 4 passes: {warns}"
+    assert "51.9999999" in warns[0], f"the raw value was rounded in the warning: {warns[0]}"
+    nums = [x for args in result["args"] for x in args]
+    assert 51.9999999 in nums, f"the deadline was clamped or rounded, the query got {nums}"
 
 
 @pytest.mark.parametrize("ok", [None, "180", "90"])
