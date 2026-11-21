@@ -149,6 +149,14 @@ def test_ac2_a_su_fed_by_a_pipe_reads_the_pipe_not_the_script(tmp_path, name, he
         "true && su student -c 'cat'",
         "printf 'x' | cat; su student -c 'cat'",
         "su student -c 'true' </dev/null; su student -c 'cat'",
+        # `a | su)` is a case pattern list (Git Bash: branch taken for x=a), `su` there is not a
+        # command; the real su in the branch reads the script's stdin.
+        "case $x in a | su) su student -c 'cat' ;; esac",
+        "case $x in a|su) su student -c 'cat' ;; esac",
+        # `||` is "or", not a pipe: the right-hand su has the script's stdin.
+        "false || su student -c 'cat'",
+        # `>|` is a clobbering redirect, not a pipe, and `;` ends the command: this su is not fed.
+        "true >| /tmp/out; su student -c 'cat'",
     ],
 )
 def test_ac2_the_first_command_of_a_pipeline_still_warns(tmp_path, name, head, line):
@@ -191,6 +199,15 @@ def test_ac3_a_long_mixed_line_loads_cleanly(tmp_path):
 def test_ac3_a_long_line_with_a_real_reader_still_warns(tmp_path, name, head):
     # pins: no silent skip of long lines: a stdin reader at the end of a long line is found.
     took, result = _elapsed(tmp_path, head, "su " * REPS + "x -c 'cat'", name)
+    assert _loads_cleanly(result), result.errors
+    assert stdin_warnings(result), result.warnings
+    assert took < TIME_BOUND_S, f"took {took:.1f}s (bound {TIME_BOUND_S}s)"
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_ac3_a_long_line_of_case_patterns_before_a_real_reader_still_warns(tmp_path, name):
+    # pins: many `a | su) ` case patterns are not pipes; the real su at the end is found, fast.
+    took, result = _elapsed(tmp_path, BASH, "a | su) " * REPS + "su x -c 'cat'", name)
     assert _loads_cleanly(result), result.errors
     assert stdin_warnings(result), result.warnings
     assert took < TIME_BOUND_S, f"took {took:.1f}s (bound {TIME_BOUND_S}s)"
