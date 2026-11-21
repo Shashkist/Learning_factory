@@ -497,3 +497,19 @@ Two more catches came from reviewers who check what is rendered, not what the co
 Numbers: 3 merged PRs (#358, #357, #361), 2 replaced PRs (#356 → #358, #354 → #361), 4 exam writers, 2 implementer runs (plus 3 small manager fixes), 6 review rounds, 3 follow-up issues (#359, #360, and two leftovers added to #355), decisions D113, D114, D38 amended. One Deploy (44867263764) shipped two PRs together.
 
 Tips: when a change hinges on how a platform behaves (GitHub Actions, browsers, shells), have the reviewer quote the vendor docs or run the real thing; a test written from the same assumption proves nothing. Push an exam alone as a draft PR when the laptop can't run it (no Postgres here): 7 minutes of CI showed that all 9 manager cases failed only on the missing fields.
+
+## Pass lf-t5k8: an exam that guards a CI file is a security test (2026-11-21, laptop, 07:25-~09:15 UTC)
+
+Three issues ran in parallel from the start: #364 (CI), #69 (terminal Origin check) and #55 (janitor). They touched three disjoint areas (`.github/`, `term_proxy.py`, `janitor.py`), so three exam writers ran side by side. CI's new layout cut the `manager` job from 14:25 to two parallel jobs of 1:00 and 6:00.
+
+The surprise was the #364 exam. It pins `ci.yml`, and a check that pins a gate is only as good as the ways it can be switched off. The reviewer built a mutation harness: 42 mutated copies of the workflow, each run against the exam. The first version passed 6 of them, including the very regression #364 fixes (one extra `pytest -q`). The second version still passed a commented-out gate line, `shell: bash {0}` and `PYTEST_ADDOPTS: -k smoke`. The third version fails 57 of 60 mutants, and the 3 that pass are legitimate layouts. The harness also caught a sneaky hole the writer had added for its own proof: an env var that pointed the exam at another workflow file. A workflow could set that variable itself.
+
+Exam integrity bit once, as designed: a PR may not change the exam and `ci.yml` together. So a CI issue ships as PR A (the workflow alone, #370) and then PR B (the exam alone, #375).
+
+Main went red from a direction nobody was watching. Another session ticked the owner item "publish Linux 1" in `OWNER.md`, and a months-old exam case still demanded that the item stay open. The fix was an exam-only PR (#379) that accepts the ticked item once the lab is published. Docs are part of the exam surface when an exam reads them.
+
+Numbers: 3 merged feature PRs (#370, #371, #372), an incident PR (#379), 1 replaced PR (#369 → #370 + #375), 6 exam-writer runs, 4 implementer runs, 4 review rounds, decisions D116-D118 and a D24 amendment, and follow-ups #373, #374, #376, #377. The live probe for #69: `Origin: https://evil.shashkist.com` → 403 `origin_not_allowed`, same origin → 401 (auth as before).
+
+Tips:
+- When a test guards a config file, let the reviewer mutate the config, not just read the test.
+- Never give an exam an override hook, even "for the proof"; patch it from outside the repo instead.
