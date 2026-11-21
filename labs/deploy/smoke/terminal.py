@@ -40,7 +40,7 @@ def _output(msg: bytes | str) -> str:
     return data[1:].decode("utf-8", "replace") if data[:1] == b"0" else ""
 
 
-async def _open(url: str, cookie: str, timeout: float):  # type: ignore[no-untyped-def]
+async def _open(url: str, cookie: str, timeout: float, origin: str):  # type: ignore[no-untyped-def]
     """Open the terminal WebSocket.
 
     Right after the lab starts, ttyd may not listen yet and the manager answers 502 (or 503/504
@@ -55,6 +55,7 @@ async def _open(url: str, cookie: str, timeout: float):  # type: ignore[no-untyp
             return await connect(
                 url,
                 subprotocols=["tty"],
+                origin=origin,
                 additional_headers={"Cookie": f"{COOKIE}={cookie}"},
                 open_timeout=timeout,
             )
@@ -64,10 +65,34 @@ async def _open(url: str, cookie: str, timeout: float):  # type: ignore[no-untyp
         await asyncio.sleep(1)
 
 
+FOREIGN_ORIGIN = "https://evil.shashkist.com"
+
+
+async def _foreign_origin_refused(url: str, cookie: str, timeout: float) -> None:
+    """One more upgrade with a foreign Origin: the server must answer 403 (issue #373)."""
+    from websockets.asyncio.client import connect
+    from websockets.exceptions import InvalidStatus
+
+    try:
+        ws = await connect(
+            url,
+            subprotocols=["tty"],
+            origin=FOREIGN_ORIGIN,
+            additional_headers={"Cookie": f"{COOKIE}={cookie}"},
+            open_timeout=timeout,
+        )
+    except InvalidStatus as exc:
+        if exc.response.status_code == 403:
+            return
+        raise Fail(f"a foreign Origin got HTTP {exc.response.status_code}, not 403") from None
+    await ws.close()
+    raise Fail("a foreign Origin was accepted on the terminal WebSocket (the Origin check is off)")
+
+
 async def _terminal(base: str, sid: str, cookie: str, timeout: float) -> None:
     url = ("wss" if base.startswith("https") else "ws") + base[base.index("://") :]
     try:
-        async with await _open(f"{url}/s/{sid}/term/ws", cookie, timeout) as ws:
+        async with await _open(f"{url}/s/{sid}/term/ws", cookie, timeout, base) as ws:
             await ws.send(json.dumps({"AuthToken": "", "columns": 80, "rows": 24}).encode())
             buf = ""
             try:
@@ -84,6 +109,7 @@ async def _terminal(base: str, sid: str, cookie: str, timeout: float) -> None:
                         buf += _output(await ws.recv())
             except TimeoutError:
                 raise Fail("the terminal never answered hi to echo hi") from None
+        await _foreign_origin_refused(f"{url}/s/{sid}/term/ws", cookie, timeout)
     except Fail:
         raise
     except Exception as exc:  # noqa: BLE001

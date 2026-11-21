@@ -57,6 +57,7 @@ class Fake:
         self.token = "tok-" + uuid.uuid4().hex  # the cookie value; must never be printed
         self.early_input = False
         self.prompt_delay = 1.0
+        self.check_origin = True  # production refuses a foreign Origin; #373 switches it off
 
     def reset(self, mode: str) -> None:
         self.__init__()  # type: ignore[misc]
@@ -110,6 +111,10 @@ def _build_app(fake: Fake):
 
     @app.websocket("/s/{sid}/term/ws")
     async def term(ws: WebSocket, sid: str):
+        origin = ws.headers.get("origin")
+        if fake.check_origin and origin is not None and origin.lower().rstrip("/") != f"http://{ws.headers.get('host')}":
+            await ws.close(code=1008)  # like production: a foreign Origin is refused (403), D117
+            return
         offered = ws.headers.get("sec-websocket-protocol", "")
         fake.events.append(("ws", sid, has_cookie(ws.headers), "tty" in offered))
         if fake.mode == "ws_refused" or sid != fake.sid or not has_cookie(ws.headers):
