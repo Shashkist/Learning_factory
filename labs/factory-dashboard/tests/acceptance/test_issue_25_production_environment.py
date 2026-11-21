@@ -5,6 +5,8 @@ CONTRACT (the builder works from this)
 Every file in .github/workflows/ is held to the rules, so future deploy workflows are too:
   * a job that references secrets.SSH_PRIVATE_KEY, secrets.SERVER_HOST or secrets.SERVER_USER
     (in steps or env) declares `environment: production` (string, or `{name: production}`);
+  * a job that calls a local reusable workflow (`uses: ./.github/workflows/<file>`) is fine when
+    that file exists and each of its secret-using jobs declares production (one at least);
   * no `ssh-keyscan`, no `StrictHostKeyChecking=no`, no `accept-new`.
 
 .github/workflows/factory-dashboard.yml
@@ -86,13 +88,88 @@ def publish_env() -> dict:
 
 # ---- all workflows ---------------------------------------------------------
 
-def test_every_job_using_deploy_secrets_declares_the_production_environment():
+LOCAL_USES = "./.github/workflows/"
+
+
+def _secret_jobs_declare_production(called: Path) -> bool:
+    if not called.is_file():
+        return False
+    secret_jobs = [
+        j for j in (load(called).get("jobs") or {}).values()
+        if SECRET_RE.search(yaml.safe_dump(j))
+    ]
+    return bool(secret_jobs) and all(env_name(j) == "production" for j in secret_jobs)
+
+
+def secret_offenders(workflows: Path) -> list[str]:
     offenders = []
-    for path in workflow_files():
+    files = sorted(list(workflows.glob("*.yml")) + list(workflows.glob("*.yaml")))
+    for path in files:
         for name, job in (load(path).get("jobs") or {}).items():
-            if SECRET_RE.search(yaml.safe_dump(job)) and env_name(job) != "production":
-                offenders.append(f"{path.name}:{name}")
+            if not SECRET_RE.search(yaml.safe_dump(job)) or env_name(job) == "production":
+                continue
+            uses = str(job.get("uses", ""))
+            if uses.startswith(LOCAL_USES) and "@" not in uses:
+                if _secret_jobs_declare_production(workflows / uses[len(LOCAL_USES):]):
+                    continue
+            offenders.append(f"{path.name}:{name}")
+    return offenders
+
+
+def test_every_job_using_deploy_secrets_declares_the_production_environment():
+    offenders = secret_offenders(WORKFLOWS)
     assert not offenders, f"jobs use deploy secrets without environment: production: {offenders}"
+
+
+def _write(tmp_path: Path, files: dict[str, dict]) -> Path:
+    for fname, doc in files.items():
+        (tmp_path / fname).write_text(yaml.safe_dump(doc), encoding="utf-8")
+    return tmp_path
+
+
+_SECRETS = {"SERVER_HOST": "${{ secrets.SERVER_HOST }}"}
+
+
+def _caller(uses: str) -> dict:
+    return {"jobs": {"c": {"uses": uses, "secrets": _SECRETS}}}
+
+
+_PROD_CALLEE = {"jobs": {"s": {"environment": "production", "env": _SECRETS, "steps": []}}}
+
+
+def test_guard_local_caller_of_a_production_job_is_accepted(tmp_path):
+    d = _write(tmp_path, {
+        "callee.yml": _PROD_CALLEE,
+        "caller.yml": _caller("./.github/workflows/callee.yml"),
+    })
+    assert secret_offenders(d) == []
+
+
+def test_guard_remote_caller_with_secrets_is_flagged(tmp_path):
+    d = _write(tmp_path, {
+        "caller.yml": _caller("other/repo/.github/workflows/x.yml@main"),
+    })
+    assert secret_offenders(d) == ["caller.yml:c"]
+
+
+def test_guard_caller_of_a_missing_local_file_is_flagged(tmp_path):
+    d = _write(tmp_path, {
+        "caller.yml": _caller("./.github/workflows/nope.yml"),
+    })
+    assert secret_offenders(d) == ["caller.yml:c"]
+
+
+def test_guard_local_caller_whose_called_job_lacks_production_is_flagged(tmp_path):
+    d = _write(tmp_path, {
+        "callee.yml": {"jobs": {"s": {"env": _SECRETS, "steps": []}}},
+        "caller.yml": _caller("./.github/workflows/callee.yml"),
+    })
+    assert "caller.yml:c" in secret_offenders(d)
+
+
+def test_guard_plain_job_with_secrets_and_no_environment_is_flagged(tmp_path):
+    d = _write(tmp_path, {"plain.yml": {"jobs": {"p": {"env": _SECRETS, "steps": []}}}})
+    assert secret_offenders(d) == ["plain.yml:p"]
 
 
 def test_no_workflow_runs_ssh_keyscan():
