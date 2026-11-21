@@ -243,8 +243,12 @@ def test_fresh_is_true_when_the_push_was_code_then_a_revert_then_docs(tmp_path):
         {"labs/content/lab-עברית/משימה.md": "x\n"},
         {"labs/manager/app.py": "v2\n"},
         {"labs/web/index.html": "v1\n"},
+        {"history.md": "x\n", "labs/manager/app.py": "v2\n"},
     ],
-    ids=["content-md", "root-readme", "non-ascii-content", "manager-code", "web-code"],
+    ids=[
+        "content-md", "root-readme", "non-ascii-content", "manager-code", "web-code",
+        "history-and-code",
+    ],
 )
 @needs_bash
 def test_fresh_is_false_when_newer_code_is_on_top(tmp_path, files):
