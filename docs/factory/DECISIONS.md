@@ -1094,3 +1094,23 @@ in force · factory · 2026-11-21 · revertible
 **Alternatives.** Add a confirmation dialog now and amend the #130 exam (a behaviour change hidden in a design slice).
 
 **Revert.** Open an issue for an End lab confirmation and amend the #130 exam there.
+
+## D109 · #332 AC3 versus older exams: proposed resolution, waits for the owner (O23)
+proposed · factory · 2026-11-21 · revertible
+
+**Assumption until O23 is answered.** #332 AC3 ("the card's main action has an accessible name that includes the lab title") contradicts AC6 ("existing tests unchanged"): the #129 and #147 exams and `e2e/main-flow.spec.ts` pin the button's name to exactly the action word. The factory's proposal is (a): the button keeps its word as its name and `aria-describedby` points at the card heading ("Start, button, Shell basics"), which needs a one-case correction of the new #332 exam. The factory's guard refused that exam edit from a manager session, so #332 is parked (`status:needs-owner`) with its exam pushed on `f/332-login-mylabs-design`.
+
+**Alternatives.** (b) An `aria-label` like "Start: Shell basics" and loosen the three older name checks to "contains".
+
+**Revert.** Nothing has shipped; the owner's answer to O23 decides.
+
+## D110 · #334 summary cards show only figures the student API has; active time and last activity follow in #348
+in force · factory · 2026-11-21 · revertible
+
+**Decision.** Review round 1 of #346 found the student page's "Last activity" card hard-coded to a dash and "Active time" summing time-to-first-pass in raw seconds. The #334 PR stays web-only: its three summary cards show real figures the student API already returns (labs done, tasks passed and one more), and #348 adds `last_activity` and `active_seconds` to the API, the two cards, and stronger design-exam checks (sticky header while scrolling, the import error next to its field). The round 1 code fixes go on the same branch as new code commits; no exam change in this PR.
+
+**Why.** A card that states something false is worse than no card; an API change belongs in its own reviewed PR with manager tests. Exam changes after code commits fail exam integrity (D103), so they go to the follow-up.
+
+**Alternatives.** Extend the API inside #334 (a cross-package PR); rebuild the branch as `-2` with a stronger exam first (another full CI and review round).
+
+**Revert.** Revert the #334 squash commit; #348 brings the two figures either way.
