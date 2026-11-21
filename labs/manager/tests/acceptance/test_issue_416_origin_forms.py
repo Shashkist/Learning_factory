@@ -115,6 +115,9 @@ def test_the_mapped_answers_hold_when_ipaddress_prints_mapped_addresses_dotted(
         pytest.param("http://127.000.0.1", id="leading-zeros"),
         pytest.param("http://lab s.example", id="space-in-host"),
         pytest.param("http://lab<s.example", id="less-than-in-host"),
+        pytest.param("http://256.0.0.1", id="octet-out-of-range"),
+        pytest.param("http://999.999.999.999", id="all-octets-out-of-range"),
+        pytest.param("http://lab\x7fs.example", id="del-in-host"),
     ],
 )
 def test_the_startup_check_warns_for_rewritten_ipv4_forms_and_forbidden_host_characters(
@@ -133,6 +136,8 @@ def test_the_startup_check_warns_for_rewritten_ipv4_forms_and_forbidden_host_cha
         pytest.param("http://localhost:8080", id="localhost-port"),
         pytest.param("https://[::1]", id="ipv6-loopback"),
         pytest.param("https://[2001:db8::1]", id="ipv6-compressed"),
+        pytest.param("https://lab1.example.com", id="digit-in-a-label"),
+        pytest.param("https://labs.shashkist.com.", id="trailing-dot"),
     ],
 )
 def test_canonical_hosts_still_log_no_startup_warning(make_client, caplog, value):
