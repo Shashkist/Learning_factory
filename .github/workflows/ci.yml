@@ -47,6 +47,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - run: uv sync
       - run: uv run ruff check .
+      - run: uv run ruff check ../deploy/smoke
       - run: uv run mypy app
       - run: uv run pytest -q --ignore=tests/acceptance
 
