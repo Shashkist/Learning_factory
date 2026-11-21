@@ -239,7 +239,7 @@ _HEREDOC = re.compile(r"(?<!<)<<(?!<)(-?)\s*([^\s;&|<>()]+)")  # not `<<<`, a he
 # `(?<!\d)` anchors the digits so a long digit run is scanned once, not once per start position
 _REDIRECTS = re.compile(r"(?<!\d)\d*>&\d+|(?<!\d)\d*>>?\s*\S+")
 _FD_REDIRECT = re.compile(
-    r"&>>?\s*\S+|(?<!\d)(\d*)>>?&(\d)|(?<!\d)(?P<wfd>\d*)>&\s*[^\s\d]\S*|(?<!\d)(\d*)>>?\s*\S+"
+    r"&>>?\s*\S+|(?<!\d)(\d*)>>?&\s*(\d)|(?<!\d)(?P<wfd>\d*)>&\s*[^\s\d$`'\x22-]\S*|(?<!\d)(\d*)>>?\s*\S+"
 )
 _FD0_DUP = re.compile(r"(?<!\d)\d*<&\s*0")
 _EXEC_FD0_DUP = re.compile(r"exec\s(?:.*\s)?\d+<&\s*0(?!\d)")
@@ -402,7 +402,7 @@ def _script_warnings(text: str, label: str) -> list[str]:
             segments.append((n, parts[i], (i > 0 and parts[i - 1] == "|") or (i == 0 and piped)))
         piped = masked.endswith("|") and not masked.endswith("||")
         cat = _CAT_SUBSHELL.search(line)
-        if _su_reads_stdin(line, masked, amp) or (
+        if _su_reads_stdin(line, no_math, amp) or (
             cat and not _redirects_input(line[cat.start() :])
         ):
             found.append(f"{label} line {n}: {stdin_msg}")
