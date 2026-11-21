@@ -3,6 +3,7 @@ import contextlib
 import ipaddress
 import logging
 import os
+import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -98,6 +99,12 @@ def _browser_ipv6(addr: ipaddress.IPv6Address) -> str:
     return addr.compressed
 
 
+_FORBIDDEN_HOST_CHARS = frozenset("#/:<>?@[\\]^|")
+# WHATWG: a host whose last label is a number (decimal or 0x hex) is an IPv4 address.
+_IPV4_LAST_LABEL = re.compile(r"^(\d+|0[xX][0-9a-fA-F]*)$")
+_CANONICAL_IPV4 = re.compile(r"^(0|[1-9]\d{0,2})(\.(0|[1-9]\d{0,2})){3}$")
+
+
 def _public_origin_problem(value: str) -> str | None:
     """What is wrong with an LF_PUBLIC_ORIGIN value, or None. Never rewrites it (D119)."""
     try:
@@ -127,6 +134,13 @@ def _public_origin_problem(value: str) -> str | None:
             return "unparsable IPv6 literal"
         if host != _browser_ipv6(addr):
             return "IPv6 literal is not in the form a browser sends"
+    else:
+        if any(c in _FORBIDDEN_HOST_CHARS or c <= " " or c == "\x7f" for c in host):
+            return "host has a character a browser refuses in a host"
+        if _IPV4_LAST_LABEL.match(host.rstrip(".").rsplit(".", 1)[-1]) and not (
+            _CANONICAL_IPV4.match(host) and all(int(o) <= 255 for o in host.split("."))
+        ):
+            return "IPv4 host is not in the dotted form a browser sends"
     netloc = f"[{host}]" if ":" in host else host
     rebuilt = f"{parts.scheme}://{netloc}" + (f":{port}" if port is not None else "")
     if value.rstrip("/").lower() != rebuilt:
