@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import ipaddress
 import logging
 import os
 from collections.abc import AsyncIterator
@@ -105,6 +106,15 @@ def _public_origin_problem(value: str) -> str | None:
         return "has userinfo"
     if port == (443 if parts.scheme == "https" else 80):
         return "has the default port"
+    if not host.isascii() or "%" in host:
+        return "host is not ASCII or has a percent sign"
+    if ":" in host:
+        try:
+            compressed = ipaddress.ip_address(host).compressed
+        except ValueError:
+            return "unparsable IPv6 literal"
+        if compressed != host:
+            return "IPv6 literal is not in compressed form"
     netloc = f"[{host}]" if ":" in host else host
     rebuilt = f"{parts.scheme}://{netloc}" + (f":{port}" if port is not None else "")
     if value.rstrip("/").lower() != rebuilt:
