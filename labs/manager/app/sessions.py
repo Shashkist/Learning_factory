@@ -55,15 +55,27 @@ async def remove_container(runtime: Any, session_id: Any) -> None:
         log.error("removing container of session %s failed (%s)", session_id, type(exc).__name__)
 
 
-async def end_session(pool: Any, runtime: Any, session_id: Any, reason: str) -> bool:
-    """End a live session and remove its container; False when it was not live."""
+async def end_session(
+    pool: Any, runtime: Any, session_id: Any, reason: str, *, stale_start_s: float | None = None
+) -> bool:
+    """End a live session and remove its container; False when it was not live.
+
+    With `stale_start_s` the end is guarded in the database: it only happens while the row is
+    still `starting` and was started more than that many seconds ago.
+    """
     if reason not in END_REASONS:
         raise ValueError(f"unknown end reason: {reason!r}")
+    guard = ""
+    args: tuple[Any, ...] = ()
+    if stale_start_s is not None:
+        guard = " and status = 'starting' and started_at < now() - make_interval(secs => $3)"
+        args = (stale_start_s,)
     ended = await pool.fetchval(
         f"update {T}.lab_sessions set status = 'ended', ended_at = now(), end_reason = $2 "
-        f"where id = $1 and {LIVE} returning id",
+        f"where id = $1 and {LIVE}{guard} returning id",
         session_id,
         reason,
+        *args,
     )
     if ended is None:
         return False
