@@ -159,7 +159,7 @@ describe("in-flight guard", () => {
         passed: true,
         attempts: 1,
         reason: null,
-        checklist: [{ n: 1, passed: true, hint: null }],
+        checklist: [{ n: 1, text: { en: "Exists", he: "קיים" }, passed: true, hint: null }],
       }),
       [`POST ${API}/tasks/current/skip`]: err(409, "session_busy"),
       [`POST ${API}/tasks/current/next`]: ok(task({ id: "02-b", index: 2 })),
