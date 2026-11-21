@@ -156,6 +156,7 @@ def test_the_smoke_fails_when_a_foreign_origin_is_accepted(origin_server):
     fake, policy, base = origin_server
     fake.reset("good")
     policy.reset("any")  # the Origin check is off
+    fake.check_origin = False  # the fake terminal itself must accept a foreign Origin too
     res = run_client(base, timeout="4")
     assert res.returncode != 0, res.stdout + res.stderr
     assert len(policy.origins) >= 2, f"no foreign-origin upgrade was tried: {policy.origins}"
