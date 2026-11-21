@@ -236,9 +236,12 @@ def _validate(lab_dir: Path, data: Any) -> tuple[Lab | None, list[str]]:
 _SEPARATORS = re.compile(r"(\|\||&&|;|(?<!>)\|)")  # `>|` is a redirect, not a pipe
 _ARITHMETIC = re.compile(r"\$\(\(.*?\)\)")
 _HEREDOC = re.compile(r"(?<!<)<<(?!<)(-?)\s*([^\s;&|<>()]+)")  # not `<<<`, a here-string
-_REDIRECTS = re.compile(r"\d*>&\d+|\d*>>?\s*\S+")
-_FD_REDIRECT = re.compile(r"&>>?\s*\S+|(\d*)>>?&(\d)|(\d*)>>?\s*\S+")
-_FD0_DUP = re.compile(r"\d*<&\s*0")
+# `(?<!\d)` anchors the digits so a long digit run is scanned once, not once per start position
+_REDIRECTS = re.compile(r"(?<!\d)\d*>&\d+|(?<!\d)\d*>>?\s*\S+")
+_FD_REDIRECT = re.compile(
+    r"&>>?\s*\S+|(?<!\d)(\d*)>>?&(\d)|(?<!\d)(?P<wfd>\d*)>&\s*[^\s\d]\S*|(?<!\d)(\d*)>>?\s*\S+"
+)
+_FD0_DUP = re.compile(r"(?<!\d)\d*<&\s*0")
 _EXEC_FD0_DUP = re.compile(r"exec\s(?:.*\s)?\d+<&\s*0(?!\d)")
 # a lone `&` ends a job: not `&&`, nor the `&` of `>&`, `<&`, `|&`, nor an escaped `\&`;
 # `&>` redirects only in bash. The caller splits the line with $(( )) blanked (bitwise AND).
@@ -283,7 +286,7 @@ def _scan(line: str) -> tuple[str, str]:
     return "".join(code).rstrip(), "".join(masked).rstrip()
 
 
-def _su_reads_stdin(line: str, masked: str) -> bool:
+def _su_reads_stdin(line: str, masked: str, amp: re.Pattern[str]) -> bool:
     """`su ... -c '<reader>'` with no input redirect on the su command itself."""
     m = _SU_COMMAND.search(masked)
     if not m:
@@ -293,7 +296,7 @@ def _su_reads_stdin(line: str, masked: str) -> bool:
         return False
     body = line[m.end() : close]
     # the su command ends at a separator or a lone `&`; the `&` of `2>&1`, `<&0` or `&>` does not
-    own_tail = re.split(r"[;|]|(?<![<>])&(?!>)", masked[close + 1 :], maxsplit=1)[0]
+    own_tail = amp.split(re.split(r"[;|]|&&", masked[close + 1 :], maxsplit=1)[0], maxsplit=1)[0]
     if _redirects_input(own_tail):
         return False
     return any(
@@ -340,10 +343,14 @@ def _background_is_quiet(job: str, bash: bool) -> bool:
         elif m.group(0).startswith("&"):
             if bash:
                 out_file = err_file = True
-        elif m.group(3) == "2":
-            err_file = True
-        elif m.group(3) in ("", "1"):
-            out_file = True
+        elif m.group("wfd") is not None and bash and m.group("wfd") in ("", "1"):
+            out_file = err_file = True  # bash `>&word`
+        else:
+            fd = m.group(4) if m.group("wfd") is None else m.group("wfd")
+            if fd == "2":
+                err_file = True
+            elif fd in ("", "1"):
+                out_file = True
     return out_file and err_file
 
 
@@ -395,7 +402,9 @@ def _script_warnings(text: str, label: str) -> list[str]:
             segments.append((n, parts[i], (i > 0 and parts[i - 1] == "|") or (i == 0 and piped)))
         piped = masked.endswith("|") and not masked.endswith("||")
         cat = _CAT_SUBSHELL.search(line)
-        if _su_reads_stdin(line, masked) or (cat and not _redirects_input(line[cat.start() :])):
+        if _su_reads_stdin(line, masked, amp) or (
+            cat and not _redirects_input(line[cat.start() :])
+        ):
             found.append(f"{label} line {n}: {stdin_msg}")
         if not all(_background_is_quiet(job, bash) for job in amp.split(no_math)[:-1]):
             found.append(
