@@ -1237,3 +1237,16 @@ in force · factory · 2026-11-21
 **Why.** The validator exists to catch exactly these holds (D56); an exam that pins a real 600 s hold as quiet would make a later correct fix edit `tests/acceptance`. Measured behaviour beats the issue text.
 **Alternatives.** Merge #421 as is and fix later (locks a wrong rule into the exam). Warn on every and-or list in both shells (breaks #326's exam, which is right for dash).
 **Revert.** Revert the #414 merge; the validator goes back to checking the last pipeline only.
+
+## D123 · #414 after review round 2: the reviewer's tested fix, new exam cases first, no third round; `cd` is an instant builtin under sh
+in force · factory · 2026-11-21
+
+**Decision.** Review round 2 of #414 (PR #424) confirmed every exam case against real bash 5.2 and dash, and found two misses in the code, both timed:
+- An and-or list whose last element is a group (`[ -d / ] && { cd /; sleep 3; } >/dev/null 2>&1 &`) stayed quiet, because the walk stopped at the `;` inside the group.
+- Under sh, a subshell element ending in `true` counted as an instant builtin.
+The reviewer tested a fix: walk from the group's opener, and a subshell tail is never instant. The round limit is two, so the manager follows D121. The new cases go in an exam commit first, on `f/414-andor-v3`. The reviewer's fix goes in the code commit, and the branch merges on green CI without a third round. PR #424 is closed.
+Amendment to D122: `cd` joins the instant builtins of the sh exception, so `cd /srv && python3 -m http.server 8000 >/dev/null 2>&1 &` stays quiet under `#!/bin/sh`. Dash measured 0 s, and the line was quiet before #414. The most common way to start a service from setup.sh should not start warning. Under bash the same line warns, because bash measured a hold.
+The non-blocking items go to #423: a group that spans lines is not joined, plus the sh-only false positives `( true && cmd ... & )` and `out=$(true) && cmd ... &`.
+**Why.** Both fixes are small, proven by the reviewer's probes and by the exam. A third round would cost about 25 minutes and bring no new information.
+**Alternatives.** A third review round. Or ship #424 as is and file the misses: no, because the first miss is the shape that the new warning message itself suggests.
+**Revert.** Revert the #414 merge. For the `cd` amendment alone, drop `cd` from `_INSTANT` and its quiet case.
