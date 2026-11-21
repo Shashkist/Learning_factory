@@ -29,6 +29,8 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import App from "../../src/App";
+// Amended for #349: End lab moved to the lab screen top bar, so it is looked up there (lab-topbar.ts), not in the task panel.
+import { endButton } from "./lab-topbar";
 import en from "../../src/i18n/en.json";
 import he from "../../src/i18n/he.json";
 
@@ -433,8 +435,9 @@ describe.each(LANGS)("failed Next or Skip in %s", (lang) => {
     expect((alert.textContent ?? "").trim().length).toBeGreaterThan(0);
     expect(alert.textContent).not.toContain(d["lab.error.load"]);
     expect(within(panel()).getByRole("heading", { name: HANDS.title[lang] })).toBeTruthy();
-    for (const k of ["lab.check", "lab.skip", "lab.restart", "lab.end"])
+    for (const k of ["lab.check", "lab.skip", "lab.restart"])
       expect((button(d[k]) as HTMLButtonElement).disabled, k).toBe(false);
+    expect((endButton(d["lab.end"]) as HTMLButtonElement).disabled, "lab.end").toBe(false); // top bar since #349
     fireEvent.click(button(d["lab.skip"]));
     expect(await within(panel()).findByRole("radio", { name: "ls" })).toBeTruthy();
     expect(count(calls, "POST", `${API}/tasks/current/skip`)).toBe(2);
@@ -467,7 +470,7 @@ test("End lab stays usable while a task action hangs, and ends the lab", async (
   await open("en");
   fireEvent.click(button(EN["lab.skip"]));
   await waitFor(() => expect(count(calls, "POST", `${API}/tasks/current/skip`)).toBe(1));
-  const end = button(EN["lab.end"]) as HTMLButtonElement;
+  const end = endButton(EN["lab.end"]) as HTMLButtonElement; // in the top bar since #349
   expect(end.disabled).toBe(false);
   fireEvent.click(end);
   await waitFor(() => expect(count(calls, "POST", `${API}/end`)).toBe(1));

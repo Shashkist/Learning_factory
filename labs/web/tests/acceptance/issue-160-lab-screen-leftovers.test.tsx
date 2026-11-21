@@ -21,6 +21,8 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import App from "../../src/App";
+// Amended for #349: End lab moved to the lab screen top bar, so it is looked up there (lab-topbar.ts), not in the task panel.
+import { endButton } from "./lab-topbar";
 import en from "../../src/i18n/en.json";
 import he from "../../src/i18n/he.json";
 
@@ -333,7 +335,7 @@ describe.each(LANGS)("End lab (%s)", (lang) => {
   test("clicking End lab three times while POST /end is pending sends exactly one request", async () => {
     const calls = backend(base(HANDS, { [`POST ${API}/end`]: hang }));
     await open(lang);
-    const end = button(d["lab.end"]);
+    const end = endButton(d["lab.end"]);
     fireEvent.click(end);
     fireEvent.click(end);
     fireEvent.click(end);
@@ -347,7 +349,7 @@ describe.each(LANGS)("End lab (%s)", (lang) => {
   test("a failed End (500) shows its own message, not 'could not be loaded', and stays on the lab", async () => {
     backend(base(HANDS, { [`POST ${API}/end`]: err(500, "boom") }));
     await open(lang);
-    fireEvent.click(button(d["lab.end"]));
+    fireEvent.click(endButton(d["lab.end"]));
     const alert = await screen.findByRole("alert");
     const text = (alert.textContent ?? "").trim();
     expect(text.length).toBeGreaterThan(0);
@@ -361,7 +363,7 @@ describe.each(LANGS)("End lab (%s)", (lang) => {
   test("a failed End (network error) shows its own message too", async () => {
     backend(base(HANDS, { [`POST ${API}/end`]: "network" }));
     await open(lang);
-    fireEvent.click(button(d["lab.end"]));
+    fireEvent.click(endButton(d["lab.end"]));
     const alert = await screen.findByRole("alert");
     expect((alert.textContent ?? "").trim().length).toBeGreaterThan(0);
     expect(alert.textContent).not.toContain(d["lab.error.load"]);
@@ -371,10 +373,10 @@ describe.each(LANGS)("End lab (%s)", (lang) => {
   test("after a failed End the button works again and the second try ends the lab", async () => {
     const calls = backend(base(HANDS, { [`POST ${API}/end`]: [err(500, "boom"), { status: 204 }] }));
     await open(lang);
-    fireEvent.click(button(d["lab.end"]));
+    fireEvent.click(endButton(d["lab.end"]));
     await screen.findByRole("alert");
-    expect((button(d["lab.end"]) as HTMLButtonElement).disabled).toBe(false);
-    fireEvent.click(button(d["lab.end"]));
+    expect((endButton(d["lab.end"]) as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(endButton(d["lab.end"]));
     await waitFor(() => expect(count(calls, "POST", `${API}/end`)).toBe(2));
     await waitFor(() => expect(window.location.pathname).toBe("/labs"));
   });
