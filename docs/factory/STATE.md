@@ -34,7 +34,7 @@
    - Deploy and smoke: `ok terminal` must stay green.
    - Close #416. Evidence: the exam (16 red on main, 18 green, all green after), #422 for criterion 4, and the Deploy.
    - One non-blocking item is left: `host.rstrip(".")` strips every trailing dot, so `http://1.2.3.4..` warns falsely. Fix it while there (one exam case first), or list it in #416's closing comment as a follow-up.
-3. **Main CI and Deploy for 72919e6 (#422) were still running at stop.** Check that both went green. If CI failed on the new `ruff check ../deploy/smoke` step, that is an incident.
+3. Done: main CI 44947223556 for 72919e6 (#422) is green, and Deploy 44948785487 deployed 72919e6 with the smoke green (`ok terminal` through `ok end`). The new `ruff check ../deploy/smoke` step passed on main.
 4. Then the Next list.
 
 **Worktrees.**
