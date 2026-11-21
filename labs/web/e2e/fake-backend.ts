@@ -6,13 +6,13 @@ const TASKS = [
     id: "t1",
     title: bi("List the files", "הצגת הקבצים"),
     text: bi("Run `ls` in the terminal.", "הריצו `ls` בטרמינל."),
-    checklist: [{ n: 1, text: bi("You ran ls", "הרצתם ls") }],
+    checklist: [bi("You ran ls", "הרצתם ls")],
   },
   {
     id: "t2",
     title: bi("Make a folder", "יצירת תיקייה"),
     text: bi("Run `mkdir demo`.", "הריצו `mkdir demo`."),
-    checklist: [{ n: 1, text: bi("demo exists", "demo קיימת") }],
+    checklist: [bi("demo exists", "demo קיימת")],
   },
 ];
 const LAB = {
