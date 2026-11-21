@@ -135,13 +135,17 @@ test("criteria 1-3: every move of Linux 1 keeps the lab screen and shows the nex
     } catch (e) {
       problems.push(`pressing the button failed: ${String(e).slice(0, 400)}`);
     }
-    const alerts = await page.getByRole("alert").allTextContents();
-    if (alerts.length) problems.push(`an error is shown: ${JSON.stringify(alerts)}`);
     try {
       await expect(panel.getByRole("heading", { level: 2 })).toHaveText(to.title, { timeout: 15_000 });
       await expect(page.getByText(`Question ${i + 2} of ${tasks.length}`)).toBeVisible({ timeout: 5_000 });
     } catch {
       problems.push(`task ${to.id}'s title ("${to.title}") is not on screen`);
+    }
+    // After the render: an alert checked right when the POST answers could not see one React draws later.
+    try {
+      await expect(page.getByRole("alert")).toHaveCount(0);
+    } catch {
+      problems.push(`an error is shown: ${JSON.stringify(await page.getByRole("alert").allTextContents())}`);
     }
     const lost = await steady(page, token, navigations).catch(
       (e) => `the terminal iframe is gone: ${String(e).slice(0, 200)}`,
