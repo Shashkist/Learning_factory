@@ -1167,3 +1167,11 @@ in force · factory · 2026-11-21
 
 ## D115 amendment (2026-11-21, #365)
 The su scan now checks every `su ... -c` command on a line, not only the first (needed for `su ... </dev/null; su ... 'cat >&2>/dev/null'`). Review round 1 approved #365 and found that this spreads an existing false stdin warning to a piped `su` after the first command (`su ... | su student -c 'cat'`), and that `>&\2` is still read as a file redirect when another redirect follows it (same as main). Both only change a warning shown to a lab author and need exam guards, so #365 merges as approved and both move to #366, with a small dead-code cleanup.
+
+## D116 · #364 splits the manager CI job: unit tests and the no-skip exam run in parallel, the exam runs once
+in force · factory · 2026-11-21
+
+**Decision.** The `manager` job keeps ruff, mypy and the unit tests (`pytest -q --ignore=tests/acceptance`, so the exam is not run there). A new parallel job `manager-exam` (same Postgres service) runs the acceptance exam once, with the no-skip command line (`--confcutdir=tests -o addopts="" -m "not docker"`) and `scripts/ci/junit_gate.py`. Both jobs get `timeout-minutes: 25` as margin, not as the fix.
+**Why.** Each job then takes about one exam (≈7 min) plus setup, not two, and the "no skips" guarantee keeps its own protected command line. One combined pytest run would have to drop `--confcutdir`/`addopts=""` or rebuild them for the unit tests.
+**Alternatives.** One pytest run whose junit report is gated only for `tests/acceptance` cases (loses the confcutdir protection for the unit run, or keeps it for both and changes how unit tests run). pytest-xdist sharding (faster, but a shared Postgres database makes parallel workers risky; a later issue if the exam keeps growing).
+**Revert.** Revert the squash commit of #364; the single job with two pytest runs comes back.
