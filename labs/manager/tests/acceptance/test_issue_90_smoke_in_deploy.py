@@ -8,7 +8,8 @@ Interfaces the exam fixes:
     `smoke` (the checks) and one gate job (any name) listed in the `needs` of `smoke`.
   * deploy.yml: job `deploy` has the output `deployed` (`'true'` only when deploy.sh ran and
     succeeded); job `smoke` with `needs: deploy`, `if` on `needs.deploy.outputs.deployed`,
-    `uses: ./.github/workflows/server-smoke.yml`, `secrets: inherit`, `with.from_deploy: true`.
+    `uses: ./.github/workflows/server-smoke.yml`, no `secrets: inherit` (#94: the called job gets
+    its secrets from its own `environment: production`), `with.from_deploy: true`.
 """
 import re
 from pathlib import Path
@@ -246,7 +247,7 @@ def test_deploy_has_a_smoke_job_that_calls_the_smoke_workflow_after_a_real_deplo
     cond = str(smoke.get("if", "")).replace('"', "'")
     assert "needs.deploy.outputs.deployed" in cond and "'true'" in cond, cond
     assert smoke.get("uses") == "./.github/workflows/server-smoke.yml"
-    assert smoke.get("secrets") == "inherit"
+    assert smoke.get("secrets") != "inherit", "#94: no secrets: inherit, the callee uses its own environment"
     assert _truthy((smoke.get("with") or {}).get("from_deploy")), "with: from_deploy: true"
     assert "runs-on" not in smoke and "steps" not in smoke, "a called-workflow job has no steps"
 
