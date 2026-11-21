@@ -73,14 +73,17 @@ DECISIONS = REPO_ROOT / "docs" / "factory" / "DECISIONS.md"
 
 # The #126 STOPPER, plus a handshake (issue #391). A check that is merely started "after the
 # stopper" can still finish before the loop reaches its processes (a pass walks all of /proc
-# and CI runners are slow), and then the case tested nothing. So the check script is
-# prefixed (see _gated) with: announce `READY`, then spin until the stopper writes `SEEN`.
-# The stopper writes `SEEN` only at the end of a pass that STARTED after `READY` existed;
-# such a pass saw the check's shell in /proc and sent it SIGSTOP. The check therefore never
-# gets past its prefix before it has been stopped, and a stopped check cannot finish: it
-# times out deterministically, whatever the runner speed. Builtins only (`:>`, `[`), so no
-# helper process can be missed. The loop keeps the `stop-stopper126` stop file name, which
-# `_alive` / `_wait_loop_gone` of the #126 exam look for; the #126 STOPPER itself is untouched.
+# and CI runners are slow), and then the case tested nothing. exec_script runs check.sh as
+# ROOT, and the stopper runs as student, so it cannot signal that root shell (EPERM). A gate
+# in the root part would open without anything having been stopped. So the gate goes into the
+# STUDENT reader (`su student ... /bin/sh -s <<'READER'`, see _gated): it writes `READY`, then
+# spins until the stopper writes `SEEN`. The stopper writes `SEEN` only at the end of a pass
+# that STARTED after `READY` existed; such a pass saw the reader in /proc and sent it SIGSTOP
+# (same uid, allowed). The reader therefore cannot get past its gate before it has been
+# stopped, and a stopped reader cannot finish: the check times out deterministically,
+# whatever the runner speed. Builtins only (`:>`, `[`), so no helper process can be missed.
+# The loop keeps the `stop-stopper126` stop file name, which `_alive` / `_wait_loop_gone` of
+# the #126 exam look for; the #126 STOPPER itself is untouched.
 READY = "/tmp/ready-check306"
 SEEN = "/tmp/seen-check306"
 STOPPER = rf"""
@@ -97,12 +100,12 @@ done
 
 
 def _gated(script: str) -> str:
-    """The check script behind the handshake: it does nothing until the stopper has stopped it."""
-    gate = f": > {READY}\nwhile [ ! -e {SEEN} ]; do :; done\n"
-    if script.startswith("#!"):
-        first, _, rest = script.partition("\n")
-        return f"{first}\n{gate}{rest}"
-    return gate + script
+    """The check script with the handshake as the first lines of its student reader."""
+    lines = script.split("\n")
+    idx = [i for i, ln in enumerate(lines) if ln.rstrip().endswith("<<'READER'")]
+    assert len(idx) == 1, f"expected exactly one <<'READER' line in the check, found {len(idx)}"
+    gate = [f": > {READY}", f"while [ ! -e {SEEN} ]; do :; done"]
+    return "\n".join(lines[: idx[0] + 1] + gate + lines[idx[0] + 1 :])
 
 
 def _ps(box: str) -> list[tuple[int, int, str, str, str]]:
