@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import stat
 import sys
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -234,12 +235,14 @@ def _validate(lab_dir: Path, data: Any) -> tuple[Lab | None, list[str]]:
 
 
 _SEPARATORS = re.compile(r"(\|\||&&|;|(?<!>)\|)")  # `>|` is a redirect, not a pipe
-_ARITHMETIC = re.compile(r"\$\(\(.*?\)\)")
 _HEREDOC = re.compile(r"(?<!<)<<(?!<)(-?)\s*([^\s;&|<>()]+)")  # not `<<<`, a here-string
-# `(?<!\d)` anchors the digits so a long digit run is scanned once, not once per start position
-_REDIRECTS = re.compile(r"(?<!\d)\d*>&\d+|(?<!\d)\d*>>?\s*\S+")
+# The fd prefix is a digit run that starts at a non-digit (so a long run is scanned once, not once
+# per start position), or nothing: `2>&1>file` has a second redirect right after a digit.
+_FD = r"((?<!\d)\d+|)"
+_REDIRECTS = re.compile(_FD + r">&\d+|" + _FD + r">>?\s*\S+")
 _FD_REDIRECT = re.compile(
-    r"&>>?\s*\S+|(?<!\d)(\d*)>>?&\s*(\d)|(?<!\d)(?P<wfd>\d*)>&\s*[^\s\d$`'\x22-]\S*|(?<!\d)(\d*)>>?\s*\S+"
+    r"&>>?\s*\S+|" + _FD + r">>?&\s*(\d)|"
+    r"(?P<wfd>(?<!\d)\d+|)>&\s*[^\s\d$`'\x22\\-]\S*|" + _FD + r">>?\s*\S+"
 )
 _FD0_DUP = re.compile(r"(?<!\d)\d*<&\s*0")
 _EXEC_FD0_DUP = re.compile(r"exec\s(?:.*\s)?\d+<&\s*0(?!\d)")
@@ -250,7 +253,10 @@ _SH_AMP = re.compile(r"(?<![&<>|\\])&(?!&)")
 _LEAD = re.compile(r"^(?:(?:do|then|else)\s+)*(?:\w+\s*\(\s*\)\s*)?(?:\{\s*)?")
 _WHILE_READ = re.compile(r"while\s+(?:\w+=\S*\s+)*read\b")
 _CAT_SUBSHELL = re.compile(r"\$\(\s*cat(?:\s+-\w*)*\s*\)|`\s*cat(?:\s+-\w*)*\s*`")
-_SU_COMMAND = re.compile(r"\bsu\b[^|;&]*?\s-c\s+(['\"])")
+_SU_WORD = re.compile(r"\bsu\b")
+_DASH_C = re.compile(r"\s-c\s+(['\"])")
+_JOB_END = re.compile(r"[|;&]")
+_SU_END = re.compile(r"[;|]|&&")
 _SH_STDIN = re.compile(r"(?:/bin/)?sh\s+-s\s*$")
 
 
@@ -286,22 +292,77 @@ def _scan(line: str) -> tuple[str, str]:
     return "".join(code).rstrip(), "".join(masked).rstrip()
 
 
+def _blank_arithmetic(text: str) -> str:
+    """Blank every `$(( ... ))` (up to the first `))`) with spaces, in one left-to-right pass."""
+    out: list[str] = []
+    pos = 0
+    while (start := text.find("$((", pos)) >= 0:
+        end = text.find("))", start + 3)
+        if end < 0:
+            break  # no later `$((` can close either
+        out.append(text[pos:start])
+        out.append(" " * (end + 2 - start))
+        pos = end + 2
+    out.append(text[pos:])
+    return "".join(out)
+
+
+def _su_commands(masked: str) -> Iterator[tuple[int, str]]:
+    """End of each `su ... -c <quote>` (no `|;&` between), and the quote; one linear pass.
+
+    The next ` -c <quote>` and the next job separator are looked up once and reused for every
+    `su` word before them, so a line of repeated `su` words is not rescanned per word.
+    """
+    dash_c: re.Match[str] | None = None
+    dash_from = -1
+    job_end = -1
+    resume = 0  # a `su` word before this is part of a command already yielded
+    for su in _SU_WORD.finditer(masked):
+        from_pos = su.end()
+        if su.start() < resume:
+            continue
+        if dash_c is None and dash_from >= 0:
+            return  # the last search found no ` -c <quote>` further on
+        if dash_from < from_pos and (dash_c is None or dash_c.start() < from_pos):
+            dash_c, dash_from = _DASH_C.search(masked, from_pos), from_pos
+            if dash_c is None:
+                return
+        if job_end < from_pos:
+            sep = _JOB_END.search(masked, from_pos)
+            job_end = sep.start() if sep else len(masked) + 1
+        if dash_c is not None and dash_c.start() < job_end:
+            resume = dash_c.end()
+            yield dash_c.end(), dash_c.group(1)
+
+
 def _su_reads_stdin(line: str, masked: str, amp: re.Pattern[str]) -> bool:
-    """`su ... -c '<reader>'` with no input redirect on the su command itself."""
-    m = _SU_COMMAND.search(masked)
-    if not m:
-        return False
-    close = masked.find(m.group(1), m.end())
-    if close < 0:
-        return False
-    body = line[m.end() : close]
-    # the su command ends at a separator or a lone `&`; the `&` of `2>&1`, `<&0` or `&>` does not
-    own_tail = amp.split(re.split(r"[;|]|&&", masked[close + 1 :], maxsplit=1)[0], maxsplit=1)[0]
-    if _redirects_input(own_tail):
-        return False
-    return any(
-        _reads_stdin(seg) or bool(_SH_STDIN.match(seg.strip())) for seg in _SEPARATORS.split(body)
-    )
+    """Some `su ... -c '<reader>'` on the line has no input redirect on the su command itself."""
+    sep_at = amp_at = lt_at = -1  # next separator / lone `&` / `<`, found once, reused while ahead
+    inputs = _FD0_DUP.sub(lambda m: " " * len(m.group()), masked)  # `<&0` is not a redirect
+    for open_end, quote in _su_commands(masked):
+        close = masked.find(quote, open_end)
+        if close < 0:
+            return False
+        pos = close + 1  # the su command's own tail starts here
+        # the su command ends at a separator or a lone `&`; not at the `&` of `2>&1`, `<&0`, `&>`
+        if sep_at < pos:
+            sep = _SU_END.search(masked, pos)
+            sep_at = sep.start() if sep else len(masked)
+        if amp_at < pos:
+            lone = amp.search(masked, pos)
+            amp_at = lone.start() if lone else len(masked)
+        if lt_at < pos:
+            lt_at = inputs.find("<", pos)
+            lt_at = len(masked) if lt_at < 0 else lt_at
+        if lt_at < min(sep_at, amp_at):
+            continue
+        body = line[open_end:close]
+        if any(
+            _reads_stdin(seg) or bool(_SH_STDIN.match(seg.strip()))
+            for seg in _SEPARATORS.split(body)
+        ):
+            return True
+    return False
 
 
 def _redirects_input(text: str) -> bool:
@@ -392,7 +453,7 @@ def _script_warnings(text: str, label: str) -> list[str]:
         line, masked = _scan(raw.strip())
         if not line:
             continue
-        no_math = _ARITHMETIC.sub(lambda m: " " * len(m.group()), masked)
+        no_math = _blank_arithmetic(masked)
         doc = _HEREDOC.search(no_math)
         if doc:
             dash_tabs = doc.group(1) == "-"
