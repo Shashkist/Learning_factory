@@ -7,10 +7,11 @@ sys.path.insert(0, str(Path(__file__).parent))
 from junit_gate import check
 
 
-def _report(tmp_path, tests, skipped):
+def _report(tmp_path, tests, skipped, failures=0, errors=0):
     p = tmp_path / "r.xml"
     p.write_text(
-        f'<testsuites><testsuite tests="{tests}" skipped="{skipped}"/></testsuites>'
+        f'<testsuites><testsuite tests="{tests}" skipped="{skipped}" '
+        f'failures="{failures}" errors="{errors}"/></testsuites>'
     )
     return str(p)
 
@@ -33,3 +34,34 @@ def test_no_allow_empty_flag(tmp_path):
     report = _report(tmp_path, 0, 0)
     r = subprocess.run([sys.executable, str(gate), report, "--allow-empty"], check=False)
     assert r.returncode == 1
+
+
+def test_failures_fail_naming_count(tmp_path):
+    assert check(_report(tmp_path, 5, 0, failures=2)) == ["2 acceptance tests failed"]
+
+
+def test_errors_fail_naming_count(tmp_path):
+    assert check(_report(tmp_path, 5, 0, errors=3)) == ["3 acceptance tests errored"]
+
+
+def test_failures_and_errors_both_reported(tmp_path):
+    assert len(check(_report(tmp_path, 5, 0, failures=1, errors=1))) == 2
+
+
+def test_cli_failed_report_exits_1_with_fail_line(tmp_path):
+    gate = Path(__file__).with_name("junit_gate.py")
+    r = subprocess.run(
+        [sys.executable, str(gate), _report(tmp_path, 5, 0, failures=2)],
+        check=False, capture_output=True, text=True,
+    )
+    assert r.returncode == 1
+    assert "FAIL: 2 acceptance tests failed" in r.stdout
+
+
+def test_multiple_testsuites_are_summed(tmp_path):
+    p = tmp_path / "m.xml"
+    p.write_text(
+        '<testsuites><testsuite tests="2" failures="0"/>'
+        '<testsuite tests="2" failures="1"/></testsuites>'
+    )
+    assert check(str(p)) == ["1 acceptance tests failed"]
