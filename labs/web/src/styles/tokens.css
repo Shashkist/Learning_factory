@@ -21,6 +21,8 @@
   --color-danger-bg: #fee2e2;
   --color-disabled-bg: #e5e7eb;
   --color-shadow: #0000000f;
+  --color-terminal-bg: #0b1220;
+  --color-terminal-text: #e5e7eb;
 
   /* Type */
   --font-sans: "Rubik Variable", system-ui, sans-serif;

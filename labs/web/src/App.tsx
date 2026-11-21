@@ -76,8 +76,9 @@ function Student() {
     );
 
   const lab = labId(path);
+  const onLab = Boolean(lab) && !["/", "/labs", "/login"].includes(path);
   return (
-    <AppShell userName={user.name} onLogout={logout}>
+    <AppShell userName={user.name} onLogout={logout} wide={onLab}>
       {logoutFailed && <p role="alert">{t("nav.logout_failed")}</p>}
       {["/", "/labs", "/login"].includes(path) ? (
         <>

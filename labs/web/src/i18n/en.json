@@ -145,5 +145,8 @@
   "admin.live.cancel": "Keep running",
   "admin.live.empty": "Nobody is in a lab right now.",
   "admin.live.error": "Could not load the live sessions.",
-  "admin.live.end_error": "Could not end the session. Try again."
+  "admin.live.end_error": "Could not end the session. Try again.",
+  "lab.pane.tasks": "Tasks",
+  "lab.pane.terminal": "Terminal",
+  "lab.timer": "Time left"
 }

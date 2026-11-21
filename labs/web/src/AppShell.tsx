@@ -6,10 +6,13 @@ import { useI18n } from "./i18n";
 export default function AppShell({
   userName,
   onLogout,
+  wide,
   children,
 }: {
   userName?: string;
   onLogout?: () => void;
+  /** Full-width content column (the lab screen). */
+  wide?: boolean;
   children: ReactNode;
 }) {
   const { lang, toggle, t } = useI18n();
@@ -29,7 +32,7 @@ export default function AppShell({
           )}
         </div>
       </header>
-      <main className="app-content">{children}</main>
+      <main className={wide ? "app-content app-content--wide" : "app-content"}>{children}</main>
     </>
   );
 }

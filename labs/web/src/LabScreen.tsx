@@ -2,12 +2,14 @@ import {
   useEffect,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent,
   type PointerEvent,
 } from "react";
 import Markdown, { type Components } from "react-markdown";
 
 import { useI18n } from "./i18n";
+import "./styles/lab-screen.css";
 
 type Bi = { en: string; he: string };
 type Session = { id: string; lab_id?: string; expires_at: string | null };
@@ -25,6 +27,7 @@ type Task = {
 };
 type Row = { passed: boolean; hint: string | null };
 type Verdict = "correct" | "incorrect" | null;
+type Pane = "tasks" | "terminal";
 type Phase = "loading" | "preparing" | "ready" | "ended" | "mismatch";
 
 class Busy extends Error {}
@@ -127,7 +130,7 @@ export default function LabScreen({
   go: (to: string) => void;
 }) {
   const { t, lang } = useI18n();
-  const dir = lang === "he" ? "rtl" : "ltr";
+  const rtl = lang === "he";
   const [phase, setPhase] = useState<Phase>("loading");
   const [session, setSession] = useState<Session | null>(null);
   const [task, setTask] = useState<Task | null>(null);
@@ -142,6 +145,7 @@ export default function LabScreen({
   const [left, setLeft] = useState<number | null>(null);
   const [split, setSplit] = useState(40);
   const [dragging, setDragging] = useState(false);
+  const [pane, setPane] = useState<Pane>("tasks");
   const [done, setDone] = useState(false);
   const [pending, setPending] = useState(false);
   const inFlight = useRef(false);
@@ -192,6 +196,8 @@ export default function LabScreen({
             return;
           }
           setSession(s);
+          const at = s.expires_at ? Date.parse(s.expires_at) : NaN;
+          if (!Number.isNaN(at)) setLeft(at - (Date.now() + skew.current)); // the countdown is there with the first paint
           setPhase("preparing");
           const base = `/api/sessions/${s.id}/tasks`;
           let first: Task;
@@ -304,19 +310,33 @@ export default function LabScreen({
     </a>
   );
 
-  if (fatal) return <p role="alert">{t(fatal)}</p>;
+  if (fatal)
+    return (
+      <p role="alert" className="alert danger">
+        {t(fatal)}
+      </p>
+    );
   if (phase === "loading") return null;
-  if (phase === "preparing") return <p role="status">{t("lab.preparing")}</p>;
+  if (phase === "preparing")
+    return (
+      <p role="status" className="alert">
+        {t("lab.preparing")}
+      </p>
+    );
   if (phase === "mismatch")
     return (
-      <p role="alert">
+      <p role="alert" className="alert warning">
         {t("lab.error.other_lab")} {toLabs}
       </p>
     );
   if (phase === "ended")
     return (
-      <div>
-        {left !== null && <div role="timer">{clock(left)}</div>}
+      <div className="lab-message card">
+        {left !== null && (
+          <div role="timer" aria-label={t("lab.timer")} className="lab-timer">
+            {clock(left)}
+          </div>
+        )}
         <p role="status">{t("lab.ended")}</p>
         {toLabs}
       </div>
@@ -413,7 +433,10 @@ export default function LabScreen({
     document.getElementById(`lab-tab-${next}`)?.focus();
   };
   const resize = (e: KeyboardEvent) => {
-    const d = e.key === "ArrowRight" ? 5 : e.key === "ArrowLeft" ? -5 : 0;
+    // The tasks pane sits at the inline start: the arrow that points to the terminal grows it.
+    const grow = rtl ? "ArrowLeft" : "ArrowRight";
+    const shrink = rtl ? "ArrowRight" : "ArrowLeft";
+    const d = e.key === grow ? 5 : e.key === shrink ? -5 : 0;
     if (d) setSplit((s) => Math.min(80, Math.max(20, s + d)));
   };
   const dragStart = (e: PointerEvent) => {
@@ -424,9 +447,8 @@ export default function LabScreen({
   const dragMove = (e: PointerEvent) => {
     const box = frame.current?.getBoundingClientRect();
     if (!dragging || !box?.width) return;
-    setSplit(
-      Math.min(80, Math.max(20, ((e.clientX - box.left) / box.width) * 100)),
-    );
+    const from = rtl ? box.right - e.clientX : e.clientX - box.left;
+    setSplit(Math.min(80, Math.max(20, (from / box.width) * 100)));
   };
   const dragEnd = () => setDragging(false);
 
@@ -438,13 +460,42 @@ export default function LabScreen({
       ? t("lab.check_failed")
       : "";
   return (
-    <div ref={frame} dir="ltr" style={{ display: "flex", height: "80vh" }}>
-      <section
-        data-testid="task-panel"
-        dir={dir}
-        style={{ width: `${split}%`, overflow: "auto" }}
+    <div className="lab" data-pane={pane}>
+      <div className="lab-bar">
+        <div role="tablist" className="lab-panes">
+          {(["tasks", "terminal"] as const).map((k) => (
+            <button
+              key={k}
+              id={`lab-pane-${k}`}
+              role="tab"
+              type="button"
+              aria-selected={pane === k}
+              tabIndex={pane === k ? 0 : -1}
+              onClick={() => setPane(k)}
+              onKeyDown={(e) => {
+                if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+                e.preventDefault();
+                const next = pane === "tasks" ? "terminal" : "tasks";
+                setPane(next);
+                document.getElementById(`lab-pane-${next}`)?.focus();
+              }}
+            >
+              {t(`lab.pane.${k}`)}
+            </button>
+          ))}
+        </div>
+        {left !== null && (
+          <div role="timer" aria-label={t("lab.timer")} className="lab-timer">
+            {clock(left)}
+          </div>
+        )}
+      </div>
+      <div
+        ref={frame}
+        className="lab-body"
+        style={{ "--split": `${split}%` } as CSSProperties}
       >
-        {left !== null && <div role="timer">{clock(left)}</div>}
+      <section data-testid="task-panel" dir={rtl ? "rtl" : "ltr"} className="lab-tasks">
         <div
           role="progressbar"
           aria-valuemin={1}
@@ -453,17 +504,14 @@ export default function LabScreen({
           aria-label={`${t("lab.question")} ${task.index} ${t("lab.of")} ${task.total}`}
         >
           <div
-            style={{
-              width: `${(task.index / task.total) * 100}%`,
-              height: 4,
-              background: "currentColor",
-            }}
+            className="lab-progress__fill"
+            style={{ inlineSize: `${(task.index / task.total) * 100}%` }}
           />
         </div>
-        <p>
+        <p className="lab-step">
           {t("lab.question")} {task.index} {t("lab.of")} {task.total}
         </p>
-        <div role="tablist" onKeyDown={arrow}>
+        <div role="tablist" className="lab-tabs" onKeyDown={arrow}>
           {(["task", "solution"] as const).map((k) => (
             <button
               key={k}
@@ -478,13 +526,21 @@ export default function LabScreen({
             </button>
           ))}
         </div>
-        {error && <p role="alert">{t(error)}</p>}
+        {error && (
+          <p role="alert" className="alert danger">
+            {t(error)}
+          </p>
+        )}
         <div
           id="lab-tabpanel"
           role="tabpanel"
           aria-labelledby={`lab-tab-${tab}`}
         >
-          <p role="status" style={emptyLine ? { margin: 0 } : undefined}>
+          <p
+            role="status"
+            style={emptyLine ? { margin: 0 } : undefined}
+            className={emptyLine ? "lab-status-empty" : done ? "alert success" : "alert warning"}
+          >
             {done
               ? t("lab.complete")
               : open
@@ -494,7 +550,7 @@ export default function LabScreen({
                 : ""}
           </p>
           {open ? (
-              <ul>
+              <ul className="lab-open">
                 {open.map((o) => (
                   <li key={o.id}>
                     <button
@@ -527,19 +583,26 @@ export default function LabScreen({
                   {task.text && (
                     <Text md={task.text[lang]} title={task.title[lang]} />
                   )}
-                  <ul>
+                  <ul className="lab-checklist">
                     {(task.checklist ?? []).map((c) => {
                       const r = rows?.[c.n];
                       return (
-                        <li key={c.n}>
+                        <li key={c.n} className={r ? (r.passed ? "ok" : "bad") : undefined}>
                           {r && (r.passed ? "✓ " : "✗ ")}
                           {c.text[lang]}
-                          {r && !r.passed && r.hint && <div>{r.hint}</div>}
+                          {r && !r.passed && r.hint && (
+                            <div className="alert danger">{r.hint}</div>
+                          )}
                         </li>
                       );
                     })}
                   </ul>
-                  <button onClick={check} disabled={pending}>
+                  <button
+                    className="primary"
+                    onClick={check}
+                    disabled={pending}
+                    aria-busy={pending}
+                  >
                     {t("lab.check")}
                   </button>
                 </>
@@ -548,7 +611,7 @@ export default function LabScreen({
                   <p>{task.question?.[lang]}</p>
                   <div role="radiogroup" aria-label={task.question?.[lang]}>
                     {(task.options ?? []).map((o, i) => (
-                      <label key={i} style={{ display: "block" }}>
+                      <label key={i}>
                         <input
                           type="radio"
                           name="option"
@@ -560,6 +623,8 @@ export default function LabScreen({
                     ))}
                   </div>
                   <button
+                    className="primary"
+                    aria-busy={pending}
                     onClick={answer}
                     disabled={choice === null || pending}
                   >
@@ -568,12 +633,18 @@ export default function LabScreen({
                 </>
               )}
               <div aria-live="polite">
-                {verdictText && <p>{verdictText}</p>}
+                {verdictText && (
+                  <p
+                    className={`alert ${verdict === "correct" ? "success" : verdict === "incorrect" ? "danger" : "warning"}`}
+                  >
+                    {verdictText}
+                  </p>
+                )}
               </div>
             </>
           )}
         </div>
-        <div>
+        <div className="lab-actions">
           <button
             onClick={() => step("previous")}
             disabled={task.index <= 1 || pending}
@@ -581,7 +652,11 @@ export default function LabScreen({
             {t("lab.previous")}
           </button>
           {passed && (
-            <button onClick={() => step("next")} disabled={pending}>
+            <button
+              className="primary"
+              onClick={() => step("next")}
+              disabled={pending}
+            >
               {t("lab.next")}
             </button>
           )}
@@ -591,7 +666,9 @@ export default function LabScreen({
           <button onClick={() => step("restart")} disabled={pending}>
             {t("lab.restart")}
           </button>
-          <button onClick={end}>{t("lab.end")}</button>
+        <button className="danger lab-end" onClick={end}>
+          {t("lab.end")}
+        </button>
         </div>
       </section>
       <div
@@ -608,23 +685,16 @@ export default function LabScreen({
         onPointerUp={dragEnd}
         onPointerCancel={dragEnd}
         onLostPointerCapture={dragEnd}
-        style={{
-          width: 6,
-          cursor: "col-resize",
-          background: "var(--color-border-strong)",
-          touchAction: "none",
-        }}
+        className="lab-splitter"
       />
-      <iframe
-        title={t("lab.terminal")}
-        src={`/s/${session.id}/term/`}
-        style={{
-          flex: 1,
-          border: 0,
-          minWidth: 0,
-          pointerEvents: dragging ? "none" : "auto",
-        }}
-      />
+      <div className="lab-term" dir="ltr">
+        <iframe
+          title={t("lab.terminal")}
+          src={`/s/${session.id}/term/`}
+          style={{ pointerEvents: dragging ? "none" : "auto" }}
+        />
+      </div>
+      </div>
     </div>
   );
 }
