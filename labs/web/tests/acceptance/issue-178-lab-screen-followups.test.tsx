@@ -15,6 +15,8 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import App from "../../src/App";
+// Amended for #349: End lab moved to the lab screen top bar, so it is looked up there (lab-topbar.ts), not in the task panel.
+import { endButton } from "./lab-topbar";
 import en from "../../src/i18n/en.json";
 import he from "../../src/i18n/he.json";
 
@@ -193,7 +195,7 @@ describe.each(LANGS)("a failed re-read of the task list after no_next_task (%s)"
     expect(screen.queryByTestId("task-panel")).not.toBeNull();
     expect(window.location.pathname).toBe("/labs/lab-1");
     expect(screen.queryByText(d["lab.complete"], { exact: false })).toBeNull();
-    expect((button(d["lab.end"]) as HTMLButtonElement).disabled).toBe(false);
+    expect((endButton(d["lab.end"]) as HTMLButtonElement).disabled).toBe(false);
     expect(count(calls, "POST", `${API}/end`)).toBe(0);
   });
 });

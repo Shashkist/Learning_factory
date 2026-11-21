@@ -18,7 +18,8 @@
  *     the terminal <iframe title=lab.terminal> is the same DOM node before and after, with the same src.
  *   - The countdown stays `role="timer"` and gets an accessible name (aria-label) made of words in the page
  *     language (not just the clock digits).
- *   - Task code (pre, code) stays dir="ltr"; a task id shown in the page sits in <bdi dir="ltr">.
+ *   - Task code (pre, code) stays dir="ltr". (The "task id in <bdi dir=ltr>" loop was removed in #349: the page
+ *     never shows the id, so it asserted nothing.)
  *   - The check result line keeps living in a pre-existing `aria-live` element (not role=status: #269).
  */
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -156,7 +157,7 @@ describe.each(LANGS)("lab screen design contract (%s)", (lang) => {
     expect(frame.getAttribute("src")).toBe(src);
   });
 
-  test("AC3: task code stays left to right and a shown task id sits in bdi dir=ltr", async () => {
+  test("AC3: task code (pre and code) stays left to right", async () => {
     backend();
     await open(lang);
     const pre = panel().querySelector("pre");
@@ -164,13 +165,6 @@ describe.each(LANGS)("lab screen design contract (%s)", (lang) => {
     const codes = [...panel().querySelectorAll("code")];
     expect(codes.length).toBeGreaterThan(0);
     for (const c of codes) expect(c.getAttribute("dir")).toBe("ltr");
-    // Every text node that shows the task id (the design may show it as the task number, or not at all)
-    // is wrapped in a bdi dir="ltr", so it does not reorder inside Hebrew text.
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
-      if (!n.textContent?.includes(TASK_ID)) continue;
-      expect(n.parentElement?.closest('bdi[dir="ltr"]'), `"${n.textContent}" is in <bdi dir=ltr>`).not.toBeNull();
-    }
   });
 
   test("AC4: the check result is announced by an aria-live element that was in the page before the check", async () => {

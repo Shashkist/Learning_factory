@@ -92,6 +92,8 @@ const open = async (path = "/labs/lab-1") => {
   await screen.findByTestId("task-panel");
   return view;
 };
+// End lab lives in the top bar, outside the task panel.
+const endBtn = () => screen.getByRole("button", { name: EN["lab.end"] }) as HTMLButtonElement;
 const btn = (name: string) =>
   within(screen.getByTestId("task-panel")).getByRole("button", {
     name,
@@ -144,7 +146,7 @@ describe("in-flight guard", () => {
     await waitFor(() => expect(btn(EN["lab.skip"]).disabled).toBe(true));
     for (const k of ["lab.check", "lab.restart", "lab.skip"])
       expect(btn(EN[k]).disabled).toBe(true);
-    expect(btn(EN["lab.end"]).disabled).toBe(false); // End lab is never blocked by a hung action
+    expect(endBtn().disabled).toBe(false); // End lab is never blocked by a hung action
     fireEvent.click(btn(EN["lab.skip"]));
     fireEvent.click(btn(EN["lab.restart"]));
     expect(n(calls, "POST", `${API}/tasks/current/skip`)).toBe(1);
@@ -501,12 +503,47 @@ describe("open tasks view", () => {
   });
 });
 
+describe("phone focus", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const media = (on: () => boolean) =>
+    vi.stubGlobal("matchMedia", (q: string) => ({ get matches() { return on(); }, media: q, addEventListener() {}, removeEventListener() {} }));
+  const focusFrame = async () => {
+    backend({});
+    await open();
+    const frame = document.querySelector("iframe") as HTMLIFrameElement;
+    frame.focus();
+    expect(document.activeElement).toBe(frame);
+    fireEvent.blur(window);
+    return frame;
+  };
+
+  test("focus that lands in the hidden terminal goes back to the tasks pane", async () => {
+    media(() => true);
+    const frame = await focusFrame();
+    await waitFor(() => expect(document.activeElement).not.toBe(frame));
+    expect(screen.getByTestId("task-panel").contains(document.activeElement)).toBe(true);
+  });
+
+  test("a terminal that is visible (window grew wide since mount) keeps its focus", async () => {
+    let phone = true;
+    media(() => phone);
+    backend({});
+    await open();
+    const frame = document.querySelector("iframe") as HTMLIFrameElement;
+    frame.focus();
+    phone = false;
+    fireEvent.blur(window);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(document.activeElement).toBe(frame);
+  });
+});
+
 describe("End guard", () => {
   test("a second click while End is pending sends one request", async () => {
     const calls = backend({ [`POST ${API}/end`]: "hang" });
     await open();
-    fireEvent.click(btn(EN["lab.end"]));
-    fireEvent.click(btn(EN["lab.end"]));
+    fireEvent.click(endBtn());
+    fireEvent.click(endBtn());
     expect(n(calls, "POST", `${API}/end`)).toBe(1);
   });
 });
