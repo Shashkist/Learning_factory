@@ -240,8 +240,10 @@ _HEREDOC = re.compile(r"(?<!<)<<(?!<)(-?)\s*([^\s;&|<>()]+)")  # not `<<<`, a he
 # per start position), or nothing: `2>&1>file` has a second redirect right after a digit.
 _FD = r"((?<!\d)\d+|)"
 _REDIRECTS = re.compile(_FD + r">&\d+|" + _FD + r">>?\s*\S+")
+# `>&\2` is `>&2` after quote removal (bash and dash copy fd 2); `>&\-` falls through to the
+# file branch like `>&-` (stdout closed).
 _FD_REDIRECT = re.compile(
-    r"&>>?\s*\S+|" + _FD + r">>?&\s*(?:(\d)|\\[\d-])|"
+    r"&>>?\s*\S+|" + _FD + r">>?&\s*\\?(\d)|"
     r"(?P<wfd>(?<!\d)\d+|)>&\s*[^\s\d$`'\x22\\-]\S*|" + _FD + r">>?\s*\S+"
 )
 _FD0_DUP = re.compile(r"(?<!\d)\d*<&\s*0")
