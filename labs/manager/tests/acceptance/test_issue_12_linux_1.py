@@ -151,9 +151,9 @@ def test_lab_is_module_1_lesson_5_image_term():
     assert lab.path.name == LAB_ID
 
 
-def test_status_is_draft():
-    assert _lab().status == "draft"
-    assert _raw().get("status") == "draft"
+def test_status_is_published():
+    assert _lab().status == "published"
+    assert _raw().get("status") == "published"
 
 
 def test_sudo_is_false_explicitly_and_internet_is_off():
