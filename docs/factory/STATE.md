@@ -4,6 +4,8 @@
 
 ## Now
 
+**Pass lf-t5k8 (laptop, from 07:25 UTC) in progress:** claims #364 (`f/364-ci-exam-once`, worktree `C:\projects\lf-364`; CI manager job runs the exam once). Leaves #355 (PR #367) and PR #368 to their owner pass.
+
 **Pass lf-r6q2 (laptop, from 05:30 UTC) in progress:** claims #355 (`f/355-validator-linear-scans`, worktree `C:\projects\lf-355`), #360 (`f/360-active-time-sessions`, `lf-360`), #359 (`f/359-exam-secrets-compound`, `lf-359`, exam-only). Exam writers running. D115 recorded (#355: linear scans, no cap; stdin warning kept on `&` jobs).
 
 _Previous:_ **Pass lf-p4w9 (laptop, 03:27-05:12 UTC) stopped at 3 merged PRs; no claims held, nothing in flight:** #358 (#94: the Deploy smoke call passes 3 named secrets, not `inherit`; lock fallback pinned), #357 (#348: student page active time and last activity, teacher nits), #361 (#343: linear redirect regexes, rebuilt from #354). **#94, #348 and #343 closed with evidence (#343: Deploy 44869288333 deployed 59561c3, smoke ok). Deploy 44867263764 deployed a875ef3; `smoke / smoke` was green, with "Configure SSH to the server" passing on the named secrets.** Decisions D113, D114, D38 amendment. New issues: #359, #360; two #361 leftovers added to #355.
