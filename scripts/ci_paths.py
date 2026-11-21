@@ -15,15 +15,12 @@ DOCS_FILES = ("history.md",)
 DOCS_ONLY = (*DOCS_DIRS, *DOCS_FILES)
 
 
-def check_docs_files(names: tuple[str, ...]) -> None:
-    # A name becomes a glob pathspec below, so a glob character or a trailing backslash would
-    # change its meaning.
+def check_docs_names(names: tuple[str, ...]) -> None:
+    # Every name becomes a glob pathspec below, so a glob character or a backslash would change
+    # its meaning (the "history.m[d]" trick does not escape them).
     for n in names:
-        if any(c in n for c in "*?[") or n.endswith("\\"):
-            raise ValueError(f"DOCS_FILES name {n!r} must not contain * ? [ or end with a backslash")
-
-
-check_docs_files(DOCS_FILES)
+        if any(c in n for c in "*?[\\"):
+            raise ValueError(f"docs name {n!r} must not contain * ? [ or a backslash")
 
 # Directory prefixes whose changes need the docker and image jobs.
 HEAVY = (
@@ -42,9 +39,18 @@ HEAVY = (
 )
 
 
+PATHSPEC_ENV = (
+    "GIT_LITERAL_PATHSPECS",
+    "GIT_GLOB_PATHSPECS",
+    "GIT_NOGLOB_PATHSPECS",
+    "GIT_ICASE_PATHSPECS",
+)
+
+
 def git(*args: str, check: bool = True) -> subprocess.CompletedProcess[bytes]:
-    # GIT_LITERAL_PATHSPECS=1 would read the ":(top)" and ":(exclude)" specs as file names.
-    env = {k: v for k, v in os.environ.items() if k != "GIT_LITERAL_PATHSPECS"}
+    # GIT_LITERAL_PATHSPECS=1 would read the ":(top)" and ":(exclude)" specs as file names, and
+    # GIT_ICASE_PATHSPECS=1 would exclude "Docs/" while ci.yml paths-ignore is case-sensitive.
+    env = {k: v for k, v in os.environ.items() if k not in PATHSPEC_ENV}
     return subprocess.run(
         ["git", "-c", "core.quotePath=false", *args],
         check=check,
@@ -59,6 +65,8 @@ def code_spec() -> list[str]:
     # of that name is code); a bare name is the root file only (a directory of that name is code).
     # A glob spec with no wildcard also matches a directory, so the last character of a file
     # name goes in a character class ("history.m[d]"), which git matches against the whole path.
+    check_docs_names(DOCS_DIRS)
+    check_docs_names(DOCS_FILES)
     files = (f[:-1] + "[" + f[-1] + "]" for f in DOCS_FILES)
     return [
         ":(top)",

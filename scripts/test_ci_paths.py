@@ -172,22 +172,40 @@ def test_paths_ignore_matches_docs_by_kind() -> None:
     assert sorted(files) == sorted(mod.DOCS_FILES)
 
 
-@pytest.mark.parametrize("name", ["*.md", "history?.md", "[h]istory.md", "history.md\\"])
-def test_docs_files_refuses_glob_characters(name: str) -> None:
-    with pytest.raises(ValueError):
-        load_ci_paths().check_docs_files((name,))
+BAD_NAMES = ["*.md", "history?.md", "[h]istory.md", "history.md\\", "hist\\ory.md"]
 
 
-def test_ignores_literal_pathspecs_variable(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("kind", ["DOCS_FILES", "DOCS_DIRS"])
+@pytest.mark.parametrize("name", BAD_NAMES)
+def test_docs_names_refuse_glob_characters(
+    name: str, kind: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # GIT_LITERAL_PATHSPECS=1 would turn the ":(top)" and ":(exclude...)" specs into file names.
+    # The check runs where the names become pathspecs, so it cannot be skipped by a refactor.
+    mod = load_ci_paths()
+    monkeypatch.setattr(mod, kind, (name,))
+    with pytest.raises(ValueError):
+        mod.code_spec()
+
+
+def test_code_spec_accepts_the_real_names() -> None:
+    assert load_ci_paths().code_spec()
+
+
+@pytest.mark.parametrize("var", ["GIT_LITERAL_PATHSPECS", "GIT_ICASE_PATHSPECS"])
+def test_ignores_pathspec_variables(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, var: str
+) -> None:
+    # GIT_LITERAL_PATHSPECS=1 would turn the ":(top)" and ":(exclude...)" specs into file names;
+    # GIT_ICASE_PATHSPECS=1 would treat "Docs/" as docs, but ci.yml paths-ignore is case-sensitive.
     code = commit(repo, "labs/web/a.ts")
     head = commit(repo, "docs/x.md")
     assert deploys(repo, code, head) == "true"
-    monkeypatch.setenv("GIT_LITERAL_PATHSPECS", "1")
+    monkeypatch.setenv(var, "1")
     assert deploys(repo, code, head) == "true"
-    assert deploys(repo, code, commit(repo, "labs/web/b.ts")) == "false"
+    # Each case starts from its own code commit, so only the one new path is in the diff.
+    for path in ("labs/web/b.ts", "Courses/run.py", "HISTORY.md"):
+        code = commit(repo, f"labs/web/{len(path)}.ts")
+        assert deploys(repo, code, commit(repo, path)) == "false", path
 
 
 def test_root_history_after_code_still_deploys(repo: Path) -> None:
