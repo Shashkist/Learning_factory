@@ -293,6 +293,27 @@ export default function LabScreen({
     heading.current.focus();
   });
 
+  // Lab complete shows the message only: pin the tasks pane.
+  useEffect(() => {
+    if (done) setPane("tasks");
+  }, [done]);
+
+  // On phones the terminal sits hidden while the tasks tab is shown; ttyd focuses its shell on connect, so take the focus back.
+  useEffect(() => {
+    if (pane !== "tasks" || !window.matchMedia?.("(max-width: 48rem)").matches) return;
+    const back = () => {
+      const f = document.activeElement;
+      if (f instanceof HTMLIFrameElement && f.closest(".lab-term")) {
+        f.blur();
+        const target = heading.current ?? document.getElementById("lab-panel-tasks");
+        target?.setAttribute("tabindex", "-1");
+        target?.focus();
+      }
+    };
+    window.addEventListener("blur", back);
+    return () => window.removeEventListener("blur", back);
+  }, [pane]);
+
   const run = async (fn: () => Promise<void>, fallback = "lab.error.load") => {
     if (inFlight.current) return;
     inFlight.current = true;
@@ -487,6 +508,7 @@ export default function LabScreen({
               aria-controls={`lab-panel-${k}`}
               type="button"
               aria-selected={pane === k}
+              disabled={done && k === "terminal"}
               tabIndex={pane === k ? 0 : -1}
               onClick={() => setPane(k)}
               onKeyDown={(e) => {
@@ -501,7 +523,7 @@ export default function LabScreen({
             </button>
           ))}
         </div>
-        {title && <span className="lab-title">{title}</span>}
+        {title && <h1 className="lab-title">{title}</h1>}
         <span className="lab-state">{t("lab.state.running")}</span>
         {left !== null && (
           <div role="timer" aria-label={t("lab.timer")} className="lab-timer">

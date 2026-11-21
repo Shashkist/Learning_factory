@@ -503,6 +503,22 @@ describe("open tasks view", () => {
   });
 });
 
+describe("phone focus", () => {
+  test("focus that lands in the hidden terminal goes back to the tasks pane", async () => {
+    window.matchMedia = ((q: string) => ({ matches: true, media: q, addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia;
+    backend({});
+    await open();
+    const frame = document.querySelector("iframe") as HTMLIFrameElement;
+    frame.focus();
+    expect(document.activeElement).toBe(frame);
+    fireEvent.blur(window);
+    expect(document.activeElement).not.toBe(frame);
+    expect(screen.getByTestId("task-panel").contains(document.activeElement)).toBe(true);
+    // @ts-expect-error restore the jsdom default (no matchMedia)
+    delete window.matchMedia;
+  });
+});
+
 describe("End guard", () => {
   test("a second click while End is pending sends one request", async () => {
     const calls = backend({ [`POST ${API}/end`]: "hang" });
