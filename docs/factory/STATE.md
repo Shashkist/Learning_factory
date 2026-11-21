@@ -4,7 +4,16 @@
 
 ## Now
 
-**Pass lf-w3n7 (laptop, from ~09:30 UTC).** Closed #55, #378, incident #380 with evidence (Deploy 44889309740 deployed 1c420e6, smoke green, `/api/health` ok). Merged #375 (#364 part B, eed9bd1); #364 closes when its main CI is green. In flight: **#355** PR #367 (claim taken over from lf-r6q2, reviewer round 1 running), **#376** (`f/376-janitor-deadline-warning`, worktree `C:\projects\lf-376`), **#374** (`f/374-term-frame-ancestors`, worktree `C:\projects\lf-374`), exam writers running.
+**Pass lf-w3n7 (laptop, 09:27-~10:45 UTC) stopped at 3 merged PRs:** #375 (#364 part B, the exam alone), #382 (#376: janitor warns on a too-short `LF_START_DEADLINE_S`; exam pins the guarded end's time half), #367 (#355: linear su and arithmetic scans). **Closed with evidence: #355 (Deploy 44895742673 deployed 5752e68, smoke green), #55 and incidents #378, #380 (Deploy 44889309740 deployed 1c420e6, smoke green), #364 (main CI 44889775470: `manager` and `manager-exam` both green), #376 (Deploy 44894087812 deployed e21e1f0, smoke green; mutation PR #381 proved the new exam case bites).** D117 amendment (framing headers, rule for future lab routes). New issues: #384 (review of #376), #385 (review of #374); two #367 review items added to #366.
+
+- **Resume here, first:**
+  1. **PR #383 (#374, terminal framing headers): APPROVED in round 1, CI was green on base ad3d9b9 (before #382 and #367 merged).** Rebase onto main (worktree `C:\projects\lf-374`, branch `f/374-term-frame-ancestors`), push, wait for green CI, `gh pr merge 383 --squash --delete-branch`. Smoke after the Deploy: `curl -sI https://labs.shashkist.com/s/00000000-0000-0000-0000-000000000000/term/` → 401 with `content-security-policy: frame-ancestors 'self'` and `x-frame-options: SAMEORIGIN`; open a lab once and see the terminal render (same-origin iframe). Close #374, release the claim (`--session lf-w3n7`).
+- **Small chore PR (CI ignores `.claude/**`, so it is quick):** in `.claude/agents/implementer.md` say manager unit tests go under `labs/manager/tests/unit/` (anywhere else under `labs/*/tests/` is exam); in `.claude/agents/exam-writer.md` say "run `uv run ruff check <file>` on the exam before committing". See the lessons below.
+- Then the Next list.
+- Worktrees `C:\projects\lf-376`, `lf-355` are shipped and safe to remove; keep `lf-374` until #383 merges.
+- **Lesson (pass lf-w3n7):** a unit test at `labs/manager/tests/<file>.py` counts as **exam** for exam integrity (only `tests/unit/` is not). Both implementers put their unit test there; the code commit would have mixed exam and code. Tell implementers: unit tests go in `labs/manager/tests/unit/`.
+- **Lesson (pass lf-w3n7):** an exam case that needs Postgres can be mutation-checked without a local database: push the exam plus a deliberately broken guard as a draft PR (#381) and read the `manager-exam` job (~7 min). The reviewer used its result as evidence.
+- **Lesson (pass lf-w3n7):** the exam writer's long test name broke ruff (E501) in the exam file, which the implementer must not touch. The manager fixed it by amending the exam commit before the code commit (keeps exam-first order). Ask exam writers to run `ruff check` on their file.
 
 _Previous:_ **Pass lf-t5k8 (laptop, 07:25-~09:20 UTC) stopped at 3 merged PRs plus an incident fix:** #370 (#364 part A: `manager` + parallel `manager-exam` CI jobs; 1:00 and 6:00 instead of 14:25), #371 (#69: terminal WebSocket Origin check), #372 (#55: guarded start-deadline end, deadline validation, janitor recovery logging), #379 (incident #378: the #12 exam accepts the ticked O17 once Linux 1 is published; main was red after 269d59e ticked O17). **#69 closed with evidence (Deploy 44884185518 deployed 35a884c, smoke ok; live `Origin: https://evil.shashkist.com` → 403 `origin_not_allowed`, same origin → 401).** Decisions D116, D117, D118, D24 amendment. New issues: #373, #374 (review of #69), #376 (review of #55), #377 (junit gate counts failures).
 
@@ -203,8 +212,8 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
 ## Next (in order)
 
-1. **#355** (linear su and arithmetic scans, plus the #361 leftovers; exam-first). **#332** after O23.
-2. **#360** (active time counts unfinished labs), **#359** (exam #94: secrets read in compound expressions; exam-only).
+1. **#383 merge** (see Resume). **#332** after O23.
+2. **#384**, **#385** (review follow-ups), **#366** (validator, now with 2 more #367 items), **#373**, **#377**; **#360** (active time counts unfinished labs), **#359** (exam #94: secrets read in compound expressions; exam-only).
 3. Review leftovers: **#337** (pipelines); **#319** (now also the 390 px typed-command proof from #349) WebSocket relay proof, **#154** Solution tab (D57 b), **#142**.
 4. **#85** deploy follow-ups, **#93**; p2 list: #81, #76, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
@@ -221,6 +230,7 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
 ## Recently done
 
+- 2026-11-21 pass lf-w3n7: #364 (#375 exam; main CI 44889775470), #376 (#382; Deploy 44894087812, smoke ok), #355 (#367); closed #55, #378, #380 with Deploy 44889309740.
 - 2026-11-21 pass lf-p4w9: #94 (#358, named smoke secrets; Deploy 44867263764 smoke green), #348 (#357, active time and last activity; live bundle verified), #343 (#361; Deploy 44869288333, smoke ok).
 - 2026-11-21 pass lf-k9p4: #331 (#345 exam; Deploy 44839011018, smoke ok), #333 (#347 lab screen: full-width terminal, pane tabs on phones, D108), #340 (#350: #311 cases pin the truncation hint, 05 counts the reader's fact lines). #334 in PR #351 (approved), #332 parked (O23).
 - 2026-11-21 pass lf-h8v5: #325 (#338, one-read truncation with NULs mapped, 06 fails duplicates, D106; Deploy 44830036804, smoke ok), #326 (#342, validator: `&>` per shebang, jobs split on every lone `&`, `exec N<&0`, D107), #331 part A (#344, tokens, light/dark, bundled Rubik, app shell; exam PR #345 pending).

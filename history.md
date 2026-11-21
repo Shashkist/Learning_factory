@@ -513,3 +513,17 @@ Numbers: 3 merged feature PRs (#370, #371, #372), an incident PR (#379), 1 repla
 Tips:
 - When a test guards a config file, let the reviewer mutate the config, not just read the test.
 - Never give an exam an override hook, even "for the proof"; patch it from outside the repo instead.
+
+## Pass lf-w3n7: proving a database test bites without a database (2026-11-21, laptop, 09:27-~10:45 UTC)
+
+The pass opened with clean-up from the previous one: main was green again, so the leftover incidents (#378, #380) and #55 were closed with the Deploy run as evidence, and the approved #364 exam (#375) merged in the first five minutes. Three lanes then ran side by side: the #355 validator PR (taken over from a session that had gone silent, and only waiting for review), the janitor warning (#376) and the terminal framing headers (#374).
+
+The neat trick: the new #376 exam case needs Postgres, and the laptop has none (no Docker Desktop, sandboxed installs). Instead of trusting "it should fail if someone drops the time condition", the manager pushed the exam plus a deliberately broken guard as a draft PR (#381). Seven minutes later, CI's `manager-exam` job said `a fresh start was ended: 'orphan'`, which is the exact failure the case exists for. The reviewer used that run as evidence, and the draft was closed.
+
+The surprise: both implementers put their new unit tests at `labs/manager/tests/<file>.py`. Exam integrity counts everything under `labs/*/tests/` except `tests/unit/` as exam, so each code commit would have "changed the exam and code together" and failed CI. Running `scripts/ci/exam_integrity.py` locally before pushing caught it in seconds. A `git mv` into `tests/unit/` and an amend fixed it. Also caught locally: the exam writer's 111-character test name broke ruff in a file the implementer must not touch, so the manager amended the exam commit, keeping it before the code commit.
+
+Numbers: 3 merged PRs (#375, #382, #367), 1 approved PR left for the next pass (#383), 1 mutation PR, 2 exam writers, 2 implementers, 3 reviewers (all approved in round 1, 15 non-blocking findings in total), 2 follow-up issues (#384, #385), a D117 amendment. The #355 reviewer timed 37 line shapes up to 160k repetitions: time doubles with size, so the scans are linear. A plausible-looking alternative took 188 s on one line.
+
+Tips:
+- Run the CI gate scripts locally (`exam_integrity.py origin/main HEAD`) before you push; it takes seconds, and a CI round takes 19 minutes.
+- When you can't run a test locally, make CI run it against a broken version of the code. A red result for the right reason is the proof.
