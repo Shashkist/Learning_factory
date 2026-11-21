@@ -4,6 +4,7 @@
   ci_paths.py heavy <base> <head>      "true" or "false": does the PR touch a heavy path
 """
 
+import os
 import subprocess
 import sys
 
@@ -12,6 +13,18 @@ import sys
 DOCS_DIRS = ("docs", "courses", ".claude")
 DOCS_FILES = ("history.md",)
 DOCS_ONLY = (*DOCS_DIRS, *DOCS_FILES)
+
+
+def check_docs_files(names: tuple[str, ...]) -> None:
+    # A name becomes a glob pathspec below, so a glob character or a trailing backslash would
+    # change its meaning.
+    for n in names:
+        if any(c in n for c in "*?[") or n.endswith("\\"):
+            raise ValueError(f"DOCS_FILES name {n!r} must not contain * ? [ or end with a backslash")
+
+
+check_docs_files(DOCS_FILES)
+
 # Directory prefixes whose changes need the docker and image jobs.
 HEAVY = (
     "labs/images/",
@@ -30,10 +43,13 @@ HEAVY = (
 
 
 def git(*args: str, check: bool = True) -> subprocess.CompletedProcess[bytes]:
+    # GIT_LITERAL_PATHSPECS=1 would read the ":(top)" and ":(exclude)" specs as file names.
+    env = {k: v for k, v in os.environ.items() if k != "GIT_LITERAL_PATHSPECS"}
     return subprocess.run(
         ["git", "-c", "core.quotePath=false", *args],
         check=check,
         capture_output=True,
+        env=env,
     )
 
 

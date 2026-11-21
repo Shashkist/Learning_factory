@@ -147,12 +147,17 @@ def test_a_tag_off_main_never_deploys(repo: Path) -> None:
     assert deploys(repo, side, head) == "false"
 
 
-def test_paths_ignore_matches_docs_only() -> None:
+def load_ci_paths():  # type: ignore[no-untyped-def]
     sys.path.insert(0, str(SCRIPT.parent))
     try:
-        from ci_paths import DOCS_ONLY
+        import ci_paths
     finally:
         sys.path.pop(0)
+    return ci_paths
+
+
+def test_paths_ignore_matches_docs_by_kind() -> None:
+    mod = load_ci_paths()
     ci = (SCRIPT.parent.parent / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
     block = ci.split("paths-ignore:", 1)[1].split("\n\n", 1)[0]
     entries = [ln.strip()[2:].strip() for ln in block.splitlines() if ln.strip().startswith("- ")]
@@ -160,8 +165,29 @@ def test_paths_ignore_matches_docs_only() -> None:
     # Two shapes only: "<dir>/**" for a directory, "<name>" for an exact root file.
     shape = r'"[^"*/]+(/\*\*)?"'
     assert entries and all(re.fullmatch(shape, e) for e in entries), entries
-    names = [e[1:-4] if e.endswith('/**"') else e[1:-1] for e in entries]
-    assert sorted(names) == sorted(DOCS_ONLY)
+    dirs = [e[1:-4] for e in entries if e.endswith('/**"')]
+    files = [e[1:-1] for e in entries if not e.endswith('/**"')]
+    # The kind matters: "docs/**" is a directory's contents, "docs" is a root file.
+    assert sorted(dirs) == sorted(mod.DOCS_DIRS)
+    assert sorted(files) == sorted(mod.DOCS_FILES)
+
+
+@pytest.mark.parametrize("name", ["*.md", "history?.md", "[h]istory.md", "history.md\\"])
+def test_docs_files_refuses_glob_characters(name: str) -> None:
+    with pytest.raises(ValueError):
+        load_ci_paths().check_docs_files((name,))
+
+
+def test_ignores_literal_pathspecs_variable(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # GIT_LITERAL_PATHSPECS=1 would turn the ":(top)" and ":(exclude...)" specs into file names.
+    code = commit(repo, "labs/web/a.ts")
+    head = commit(repo, "docs/x.md")
+    assert deploys(repo, code, head) == "true"
+    monkeypatch.setenv("GIT_LITERAL_PATHSPECS", "1")
+    assert deploys(repo, code, head) == "true"
+    assert deploys(repo, code, commit(repo, "labs/web/b.ts")) == "false"
 
 
 def test_root_history_after_code_still_deploys(repo: Path) -> None:
