@@ -4,7 +4,17 @@
 
 ## Now
 
-**Pass lf-h3v6 (laptop, from 12:57 UTC) in progress:** merged PR #390 (#385, approved and green, handed over by lf-q2x8); main CI → Deploy → smoke → close #385 pending. Claims #392 (`f/392-framing-html-exam`, worktree `C:\projects\lf-392`), #377 (`f/377-junit-gate-failures`, `lf-377`), #373 (`f/373-origin-smoke-warn`, `lf-373`).
+**Pass lf-h3v6 (laptop, 12:57-~14:30 UTC) stopped at 4 merged PRs:** #390 (#385, handed over), #398 (incident #394: the #25 Dashboard exam accepts a caller of a local reusable workflow), #393 (#377: junit gate fails on failed/errored cases, counted from elements), #397 (#392: framing headers on every `.html` file). **Closed with evidence: #385 (Deploy 44908291227, live `/labs/` and `/labs/..%2Findex.html` carry `frame-ancestors 'self'` + `SAMEORIGIN`), #377 (main CI 44910734175 + Dashboard CI 44910734128 green), incident #394 (Dashboard CI 44910016307 green on main).** Decision D119. New issues: #395 (`history.md` is docs-only for CI), #399 (review leftovers of #396/#397), #400 (Dashboard CI on every workflow change).
+
+- **Resume here, first:**
+  1. **#392 / merged PR #397 (76737ac): close it** once its Deploy is green (if this pass did not already: check `gh issue view 392`). Smoke: `curl -sI https://labs.shashkist.com/labs/` still has both framing headers; Deploy smoke green. Then `gh issue close 392`, label `status:done`, `python scripts/issue_lock.py release 392 --session lf-h3v6 --reason shipped`.
+  2. **#373 / PR #396** (branch `f/373-origin-smoke-warn`, worktree `C:\projects\lf-373`, claim lf-h3v6). Rebuilt and force-pushed at ~14:12 on main 76737ac: 4 exam commits, then 2 code commits; CI was running. Review round 1 **changes requested**, both blockers now fixed: (1) `tasks.py` called `_open` with 3 args (TypeError in the #128/#138 task-smoke exams) → fixed in 6262847; (6, round 1b) the docker #86 smoke exam started the real manager without `LF_PUBLIC_ORIGIN`, so the new foreign-origin probe failed → exam commit 86962df sets it like production. Next: green CI (watch `docker` and `manager-exam`), **review round 2** (give the reviewer the PR and the two blockers; the non-blocking items 2-5 are in #399, not in this PR), merge, Deploy, smoke: the Deploy's `smoke / smoke` must stay green (it now sends `Origin: https://labs.shashkist.com` and expects 403 for `https://evil.shashkist.com`). Close #373, release the claim.
+- Then the Next list.
+- Worktrees `C:\projects\lf-385`, `lf-377`, `lf-392`, `lf-394` are shipped and safe to remove; keep `lf-373`.
+- **Lesson (pass lf-h3v6):** a root file (`history.md`) in a state commit is *code* for CI paths: it started a full CI and the Deploy of the merge just before it skipped ("no longer the head of main's code"). It shipped 17 minutes later with the next CI. Until #395 lands, commit `history.md` only after the last Deploy of the pass, or in the same push as a code merge.
+- **Lesson (pass lf-h3v6):** a CI workflow with `paths:` filters can hide a red exam for weeks: Dashboard CI's #25 exam reads every workflow file but runs only on its own paths, so #358 broke it silently (#394, #400).
+- **Lesson (pass lf-h3v6):** changing a shared helper's signature (`_open` in `smoke/terminal.py`) broke its other caller (`tasks.py`), and the implementer only ran the issue's own exam files on Windows (the full manager suite hangs or times out here). Tell implementers to `grep` every caller of a changed function and run those callers' exams by name.
+- **Lesson (pass lf-h3v6):** a new smoke probe that is right in production (foreign Origin → 403) failed an older docker exam that starts the real manager without `LF_PUBLIC_ORIGIN`. When a smoke gains a check, list every exam that runs the smoke against a real manager (`grep -l smoke/ tests/acceptance`) and give each the production setting.
 
 _Previous:_ **Pass lf-q2x8 (laptop, 10:57-~12:55 UTC):** 5 merged PRs (#383 for #374, #387 for #384, #389 for #366, chores #386 and #388); PR #390 (#385) approved round 2 and rebased for the next pass. New issues #391 (#306 stop-loop flake), #392 (#390 leftovers). See `history.md`.
 
@@ -217,7 +227,7 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 ## Next (in order)
 
 1. **#332** after O23.
-2. **#392** (#390 leftovers), **#373**, **#377**, **#391** (#306 stop-loop precondition, exam-only).
+2. **#373** (PR #396, see Resume), **#391** (#306 stop-loop precondition, exam-only), **#399** (after #373), **#395**, **#400**.
 3. Review leftovers: **#337** (pipelines); **#319** (now also the 390 px typed-command proof from #349) WebSocket relay proof, **#154** Solution tab (D57 b), **#142**.
 4. **#85** deploy follow-ups, **#93**; p2 list: #81, #76, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
