@@ -1,0 +1,166 @@
+/* Lab screen (D105, #333): tasks and terminal side by side, panes behind tabs on narrow screens. */
+
+/* The lab fills the window below the header: no page scroll while working. */
+body.lab-wide {
+  block-size: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+body.lab-wide :is(#root, #root > div) {
+  display: contents;
+}
+.app-content.app-content--wide {
+  flex: 1;
+  min-block-size: 0;
+  max-inline-size: none;
+  margin-inline: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.lab {
+  flex: 1;
+  min-block-size: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Top bar: pane tabs (narrow only), countdown, End lab */
+.lab-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-block: var(--space-2);
+  padding-inline: var(--space-4);
+  border-block-end: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+.lab-panes {
+  display: none;
+  gap: var(--space-1);
+}
+.lab-panes [role="tab"][aria-selected="true"],
+.lab-tabs [role="tab"][aria-selected="true"] {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary);
+}
+.lab-timer {
+  margin-inline-start: auto;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: var(--text-lg);
+}
+.lab-end {
+  margin-inline-start: auto;
+  flex: none;
+}
+
+/* Panes. The row follows the page direction, so in he the tasks pane is on the right. */
+.lab-body {
+  flex: 1;
+  min-block-size: 0;
+  display: flex;
+}
+.lab-tasks {
+  flex: 0 0 var(--split, 40%);
+  min-inline-size: 0;
+  overflow: auto;
+  padding: var(--space-4);
+  background: var(--color-surface);
+}
+.lab-splitter {
+  flex: none;
+  inline-size: 6px;
+  cursor: col-resize;
+  touch-action: none;
+  background: var(--color-border-strong);
+}
+.lab-term {
+  flex: 1;
+  min-inline-size: 0;
+  background: var(--color-terminal-bg);
+}
+.lab-term iframe {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  border: 0;
+}
+
+/* Task pane content */
+.lab-tasks [role="progressbar"] {
+  background: var(--color-border);
+  margin-block-end: var(--space-2);
+}
+.lab-progress__fill {
+  block-size: 4px;
+  background: var(--color-primary);
+}
+.lab-step {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+.lab-tabs {
+  display: flex;
+  gap: var(--space-1);
+  margin-block-end: var(--space-3);
+}
+.lab-tasks pre {
+  overflow-x: auto;
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  background: var(--color-terminal-bg);
+  color: var(--color-terminal-text);
+  text-align: start;
+}
+.lab-tasks :not(pre) > code {
+  padding-inline: var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--color-disabled-bg);
+}
+.lab-tasks img {
+  max-inline-size: 100%;
+}
+.lab-checklist,
+.lab-open {
+  padding-inline-start: var(--space-5);
+}
+.lab-checklist li.ok::marker { color: var(--color-success); }
+.lab-checklist li.bad::marker { color: var(--color-danger); }
+.lab-tasks label {
+  display: block;
+}
+.lab-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-block-start: var(--space-4);
+}
+.lab-message {
+  max-inline-size: 36rem;
+  margin: var(--space-5);
+}
+
+/* Narrow screens: one pane at a time behind the tabs. Both stay mounted, so the terminal never reloads. */
+@media (max-width: 48rem) {
+  .lab-panes {
+    display: flex;
+  }
+  .lab-body {
+    flex-direction: column;
+  }
+  .lab-tasks,
+  .lab-term {
+    flex: 1;
+  }
+  .lab-splitter {
+    display: none;
+  }
+  .lab[data-pane="tasks"] .lab-term,
+  .lab[data-pane="terminal"] .lab-tasks {
+    display: none;
+  }
+}

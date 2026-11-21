@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 
 import { useI18n } from "./i18n";
 
@@ -6,13 +6,22 @@ import { useI18n } from "./i18n";
 export default function AppShell({
   userName,
   onLogout,
+  wide,
   children,
 }: {
   userName?: string;
   onLogout?: () => void;
+  /** Full-width content column (the lab screen). */
+  wide?: boolean;
   children: ReactNode;
 }) {
   const { lang, toggle, t } = useI18n();
+  // The full-height lab layout hangs on a body class (no :has needed).
+  useEffect(() => {
+    if (!wide) return;
+    document.body.classList.add("lab-wide");
+    return () => document.body.classList.remove("lab-wide");
+  }, [wide]);
   return (
     <>
       <header className="app-header">
@@ -29,7 +38,7 @@ export default function AppShell({
           )}
         </div>
       </header>
-      <main className="app-content">{children}</main>
+      <main className={wide ? "app-content app-content--wide" : "app-content"}>{children}</main>
     </>
   );
 }
