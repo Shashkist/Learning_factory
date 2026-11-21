@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import ipaddress
 import logging
 import os
 from collections.abc import AsyncIterator
@@ -85,6 +86,18 @@ async def _retry_db(app: FastAPI, dsn: str) -> None:
             return
 
 
+def _browser_ipv6(addr: ipaddress.IPv6Address) -> str:
+    """The host a browser puts in an Origin (WHATWG URL): compressed hex, never dotted.
+
+    Newer Pythons print an IPv4-mapped address dotted (`::ffff:192.168.0.1`); browsers
+    send `::ffff:c0a8:1`, so that case is built by hand.
+    """
+    if addr.ipv4_mapped is not None:
+        v4 = int(addr.ipv4_mapped)
+        return f"::ffff:{v4 >> 16:x}:{v4 & 0xFFFF:x}"
+    return addr.compressed
+
+
 def _public_origin_problem(value: str) -> str | None:
     """What is wrong with an LF_PUBLIC_ORIGIN value, or None. Never rewrites it (D119)."""
     try:
@@ -105,6 +118,15 @@ def _public_origin_problem(value: str) -> str | None:
         return "has userinfo"
     if port == (443 if parts.scheme == "https" else 80):
         return "has the default port"
+    if not host.isascii() or "%" in host:
+        return "host is not ASCII or has a percent sign"
+    if ":" in host:
+        try:
+            addr = ipaddress.IPv6Address(host)
+        except ValueError:
+            return "unparsable IPv6 literal"
+        if host != _browser_ipv6(addr):
+            return "IPv6 literal is not in the form a browser sends"
     netloc = f"[{host}]" if ":" in host else host
     rebuilt = f"{parts.scheme}://{netloc}" + (f":{port}" if port is not None else "")
     if value.rstrip("/").lower() != rebuilt:

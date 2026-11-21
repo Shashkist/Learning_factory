@@ -91,9 +91,17 @@ async def _terminal(base: str, sid: str, cookie: str, timeout: float) -> None:
             ws_cm = await _open(f"{url}/s/{sid}/term/ws", cookie, timeout, base)
         except InvalidStatus as exc:
             if exc.response.status_code == 403:
+                try:
+                    detail = json.loads(exc.response.body or b"")["detail"]
+                except (ValueError, KeyError, TypeError):
+                    detail = None
+                cause = (
+                    f"the server said {detail}"
+                    if isinstance(detail, str) and detail != "origin_not_allowed"
+                    else "check LF_PUBLIC_ORIGIN on the server"
+                )
                 raise Fail(
-                    "the terminal refused the smoke's own Origin (HTTP 403): "
-                    "check LF_PUBLIC_ORIGIN on the server"
+                    f"the terminal refused the smoke's own Origin (HTTP 403): {cause}"
                 ) from None
             raise
         async with ws_cm as ws:
