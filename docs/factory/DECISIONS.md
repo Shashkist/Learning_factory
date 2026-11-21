@@ -1259,3 +1259,11 @@ The non-blocking items go to #423: a group that spans lines is not joined, plus 
 **Alternatives.** (a) Change the manager to send `{n, text}`, which means changing the #9 exam and redeploying the manager. (b) Change every UI fake to the real shape, which edits about eight exam files.
 **Revert.** Restore the old `checklist` type and the `.map` in `LabScreen.tsx`. The real Linux 1 browser exam (#427) will then go red.
 **Lesson.** A UI exam whose fake backend invents the API shape proves nothing about the real API. The docker-job browser exam with real content is what found this.
+
+## D125 · #428: a host with two or more trailing dots is a domain, accepted silently
+
+**Measured.** The WHATWG URL parser (Node `new URL(u).host`) drops exactly one trailing dot and then reads the host as IPv4 when its last label is a number: `1.2.3.4.` → `1.2.3.4`, `127.1.` → `127.0.0.1`. With two or more trailing dots the last label is empty, so the host is a domain and is sent unchanged: `1.2.3.4..` stays `1.2.3.4..`, `labs.shashkist.com..` stays as written.
+**Decision (assumption, revertible).** The origin check removes one trailing dot before its IPv4 checks. A value with two or more trailing dots gets no warning, because the browser sends exactly that host. This corrects the issue text, which assumed a browser refuses `1.2.3.4..`.
+**Why.** The check exists to warn when the configured origin differs from what the browser sends (D119). Here it does not differ.
+**Alternatives.** Warn on any empty label as "a host a browser cannot send". Not done: a browser does send it, so the warning would be false.
+**Revert.** Restore `host.rstrip(".")` in `_public_origin_problem` and flip the #428 exam's criterion-2 cases.
