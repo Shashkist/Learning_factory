@@ -4,7 +4,16 @@
 
 ## Now
 
-**Pass lf-m7t3 (laptop, from 01:20 UTC):** merged #351 (#334 teacher pages, 51b412f); CI + Deploy pending, then close #334. In flight: **#343** (validator, worktree `C:\projects\lf-343`, branch `f/343-validator-linear`) and **#349** (lab top bar, worktree `C:\projects\lf-349`, branch `f/349-lab-topbar`, D111), both at the exam step. Claims held by lf-m7t3.
+**Pass lf-m7t3 (laptop, 01:20-~03:05 UTC) stopped at 2 merged PRs plus a parked third:** #351 (#334 teacher pages), #353 (#349 lab top bar, replaced #352). **#334 and #349 closed with evidence. Production: `e24aa02` (Deploy 44858724121: deployed, smoke `ok start`/`terminal`/`check-pass`; live CSS has `.lab-title` and the phone terminal pane as `visibility:hidden`).** Decisions D111 (+ amendment), D112 (+ amendment). New issue: #355. Owner item O24 (optional phone check).
+
+- **Resume here, first: #343, rebuild PR #354 as `f/343-validator-linear-2`** (worktree `C:\projects\lf-343`, old branch `f/343-validator-linear`: exam 6c5c0b1, code fe3dd25; claim released). Review round 1 requested changes (comment on #354): (1, blocking) the bash `>&word` alternative in `_FD_REDIRECT` (content.py ~242, `[^\s\d]\S*`) accepts `-`, `$` and quotes, so `sleep 600 >&- &`, `1>&- &`, `fd=3; sleep 600 >&$fd &`, `sleep 600 >&"$LOGFD" &` became quiet (main warned; real bash keeps stderr open): exclude `$`, backquote, quotes and `-` as the first character; (2, blocking) the exam lacks guards for those four; (3) `_su_reads_stdin` splits `masked`, the background check `no_math`: `su student -c 'cat' $((1&2)) </dev/null` warns wrongly under bash, split `no_math[close+1:]`; (5) `sleep 600 >& 2 2>/dev/null &` is read as a file redirect: allow `\s*` before the digit in the dup alternative. Plan: new branch from main, cherry-pick 6c5c0b1, dispatch the exam writer for ONE more exam-only commit (guards for 1, 3, 5), then cherry-pick fe3dd25 and dispatch the implementer for the fixes (code-only commit), new PR, close #354, review round 2. The reviewer's probes are in `C:	mp
+ev343\`. Locally use `uv run python -m pytest` (plain `uv run pytest` gives "Access is denied").
+- **#332 stays parked** (O23), see the previous pass below.
+- **Nit for a later design-exam touch:** `issue-333-design.pw.ts` sets `seen = unmocked` at the end of `openLab`; if `openLab` fails earlier, the afterEach adds a misleading "unmocked" failure. Set it right after `fakeBackend(page)` (as `issue-349-design.pw.ts` does). Exam-only change.
+- Worktrees `C:\projects\lf-334`, `lf-349` are shipped and safe to remove; keep `lf-343` for the rebuild.
+- **Lesson (pass lf-m7t3):** exam integrity counts `labs/web/e2e/**` as code, not exam (only `labs/*/tests/**` is exam). An exam writer that amends the e2e flow must leave that file for the code commit, or the PR fails "changes the exam and non-test code together" (#352 → #353).
+- **Lesson (pass lf-m7t3):** a pure-CSS fix (hide with `visibility: hidden` so ttyd keeps its size) created a focus problem one layer away: ttyd focuses its terminal on connect, so a hidden iframe can steal the keyboard. The round 2 review then caught that a guard decided once at mount breaks when a phone rotates. Decide UI guards at event time.
+- **Lesson (pass lf-m7t3):** "make the regex accept more" changes need guard cases for every neighbour of the new syntax (`>&word` vs `>&-`, `>&$fd`, `>& 2`); the exam pinned only the positive cases and the two obvious negatives.
 
 _Previous:_ **Pass lf-k9p4 (laptop, 23:27-~01:10 UTC) stopped at 3 merged PRs:** #345 (#331 exam), #347 (#333 lab screen), #350 (#340 Linux 1 exam pins + 05 one body read, no temp file). **#331 closed with evidence (Deploy 44839011018, fae1e02, smoke ok).** **#333 and #340 closed with evidence. Production: `f66a167` (Deploy 44847890716: deployed, smoke `ok start`/`terminal`/`show`/`check-fail`/`check-pass`; live CSS has the lab-screen rules, no `:has(`).** Decisions D108, D109 (proposed, waits for O23), D110. New issues: #348, #349. Owner item O23.
 
@@ -169,14 +178,15 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
 ## Next (in order)
 
-1. **PR #351** (#334, merge on green, see Now). **#332** after O23.
-2. Follow-ups of the design slices: **#349** (lab screen top bar, full-pane end states, rtl splitter test), **#348** (student page active time + last activity via the API; stronger #334 design checks; round 2 nits).
-3. Review leftovers: **#343** (validator: linear regexes, su job split, bash `>&word`), **#337** (pipelines); **#319** WebSocket relay proof, **#154** Solution tab (D57 b), **#142**.
+1. **#343 rebuild** (see Now). **#332** after O23.
+2. **#348** (student page active time + last activity via the API; stronger #334 design checks).
+3. Review leftovers: **#355** (linear su-command / arithmetic scans, after #343), **#337** (pipelines); **#319** (now also the 390 px typed-command proof from #349) WebSocket relay proof, **#154** Solution tab (D57 b), **#142**.
 4. **#85** deploy follow-ups, **#94**, **#93**; p2 list: #81, #76, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
 
-- **O23 (new):** #332 card action naming: "332: a" (name = word, title as description; the factory corrects the exam) or "332: b" (aria-label with the title; loosen three older name checks).
+- **O24 (new, optional):** try the lab screen on a phone (#349): tap Terminal, type; Tasks and back; rotate.
+- **O23:** #332 card action naming: "332: a" (name = word, title as description; the factory corrects the exam) or "332: b" (aria-label with the title; loosen three older name checks).
 - **O21 (new):** bound the guard hook's stdin read, the guard half of #230 (ready-to-apply plan in OWNER.md; fail closed).
 - **O22 (new, optional):** a time-keeping dispatch of the dashboard workflow (#155, D77), or "skip" for push-only freshness.
 - **O19 (read only):** the break-glass admin login steps, needed only if Google sign-in breaks: since #99 a password admin session is refused at once while Google is configured.

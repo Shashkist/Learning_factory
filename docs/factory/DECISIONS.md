@@ -1138,3 +1138,5 @@ in force · factory · 2026-11-21 · revertible
 **Alternatives.** A third review round (about 10 more minutes, no open question left).
 
 **Revert.** Revert the #349 squash commit.
+
+**Amendment (after deploy).** AC5's live check (390 px: tap Terminal, the prompt fits, typing works, focus stays in Tasks) needs a real student session, and only the Deploy smoke student (CI, per-run password) has one; the laptop has no student login. #349 closes on Deploy 44858724121 (smoke `ok terminal` through the production path) plus the live CSS and bundle (the phone terminal pane is `visibility: hidden`, not `display: none`; the blur guard's `(max-width: 48rem)` query is in the bundle). The typed-command proof at 390 px joins #319's browser exam; the owner can tap it on a phone any time (O24, optional).

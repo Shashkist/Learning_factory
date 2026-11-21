@@ -471,3 +471,17 @@ Reviews earned their keep again. On #334 the sticky table header looked sticky i
 Numbers: 3 merged PRs (#345, #347, #350), 1 more approved and waiting for CI (#351), 4 exam writers, 4 implementer runs, 5 review rounds, 1 replaced PR (#346 → #351), 2 follow-up issues (#348, #349), decisions D108-D110, 1 owner question (O23).
 
 Tips: ask the exam writer to grep every older exam that touches the same element before pinning a new rule on it. Contradictions are cheap at exam time and expensive after. A reviewer with a shell can diff two versions of a script by brute force over thousands of inputs in minutes; ask for it on any "pure refactor" of a check.
+
+## A phone, a hidden terminal and a regex that said yes too often (2026-11-21, small hours)
+
+Pass lf-m7t3 shipped the teacher pages (#334, merged from the previous pass's hand-over) and the lab screen's new top bar (#349), and parked a validator fix (#343) one review short of the finish line.
+
+The best catch of the night was a chain of three small truths. On phones the terminal pane is hidden while the student reads the task; with `display: none` the terminal fitted itself to a zero-size box. The fix was pure CSS: keep the pane laid out but `visibility: hidden`. Review round 1 then noticed that ttyd focuses its own terminal when it connects, so a hidden iframe could now steal the keyboard. The fix (give focus back when the window blurs) was checked once, at mount. Review round 2 found the case nobody had pictured: a student opens the lab upright, turns the phone sideways to type, and the guard, still alive, keeps pulling focus out of a now-visible terminal. Decided at event time, it works.
+
+The validator fix was the opposite lesson. Teaching it that bash's `>&file` silences both outputs was right, but the new pattern accepted any word, so `>&-` (close stdout) and `>&$fd` became "quiet" too. The exam had pinned only the happy cases. A reviewer with WSL proved each claim against real bash (`sleep 3 >&- &` really keeps the pipe open for 3 s).
+
+Also learned: exam integrity counts `labs/web/e2e/` as code, so an exam commit that also touched the e2e flow failed CI and the PR was rebuilt as a `-2`.
+
+Numbers: 2 merged PRs (#351, #353), 1 parked with a written plan (#354), 2 exam writers, 2 implementers (one resumed twice for review fixes), 4 review rounds, 1 replaced PR (#352 → #353), decisions D111-D112, 1 follow-up issue (#355), 1 optional owner check (O24).
+
+Tips: when a fix hides something instead of removing it, ask "what can still reach the hidden thing?" (focus, clicks, screen readers). When a pattern learns a new "yes", list its neighbours that must stay "no" and put them in the exam first.
