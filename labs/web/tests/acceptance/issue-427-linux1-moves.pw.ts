@@ -96,6 +96,15 @@ async function press(page: Page, from: TaskInfo): Promise<{ action: string; repl
   return { action, reply: { status: r.status(), body: (await r.text()).slice(0, 600) } };
 }
 
+// One lab session per student: a test that fails mid-lab must not leave its session running,
+// or the next test's Start is refused and it fails for the wrong reason.
+test.afterEach(async ({ page }) => {
+  const r = await page.request.get("/api/sessions/current").catch(() => null);
+  if (!r || r.status() !== 200) return;
+  const { id } = (await r.json()) as { id: string };
+  await page.request.post(`/api/sessions/${id}/end`).catch(() => null);
+});
+
 test("criteria 1-3: every move of Linux 1 keeps the lab screen and shows the next task, no error", async ({
   page,
 }) => {
