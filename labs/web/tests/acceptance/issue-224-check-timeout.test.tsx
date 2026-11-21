@@ -27,7 +27,7 @@ const HANDS = {
   id: "02-make-file", index: 2, total: 4, kind: "hands-on", state: "shown",
   title: { en: "Make a file", he: "יוצרים קובץ" },
   text: { en: "# Make a file\n\nCreate it.\n", he: "# יוצרים קובץ\n\nצרו אותו.\n" },
-  checklist: [{ n: 1, text: { en: "The file exists", he: "הקובץ קיים" } }],
+  checklist: [{ en: "The file exists", he: "הקובץ קיים" }],
 };
 const QUIZ = {
   id: "03-quiz", index: 3, total: 4, kind: "quiz", state: "shown",
@@ -37,7 +37,7 @@ const QUIZ = {
 };
 const PASS = ok({
   passed: true, attempts: 1, reason: null,
-  checklist: [{ n: 1, text: HANDS.checklist[0].text, passed: true, hint: null }],
+  checklist: [{ n: 1, text: HANDS.checklist[0], passed: true, hint: null }],
 });
 const CHECK_TIMEOUT = err(504, { code: "check_timeout", message: "The check took too long." });
 
