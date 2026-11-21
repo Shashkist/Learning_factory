@@ -60,3 +60,13 @@ def test_middleware_guards_only_lab_paths():
 
     assert _names(asyncio.run(run("/s/x/term/")), b"x-frame-options") == ["SAMEORIGIN"]
     assert asyncio.run(run("/api/x")) == []
+
+
+def test_frame_ancestors_after_a_comma_is_dropped():
+    merged = framing.merge_headers(
+        [(b"Content-Security-Policy", b"default-src 'self', frame-ancestors *")]
+    )
+    assert _names(merged, b"content-security-policy") == [
+        "default-src 'self'",
+        "frame-ancestors 'self'",
+    ]

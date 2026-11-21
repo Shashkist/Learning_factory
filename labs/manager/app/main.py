@@ -191,7 +191,7 @@ def _mount_web(web_dir: str | None) -> None:
     index = root / "index.html"
 
     def page() -> FileResponse:
-        return FileResponse(index, headers={"Cache-Control": "no-cache"})
+        return FileResponse(index, headers={"Cache-Control": "no-cache", **framing.FRAME_HEADERS})
 
     @app.api_route("/{path:path}", methods=["GET", "HEAD"], include_in_schema=False)
     def web(path: str) -> FileResponse:
