@@ -4,7 +4,18 @@
 
 ## Now
 
-**Pass lf-t5k8 (laptop, from 07:25 UTC) in progress:** claims #364 (`f/364-ci-exam-once`, worktree `C:\projects\lf-364`; exam ee4bf1d, implementer running), #69 (`f/69-ws-origin-check`, `lf-69`; exam writer running), #55 (`f/55-janitor-guards`, `lf-55`; exam writer running). Decisions D116, D117. Leaves #355 (PR #367) and PR #368 to their owner pass.
+**Pass lf-t5k8 (laptop, 07:25-~09:20 UTC) stopped at 3 merged PRs plus an incident fix:** #370 (#364 part A: `manager` + parallel `manager-exam` CI jobs; 1:00 and 6:00 instead of 14:25), #371 (#69: terminal WebSocket Origin check), #372 (#55: guarded start-deadline end, deadline validation, janitor recovery logging), #379 (incident #378: the #12 exam accepts the ticked O17 once Linux 1 is published; main was red after 269d59e ticked O17). **#69 closed with evidence (Deploy 44884185518 deployed 35a884c, smoke ok; live `Origin: https://evil.shashkist.com` → 403 `origin_not_allowed`, same origin → 401).** Decisions D116, D117, D118, D24 amendment. New issues: #373, #374 (review of #69), #376 (review of #55), #377 (junit gate counts failures).
+
+- **Resume here, first:**
+  1. **Main CI for 1c420e6 (#379) → Deploy.** It ships #55 (a4bcdc0 never deployed: its CI went red on the incident). When the Deploy is green, check that `/api/health` is ok and that the deployed tag is ≥ a4bcdc0. Then:
+     - close #55 with that evidence (`gh issue comment` if the merge already closed it), label `status:done`, and `python scripts/issue_lock.py release 55 --session lf-t5k8 --reason shipped`;
+     - close incident #378 (green main run), label `status:done`, and `python scripts/issue_lock.py release 378 --session lf-t5k8 --reason shipped`.
+  2. **PR #375** (#364 part B, the exam alone, branch `f/364-ci-exam`, worktree `C:\projects\lf-364`). Review rounds 1-2 done; round 3 was manager-checked per D118 (57/60 mutants fail, the 3 that pass are legitimate; the harness is in `C:\Users\iliap\AppData\Local\Temp\rev364`, `run2.sh`). Its first CI failed only on the #378 incident; it was closed and reopened at 09:07 for a fresh run on the fixed main. When green: `gh pr merge 375 --squash --delete-branch`, close #364 with evidence (main run 44882660289 already shows the two jobs), release the claim (`--session lf-t5k8`).
+- **#355 / PR #367 (pass lf-r6q2):** its claim is stale (no heartbeat since ~07:06). PR #367 had green CI at 07:22 and no review yet. Continue that branch: reviewer, then merge (D115).
+- Worktrees `C:\projects\lf-69`, `lf-55`, `lf-378` are shipped and safe to remove. Keep `lf-364` until #375 merges.
+- **Lesson (pass lf-t5k8):** exam integrity refuses a PR that changes the exam and `ci.yml` (or `scripts/ci/**`) together. Plan CI issues as D19 from the start: PR A = the workflow, PR B = the exam.
+- **Lesson (pass lf-t5k8):** an exam that pins a CI file is a security test. Have the reviewer mutate the workflow (a pytest plugin outside the repo that patches the exam's path), and never give the exam an env or file override.
+- **Lesson (pass lf-t5k8):** a docs-only commit can turn main red when an exam reads docs (`OWNER.md`). Ticking an owner item is a change to the exam's input.
 
 **Pass lf-r6q2 (laptop, from 05:30 UTC) in progress:** claims #355 (`f/355-validator-linear-scans`, worktree `C:\projects\lf-355`), #360 (`f/360-active-time-sessions`, `lf-360`), #359 (`f/359-exam-secrets-compound`, `lf-359`, exam-only). Exam writers running. D115 recorded (#355: linear scans, no cap; stdin warning kept on `&` jobs).
 
