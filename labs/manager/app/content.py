@@ -255,6 +255,7 @@ _SH_AMP = re.compile(r"(?<![&<>|\\])&(?!&)")
 _LEAD = re.compile(r"^(?:(?:do|then|else)\s+)*(?:\w+\s*\(\s*\)\s*)?(?:\{\s*)?")
 _CASE_PATTERN = re.compile(r"^[^\s()|;&]*\)\s*")
 _BANG = re.compile(r"^!\s*")
+_BANG_JOB = re.compile(r"\s*!\s")
 _OPEN = re.compile(r"\(|(?<![^\s])\{(?=\s|$)")
 _CLOSE = re.compile(r"\)|(?<![^\s])\}")
 # builtins that finish at once and print nothing (`cd` too, under sh)
@@ -301,16 +302,21 @@ def _scan(line: str) -> tuple[str, str]:
 
 
 def _blank_arithmetic(text: str) -> str:
-    """Blank every `$(( ... ))` (up to the first `))`) with spaces, in one left-to-right pass."""
+    """Blank every `$(( ... ))` (to its balanced `))`) with spaces, in one left-to-right pass."""
     out: list[str] = []
     pos = 0
     while (start := text.find("$((", pos)) >= 0:
-        end = text.find("))", start + 3)
-        if end < 0:
-            break  # no later `$((` can close either
+        depth = 0
+        end = start + 1
+        for end in range(start + 1, len(text)):
+            depth += (text[end] == "(") - (text[end] == ")")
+            if depth == 0:
+                break
+        if depth:
+            break  # unclosed: it runs to the end of the line
         out.append(text[pos:start])
-        out.append(" " * (end + 2 - start))
-        pos = end + 2
+        out.append(" " * (end + 1 - start))
+        pos = end + 1
     out.append(text[pos:])
     return "".join(out)
 
@@ -437,9 +443,14 @@ def _background_is_quiet(job: str, bash: bool) -> bool:
     only under bash: dash reads `cmd &>file &` as a background job, then `>file`. `|&` covers the
     element before it under bash only: dash reads it as `|` then `&`.
     """
-    parts = _SEPARATORS.split(_blank_backticks(job))
+    blanked, holds = _blank_spans(job)
+    if holds and bash:
+        return False  # `>(a | b)` keeps its subshell, and the exec's outputs, alive
+    parts = _SEPARATORS.split(blanked)
     last = len(parts) - 1
-    out_file, err_file = _redirect_state(parts[last], bash)
+    if not bash and _BANG_JOB.match(parts[_pipeline_start(parts, last)]):
+        return False  # dash forks a subshell for `! cmd &` that holds the outputs (bash does not)
+    out_file, err_file = _redirect_state(_own_redirects(parts, last), bash)
     start = _group_start(parts, last)
     k = start
     while k >= 2 and parts[k - 1] != ";" and not _closes_group(parts[k]):
@@ -455,17 +466,37 @@ def _background_is_quiet(job: str, bash: bool) -> bool:
             and all(sep != "|" for sep in parts[k + 1 : last : 2])
             and all(_is_instant(e) for e in parts[k:last:2])
         )
-    k = last
-    while k >= 2 and parts[k - 1] == "|":
-        if _closes_group(parts[k]):
-            break  # this `|` is inside a subshell, a `case` pattern or a `$(`, not our pipeline
-        k -= 2
-        out, err = _redirect_state(parts[k], bash, True)
-        if bash and parts[k + 2].startswith("&") and not parts[k + 2].startswith("&>"):
+    return _pipeline_is_quiet(parts, last, bash) and out_file and err_file
+
+
+def _own_redirects(parts: list[str], k: int) -> str:
+    """The element, or only what follows the `)` when it closes a group opened by an earlier
+    element: what is inside the group is not redirected by what comes after it."""
+    if _group_start(parts, k) != k:
+        return parts[k].rsplit(")", 1)[-1]
+    return parts[k]
+
+
+def _pipeline_start(parts: list[str], last: int) -> int:
+    """Index of the first element of the pipeline that ends at `last`, a group counting as one."""
+    k = _group_start(parts, last)
+    while k >= 2 and parts[k - 1] == "|" and not _closes_group(parts[k]):
+        k = _group_start(parts, k - 2)
+    return k
+
+
+def _pipeline_is_quiet(parts: list[str], last: int, bash: bool) -> bool:
+    """Every element before `last` in its pipeline redirects stderr (stdout is in the pipe)."""
+    k = _group_start(parts, last)  # a group closed by the last element is one element
+    while k >= 2 and parts[k - 1] == "|" and not _closes_group(parts[k]):
+        prev = k - 2
+        out, err = _redirect_state(_own_redirects(parts, prev), bash, True)
+        if bash and parts[k].startswith("&") and not parts[k].startswith("&>"):
             err = out  # `|&`: an implicit `2>&1` after the element's own redirects
         if not (out and err):
             return False
-    return out_file and err_file
+        k = _group_start(parts, prev)  # a redirected group covers what is inside it
+    return True
 
 
 def _group_start(parts: list[str], last: int) -> int:
@@ -514,22 +545,59 @@ def _closes_group(text: str) -> bool:
     return False
 
 
-def _blank_backticks(text: str) -> str:
-    """Mask every `` `...` `` span as one word, in one left-to-right pass (a lone one stays).
+_ESCAPABLE = ("\\", "`", "(", ")", "$")  # a backslash before one of these quotes it
 
-    A non-space fill keeps a span that is a redirect target (`` 2>`mktemp` ``) a target.
+
+def _blank_spans(text: str) -> tuple[str, bool]:
+    r"""Mask what is not the job's own words, in one left-to-right pass, and say whether a bash
+    `>( ... )` holds a pipeline.
+
+    Every outermost `$( ... )`, `<( ... )`, `>( ... )` (parens counted, so `$((n*(m+1)))` is one
+    span too) and `` `...` `` becomes one `x` word, which keeps a span that is a redirect target a
+    target. A backslash and the delimiter it quotes become `xx`: `\)` and `` \` `` are not
+    delimiters (other backslashes stay: `>&\2` is still a redirect).
+    An unclosed span stays as it is, and a `)` no `(` opened is left for the caller.
     """
-    out: list[str] = []
-    pos = 0
-    while (start := text.find("`", pos)) >= 0:
-        end = text.find("`", start + 1)
-        if end < 0:
-            break
-        out.append(text[pos:start])
-        out.append("x" * (end + 1 - start))
-        pos = end + 1
-    out.append(text[pos:])
-    return "".join(out)
+    out = list(text)
+    stack: list[tuple[int, str]] = []  # open parens: (start, `$`, `<` or `>` for a span, else "")
+    piped: list[bool] = []  # the same depth: a `|` came right inside this paren
+    spans = 0  # how many entries of `stack` are spans
+    holds = False
+    ticks = True  # False once a lone backtick shows no later one can close
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        before = text[i - 1] if i else ""
+        if ch == "\\" and text[i + 1 : i + 2] in _ESCAPABLE:
+            out[i : i + 2] = "xx"
+            i += 2
+            continue
+        if ch == "`" and ticks:
+            end = i + 1
+            while end < len(text) and text[end] != "`":
+                end += 2 if text[end] == "\\" else 1
+            if end >= len(text):
+                ticks = False
+            else:
+                out[i : end + 1] = "x" * (end + 1 - i)
+                i = end
+        elif ch == "(":
+            kind = before if before in ("$", "<", ">") else ""
+            stack.append((i - 1 if kind else i, kind))
+            piped.append(False)
+            spans += bool(kind)
+        elif ch == ")" and stack:
+            start, kind = stack.pop()
+            was_piped = piped.pop()
+            if kind:
+                spans -= 1
+                if spans == 0:
+                    out[start : i + 1] = "x" * (i + 1 - start)
+                    holds = holds or (kind == ">" and was_piped)
+        elif ch == "|" and stack and before not in ("|", ">") and text[i + 1 : i + 2] != "|":
+            piped[-1] = True
+        i += 1
+    return "".join(out), holds
 
 
 def _reads_stdin(segment: str) -> bool:
