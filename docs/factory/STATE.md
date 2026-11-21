@@ -4,11 +4,15 @@
 
 ## Now
 
-**Pass lf-k9p4 (laptop, from 23:27 UTC) in progress.** Merged #345 (the #331 exam); **#331 closed** (Deploy 44839011018 deployed fae1e02, smoke ok). D108. Three lanes in flight, claims held by lf-k9p4, exam committed first on each branch (not yet pushed):
-- **#332** login + My labs: worktree `C:\projects\lf-332`, branch `f/332-login-mylabs-design`, exam 4826046, implementer running.
-- **#333** lab screen: worktree `C:\projects\lf-333`, branch `f/333-lab-screen-design`, exam 7771b3c, implementer running.
-- **#334** teacher pages: worktree `C:\projects\lf-334`, branch `f/334-teacher-design`, exam b001aa6, implementer running.
-- All three change the design config's testMatch to the identical line `/issue-\d+-design\.pw\.ts$/`; AppShell gets `wide` (#333) and `nav` (#334) props; per-page stylesheets (D108). Port 4331 is held by a stray local process: run the design exam locally through a temp config copy on another port.
+**Pass lf-k9p4 (laptop, 23:27-~00:55 UTC) stopped at 3 merged PRs:** #345 (#331 exam), #347 (#333 lab screen), #350 (#340 Linux 1 exam pins + 05 one body read, no temp file). **#331 closed with evidence (Deploy 44839011018, fae1e02, smoke ok).** #333 and #340: closed with deploy evidence if the closing note below says so; otherwise see "Resume here". Decisions D108, D109 (proposed, waits for O23), D110. New issues: #348, #349. Owner item O23.
+
+- **Resume here, first: PR #351** (#334 teacher pages, branch `f/334-teacher-design-2`, worktree `C:\projects\lf-334`, local branch name `f/334-teacher-design`). Reviewed: round 1 changes requested and fixed, **round 2 APPROVED** (on #346, which #351 replaces: same commits rebased onto main after #347, conflicts only in the `AppShell` props and the i18n keys, both kept). Re-verified locally on the rebased tree: 730 unit, 107 design cases, 7 e2e. **Merge when its CI is green** (`gh pr merge 351 --squash --delete-branch`), link its `design-screenshots` artifact in a comment on #334, smoke the live site (admin pages render; `/api/health` ok), close #334 with evidence, label `status:done`, release the claim (`python scripts/issue_lock.py release 334 --session lf-k9p4 --reason shipped`; held for this hand-over).
+- **#332 is parked** (`status:needs-owner`, O23): its AC3 (card action name includes the lab title) contradicts AC6 (existing tests unchanged; #129, #147 and e2e pin the name to exactly "Start"). Proposal D109 (a): name stays the word, `aria-describedby` → the card heading. The factory guard refused a manager-session edit of the #332 exam, so it waits. Its exam (4826046) is pushed on `f/332-login-mylabs-design` (worktree `C:\projects\lf-332`); after O23 is answered, correct the AC3 case in an exam-only commit, then dispatch the implementer (also: `button.secondary` border → `--color-border-strong` in base.css, the #331 review ask). #333's progressbar rule is scoped to `.lab-tasks`, so #332's bars start clean.
+- Worktrees `C:\projects\lf-333`, `lf-340` (shipped) and those listed under the previous pass are safe to remove.
+- **Lesson (pass lf-k9p4):** three sibling UI slices in parallel worked because each got its own page stylesheet imported from its component and one shared, byte-identical exam-config line (`testMatch: /issue-\d+-design\.pw\.ts$/`); the only rebase conflicts were two new optional `AppShell` props and the last i18n keys.
+- **Lesson (pass lf-k9p4):** have the exam writer check a new criterion against every older exam that pins the same element (#332 AC3 vs #129/#147/e2e). The contradiction surfaced only at the implementer, after the exam was committed, and the guard does not let the manager correct an exam.
+- **Lesson (pass lf-k9p4):** a review can strengthen a refactor: #340's temp-file version was behaviour-identical, but a student can fill `/tmp` and turn a correct answer into a FAIL; counting the reader's fact lines needs no file at all.
+- **Seen (pass lf-k9p4):** the plugin's own guard hook refuses a Bash call that mixes `git` with a runtime-built command (`wsl -e sh -c ...`); split such calls.
 
 _Previous:_ **Pass lf-h8v5 (laptop, 21:25-~22:55 UTC) stopped at 3 merged PRs:** #338 (#325), #342 (#326), #344 (#331 part A: code + CI design step). **#325 and #326 closed with evidence; #331 stays open for its exam PR #345. Production: `c6c53e2` (Deploy 44834294844: deployed, smoke `ok start`/`check-fail`/`check-pass`; the live CSS carries the tokens and the bundled Rubik, no external URL).** Decisions D105 (+ amendment), D106, D107. New issues: #337, #340, #343.
 
@@ -163,12 +167,14 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
 ## Next (in order)
 
-1. **#345** (merge on green, see Now), then the design slices **#332**, **#333**, **#334** (p1, epic #330).
-2. Review leftovers: **#340** (Linux 1 exam pins), **#343** (validator: linear regexes, su job split, bash `>&word`), **#337** (pipelines); **#319** WebSocket relay proof, **#154** Solution tab (D57 b), **#142**.
-3. **#85** deploy follow-ups, **#94**, **#93**; p2 list: #81, #76, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
+1. **PR #351** (#334, merge on green, see Now). **#332** after O23.
+2. Follow-ups of the design slices: **#349** (lab screen top bar, full-pane end states, rtl splitter test), **#348** (student page active time + last activity via the API; stronger #334 design checks; round 2 nits).
+3. Review leftovers: **#343** (validator: linear regexes, su job split, bash `>&word`), **#337** (pipelines); **#319** WebSocket relay proof, **#154** Solution tab (D57 b), **#142**.
+4. **#85** deploy follow-ups, **#94**, **#93**; p2 list: #81, #76, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
 
+- **O23 (new):** #332 card action naming: "332: a" (name = word, title as description; the factory corrects the exam) or "332: b" (aria-label with the title; loosen three older name checks).
 - **O21 (new):** bound the guard hook's stdin read, the guard half of #230 (ready-to-apply plan in OWNER.md; fail closed).
 - **O22 (new, optional):** a time-keeping dispatch of the dashboard workflow (#155, D77), or "skip" for push-only freshness.
 - **O19 (read only):** the break-glass admin login steps, needed only if Google sign-in breaks: since #99 a password admin session is refused at once while Google is configured.
@@ -178,6 +184,7 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
 ## Recently done
 
+- 2026-11-21 pass lf-k9p4: #331 (#345 exam; Deploy 44839011018, smoke ok), #333 (#347 lab screen: full-width terminal, pane tabs on phones, D108), #340 (#350: #311 cases pin the truncation hint, 05 counts the reader's fact lines). #334 in PR #351 (approved), #332 parked (O23).
 - 2026-11-21 pass lf-h8v5: #325 (#338, one-read truncation with NULs mapped, 06 fails duplicates, D106; Deploy 44830036804, smoke ok), #326 (#342, validator: `&>` per shebang, jobs split on every lone `&`, `exec N<&0`, D107), #331 part A (#344, tokens, light/dark, bundled Rubik, app shell; exam PR #345 pending).
 - 2026-11-20 pass lf-b7m3: #311 (#322, 06 truncation fact, unused helpers removed), #308 (#328, validator: redirect order, here-documents, su scope, no `<&0`), #320 (#329, kill shielded on cancel, start budget 42 s). Deploy 44815987427.
 - 2026-11-20 · Pass lf-d3a2: **3 PRs merged, 3 issues closed (+ duplicate #313).**
