@@ -58,11 +58,10 @@ def _step(wf: dict, job: str, step_id: str) -> dict:
 # ---------------------------------------------------------------- criterion 1: triggers
 
 
-def test_push_trigger_ignores_exactly_docs_courses_claude_optionally_history_md():
-    # #395: history.md is optional for now; a later PR pins the four-entry list.
+def test_push_trigger_ignores_exactly_the_four_docs_only_entries():
     push = _on(_load(CI))["push"]
-    base = ["docs/**", "courses/**", ".claude/**"]
-    assert sorted(push.get("paths-ignore") or []) in (sorted(base), sorted([*base, "history.md"]))
+    want = ["docs/**", "courses/**", ".claude/**", "history.md"]
+    assert sorted(push.get("paths-ignore") or []) == sorted(want)
     assert "paths" not in push, "a positive `paths` filter would change the meaning"
 
 
@@ -186,6 +185,42 @@ def test_fresh_is_true_when_only_docs_commits_sit_on_top(tmp_path):
 
 
 @needs_bash
+@pytest.mark.parametrize("files", [
+    {"history.md": "x\n"},
+    {"history.md": "x\n", "docs/x.md": "x\n"},
+], ids=["history-only", "history-and-docs"])
+def test_fresh_is_true_when_only_root_history_md_sits_on_top(tmp_path, files):
+    repo = _new_repo(tmp_path)
+    tag = _commit(repo, "code", {"labs/manager/app.py": "v1\n"})
+    _commit(repo, "history", files)
+    r, out = _fresh(tmp_path, repo, tag)
+    assert r.returncode == 0, r.stderr
+    assert out.get("fresh") == "true"
+
+
+@needs_bash
+@pytest.mark.parametrize("name", ["a/history.md", "history.md.bak", "docs-history.md"])
+def test_fresh_is_false_when_a_lookalike_of_history_md_sits_on_top(tmp_path, name):
+    repo = _new_repo(tmp_path)
+    tag = _commit(repo, "code", {"labs/manager/app.py": "v1\n"})
+    _commit(repo, "lookalike", {name: "x\n"})
+    r, out = _fresh(tmp_path, repo, tag)
+    assert r.returncode == 0, r.stderr
+    assert out.get("fresh") == "false"
+
+
+@needs_bash
+def test_fresh_is_true_when_root_history_md_is_deleted_on_top(tmp_path):
+    repo = _new_repo(tmp_path)
+    _commit(repo, "add history", {"history.md": "x\n"})
+    tag = _commit(repo, "code", {"labs/manager/app.py": "v1\n"})
+    _commit(repo, "drop history", {"history.md": None})
+    r, out = _fresh(tmp_path, repo, tag)
+    assert r.returncode == 0, r.stderr
+    assert out.get("fresh") == "true"
+
+
+@needs_bash
 def test_fresh_is_true_when_the_push_was_code_then_a_revert_then_docs(tmp_path):
     repo = _new_repo(tmp_path)
     before = _git(repo, "rev-parse", "HEAD")
@@ -208,8 +243,12 @@ def test_fresh_is_true_when_the_push_was_code_then_a_revert_then_docs(tmp_path):
         {"labs/content/lab-עברית/משימה.md": "x\n"},
         {"labs/manager/app.py": "v2\n"},
         {"labs/web/index.html": "v1\n"},
+        {"history.md": "x\n", "labs/manager/app.py": "v2\n"},
     ],
-    ids=["content-md", "root-readme", "non-ascii-content", "manager-code", "web-code"],
+    ids=[
+        "content-md", "root-readme", "non-ascii-content", "manager-code", "web-code",
+        "history-and-code",
+    ],
 )
 @needs_bash
 def test_fresh_is_false_when_newer_code_is_on_top(tmp_path, files):
