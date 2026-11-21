@@ -4,7 +4,11 @@
 
 ## Now
 
-**Pass lf-k5p9 (laptop, 21:25-~22:50 UTC) stopped at 3 merged PRs.** The merges were #426 (#414), #425 (#416) and #429 (p0 #427).
+**Pass lf-m3q8 (laptop, started 2026-11-22) in progress.**
+- **#430** claimed, branch `f/430-lab-screen-boundary`, worktree `C:\projects\lf-430`: exam being written (error boundary, fakes in the `{en, he}` shape, #427 alert timing; criterion 4 goes to a follow-up).
+- **#423** claimed, branch `f/423-validator-spans`, worktree `C:\projects\lf-423`: exam being written after timing real shells.
+
+_Previous:_ **Pass lf-k5p9 (laptop, 21:25-~22:50 UTC) stopped at 3 merged PRs.** The merges were #426 (#414), #425 (#416) and #429 (p0 #427).
 
 **Closed with evidence.**
 - **#414:** main CI 44951681116; Deploy 44953123481 deployed d53bcbd; smoke green.
