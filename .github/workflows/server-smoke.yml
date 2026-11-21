@@ -22,6 +22,15 @@ on:
         description: "Called by the Deploy run, which already holds the host lock"
         type: boolean
         default: false
+    # A caller must pass environment secrets by name; the job's `environment: production`
+    # alone leaves them empty in a called workflow (#94). Deploy passes exactly these three.
+    secrets:
+      SSH_PRIVATE_KEY:
+        required: true
+      SERVER_HOST:
+        required: true
+      SERVER_USER:
+        required: true
   schedule:
     - cron: "30 3 * * *"
 
