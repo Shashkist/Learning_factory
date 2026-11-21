@@ -53,9 +53,10 @@ _warned_deadlines: set[str] = set()
 
 
 def start_deadline_minimum() -> float:
-    """Longest a row can legitimately stay in `starting` before the janitor may see it as an orphan:
-    the readiness budget, the kill of a timed-out readiness exec and the first cleanup bound.
-    (The second cleanup bound removes the container after the row is gone.)"""
+    """Upper bound on how long a row can legitimately stay in `starting` before the janitor may
+    see it as an orphan: the readiness budget, the kill of a timed-out readiness exec and the
+    first cleanup bound. (The second cleanup bound removes the container after the row is gone.)
+    The kill counts as KILL_BOUND_S; a readiness exec's own kill bound is shorter today (3 s)."""
     return READY_TIMEOUT_MAX_S + KILL_BOUND_S + CLEANUP_BOUND_S
 
 
