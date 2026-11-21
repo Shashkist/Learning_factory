@@ -74,8 +74,16 @@ async function openLab(page: Page, lang: Lang, width: number, height: number) {
   await page.goto("/labs/linux-basics");
   await expect(page.getByTestId("task-panel")).toBeVisible();
   await page.evaluate(() => document.fonts.ready);
+  seen = unmocked;
   return { state, unmocked };
 }
+
+// #349: every test also asserts the fake backend saw no request it does not know (the e2e convention).
+let seen: string[] | null = null;
+test.afterEach(() => {
+  expect(seen, "the fake backend saw an unmocked request").toEqual([]);
+  seen = null;
+});
 
 const frameOf = (page: Page, lang: Lang) => page.getByTitle(COPY[lang]["lab.terminal"]);
 const paneTab = (page: Page, lang: Lang, which: "tasks" | "terminal") => {
