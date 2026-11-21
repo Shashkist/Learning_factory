@@ -621,3 +621,15 @@ Tips:
 - **A split forced by the gate.** #416's exam asserts that CI lints the smoke scripts. The exam-integrity check refuses an exam and a `ci.yml` change in one PR (D9). So criterion 4 shipped alone as a one-line CI PR (#422), and the exam and code followed in #425.
 - **A test that could not fail.** The first version of the `GIT_ICASE_PATHSPECS` test put three cases on one chain of commits. The first code commit made every later diff "code" anyway, so the case passed even with the fix reverted. Mutation-checking each new test, by reverting its fix, caught this before push.
 - **Small tools fight back.** A plugin's command guard blocked a harmless shell one-liner, and a raw DEL byte kept surviving `sed`/Python edits. The fix for both was to write the script with the file tool and do the byte replace in binary mode.
+
+## Pass lf-k5p9: the owner's first real lab run found a bug 400+ exams missed (2026-11-21, laptop, 21:25-~22:50 UTC)
+
+- **3 merged PRs.**
+  - #426 (#414, validator and-or lists).
+  - #425 (#416, origin check forms).
+  - #429 (p0 #427, Linux 1 Next blanked the lab screen).
+- **Exam first, as a diagnostic.** Agents cannot read the production logs (the guard forbids server access). So the first commit for #427 was a browser exam in the CI docker job with the real Linux 1 content, and it prints the manager's answer for every move. The red run told the story in one line: the manager answered `next` with 200 and task 2, but the title never showed and the terminal iframe had been replaced. The server was fine and the UI was not.
+- **The cause was a shape mismatch between two halves that were each well tested.** The manager sends checklist items as `{en, he}`, and a manager exam pins it. The lab screen read `{n, text}`, which only its own fake backends sent. Every hands-on task threw while rendering, and with no error boundary React dropped the whole screen. To the owner it looked like a page reload with an error. Quiz tasks have no checklist, so task 1 worked, and the smoke runs drive the API, never a hands-on task in a browser.
+- **About 40 minutes from the owner's report to a fix on the branch:** exam written by an agent (~7 min), docker run (~20 min), diagnosis plus a 3-case jsdom exam that reproduced the TypeError exactly, then a 9-line fix (D124).
+- **Lesson.** A fake backend that invents the API shape certifies the wrong contract. Follow-up #430 moves the fakes to the real shape and adds an error boundary, so the terminal survives a render fault.
+- **Housekeeping.** `gh pr merge --delete-branch` fails when the branch is checked out in a local worktree. The merge itself goes through, so delete the remote branch by hand. A PR body's `Closes #n` closes the issue at merge time, so post the evidence as a comment rather than through `gh issue close`.

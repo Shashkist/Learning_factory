@@ -4,10 +4,28 @@
 
 ## Now
 
-**Pass lf-k5p9 (laptop, from 21:25 UTC) is running.**
-- #426 (#414) merged as d53bcbd at ~21:30; main CI and Deploy are running; close #414 after the Deploy and smoke.
-- #425 (#416) rebased onto d53bcbd (e8549cc), CI running; merge when green.
-- **New p0 #427** (owner report: Next from Linux 1 task 1 errors and the screen seems to reload). Claimed by lf-k5p9, branch `f/427-linux1-next`, worktree `C:\projects\lf-427`. Step: an exam writer is writing the docker-job browser exam with the real Linux 1 content. That exam is also the diagnostic: agents cannot read the server's logs, so the red CI run must print the manager's answer and its log.
+**Pass lf-k5p9 (laptop, 21:25-~22:50 UTC) stopped at 3 merged PRs.** The merges were #426 (#414), #425 (#416) and #429 (p0 #427).
+
+**Closed with evidence.**
+- **#414:** main CI 44951681116; Deploy 44953123481 deployed d53bcbd; smoke green.
+- **#416:** main CI 44953493175; Deploy 44954973246 deployed 8048951; smoke green.
+- **#427 (p0, owner report).** Next from Linux 1 task 1 blanked the lab screen. The task API sends checklist items as `{en, he}`, but the lab screen read `{n, text}`, so every hands-on task threw while rendering (D124). Deploy 44958268113 deployed fe13829 and the smoke is green. The live bundle is byte-identical to the build that passed the real-content docker browser exam.
+
+**Decision.** D124: the API shape is the contract, and the lab screen numbers checklist items by position.
+
+**New issues.**
+- #428 (p3): the origin check strips only one trailing dot.
+- #430 (p2): an error boundary around the task pane, the UI fakes moved to the real API shape, and the #427 exam's alert timing.
+
+**All claims are released and no PR is open.**
+
+**Resume here:** the Next list. Take #430 early: until its error boundary lands, any render fault blanks the lab screen and loses the terminal.
+
+**Worktrees.** `lf-414`, `lf-416` and `lf-427` are shipped and safe to remove, as are the older ones listed below.
+
+**Lesson (pass lf-k5p9): when production fails and the logs are out of reach, the first commit is an exam that prints what the server answered.** The red CI run showed HTTP 200 followed by a replaced iframe, which pointed at the UI within minutes.
+
+**Lesson (pass lf-k5p9): a UI fake backend that invents the API shape certifies a contract nobody serves.** Write fakes from the manager's real answer (or from its exam), not from the component's types.
 
 _Previous:_ **Pass lf-r7j3 (laptop, 19:25-~20:55 UTC) stopped at 3 merged PRs.** The merges were #413 (#410), #419 (#417) and #422 (#416 criterion 4: CI lints `labs/deploy/smoke`).
 
@@ -305,14 +323,15 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 ## Next (in order)
 
 1. **#332** after O23.
-2. **#426** (#414), then **#425** (#416), see Resume.
+2. **#430** (p2, lab screen error boundary + real API shape in UI fakes; follow-up of p0 #427).
 3. **#423** (validator misses moved out of #414: pipes in substitutions, escaped delimiters, `!` jobs, groups spanning lines; p3). Time real shells first.
 4. Review leftovers: **#319** (now also the 390 px typed-command proof from #349) WebSocket relay proof, **#154** Solution tab (D57 b), **#142**.
 5. **#85** deploy follow-ups, **#93**; p2 list: #81, #76, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
 
-- **O24 (new, optional):** try the lab screen on a phone (#349): tap Terminal, type; Tasks and back; rotate.
+- **O25 (new, optional):** run Linux 1 once more on the live site: tasks 1 to 3 with Next and Skip, the terminal should stay put (#427 is fixed and deployed).
+- **O24 (optional):** try the lab screen on a phone (#349): tap Terminal, type; Tasks and back; rotate.
 - **O23:** #332 card action naming: "332: a" (name = word, title as description; the factory corrects the exam) or "332: b" (aria-label with the title; loosen three older name checks).
 - **O21 (new):** bound the guard hook's stdin read, the guard half of #230 (ready-to-apply plan in OWNER.md; fail closed).
 - **O22 (new, optional):** a time-keeping dispatch of the dashboard workflow (#155, D77), or "skip" for push-only freshness.
