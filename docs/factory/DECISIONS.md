@@ -1267,3 +1267,13 @@ The non-blocking items go to #423: a group that spans lines is not joined, plus 
 **Why.** The check exists to warn when the configured origin differs from what the browser sends (D119). The URL parser keeps this host unchanged, so it is not a rewritten IPv4 form. Measured with the WHATWG parser (Node) only, not with Chromium's own URL code. A host with an empty label cannot be resolved, so no browser loads a page from it; a warning for that is follow-up #434.
 **Alternatives.** Warn on any empty label in this issue. Moved to #434, which needs its own reason text.
 **Revert.** Restore `host.rstrip(".")` in `_public_origin_problem` and flip the #428 exam's criterion-2 cases.
+
+## D126 · #423: what dash and bash measurably hold, where the issue text differs
+
+**Measured** (WSL, dash and bash 5.2; each line plus `echo done` piped through `<shell> -s 2>&1 | cat` with `sleep 3`; the exam's docstring has the full table).
+- `! sleep >/dev/null 2>&1 &` holds the output under dash and does **not** under bash. So a negated job warns under `#!/bin/sh` and stays quiet under `#!/bin/bash`.
+- `! false && sleep >/dev/null 2>&1 &` is quiet under dash and holds under bash, which matches D122 (an and-or list holds under bash).
+- A bash `>(...)` whose body is a pipeline holds by itself, even when every element inside redirects. Only a single simple command with its own redirects inside `>(...)` is quiet.
+**Decision (assumption, revertible).** The #423 exam encodes these measurements. Where they differ from the issue text, the measurement wins: the issue asked for a warning on the `!` line under sh only, and the exam adds the quiet bash case.
+**Why.** The validator warns when a real shell holds the exec's output (D56). An earlier pass lost two PRs encoding an unmeasured claim (#414).
+**Revert.** Flip the bash `!` and `>(...)` cases in the #423 exam and the matching branches in `content.py`.
