@@ -21,11 +21,16 @@ type Task = {
   title: Bi;
   state: string;
   text?: Bi;
-  checklist?: { n: number; text: Bi }[];
+  // The manager sends plain {en, he} texts (#427); `n` (1..N, the `PASS <n>` of check.sh) is the position.
+  checklist?: (Bi | { n: number; text: Bi })[];
   question?: Bi;
   options?: Bi[];
 };
 type Row = { passed: boolean; hint: string | null };
+
+// One shape for the checklist: the item's number (1..N, by position unless given) and its text.
+const items = (list: Task["checklist"]): { n: number; text: Bi }[] =>
+  (list ?? []).map((c, i) => ("text" in c && typeof c.text === "object" ? c : { n: i + 1, text: c as Bi }));
 type Verdict = "correct" | "incorrect" | null;
 type Pane = "tasks" | "terminal";
 type Phase = "loading" | "preparing" | "ready" | "ended" | "mismatch";
@@ -636,7 +641,7 @@ export default function LabScreen({
                     <Text md={task.text[lang]} title={task.title[lang]} />
                   )}
                   <ul className="lab-checklist">
-                    {(task.checklist ?? []).map((c) => {
+                    {items(task.checklist).map((c) => {
                       const r = rows?.[c.n];
                       return (
                         <li key={c.n} className={r ? (r.passed ? "ok" : "bad") : undefined}>
