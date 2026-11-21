@@ -197,8 +197,13 @@ select lab_id, task_id, percentile_cont(0.5) within group (order by secs) as med
 from firsts where secs is not null group by lab_id, task_id
 """
 
+# Finished runs plus sessions without a run (a run copies its session time).
 _ACTIVE_SQL = (
-    f"select coalesce(sum(active_seconds), 0)::float8 from {T}.lab_runs where student = $1"
+    "select (coalesce((select sum(active_seconds) "
+    f"from {T}.lab_runs where student = $1), 0) "
+    "+ coalesce((select sum(s.active_seconds) "
+    f"from {T}.lab_sessions s where s.student = $1 "
+    f"and not exists (select 1 from {T}.lab_runs r where r.session_id = s.id)), 0))::float8"
 )
 
 _DONE_SQL = f"select lab_id from {T}.lab_completions where student = $1 and lab_id = any($2)"
