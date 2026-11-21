@@ -2,8 +2,9 @@
 
 Observable behaviour: the warnings and errors `load_labs` reports for a lab's setup.sh / check.sh.
 
-AC1: `cmd >&\\2 2>/dev/null &` warns: `>&\\2` is a descriptor copy (bash), never a file, so
-     the background job keeps the exec's stderr open (D56).
+AC1: `>&\\N` behaves exactly like `>&N` and `>&\\-` like `>&-` (bash dups it): the background
+     verdict of each backslash form equals its unquoted twin. Warn for `>&\\2 2>/dev/null &`
+     and `>&\\2 2>&1 &`; quiet for `2>/dev/null >&\\2 &` and `>&\\- 2>/dev/null &` (D56).
 AC2: a `su ... -c 'cat'` that is fed by a pipe (not the first command of a pipeline) reads that
      pipe, not the script: no stdin warning. The first command of a line still warns.
 AC3 (D115): no line-length cap: the long lines of the timing cases load cleanly, and a long
@@ -42,21 +43,35 @@ def _loads_cleanly(result):
 # ------------------------------------------------------------------ AC1: >&\2 plus another redirect
 
 
+# (unquoted twin, backslash form, warns). Checked with real shells (Git Bash `bash -c`, dash):
+# - `>&\2 2>/dev/null`: `echo hi >&\2 2>/dev/null` prints "hi" on stderr (stdout copied the
+#   exec's stderr before it moved): warn.
+# - `>&\2 2>&1`: stdout and stderr both stay on the exec's stderr: warn.
+# - `2>/dev/null >&\2`: `echo hi 2>/dev/null >&\2` prints nothing (stderr went to /dev/null
+#   first, stdout copies that): quiet.
+# - `>&\- 2>/dev/null`: closes stdout like `>&-` (dash: `echo hi >&\-` -> "I/O error"; bash:
+#   bad file descriptor) and stderr goes to /dev/null: nothing stays open: quiet.
+TWINS = [
+    ("sleep 600 >&2 2>/dev/null &", r"sleep 600 >&\2 2>/dev/null &", True),
+    ("sleep 600 >&2 2>&1 &", r"sleep 600 >&\2 2>&1 &", True),
+    ("sleep 600 2>/dev/null >&2 &", r"sleep 600 2>/dev/null >&\2 &", False),
+    ("sleep 600 >&- 2>/dev/null &", r"sleep 600 >&\- 2>/dev/null &", False),
+]
+
+
+def _warns(tmp_path, tag, line, name):
+    result = lab_with_script(tmp_path / tag, f"{BASH}{line}\nexit 0\n", name)
+    return bool(background_warnings(result))
+
+
 @pytest.mark.parametrize("name", NAMES)
-@pytest.mark.parametrize(
-    "line",
-    [
-        r"sleep 600 >&\2 2>/dev/null &",
-        r"sleep 600 2>/dev/null >&\2 &",
-        r"sleep 600 >&\- 2>/dev/null &",
-        r"sleep 600 >&\2 2>&1 &",
-    ],
-)
-def test_ac1_gt_amp_backslash_with_another_redirect_still_warns(tmp_path, name, line):
-    # pins: bash reads `>&\2` as stdout -> stderr (a copy of fd 2, taken before `2>/dev/null`),
-    # so stdout stays on the exec's output; a following redirect must not turn it into a "file".
-    result = lab_with_script(tmp_path, f"{BASH}{line}\nexit 0\n", name)
-    assert background_warnings(result), f"missed warning for {line!r}: {result.warnings}"
+@pytest.mark.parametrize(("plain", "escaped", "warns"), TWINS)
+def test_ac1_gt_amp_backslash_copy_follows_its_unquoted_twin(tmp_path, name, plain, escaped, warns):
+    # pins: `>&\N` is `>&N` and `>&\-` is `>&-`: equal verdicts, and the expected one.
+    got_plain = _warns(tmp_path, "plain", plain, name)
+    got_escaped = _warns(tmp_path, "escaped", escaped, name)
+    assert got_plain == warns, f"unquoted {plain!r}: warns={got_plain}, expected {warns}"
+    assert got_escaped == got_plain, f"{escaped!r} (warns={got_escaped}) differs from {plain!r}"
 
 
 @pytest.mark.parametrize("name", NAMES)
