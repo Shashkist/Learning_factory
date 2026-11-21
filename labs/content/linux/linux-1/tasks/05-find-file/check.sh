@@ -34,18 +34,18 @@ fact() {
 }
 rd() { printf '%s\n' "$facts" | grep -qx "R $1 1"; }
 body() { printf '%s\n' "$facts" | sed -n "s/^C $1 //p"; }
-# tally LINES: reads the lines from a here-document, prints "non-empty-lines lines-equal-to-want other-lines". A builtin
-# loop, so the expected path is never an argument of an external command (D52).
+# tally FILE: reads the lines of FILE once, prints "non-empty-lines lines-equal-to-want other-lines all-lines". all-lines
+# counts blank lines too, as wc -l would; a file keeps trailing blank lines, which $(...) would strip. A builtin loop,
+# so the expected path is never an argument of an external command (D52).
 tally() {
-  t=0; m=0; o=0
+  t=0; m=0; o=0; a=0
   while IFS= read -r l; do
+    a=$((a + 1))
     [ -n "$l" ] || continue
     t=$((t + 1))
     if [ "$l" = "$want" ]; then m=$((m + 1)); else o=$((o + 1)); fi
-  done <<EOF
-$1
-EOF
-  echo "$t $m $o"
+  done < "$1"
+  echo "$t $m $o $a"
 }
 rc=0
 
@@ -61,9 +61,11 @@ fi
 
 if [ "$ty" = f ]; then
   if rd found; then
-    set -- $(tally "$(body found)")
-    n=$1; right=$2; other=$3
-    lines=$(body found | wc -l)
+    found_body=$(mktemp)
+    body found > "$found_body"
+    set -- $(tally "$found_body")
+    rm -f "$found_body"
+    n=$1; right=$2; other=$3; lines=$4
     if [ "$lines" -gt 200 ]; then
       echo "FAIL 2 found.txt is far longer than one path; find should print only the file you search for"
       rc=1
