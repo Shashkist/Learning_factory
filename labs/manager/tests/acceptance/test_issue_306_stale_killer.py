@@ -58,7 +58,6 @@ from test_issue_12_linux_1 import (  # noqa: F401
 )
 from test_issue_126_linux_1_check_privacy_docker import (  # noqa: F401
     CHECK_TIMEOUT_S,
-    STOPPER,
     _alive,
     _wait_loop_gone,
     fresh_box,
@@ -70,6 +69,40 @@ TASK = "02-directory-tree"
 STOP_FILE = "/tmp/stop-stopper126"  # the STOPPER of the #126 exam ends when this file exists
 REPO_ROOT = next(p for p in Path(__file__).resolve().parents if (p / "labs").is_dir())
 DECISIONS = REPO_ROOT / "docs" / "factory" / "DECISIONS.md"
+
+
+# The #126 STOPPER, plus a handshake (issue #391). A check that is merely started "after the
+# stopper" can still finish before the loop reaches its processes (a pass walks all of /proc
+# and CI runners are slow), and then the case tested nothing. So the check script is
+# prefixed (see _gated) with: announce `READY`, then spin until the stopper writes `SEEN`.
+# The stopper writes `SEEN` only at the end of a pass that STARTED after `READY` existed;
+# such a pass saw the check's shell in /proc and sent it SIGSTOP. The check therefore never
+# gets past its prefix before it has been stopped, and a stopped check cannot finish: it
+# times out deterministically, whatever the runner speed. Builtins only (`:>`, `[`), so no
+# helper process can be missed. The loop keeps the `stop-stopper126` stop file name, which
+# `_alive` / `_wait_loop_gone` of the #126 exam look for; the #126 STOPPER itself is untouched.
+READY = "/tmp/ready-check306"
+SEEN = "/tmp/seen-check306"
+STOPPER = rf"""
+while [ ! -e {STOP_FILE} ]; do
+  flag=
+  [ -e {READY} ] && flag=1
+  for p in /proc/[0-9]*; do
+    p=${{p#/proc/}}
+    [ "$p" = "$$" ] || kill -STOP "$p" 2>/dev/null
+  done
+  [ -n "$flag" ] && : > {SEEN}
+done
+"""
+
+
+def _gated(script: str) -> str:
+    """The check script behind the handshake: it does nothing until the stopper has stopped it."""
+    gate = f": > {READY}\nwhile [ ! -e {SEEN} ]; do :; done\n"
+    if script.startswith("#!"):
+        first, _, rest = script.partition("\n")
+        return f"{first}\n{gate}{rest}"
+    return gate + script
 
 
 def _ps(box: str) -> list[tuple[int, int, str, str, str]]:
@@ -90,7 +123,7 @@ def _ps(box: str) -> list[tuple[int, int, str, str, str]]:
 
 
 def _start_stopper(box: str):
-    docker("exec", "-u", "root", box, "rm", "-f", STOP_FILE, check=False)
+    docker("exec", "-u", "root", box, "rm", "-f", STOP_FILE, READY, SEEN, check=False)
     docker("exec", "-d", "-u", "student", box, "sh", "-c", STOPPER)
     time.sleep(1.0)
     assert _alive(box, "stop-stopper126") >= 1, "the stopping loop did not start"
@@ -111,7 +144,7 @@ def _cleanup(box: str):
         "exec", "-u", "student", box, "sh", "-c", "kill -CONT -1; kill -KILL -1",
         check=False, timeout=30,
     )
-    docker("exec", "-u", "root", box, "rm", "-f", STOP_FILE, check=False, timeout=30)
+    docker("exec", "-u", "root", box, "rm", "-f", STOP_FILE, READY, SEEN, check=False, timeout=30)
 
 
 def _timed_out_check_under_stopper(runtime, call, box, before: set | None = None) -> float:
@@ -123,7 +156,7 @@ def _timed_out_check_under_stopper(runtime, call, box, before: set | None = None
     _start_stopper(box)
     if before is not None:
         before.update(r[0] for r in _ps(box))
-    res = call(runtime.exec_script, box, _text(task / "check.sh"), CHECK_TIMEOUT_S)
+    res = call(runtime.exec_script, box, _gated(_text(task / "check.sh")), CHECK_TIMEOUT_S)
     assert res.timed_out is True, (
         f"the stop loop did not make the check time out (exit {res.exit_code}), so the case "
         f"tested nothing:\n{res.output}"
@@ -145,7 +178,9 @@ def test_no_root_killer_process_survives_exec_script_under_a_stop_loop(
     _start_stopper(fresh_box)
     before = {r[0] for r in _ps(fresh_box)}
     try:
-        res = call(runtime.exec_script, fresh_box, _text(task / "check.sh"), CHECK_TIMEOUT_S)
+        res = call(
+            runtime.exec_script, fresh_box, _gated(_text(task / "check.sh")), CHECK_TIMEOUT_S
+        )
         assert res.timed_out is True, f"the case tested nothing (exit {res.exit_code})"
         time.sleep(1.5)
         left = [r for r in _ps(fresh_box) if r[2] == "root" and r[0] not in before]
