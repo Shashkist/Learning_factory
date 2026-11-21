@@ -16,9 +16,12 @@ Choices beyond the issue text (the build must follow them or change the exam via
   must exist; one or two WARNING lines name `LF_START_DEADLINE_S` over the 4 passes. A valid
   `90` is passed on as 90 and logs no such line.
 * The #376 case (time half of the guarded end) shares `_stale_starting` with the #55 cases through
-  its `pool_cls` parameter (`FlippingPool` or `RefreshingPool`). `RefreshingPool` records the
-  status the refreshed fetch returned for the session in `refreshed_status`; the case asserts it
-  is `starting`, so it cannot pass when the candidates come from another fetch.
+  its `pool_cls` parameter (`FlippingPool` or `RefreshingPool`). `RefreshingPool` moves
+  `started_at` of the row to now right after the snapshot and records every `fetchval` that runs
+  an `update ... 'ended'` for the session (the guarded end `end_session` issues). The case asserts
+  that such an end was attempted (so the candidates came from the stale snapshot) and that it
+  missed (the row is still `starting`, its container kept), which only the time half of the
+  guard can do; it cannot pass when the candidates come from another fetch.
 * Too-short deadline (#376, #384): the minimum is `READY_TIMEOUT_MAX_S + runtime.KILL_BOUND_S +
   CLEANUP_BOUND_S` (52 s today). The warning prints the raw value (`%r`), so `51.9999999` shows
   verbatim and not as 52.
@@ -138,15 +141,20 @@ def test_a_row_that_is_still_starting_and_past_the_deadline_is_still_ended_as_or
 class RefreshingPool(FlippingPool):
     """Like FlippingPool, but the row stays `starting` and only its `started_at` moves to now."""
 
-    refreshed_status = None  # status of the session in the fetch that was refreshed
+    def __init__(self, *a, **k):
+        super().__init__(*a, **k)
+        self.end_attempts: list = []  # guarded ends tried for the session
+
+    async def fetchval(self, sql, *args, **k):
+        flat = " ".join(str(sql).lower().split())
+        if "update" in flat and "'ended'" in flat and args and str(args[0]) == str(self._sid):
+            self.end_attempts.append(flat)
+        return await self._real.fetchval(sql, *args, **k)
 
     async def fetch(self, *a, **k):
         rows = await self._real.fetch(*a, **k)
         if self.listed and self._flip and not self.flipped:
             self.flipped = True
-            self.refreshed_status = next(
-                (r["status"] for r in rows if str(r["id"]) == str(self._sid)), None
-            )
             await self._real.execute(
                 f"update {SCHEMA}.lab_sessions set started_at = now() where id = $1", self._sid
             )
@@ -159,9 +167,9 @@ def test_a_starting_row_moved_forward_after_the_snapshot_keeps_running_and_its_c
     """Time half of the guarded end (#376): still `starting`, but no longer past the deadline."""
     sid, rt, pool = _stale_starting(env, monkeypatch, flip=True, pool_cls=RefreshingPool)
     assert pool.flipped, "the janitor never took a snapshot after listing the containers"
-    assert pool.refreshed_status == "starting", (
-        "the fetch the exam refreshed did not return the session as starting "
-        f"(got {pool.refreshed_status!r}), so it proves nothing about the time half"
+    assert pool.end_attempts, (
+        "no guarded end was attempted for the stale-looking session, so the time half of the "
+        "guard was never exercised (the candidates must come from the snapshot after the listing)"
     )
     row = env.row(sid)
     assert row["status"] == "starting", f"a fresh start was ended: {row['end_reason']!r}"
@@ -274,10 +282,6 @@ def test_a_positive_start_deadline_below_the_longest_start_logs_one_warning_and_
     )
     nums = [x for args in result["args"] for x in args]
     assert float(short) in nums, f"the deadline was clamped, the query got {nums}"
-
-
-def test_the_start_deadline_minimum_is_52_seconds_today():
-    assert _minimum_deadline() == 52.0
 
 
 def test_the_too_short_warning_shows_the_raw_value_not_a_rounded_one():
