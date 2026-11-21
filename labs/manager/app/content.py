@@ -240,11 +240,11 @@ _HEREDOC = re.compile(r"(?<!<)<<(?!<)(-?)\s*([^\s;&|<>()]+)")  # not `<<<`, a he
 # per start position), or nothing: `2>&1>file` has a second redirect right after a digit.
 _FD = r"((?<!\d)\d+|)"
 _REDIRECTS = re.compile(_FD + r">&\d+|" + _FD + r">>?\s*\S+")
-# `>&\2` is `>&2` after quote removal (bash and dash copy fd 2); `>&\-` falls through to the
-# file branch like `>&-` (stdout closed).
+# `>&\2` is `>&2` after quote removal (bash and dash copy fd 2), `>&\f` is bash's `>&f` (a file);
+# `>&\-` falls through to the file branch like `>&-` (stdout closed).
 _FD_REDIRECT = re.compile(
     r"&>>?\s*\S+|" + _FD + r">>?&\s*\\?(\d)|"
-    r"(?P<wfd>(?<!\d)\d+|)>&\s*[^\s\d$`'\x22\\-]\S*|" + _FD + r">>?\s*\S+"
+    r"(?P<wfd>(?<!\d)\d+|)>&\s*\\?[^\s\d$`'\x22\\-]\S*|" + _FD + r">>?\s*\S+"
 )
 _FD0_DUP = re.compile(r"(?<!\d)\d*<&\s*0")
 _EXEC_FD0_DUP = re.compile(r"exec\s(?:.*\s)?\d+<&\s*0(?!\d)")
@@ -316,27 +316,25 @@ def _su_commands(masked: str) -> Iterator[tuple[int, str]]:
     `su` word before them, so a line of repeated `su` words is not rescanned per word.
     """
     dash_c: re.Match[str] | None = None
-    dash_from = -1
     job_end = -1
     resume = 0  # a `su` word before this is part of a command already yielded
     for su in _SU_WORD.finditer(masked):
         from_pos = su.end()
         if su.start() < resume:
             continue
-        if dash_c is None and dash_from >= 0:
-            return  # the last search found no ` -c <quote>` further on
         if dash_c is None or dash_c.start() < from_pos:
             dash_c = _DASH_C.search(masked, from_pos)
-            dash_from = from_pos
             if dash_c is None:
                 return
         if job_end < from_pos:
             sep = _JOB_END.search(masked, from_pos)
             job_end = sep.start() if sep else len(masked) + 1
-        if dash_c.start() < job_end:
+        # A `su` word right after a `|` is skipped without claiming the ` -c`: it may be a pipe-fed
+        # command (reads the pipe) or a word that is no command at all (`case $x in a | su)`), and
+        # a real `su` later in the same job must still be checked.
+        if dash_c.start() < job_end and not _after_pipe(masked, su.start()):
             resume = dash_c.end()
-            if not _after_pipe(masked, su.start()):
-                yield dash_c.end(), dash_c.group(1)
+            yield dash_c.end(), dash_c.group(1)
 
 
 def _after_pipe(masked: str, at: int) -> bool:
