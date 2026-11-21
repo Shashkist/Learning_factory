@@ -124,3 +124,51 @@ def test_ac1_pipe_amp_in_the_middle_under_bash_covers_only_the_element_before_it
         name,
     )
     # the middle `cat` is followed by a plain `|` and has no stderr redirect
+
+
+# ------------------------------------------------- review round 1: no false positives
+
+
+@pytest.mark.parametrize("name", NAMES)
+@pytest.mark.parametrize("head", SHEBANGS)
+@pytest.mark.parametrize(
+    "body",
+    [
+        "( sleep 600 | cat ) >/dev/null 2>&1 &",
+        "(sleep 600 | cat | cat) >/dev/null 2>&1 &",
+        'case "$1" in web|http) sleep 600 >/dev/null 2>&1 & ;; esac',
+        "case $1 in a | b) sleep 600 >/dev/null 2>&1 & ;; esac",
+        "sleep $(echo 600 | cat) >/dev/null 2>&1 &",
+        "sleep `echo 600 | cat` >/dev/null 2>&1 &",
+    ],
+    ids=["subshell-group", "subshell-three", "case-pattern", "case-pattern-spaced",
+         "command-substitution", "backticks"],
+)
+def test_review_a_pipe_inside_a_group_case_pattern_or_substitution_is_not_walked(
+    tmp_path, name, head, body
+):
+    """A `|` inside `( ... )`, a `case` pattern or `$( ... )` is not a pipe of the
+    backgrounded pipeline: the group's own redirect covers every element inside it."""
+    _quiet_bg(tmp_path, head, body, name)
+
+
+# ------------------------------------------------- review round 1: missed warnings
+
+
+@pytest.mark.parametrize("name", NAMES)
+@pytest.mark.parametrize("head", SHEBANGS)
+def test_review_an_earlier_element_whose_stdout_goes_to_the_exec_stderr_warns(
+    tmp_path, name, head
+):
+    """`>&2` makes sleep's stdout a copy of the exec's stderr: it holds the output open
+    even though its own stderr is redirected."""
+    _warns_bg(tmp_path, head, "sleep 600 >&2 2>/dev/null | cat >/dev/null 2>&1 &", name)
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_review_pipe_amp_after_the_elements_own_stdout_redirect_to_stderr_warns(
+    tmp_path, name
+):
+    """Bash applies `|&`'s implicit `2>&1` after the element's own redirects, so with
+    `>&2` both of sleep's outputs end on the exec's stderr."""
+    _warns_bg(tmp_path, "#!/bin/bash\n", "sleep 600 >&2 |& cat >/dev/null 2>&1 &", name)
