@@ -4,11 +4,16 @@
 
 ## Now
 
-**Pass lf-n4c7 (laptop, from 14:55 UTC), in progress.** Merged #396 (#373 closed: Deploy 44918996027 deployed 16d6dc9, smoke `ok terminal` with the browser Origin and the foreign-Origin 403 probe; live foreign Origin → 403) and #402 (#395 PR A). Decision D120 (#395 in three PRs).
+**Pass lf-n4c7 (laptop, 14:55-~16:05 UTC) stopped at 3 merged PRs:** #396 (#373), #402 (#395 PR A, exam accepts both lists), #405 (#395 PR B: `ci.yml` + `scripts/ci_paths.py`, root `history.md` is docs-only). **Closed with evidence: #373 (Deploy 44918996027 deployed 16d6dc9; smoke `ok terminal` now sends the browser Origin and requires 403 for a foreign one; live foreign Origin → 403).** Decision D120. All claims released; three PRs open for the next pass.
 
-- In flight (claims lf-n4c7):
-  1. **#395**: PR A #402 merged; **PR B #405** (`f/395-ci-history`, worktree `C:\projects\lf-395b`) in CI + review; then PR C (exam only: pin the four entries, behaviour cases for `deploys`).
-  2. **#391 / PR #401** (`f/391-stop-loop-precondition`, worktree `C:\projects\lf-391`): the first gate ran in check.sh's root shell, which the student stopper cannot stop (scratch #403: 9/10 green, run 10 "tested nothing"); being moved into the student reader. Scratch PRs #403 (10 runs) and #404 (pre-#318 killer: the same 3 cases fail as in #316) are evidence only, close them.
+- **Resume here, first (in this order, merges one at a time, rebase + green CI before each):**
+  1. **#395 / PR #407** (PR C, exam only, branch `f/395-exam-pin`, worktree `C:\projects\lf-395c`): pins the four `paths-ignore` entries and adds `deploys` cases for the root `history.md` (3 cases fail against the pre-#405 script). Needs: green CI, one review round, merge. Then close #395 with evidence: main CI for 7cb9f7c (#405) green, and the first docs+`history.md`-only push after it starts **no** CI run (check `gh run list --workflow ci.yml`).
+  2. **#400 / PR #406** (branch `f/400-dashboard-ci-workflows`, worktree `C:\projects\lf-400`): **approved in round 1**; rebased onto 7cb9f7c at ~15:47, CI re-running. Merge when green; evidence = Dashboard CI ran on the PR (it changes only a workflow) and runs on main for the merge. Close #400.
+  3. **#391 / PR #401** (exam only, branch `f/391-stop-loop-precondition`, worktree `C:\projects\lf-391`), CI green on 8dd6b94, re-running on c4721ca. The first gate ran in check.sh's root shell (the student stop loop cannot stop root; 9/10 runs green); c4721ca moves it into the student reader. Mutation evidence is on the PR (same 3 cases fail as in #316). **Scratch PR #403** reruns the file 10 times on c4721ca: **10/10 green** on c4721ca (run 44919705425; recorded on #401; #403 closed). Next: one review round (point the reviewer at the evidence comments on #401), merge, close #391.
+- Then the Next list.
+- Worktrees `C:\projects\lf-373`, `lf-395`, `lf-395b`, `lf-391m` are shipped or closed and safe to remove; `lf-391r` too (scratch closed); keep `lf-391`, `lf-395c`, `lf-400`.
+- **Lesson (pass lf-n4c7):** a gate or handshake in a test that signals processes must run as the user that the signaller can signal. check.sh runs as root; the student stop loop's `kill -STOP` on root fails with EPERM, hidden by `2>/dev/null`. One green CI run would have shipped it: run flaky-race fixes 10 times in a scratch draft PR (`ci.yml` edited to loop one file) before review.
+- **Lesson (pass lf-n4c7):** a mutation check against an old fix fits in the same scratch pattern: revert the file to `<fix>^` (whole file, not `git apply -R`, when later commits touched it), skip the unit step that imports new names, run the one exam file with `|| true`, read the PASSED/FAILED lines.
 
 _Previous:_ **Pass lf-h3v6 (laptop, 12:57-~14:30 UTC) stopped at 4 merged PRs:** #390 (#385, handed over), #398 (incident #394: the #25 Dashboard exam accepts a caller of a local reusable workflow), #393 (#377: junit gate fails on failed/errored cases, counted from elements), #397 (#392: framing headers on every `.html` file). **Closed with evidence: #392 (Deploy 44914006845 deployed 76737ac, smoke green, live headers), #385 (Deploy 44908291227, live `/labs/` and `/labs/..%2Findex.html` carry `frame-ancestors 'self'` + `SAMEORIGIN`), #377 (main CI 44910734175 + Dashboard CI 44910734128 green), incident #394 (Dashboard CI 44910016307 green on main).** Decision D119. New issues: #395 (`history.md` is docs-only for CI), #399 (review leftovers of #396/#397), #400 (Dashboard CI on every workflow change).
 
@@ -233,7 +238,7 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 ## Next (in order)
 
 1. **#332** after O23.
-2. **#373** (PR #396, see Resume), **#391** (#306 stop-loop precondition, exam-only), **#399** (after #373), **#395**, **#400**.
+2. **#407** (#395 C), **#406** (#400), **#401** (#391), see Resume; then **#399** (#373 is done, so it is unblocked).
 3. Review leftovers: **#337** (pipelines); **#319** (now also the 390 px typed-command proof from #349) WebSocket relay proof, **#154** Solution tab (D57 b), **#142**.
 4. **#85** deploy follow-ups, **#93**; p2 list: #81, #76, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 

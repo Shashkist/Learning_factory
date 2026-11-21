@@ -559,3 +559,18 @@ Tips:
 - When you change a function's signature, `grep` for every caller before you push. The local exam list is only what you thought of.
 - A reviewer that reads the CI log of an unrelated red job can find the real bug: "this diff didn't cause it" was the most useful line of the pass.
 - Count merges per pass, not per issue: an incident fix is a PR too, and it counted toward the stop rule.
+
+## Pass lf-n4c7: a gate the stopper could not close (2026-11-21, laptop, 14:55-~16:05 UTC)
+
+Three issues in parallel, three merges, and one exam fix that looked right, passed 9 runs out of 10, and was wrong.
+
+- **A handshake in the wrong process.** #391 fixes a flaky exam: a SIGSTOP loop must catch a check before it finishes. The first fix made the check wait for a "seen" marker from the loop, a clean handshake. A scratch PR that ran the file 10 times on the CI runner went 9 green, 1 red. The check script runs as root, the stop loop as the student, and a student cannot stop root, so the gate opened without stopping anything. Moving the gate into the student-side reader fixed it. A single green CI run would have shipped the bug.
+- **Scratch PRs as a test bench.** Two throwaway draft PRs edited `ci.yml` to run one exam file only: 10 runs in a row, and one against the killer as it was before #318 (a mutation check). Exam integrity went red on them, as expected; the `docker` job still produced the evidence. The draft never merges.
+- **Three PRs for a one-line change.** Making `history.md` docs-only (#395) needed an exam that accepts both lists, then the workflow plus script, then an exam that pins the new list, because the exam and `ci.yml` may never share a PR. The reviewer proved the new top-anchored, literal pathspecs in scratch repos on two git versions, including renames and deletions.
+
+Numbers: 3 merged PRs (#396, #402, #405), 3 more open (#401, #406, #407), 4 exam-writer runs, 1 implementer, 4 reviews (all approved), 2 scratch PRs, 1 decision (D120).
+
+Tips:
+- For a flaky concurrency exam, run it 10 times in a scratch PR before you call it fixed. 9 out of 10 is not "fixed".
+- When a test signals processes, check which user each process runs as. EPERM hidden by `2>/dev/null` looks exactly like success.
+- Use a scratch draft PR that edits the CI workflow to repeat one test file, or to run it against a reverted fix. Close it when you have the numbers.
