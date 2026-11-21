@@ -34,18 +34,18 @@ fact() {
 }
 rd() { printf '%s\n' "$facts" | grep -qx "R $1 1"; }
 body() { printf '%s\n' "$facts" | sed -n "s/^C $1 //p"; }
-# tally FILE: reads the lines of FILE once, prints "non-empty-lines lines-equal-to-want other-lines all-lines". all-lines
-# counts blank lines too, as wc -l would; a file keeps trailing blank lines, which $(...) would strip. A builtin loop,
-# so the expected path is never an argument of an external command (D52).
+# tally LINES: reads the lines from a here-document, prints "non-empty-lines lines-equal-to-want other-lines". A builtin
+# loop, so the expected path is never an argument of an external command (D52).
 tally() {
-  t=0; m=0; o=0; a=0
+  t=0; m=0; o=0
   while IFS= read -r l; do
-    a=$((a + 1))
     [ -n "$l" ] || continue
     t=$((t + 1))
     if [ "$l" = "$want" ]; then m=$((m + 1)); else o=$((o + 1)); fi
-  done < "$1"
-  echo "$t $m $o $a"
+  done <<EOF
+$1
+EOF
+  echo "$t $m $o"
 }
 rc=0
 
@@ -61,11 +61,11 @@ fi
 
 if [ "$ty" = f ]; then
   if rd found; then
-    found_body=$(mktemp)
-    body found > "$found_body"
-    set -- $(tally "$found_body")
-    rm -f "$found_body"
-    n=$1; right=$2; other=$3; lines=$4
+    # Every line the reader sent is one "C found " fact, blank lines too, so counting the facts keeps the trailing blank
+    # lines that $(body found) strips, and needs no temp file (a student can fill /tmp).
+    lines=$(printf '%s\n' "$facts" | grep -c '^C found ')
+    set -- $(tally "$(body found)")
+    n=$1; right=$2; other=$3
     if [ "$lines" -gt 200 ]; then
       echo "FAIL 2 found.txt is far longer than one path; find should print only the file you search for"
       rc=1
