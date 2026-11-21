@@ -4,12 +4,18 @@
 
 ## Now
 
-**Pass lf-p4w9 (laptop, from 03:27 UTC) in flight:** #343 rebuild on `f/343-validator-linear-2` (worktree `C:\projects\lf-343`; exam 07049ff cherry-picked, exam guards being added, then code), #348 on `f/348-student-activity` (worktree `C:\projects\lf-348`, exam first), #94 on `f/94-smoke-secrets` (worktree `C:\projects\lf-94`, exam first). Claims held by lf-p4w9.
+**Pass lf-p4w9 (laptop, 03:27-05:12 UTC) stopped at 3 merged PRs; no claims held, nothing in flight:** #358 (#94: the Deploy smoke call passes 3 named secrets, not `inherit`; lock fallback pinned), #357 (#348: student page active time and last activity, teacher nits), #361 (#343: linear redirect regexes, rebuilt from #354). **#94, #348 and #343 closed with evidence (#343: Deploy 44869288333 deployed 59561c3, smoke ok). Deploy 44867263764 deployed a875ef3; `smoke / smoke` was green, with "Configure SSH to the server" passing on the named secrets.** Decisions D113, D114, D38 amendment. New issues: #359, #360; two #361 leftovers added to #355.
+
+- **Resume here:** the Next list, **#355** first (validator: linear su and arithmetic scans, plus two rare-input regressions from #361 and one stdin-warning decision; exam-first), then **#360** (active time counts unfinished labs; exam-first, corrects one #348 case).
+- Worktrees `C:\projects\lf-94`, `lf-348` and `lf-343` are shipped and safe to remove. So are the agent worktrees under `C:\projects\Learning_factory\.claude\worktrees\agent-*` from this pass.
+- **Lesson (pass lf-p4w9):** a reusable workflow's job with `environment: production` does **not** get that environment's secrets unless the caller passes them (by name or `inherit`). Otherwise they are silently empty. The manager and the exam writer both assumed otherwise; only the reviewer, reading the docs, caught it (#356 → #358).
+- **Lesson (pass lf-p4w9):** jsdom exams check logical text order. RTL visual order (`<bdi dir="ltr">` around Hebrew units) needs a real browser; the reviewer read Range rects in Chromium.
+- **Seen (pass lf-p4w9):** on this laptop `test_issue_138_task_smoke_nits.py` can time out (Git Bash step, 20 s) when other pytest runs share the machine. It is green alone and on CI, so don't chase it locally.
+- **Seen (pass lf-p4w9):** in the Bash tool, Python sees `/tmp` as `C:\tmp`, not Git Bash's `/tmp`. Pass `$(cygpath -w /tmp/x)` to Python scripts.
 
 _Previous:_ **Pass lf-m7t3 (laptop, 01:20-~03:05 UTC) stopped at 2 merged PRs plus a parked third:** #351 (#334 teacher pages), #353 (#349 lab top bar, replaced #352). **#334 and #349 closed with evidence. Production: `e24aa02` (Deploy 44858724121: deployed, smoke `ok start`/`terminal`/`check-pass`; live CSS has `.lab-title` and the phone terminal pane as `visibility:hidden`).** Decisions D111 (+ amendment), D112 (+ amendment). New issue: #355. Owner item O24 (optional phone check).
 
-- **Resume here, first: #343, rebuild PR #354 as `f/343-validator-linear-2`** (worktree `C:\projects\lf-343`, old branch `f/343-validator-linear`: exam 6c5c0b1, code fe3dd25; claim released). Review round 1 requested changes (comment on #354): (1, blocking) the bash `>&word` alternative in `_FD_REDIRECT` (content.py ~242, `[^\s\d]\S*`) accepts `-`, `$` and quotes, so `sleep 600 >&- &`, `1>&- &`, `fd=3; sleep 600 >&$fd &`, `sleep 600 >&"$LOGFD" &` became quiet (main warned; real bash keeps stderr open): exclude `$`, backquote, quotes and `-` as the first character; (2, blocking) the exam lacks guards for those four; (3) `_su_reads_stdin` splits `masked`, the background check `no_math`: `su student -c 'cat' $((1&2)) </dev/null` warns wrongly under bash, split `no_math[close+1:]`; (5) `sleep 600 >& 2 2>/dev/null &` is read as a file redirect: allow `\s*` before the digit in the dup alternative. Plan: new branch from main, cherry-pick 6c5c0b1, dispatch the exam writer for ONE more exam-only commit (guards for 1, 3, 5), then cherry-pick fe3dd25 and dispatch the implementer for the fixes (code-only commit), new PR, close #354, review round 2. The reviewer's probes are in `C:	mp
-ev343\`. Locally use `uv run python -m pytest` (plain `uv run pytest` gives "Access is denied").
+- **Resume here, first: #343, rebuild PR #354 as `f/343-validator-linear-2`** (worktree `C:\projects\lf-343`, old branch `f/343-validator-linear`: exam 6c5c0b1, code fe3dd25; claim released). Review round 1 requested changes (comment on #354): (1, blocking) the bash `>&word` alternative in `_FD_REDIRECT` (content.py ~242, `[^\s\d]\S*`) accepts `-`, `$` and quotes, so `sleep 600 >&- &`, `1>&- &`, `fd=3; sleep 600 >&$fd &`, `sleep 600 >&"$LOGFD" &` became quiet (main warned; real bash keeps stderr open): exclude `$`, backquote, quotes and `-` as the first character; (2, blocking) the exam lacks guards for those four; (3) `_su_reads_stdin` splits `masked`, the background check `no_math`: `su student -c 'cat' $((1&2)) </dev/null` warns wrongly under bash, split `no_math[close+1:]`; (5) `sleep 600 >& 2 2>/dev/null &` is read as a file redirect: allow `\s*` before the digit in the dup alternative. Plan: new branch from main, cherry-pick 6c5c0b1, dispatch the exam writer for ONE more exam-only commit (guards for 1, 3, 5), then cherry-pick fe3dd25 and dispatch the implementer for the fixes (code-only commit), new PR, close #354, review round 2. The reviewer's probes are in `C:\tmp\rev343\`. Locally use `uv run python -m pytest` (plain `uv run pytest` gives "Access is denied").
 - **#332 stays parked** (O23), see the previous pass below.
 - **Nit for a later design-exam touch:** `issue-333-design.pw.ts` sets `seen = unmocked` at the end of `openLab`; if `openLab` fails earlier, the afterEach adds a misleading "unmocked" failure. Set it right after `fakeBackend(page)` (as `issue-349-design.pw.ts` does). Exam-only change.
 - Worktrees `C:\projects\lf-334`, `lf-349` are shipped and safe to remove; keep `lf-343` for the rebuild.
@@ -180,10 +186,10 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
 ## Next (in order)
 
-1. **#343 rebuild** (see Now). **#332** after O23.
-2. **#348** (student page active time + last activity via the API; stronger #334 design checks).
-3. Review leftovers: **#355** (linear su-command / arithmetic scans, after #343), **#337** (pipelines); **#319** (now also the 390 px typed-command proof from #349) WebSocket relay proof, **#154** Solution tab (D57 b), **#142**.
-4. **#85** deploy follow-ups, **#94**, **#93**; p2 list: #81, #76, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
+1. **#355** (linear su and arithmetic scans, plus the #361 leftovers; exam-first). **#332** after O23.
+2. **#360** (active time counts unfinished labs), **#359** (exam #94: secrets read in compound expressions; exam-only).
+3. Review leftovers: **#337** (pipelines); **#319** (now also the 390 px typed-command proof from #349) WebSocket relay proof, **#154** Solution tab (D57 b), **#142**.
+4. **#85** deploy follow-ups, **#93**; p2 list: #81, #76, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
 
@@ -198,6 +204,7 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
 ## Recently done
 
+- 2026-11-21 pass lf-p4w9: #94 (#358, named smoke secrets; Deploy 44867263764 smoke green), #348 (#357, active time and last activity; live bundle verified), #343 (#361; Deploy 44869288333, smoke ok).
 - 2026-11-21 pass lf-k9p4: #331 (#345 exam; Deploy 44839011018, smoke ok), #333 (#347 lab screen: full-width terminal, pane tabs on phones, D108), #340 (#350: #311 cases pin the truncation hint, 05 counts the reader's fact lines). #334 in PR #351 (approved), #332 parked (O23).
 - 2026-11-21 pass lf-h8v5: #325 (#338, one-read truncation with NULs mapped, 06 fails duplicates, D106; Deploy 44830036804, smoke ok), #326 (#342, validator: `&>` per shebang, jobs split on every lone `&`, `exec N<&0`, D107), #331 part A (#344, tokens, light/dark, bundled Rubik, app shell; exam PR #345 pending).
 - 2026-11-20 pass lf-b7m3: #311 (#322, 06 truncation fact, unused helpers removed), #308 (#328, validator: redirect order, here-documents, su scope, no `<&0`), #320 (#329, kill shielded on cancel, start budget 42 s). Deploy 44815987427.

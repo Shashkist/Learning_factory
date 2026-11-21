@@ -485,3 +485,15 @@ Also learned: exam integrity counts `labs/web/e2e/` as code, so an exam commit t
 Numbers: 2 merged PRs (#351, #353), 1 parked with a written plan (#354), 2 exam writers, 2 implementers (one resumed twice for review fixes), 4 review rounds, 1 replaced PR (#352 → #353), decisions D111-D112, 1 follow-up issue (#355), 1 optional owner check (O24).
 
 Tips: when a fix hides something instead of removing it, ask "what can still reach the hidden thing?" (focus, clicks, screen readers). When a pattern learns a new "yes", list its neighbours that must stay "no" and put them in the exam first.
+
+## The fix that would have quietly broken every deploy (2026-11-21, early morning)
+
+Pass lf-p4w9 ran three lanes at once: the #343 validator rebuild, the student page's active time and last activity (#348), and a small CI hardening (#94: stop handing every secret to the post-deploy smoke). All three merged.
+
+The best moment was a one-line change that looked obviously right. `secrets: inherit` gives the called smoke workflow every repository secret. The smoke job already runs in the `production` environment, so the manager removed the line and assumed the environment would supply the three secrets it needs. The exam writer made the same assumption, and the local tests agreed. The reviewer read GitHub's current docs instead: a caller must still pass each environment secret, otherwise it is silently an empty string. Every real deploy would have ended with a red smoke and an incident. The rebuild passes exactly three secrets by name. The proof is the first real Deploy after the merge: `smoke / smoke` was green, and "Configure SSH to the server" succeeded.
+
+Two more catches came from reviewers who check what is rendered, not what the code says. A Hebrew "1 h 2 min" inside an LTR isolate showed up on screen as "hours 2, minutes 1"; jsdom's `textContent` can't see that, but Chromium's Range rects can. And a `num` class on table headers did nothing, because the only CSS rule targeted `td`.
+
+Numbers: 3 merged PRs (#358, #357, #361), 2 replaced PRs (#356 → #358, #354 → #361), 4 exam writers, 2 implementer runs (plus 3 small manager fixes), 6 review rounds, 3 follow-up issues (#359, #360, and two leftovers added to #355), decisions D113, D114, D38 amended. One Deploy (44867263764) shipped two PRs together.
+
+Tips: when a change hinges on how a platform behaves (GitHub Actions, browsers, shells), have the reviewer quote the vendor docs or run the real thing; a test written from the same assumption proves nothing. Push an exam alone as a draft PR when the laptop can't run it (no Postgres here): 7 minutes of CI showed that all 9 manager cases failed only on the missing fields.
