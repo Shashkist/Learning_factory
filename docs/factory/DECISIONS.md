@@ -1114,3 +1114,14 @@ in force · factory · 2026-11-21 · revertible
 **Alternatives.** Extend the API inside #334 (a cross-package PR); rebuild the branch as `-2` with a stronger exam first (another full CI and review round).
 
 **Revert.** Revert the #334 squash commit; #348 brings the two figures either way.
+
+## D111 · #349 moves End lab to the lab screen's top bar (not duplicated); older exams follow in the exam-first commit
+in force · factory · 2026-11-21 · revertible
+
+**Decision.** End lab moves from the task panel to the lab screen's top bar (title, countdown, session state, End lab). It is not kept in both places: two buttons with the same accessible name make the older `getByRole('button', { name: 'End lab' })` queries ambiguous. The #157, #160 and any other exam that looks for End lab inside the task panel are amended in #349's exam-only commit to look in the top bar; what they check (one click, one `POST .../end`, danger style, navigation, D108) stays the same.
+
+**Why.** The issue allows either; one button is the simpler UI and keeps every older query unambiguous. Moving where a test looks is not weakening what it checks.
+
+**Alternatives.** Keep End lab in both places (ambiguous queries, two focus stops for the same action); keep it in the task panel only (the review asked for the top bar).
+
+**Revert.** Revert the #349 squash commit; the older exams return with it.
