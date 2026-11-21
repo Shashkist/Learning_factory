@@ -4,7 +4,7 @@
 
 ## Now
 
-**Pass lf-r7j3 (laptop, started ~19:25 UTC), in progress:** merged #413 (#410) as c9bad68; main CI + Deploy running, then close #410. In flight (claims lf-r7j3): **#417** (`f/417-ci-paths-kinds`, worktree `C:\projects\lf-417`, implementer), **#414** (`f/414-validator-andor`, `lf-414`, exam writer), **#416** (`f/416-origin-forms`, `lf-416`, exam writer).
+**Pass lf-r7j3 (laptop, started ~19:25 UTC), in progress:** merged #413 (#410, closed: Deploy 44942690907 deployed c9bad68, smoke green) and #419 (#417, d3dcd4f; main CI running, then close #417). In flight (claims lf-r7j3): **#414 / PR #421** (`f/414-validator-andor`, `lf-414`; review round 1 running; docker job re-run after an image-build flake), **#416** split: **PR #422** (CI lint only, `f/416-smoke-lint`, `lf-416a`, review running) must merge first, then push `f/416-origin-forms-b` (`lf-416`, local: exam 5208926 + f787739, code 2c5f11f... amended) as a new PR; PR #420 closed (exam + `ci.yml` in one PR fails exam integrity, D9).
 
 _Previous:_ **Pass lf-t5w2 (laptop, 17:55-~19:20 UTC) stopped at 3 merged PRs:** #401 (#391), #412 (#408), #418 (#337, after #411 and #415 were re-sequenced). **Closed with evidence: #391 (main CI 44932880926 green on 1225f34, docker job incl.), #408 (main CI 44934730508; Deploy 44936571157 on ff12d82 + a docs-only commit deployed ff12d82, smoke green), #337 (Deploy 44939668791 deployed b08ed9a, smoke `ok start` + `ok terminal`).** Decision D121 (#337 merged after round 2 with the reviewer's tested fix). New issues: #414 (validator: and-or lists, continued lines, pipes in `$(...)` right of a pipe), #416 (review of #410), #417 (review of #408). All claims released.
 
