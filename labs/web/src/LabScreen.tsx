@@ -147,6 +147,7 @@ export default function LabScreen({
   const [dragging, setDragging] = useState(false);
   const [pane, setPane] = useState<Pane>("tasks");
   const [done, setDone] = useState(false);
+  const [labTitle, setTitle] = useState<Bi | null>(null);
   const [pending, setPending] = useState(false);
   const inFlight = useRef(false);
   const alive = useRef(true);
@@ -239,6 +240,20 @@ export default function LabScreen({
     return () => {
       live = false;
       clearTimeout(timer);
+    };
+  }, [lab]);
+
+  // The lab title for the top bar: a failed lab list only means no title.
+  useEffect(() => {
+    let live = true;
+    call<{ id: string; title: Bi }[]>("GET", "/api/labs")
+      .then((all) => {
+        const mine = all.find((x) => x.id === lab);
+        if (live && mine) setTitle(mine.title);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
     };
   }, [lab]);
 
@@ -452,6 +467,7 @@ export default function LabScreen({
   };
   const dragEnd = () => setDragging(false);
 
+  const title = labTitle?.[lang];
   const hands = task.kind === "hands-on";
   const emptyLine = !done && !open;
   const verdictText = verdict
@@ -460,7 +476,7 @@ export default function LabScreen({
       ? t("lab.check_failed")
       : "";
   return (
-    <div className="lab" data-pane={pane}>
+    <div className="lab" data-pane={pane} data-complete={done || undefined}>
       <div className="lab-bar">
         <div role="tablist" className="lab-panes">
           {(["tasks", "terminal"] as const).map((k) => (
@@ -485,11 +501,16 @@ export default function LabScreen({
             </button>
           ))}
         </div>
+        {title && <span className="lab-title">{title}</span>}
+        <span className="lab-state">{t("lab.state.running")}</span>
         {left !== null && (
           <div role="timer" aria-label={t("lab.timer")} className="lab-timer">
             {clock(left)}
           </div>
         )}
+        <button className="danger lab-end" onClick={end}>
+          {t("lab.end")}
+        </button>
       </div>
       <div
         ref={frame}
@@ -674,9 +695,6 @@ export default function LabScreen({
           <button onClick={() => step("restart")} disabled={pending}>
             {t("lab.restart")}
           </button>
-        <button className="danger lab-end" onClick={end}>
-          {t("lab.end")}
-        </button>
         </div>
       </section>
       <div

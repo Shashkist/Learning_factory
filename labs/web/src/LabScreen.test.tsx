@@ -92,6 +92,8 @@ const open = async (path = "/labs/lab-1") => {
   await screen.findByTestId("task-panel");
   return view;
 };
+// End lab lives in the top bar, outside the task panel.
+const endBtn = () => screen.getByRole("button", { name: EN["lab.end"] }) as HTMLButtonElement;
 const btn = (name: string) =>
   within(screen.getByTestId("task-panel")).getByRole("button", {
     name,
@@ -144,7 +146,7 @@ describe("in-flight guard", () => {
     await waitFor(() => expect(btn(EN["lab.skip"]).disabled).toBe(true));
     for (const k of ["lab.check", "lab.restart", "lab.skip"])
       expect(btn(EN[k]).disabled).toBe(true);
-    expect(btn(EN["lab.end"]).disabled).toBe(false); // End lab is never blocked by a hung action
+    expect(endBtn().disabled).toBe(false); // End lab is never blocked by a hung action
     fireEvent.click(btn(EN["lab.skip"]));
     fireEvent.click(btn(EN["lab.restart"]));
     expect(n(calls, "POST", `${API}/tasks/current/skip`)).toBe(1);
@@ -505,8 +507,8 @@ describe("End guard", () => {
   test("a second click while End is pending sends one request", async () => {
     const calls = backend({ [`POST ${API}/end`]: "hang" });
     await open();
-    fireEvent.click(btn(EN["lab.end"]));
-    fireEvent.click(btn(EN["lab.end"]));
+    fireEvent.click(endBtn());
+    fireEvent.click(endBtn());
     expect(n(calls, "POST", `${API}/end`)).toBe(1);
   });
 });
