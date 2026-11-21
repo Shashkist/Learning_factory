@@ -68,7 +68,7 @@ async def end_session(
     guard = ""
     args: tuple[Any, ...] = ()
     if stale_start_s is not None:
-        guard = " and status = 'starting' and started_at < now() - make_interval(secs => $3)"
+        guard = " and status = 'starting' and $3::float8 > -1"  # MUTATION: time half dropped
         args = (stale_start_s,)
     ended = await pool.fetchval(
         f"update {T}.lab_sessions set status = 'ended', ended_at = now(), end_reason = $2 "
