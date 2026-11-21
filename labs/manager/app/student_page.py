@@ -197,8 +197,11 @@ select lab_id, task_id, percentile_cont(0.5) within group (order by secs) as med
 from firsts where secs is not null group by lab_id, task_id
 """
 
+# Per session: its heartbeat time, or its run's time if larger (a run copies a snapshot).
 _ACTIVE_SQL = (
-    f"select coalesce(sum(active_seconds), 0)::float8 from {T}.lab_runs where student = $1"
+    "select coalesce(sum(greatest(s.active_seconds, coalesce(r.active_seconds, 0))), 0)::float8 "
+    f"from {T}.lab_sessions s left join {T}.lab_runs r on r.session_id = s.id "
+    "where s.student = $1"
 )
 
 _DONE_SQL = f"select lab_id from {T}.lab_completions where student = $1 and lab_id = any($2)"

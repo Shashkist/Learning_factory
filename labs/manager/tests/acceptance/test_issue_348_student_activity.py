@@ -97,11 +97,19 @@ def test_active_seconds_counts_only_this_students_runs(env, admin):
 
 
 def test_active_seconds_is_a_number_not_null_for_a_student_with_only_sessions(env, admin):
+    # #360: heartbeat time of a session that has no run yet is counted.
     s = env.student()
-    _session(env, s, "stu-a", BASE, BASE)
+    sid = _session(env, s, "stu-a", BASE, BASE)
+
+    async def seed(conn):
+        await conn.execute(
+            f"update {SCHEMA}.lab_sessions set active_seconds = 900 where id = $1::uuid", sid
+        )
+
+    env.sql(seed)
     value = page(env, admin, s)["active_seconds"]
     assert isinstance(value, (int, float)) and not isinstance(value, bool)
-    assert value == 0
+    assert value == 900
 
 
 # ---------------------------------------------------------------- last_activity
