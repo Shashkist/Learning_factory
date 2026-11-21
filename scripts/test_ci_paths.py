@@ -185,6 +185,17 @@ def test_lookalike_history_is_code(repo: Path, path: str) -> None:
     assert deploys(repo, code, head) == "false"
 
 
+@pytest.mark.parametrize(
+    "path", ["history.md/x.py", "docs", "courses", ".claude"]
+)
+def test_directory_or_file_of_the_wrong_kind_is_code(repo: Path, path: str) -> None:
+    # GitHub's paths-ignore "history.md" is the root file only and "docs/**" is the contents of a
+    # directory: a directory named history.md, or a root file named docs, is code (#408).
+    code = commit(repo, "labs/web/a.ts")
+    head = commit(repo, path)
+    assert deploys(repo, code, head) == "false"
+
+
 def test_docs_commit_before_newer_code_does_not_deploy(repo: Path) -> None:
     docs = commit(repo, "docs/a.md")
     head = commit(repo, "labs/web/c.ts")
