@@ -107,7 +107,7 @@ async def _steps(base: str, sid: str, cookie: str, timeout: float) -> None:
     url = ("wss" if base.startswith("https") else "ws") + base[base.index("://") :]
     task = f"/api/sessions/{sid}/tasks"
     try:
-        ws = await _open(f"{url}/s/{sid}/term/ws", cookie, timeout)
+        ws = await _open(f"{url}/s/{sid}/term/ws", cookie, timeout, base)
     except Exception as exc:  # noqa: BLE001
         raise StepFail("terminal", f"terminal websocket failed ({type(exc).__name__})") from None
     async with ws:
