@@ -65,3 +65,41 @@ def test_multiple_testsuites_are_summed(tmp_path):
         '<testsuite tests="2" failures="1"/></testsuites>'
     )
     assert check(str(p)) == ["1 acceptance tests failed"]
+
+
+def _xml(tmp_path, body):
+    p = tmp_path / "x.xml"
+    p.write_text(body)
+    return str(p)
+
+
+def test_failures_only_on_testsuites_root(tmp_path):
+    r = _xml(tmp_path, '<testsuites failures="2"><testsuite tests="3"/></testsuites>')
+    assert check(r) == ["2 acceptance tests failed"]
+
+
+def test_failure_and_error_elements_without_counts(tmp_path):
+    r = _xml(
+        tmp_path,
+        '<testsuites><testsuite tests="3"><testcase name="a"><failure/></testcase>'
+        '<testcase name="b"><error/></testcase><testcase name="c"/></testsuite></testsuites>',
+    )
+    assert check(r) == ["1 acceptance tests failed", "1 acceptance tests errored"]
+
+
+def test_root_testsuite_with_failing_nested_suite(tmp_path):
+    r = _xml(
+        tmp_path,
+        '<testsuite tests="2"><testsuite tests="2">'
+        '<testcase name="a"><failure/></testcase><testcase name="b"/></testsuite></testsuite>',
+    )
+    assert check(r) == ["1 acceptance tests failed"]
+
+
+def test_nested_parent_sums_children_not_double_counted(tmp_path):
+    r = _xml(
+        tmp_path,
+        '<testsuites failures="1"><testsuite tests="2" failures="1"><testsuite tests="2" failures="1">'
+        '<testcase name="a"><failure/></testcase><testcase name="b"/></testsuite></testsuite></testsuites>',
+    )
+    assert check(r) == ["1 acceptance tests failed"]

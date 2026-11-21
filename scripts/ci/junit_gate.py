@@ -9,13 +9,27 @@ import sys
 import xml.etree.ElementTree as ET
 
 
+def _count(root, attr: str, child: str) -> int:
+    """Failed/errored cases, from the elements; attributes only as a larger fallback.
+
+    Attributes are read from leaf suites and the root only, so a parent that
+    sums its children is not counted twice.
+    """
+    cases = sum(1 for c in root.iter("testcase") if c.find(child) is not None)
+    leaves = [
+        s for s in root.iter("testsuite") if s.find("testsuite") is None
+    ]
+    attrs = sum(int(s.get(attr, 0)) for s in leaves)
+    return max(cases, attrs, int(root.get(attr, 0)))
+
+
 def check(path: str) -> list[str]:
     root = ET.parse(path).getroot()
     suites = [root] if root.tag == "testsuite" else list(root.iter("testsuite"))
     tests = sum(int(s.get("tests", 0)) for s in suites)
     skipped = sum(int(s.get("skipped", 0)) for s in suites)
-    failures = sum(int(s.get("failures", 0)) for s in suites)
-    errored = sum(int(s.get("errors", 0)) for s in suites)
+    failures = _count(root, "failures", "failure")
+    errored = _count(root, "errors", "error")
     errors = []
     if tests == 0:
         errors.append("no acceptance tests ran")
