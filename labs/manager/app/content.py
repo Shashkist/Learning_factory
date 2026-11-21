@@ -253,6 +253,12 @@ _EXEC_FD0_DUP = re.compile(r"exec\s(?:.*\s)?\d+<&\s*0(?!\d)")
 _BASH_AMP = re.compile(r"(?<![&<>|\\])&(?![&>])")
 _SH_AMP = re.compile(r"(?<![&<>|\\])&(?!&)")
 _LEAD = re.compile(r"^(?:(?:do|then|else)\s+)*(?:\w+\s*\(\s*\)\s*)?(?:\{\s*)?")
+_CASE_PATTERN = re.compile(r"^[^\s()|;&]*\)\s*")
+_BANG = re.compile(r"^!\s*")
+_OPEN = re.compile(r"\(|(?<![^\s])\{(?=\s|$)")
+_CLOSE = re.compile(r"\)|(?<![^\s])\}")
+# builtins that finish at once and print nothing (`cd` too, under sh)
+_INSTANT = ("true", "false", ":", "[", "test", "cd")
 _WHILE_READ = re.compile(r"while\s+(?:\w+=\S*\s+)*read\b")
 _CAT_SUBSHELL = re.compile(r"\$\(\s*cat(?:\s+-\w*)*\s*\)|`\s*cat(?:\s+-\w*)*\s*`")
 _SU_WORD = re.compile(r"\bsu\b")
@@ -434,6 +440,21 @@ def _background_is_quiet(job: str, bash: bool) -> bool:
     parts = _SEPARATORS.split(_blank_backticks(job))
     last = len(parts) - 1
     out_file, err_file = _redirect_state(parts[last], bash)
+    start = _group_start(parts, last)
+    k = start
+    while k >= 2 and parts[k - 1] != ";" and not _closes_group(parts[k]):
+        k -= 2  # a `)` no `(` opened ends the list: it is inside a subshell or a `case`
+    if any(sep in ("&&", "||") for sep in parts[k + 1 : start : 2]):
+        # `&` forks one subshell for the whole and-or list, and it holds the exec's outputs while
+        # it waits on each element, whatever the elements redirect. Only dash execs the last
+        # simple command, so after instant builtins that one is enough.
+        return (
+            not bash
+            and out_file
+            and err_file
+            and all(sep != "|" for sep in parts[k + 1 : last : 2])
+            and all(_is_instant(e) for e in parts[k:last:2])
+        )
     k = last
     while k >= 2 and parts[k - 1] == "|":
         if _closes_group(parts[k]):
@@ -445,6 +466,39 @@ def _background_is_quiet(job: str, bash: bool) -> bool:
         if not (out and err):
             return False
     return out_file and err_file
+
+
+def _group_start(parts: list[str], last: int) -> int:
+    """Index of the element that opens the `{ }` or `( )` group the last element closes, or
+    `last` when it closes none. One walk left over the elements, counting brackets."""
+    if not (_closes_group(parts[last]) or parts[last].lstrip().startswith("}")):
+        return last
+    depth = 0
+    for k in range(last, -1, -2):
+        depth += len(_CLOSE.findall(parts[k])) - len(_OPEN.findall(parts[k]))
+        if depth <= 0:
+            return k
+    return last
+
+
+def _is_instant(element: str) -> bool:
+    """The element is a builtin that finishes at once, after a leading keyword, `!` or pattern."""
+    text = _LEAD.sub("", element.strip())
+    text = _LEAD.sub("", _CASE_PATTERN.sub("", _BANG.sub("", text)))
+    if _closes_group(text):
+        return False  # the tail of a `( ... )`, not a builtin
+    words = _BANG.sub("", text).split()
+    return bool(words) and words[0] in _INSTANT
+
+
+def _continues(raw: str, code: str, masked: str) -> bool:
+    """The line goes on in the next one: it ends in `|`, `||`, `&&`, or an unescaped backslash
+    (not one inside a comment or quotes: `masked` blanks quoted text, `code` ends where the
+    comment was cut)."""
+    if masked.endswith(("|", "&&")):
+        return True
+    slashes = len(masked) - len(masked.rstrip("\\"))
+    return len(code) == len(raw) and slashes % 2 == 1
 
 
 def _closes_group(text: str) -> bool:
@@ -498,6 +552,17 @@ def _loop_depth_change(segment: str) -> int:
     return 1 if words[0] in ("while", "until", "for") else -1 if words[0] == "done" else 0
 
 
+def _background_warnings(
+    code: str, bash: bool, amp: re.Pattern[str], label: str, n: int
+) -> list[str]:
+    if all(_background_is_quiet(job, bash) for job in amp.split(code)[:-1]):
+        return []
+    return [
+        f"{label} line {n}: a background job keeps the exec open; redirect it with "
+        ">/dev/null 2>&1, and group an && / || list: { a && b; } >/dev/null 2>&1 &"
+    ]
+
+
 def _script_warnings(text: str, label: str) -> list[str]:
     """Authoring rules (spec 7): the script arrives on stdin, and a timeout kills it."""
     found: list[str] = []
@@ -508,12 +573,15 @@ def _script_warnings(text: str, label: str) -> list[str]:
     bash = _is_bash(shebang_argv(text))
     amp = _BASH_AMP if bash else _SH_AMP
     piped = False  # the previous line ended with a pipe
-    for n, raw in enumerate(text.splitlines(), 1):
+    joined: list[str] = []  # lines of a job continued over lines, checked as one
+    lines = text.splitlines()
+    for n, raw in enumerate(lines, 1):
         if heredoc_end:
             if (raw.lstrip("\t") if dash_tabs else raw) == heredoc_end:
                 heredoc_end = ""
             continue
-        line, masked = _scan(raw.strip())
+        stripped = raw.strip()
+        line, masked = _scan(stripped)
         if not line:
             continue
         no_math = _blank_arithmetic(masked)
@@ -530,11 +598,13 @@ def _script_warnings(text: str, label: str) -> list[str]:
             cat and not _redirects_input(line[cat.start() :])
         ):
             found.append(f"{label} line {n}: {stdin_msg}")
-        if not all(_background_is_quiet(job, bash) for job in amp.split(no_math)[:-1]):
-            found.append(
-                f"{label} line {n}: a background job keeps the exec open; "
-                "redirect it with >/dev/null 2>&1"
-            )
+        if _continues(stripped, line, masked):
+            joined.append(no_math[:-1] if masked.endswith("\\") else no_math)
+            continue
+        joined.append(no_math)
+        found.extend(_background_warnings(" ".join(joined), bash, amp, label, n))
+        joined = []
+    found.extend(_background_warnings(" ".join(joined), bash, amp, label, len(lines)))
     for k, (n, seg, piped_in) in enumerate(segments):
         if piped_in:
             continue
