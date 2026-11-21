@@ -69,9 +69,33 @@ def test_the_called_run_still_gets_a_group_that_is_not_the_host_lock():
     assert any(lit and "server-lab-host" not in lit for lit in literals) or "run_id" in expr
 
 
+_EXPR = re.compile(r"\$\{\{(.*?)\}\}", re.S)
+_SECRET_REF = re.compile(r"\bsecrets(?:\.|\[\s*['\"])([A-Za-z0-9_]+)")
+
+
+def _secrets_in(text: str) -> set:
+    """Names of secrets read anywhere inside a `${{ ... }}` expression (dot or bracket form)."""
+    found = set()
+    for expr in _EXPR.findall(text):
+        found.update(_SECRET_REF.findall(expr))
+    return found - IMPLICIT
+
+
 def _read() -> set:
-    text = SMOKE.read_text(encoding="utf-8")
-    return set(re.findall(r"\$\{\{\s*secrets\.([A-Za-z0-9_]+)", text)) - IMPLICIT
+    return _secrets_in(SMOKE.read_text(encoding="utf-8"))
+
+
+def test_the_secret_finder_sees_compound_and_bracket_reads_but_not_text_outside_expressions():
+    text = (
+        "# secrets.IN_COMMENT is not a read\n"
+        "name: secrets.PLAIN_STRING\n"
+        "a: ${{ secrets.START }}\n"
+        "b: ${{ inputs.x && secrets.FOO }}\n"
+        "c: ${{ secrets['BAR'] }}\n"
+        'd: ${{ format("{0}", secrets["BAZ"]) }}\n'
+        "e: ${{ secrets.GITHUB_TOKEN }}\n"
+    )
+    assert _secrets_in(text) == {"START", "FOO", "BAR", "BAZ"}
 
 
 def _passed() -> dict:
