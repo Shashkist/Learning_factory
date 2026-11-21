@@ -4,7 +4,9 @@
 
 ## Now
 
-**Pass lf-q2x8 (laptop, from 10:57 UTC) in progress:** took over #374 (PR #383 rebased onto 6feb36c, CI running); claims #384 (`f/384-janitor-deadline-minimum`, worktree `C:\projects\lf-384`) and #366 (`f/366-validator-dup-pipe-su`, `lf-366`), exam writers running; chore PR #386 (agent briefs: unit-test path, exam lint step) in review.
+**Pass lf-h3v6 (laptop, from 12:57 UTC) in progress:** merged PR #390 (#385, approved and green, handed over by lf-q2x8); main CI → Deploy → smoke → close #385 pending. Claims #392 (`f/392-framing-html-exam`, worktree `C:\projects\lf-392`), #377 (`f/377-junit-gate-failures`, `lf-377`), #373 (`f/373-origin-smoke-warn`, `lf-373`).
+
+_Previous:_ **Pass lf-q2x8 (laptop, 10:57-~12:55 UTC):** 5 merged PRs (#383 for #374, #387 for #384, #389 for #366, chores #386 and #388); PR #390 (#385) approved round 2 and rebased for the next pass. New issues #391 (#306 stop-loop flake), #392 (#390 leftovers). See `history.md`.
 
 _Previous:_ **Pass lf-w3n7 (laptop, 09:27-~10:45 UTC) stopped at 3 merged PRs:** #375 (#364 part B, the exam alone), #382 (#376: janitor warns on a too-short `LF_START_DEADLINE_S`; exam pins the guarded end's time half), #367 (#355: linear su and arithmetic scans). **Closed with evidence: #355 (Deploy 44895742673 deployed 5752e68, smoke green), #55 and incidents #378, #380 (Deploy 44889309740 deployed 1c420e6, smoke green), #364 (main CI 44889775470: `manager` and `manager-exam` both green), #376 (Deploy 44894087812 deployed e21e1f0, smoke green; mutation PR #381 proved the new exam case bites).** D117 amendment (framing headers, rule for future lab routes). New issues: #384 (review of #376), #385 (review of #374); two #367 review items added to #366.
 
@@ -214,8 +216,8 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
 ## Next (in order)
 
-1. **#383 merge** (see Resume). **#332** after O23.
-2. **#384**, **#385** (review follow-ups), **#366** (validator, now with 2 more #367 items), **#373**, **#377**; **#360** (active time counts unfinished labs), **#359** (exam #94: secrets read in compound expressions; exam-only).
+1. **#332** after O23.
+2. **#392** (#390 leftovers), **#373**, **#377**, **#391** (#306 stop-loop precondition, exam-only).
 3. Review leftovers: **#337** (pipelines); **#319** (now also the 390 px typed-command proof from #349) WebSocket relay proof, **#154** Solution tab (D57 b), **#142**.
 4. **#85** deploy follow-ups, **#93**; p2 list: #81, #76, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 

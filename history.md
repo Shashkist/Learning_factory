@@ -527,3 +527,20 @@ Numbers: 3 merged PRs (#375, #382, #367), 1 approved PR left for the next pass (
 Tips:
 - Run the CI gate scripts locally (`exam_integrity.py origin/main HEAD`) before you push; it takes seconds, and a CI round takes 19 minutes.
 - When you can't run a test locally, make CI run it against a broken version of the code. A red result for the right reason is the proof.
+
+## Pass lf-q2x8: three exams that were wrong in three different ways (2026-11-21, laptop, 10:57-~12:55 UTC)
+
+Four lanes this pass: the approved #383 (#374) from the last pass, #384 (janitor minimum), #366 (validator follow-ups) and #385 (framing headers on more responses), plus two tiny PRs that taught the agent briefs the last pass's lessons. Each of the three new feature PRs had to be rebuilt once, and each time the review found a different way an exam can lie.
+
+- **An assertion that can't fail (#384).** The new exam line checked that the fetch it patched returned `starting`. It always does, whichever fetch the janitor really uses. The reviewer wrote down a concrete mutant (candidates from a third fetch, guard with its time half removed) that passed every assertion. The fix records that the guarded `UPDATE` was attempted and missed. An assertion that only reads your own fake back proves nothing.
+- **An expectation the shell disagrees with (#366).** The exam pinned `sleep 600 2>/dev/null >&\2 &` as "warns". One line in Git Bash (`echo hi 2>/dev/null >&\2` prints nothing) showed it is fully quiet, and the validator already called its unquoted twin quiet. The implementer had bent the code to the wrong exam by making `>&\2` a no-op. The rewritten exam pins *pairs*: the backslash form must get its twin's verdict. Twin tests are cheap and catch both directions.
+- **A test the client can't even send (#385).** A 70 000-character URL was meant to make the proxy raise; httpx refuses any URL over 65 536 characters before the app runs, so the case could never pass, and CI said so. The rewrite builds the request as a raw ASGI scope. Round 2 then found that the rewrite probably passes for the wrong reason (a second lifespan, a pool on another event loop). That went into a follow-up issue rather than a third round.
+
+Also from this pass: a review found a real hole. `/labs/..%2Findex.html` served the UI shell without the new framing headers, because uvicorn decodes `%2F` and the static branch returned a plain file. The fix compares the resolved target with the index. A docker exam case flaked once ("the case tested nothing": the check finished before the SIGSTOP loop caught it). Its own guard refused to count that as a pass, the job was re-run green, and #391 tracks making the precondition deterministic.
+
+Numbers: 5 merged PRs (#383, #387, #389, plus chores #386, #388), 1 approved PR rebased for the next pass (#390), 6 exam-writer runs, 3 implementers, 7 review rounds (3 rounds requested changes, each with exactly one blocker), 2 new issues (#391 for the flake, #392 for the #390 leftovers). Force-pushes with `--force-with-lease` worked on the laptop, so a rebuild kept the same PR number.
+
+Tips:
+- When a review asks for an exam change after the code commit, reset the branch to the exam commit, add one exam-only commit, cherry-pick the code back, and add the fix on top. Exam integrity stays happy and the PR keeps its history.
+- Before trusting an exam's expected value for shell syntax, run the line in a real shell. It takes five seconds.
+- CI runs `ruff check`, not `ruff format`; 108 of 144 manager files aren't format-clean. Don't tell agents to run the formatter on old files.
