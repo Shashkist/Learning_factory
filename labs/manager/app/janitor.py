@@ -122,8 +122,9 @@ async def _step(name: str, coro: Any) -> bool:
         kind = type(exc).__name__
         prev = _failing.get(name)
         if prev is None or prev[0] != kind:
-            _failing[name] = (kind, now, now)
-            log.error("janitor step %s failed (%s)", name, kind, exc_info=True)
+            # the outage start survives a type change; only its first failure has a traceback
+            _failing[name] = (kind, prev[1] if prev else now, now)
+            log.error("janitor step %s failed (%s)", name, kind, exc_info=prev is None)
         elif now - prev[2] >= _REPEAT_S:
             _failing[name] = (kind, prev[1], now)
             log.error(
@@ -153,6 +154,8 @@ async def run_once(app: Any) -> bool:
     if pool is not None:
         await _step("end_due", _end_due(pool, runtime))
         ok = await _step("sweep", _sweep_containers(pool, runtime))
+        if ok:
+            _failing.pop("sweep_expired", None)  # it only runs while the database is down
     if not ok:
         await _step("sweep_expired", _sweep_expired(runtime))
     return ok

@@ -83,3 +83,48 @@ def test_step_repeat_and_recovery_name_the_outage(monkeypatch, caplog):
     msgs = [(r.levelno, r.getMessage()) for r in caplog.records if r.levelno >= logging.INFO]
     assert [m for lvl, m in msgs if lvl == logging.ERROR][1].endswith("for 15 min")
     assert msgs[-1] == (logging.INFO, "janitor step u recovered after 17 min")
+
+
+def test_outage_start_survives_an_error_type_change(monkeypatch, caplog):
+    t = [0.0]
+
+    class Clock:
+        monotonic = staticmethod(lambda: t[0])
+
+    monkeypatch.setattr(janitor, "time", Clock)
+    errors = [OSError("a"), TimeoutError("b"), OSError("c")]
+
+    async def run():
+        for exc in errors:
+            async def bad(exc=exc):
+                raise exc
+
+            await janitor._step("v", bad())
+            t[0] += 600
+
+        async def good():
+            return None
+
+        await janitor._step("v", good())
+
+    with caplog.at_level(logging.DEBUG):
+        asyncio.run(run())
+    errs = [r for r in caplog.records if r.levelno == logging.ERROR]
+    assert len(errs) == 3
+    assert [bool(r.exc_info) for r in errs] == [True, False, False]
+    assert caplog.records[-1].getMessage() == "janitor step v recovered after 30 min"
+
+
+def test_run_once_drops_a_stale_sweep_expired_state(monkeypatch):
+    from types import SimpleNamespace
+
+    async def fine(*a, **k):
+        return None
+
+    monkeypatch.setattr(janitor, "_end_due", fine)
+    monkeypatch.setattr(janitor, "_sweep_containers", fine)
+    monkeypatch.setattr(janitor.admission, "low_resources", lambda: [])
+    janitor._failing["sweep_expired"] = ("OSError", 0.0, 0.0)
+    app = SimpleNamespace(state=SimpleNamespace(pool=object(), runtime=object()))
+    assert asyncio.run(janitor.run_once(app)) is True
+    assert "sweep_expired" not in janitor._failing
