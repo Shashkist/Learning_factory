@@ -47,6 +47,7 @@
   "lab.error.no_session": "This lab is not running. Start it from My labs.",
   "lab.error.load": "The lab could not be loaded. Try again soon.",
   "lab.error.show": "This task could not be opened. Try again.",
+  "lab.error.render": "This task could not be displayed.",
   "lab.error.tasks": "The task list could not be loaded. Try again soon.",
   "lab.solution.none": "The solution is not available yet.",
   "lab.splitter": "Resize panels",

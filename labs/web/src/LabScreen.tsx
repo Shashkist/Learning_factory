@@ -2,7 +2,9 @@ import {
   useEffect,
   useRef,
   useState,
+  Component,
   type CSSProperties,
+  type ReactNode,
   type KeyboardEvent,
   type PointerEvent,
 } from "react";
@@ -21,16 +23,25 @@ type Task = {
   title: Bi;
   state: string;
   text?: Bi;
-  // The manager sends plain {en, he} texts (#427); `n` (1..N, the `PASS <n>` of check.sh) is the position.
-  checklist?: (Bi | { n: number; text: Bi })[];
+  // The manager sends plain {en, he} texts (#427); the position gives the `PASS <n>` number of check.sh.
+  checklist?: Bi[];
   question?: Bi;
   options?: Bi[];
 };
 type Row = { passed: boolean; hint: string | null };
 
-// One shape for the checklist: the item's number (1..N, by position unless given) and its text.
-const items = (list: Task["checklist"]): { n: number; text: Bi }[] =>
-  (list ?? []).map((c, i) => ("text" in c && typeof c.text === "object" ? c : { n: i + 1, text: c as Bi }));
+// A render error in the pane content shows `fallback` there; the terminal and the move buttons stay.
+// React only catches errors thrown by child components, so `Render` runs the content in its own render.
+class PaneBoundary extends Component<{ fallback: ReactNode; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
+}
+const Render = ({ children }: { children: () => ReactNode }) => <>{children()}</>;
 type Verdict = "correct" | "incorrect" | null;
 type Pane = "tasks" | "terminal";
 type Phase = "loading" | "preparing" | "ready" | "ended" | "mismatch";
@@ -606,6 +617,16 @@ export default function LabScreen({
                   : `${open.length} ${t("lab.open.many")}`
                 : ""}
           </p>
+          <PaneBoundary
+            key={`${task.id}:${lang}`}
+            fallback={
+              <p role="alert" className="alert danger">
+                {t("lab.error.render")}
+              </p>
+            }
+          >
+            <Render>{() => (
+          <>
           {open ? (
               <ul className="lab-open">
                 {open.map((o) => (
@@ -641,7 +662,8 @@ export default function LabScreen({
                     <Text md={task.text[lang]} title={task.title[lang]} />
                   )}
                   <ul className="lab-checklist">
-                    {items(task.checklist).map((c) => {
+                    {(task.checklist ?? []).map((text, i) => {
+                      const c = { n: i + 1, text };
                       const r = rows?.[c.n];
                       return (
                         <li key={c.n} className={r ? (r.passed ? "ok" : "bad") : undefined}>
@@ -700,6 +722,9 @@ export default function LabScreen({
               </div>
             </>
           )}
+          </>
+            )}</Render>
+          </PaneBoundary>
         </div>
         <div className="lab-actions">
           <button

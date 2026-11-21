@@ -44,7 +44,7 @@ const task = (extra: object = {}) => ({
   state: "shown",
   title: { en: "Tree", he: "עץ" },
   text: TEXT,
-  checklist: [{ n: 1, text: { en: "Exists", he: "קיים" } }],
+  checklist: [{ en: "Exists", he: "קיים" }],
   ...extra,
 });
 
