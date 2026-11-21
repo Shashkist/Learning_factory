@@ -100,7 +100,9 @@ async def _terminal(base: str, sid: str, cookie: str, timeout: float) -> None:
                     if isinstance(detail, str) and detail != "origin_not_allowed"
                     else "check LF_PUBLIC_ORIGIN on the server"
                 )
-                raise Fail(f"the terminal refused the smoke's own Origin (HTTP 403): {cause}") from None
+                raise Fail(
+                    f"the terminal refused the smoke's own Origin (HTTP 403): {cause}"
+                ) from None
             raise
         async with ws_cm as ws:
             await ws.send(json.dumps({"AuthToken": "", "columns": 80, "rows": 24}).encode())
