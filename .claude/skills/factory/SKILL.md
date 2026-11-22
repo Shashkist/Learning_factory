@@ -39,6 +39,7 @@ python scripts/issue_lock.py status
 python scripts/issue_lock.py stale
 ```
 
+- An open Dependabot PR (`dependabot/github_actions/...`) is handled first, without an issue: CI green, check each new SHA is the tag's commit and skim the release notes, squash-merge (FACTORY.md "Dependabot PRs", D138).
 - If `STATE.md` → **Now** names an issue and branch: that is the work to resume, unless its claim is held by a live session.
 - A stale claim's branch is continued, not restarted.
 - Check `OWNER.md` for ticked items: un-park the issues they unblock (`status:needs-owner` → `status:ready`).

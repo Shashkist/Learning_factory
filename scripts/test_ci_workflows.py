@@ -100,3 +100,22 @@ def test_pin_check_rejects_tags_branches_and_short_shas():
     assert _unpinned(f"    uses: org/repo/.github/workflows/x.yml@{sha} # v1.0.0\n") == []
     assert _unpinned("      - uses: docker://alpine@sha256:" + "a" * 64 + "\n") == []
     assert _unpinned("    uses: ./.github/workflows/smoke.yml\n") == []
+
+
+def test_dependabot_keeps_action_pins_current():
+    # #485, D138: SHA pins never update by themselves; Dependabot moves them every week.
+    text = (WF.parent / "dependabot.yml").read_text(encoding="utf-8")
+    assert re.search(r"^version:\s*2\s*$", text, re.MULTILINE)
+    entry = re.search(r'package-ecosystem:\s*"?github-actions"?\n((?:[ ]{4,}.*\n)+)', text)
+    assert entry, "dependabot.yml needs a github-actions entry"
+    body = entry.group(1)
+    assert re.search(r'directory:\s*"?/"?\s*$', body, re.MULTILINE)
+    assert re.search(r'interval:\s*"?weekly"?\s*$', body, re.MULTILINE)
+    assert re.search(r"^    cooldown:\n      default-days:[ ]*[1-9]\d*[ ]*$", body, re.MULTILINE), "wait for new releases"
+    group = re.search(r"groups:\n((?:[ ]{6,}.*\n)+)", body)
+    assert group, "minor and patch bumps come grouped"
+    assert re.search(r'update-types:\n\s+-\s*"?minor"?\n\s+-\s*"?patch"?\n', group.group(1))
+    assert "major" not in group.group(1), "a major bump comes as its own PR"
+    # Nothing that silently turns the updates off.
+    assert not re.search(r"open-pull-requests-limit:\s*0\b", body)
+    assert not re.search(r"""dependency-name:\s*['"]?\*['"]?\s*$""", body, re.MULTILINE)
