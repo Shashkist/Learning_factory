@@ -36,7 +36,10 @@ const LANGS = ["en", "he"] as const;
 const HEBREW = /[֐-׿]/;
 const LEN = "[\\d.]+(?:rem|px|em|ch)";
 
-const nodeFs = (await import("node:fs")) as unknown as { readFileSync: (p: string, e: string) => string };
+// node: modules have no types in this app's tsconfig; a computed specifier keeps tsc quiet.
+const nodeFs = (await import(/* @vite-ignore */ "node:" + "fs")) as unknown as {
+  readFileSync: (p: string, e: string) => string;
+};
 const css = (name: string) => nodeFs.readFileSync(`src/styles/${name}`, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
 
 const LABS = [
