@@ -5,10 +5,11 @@
 ## Now
 
 **Pass lf-k7w3 running (laptop, from 20:57 UTC 2026-11-22).** Lanes:
-- **#490:** PR #503 merged (21:00 UTC); main CI and Deploy pending, then smoke (`ok terminal`) and the evidence comment.
-- **Dependabot:** #494 merged. #497 and #496 verified (SHAs equal their tags) but the gh token has no `workflow` scope, so a squash merge of a workflow change only works right after Dependabot rebased the PR (`@dependabot rebase`, then merge at once). #501 (setup-uv 5 -> 10) not looked at yet.
-- **#332:** branch `f/332-login-mylabs-design-2`, worktree `C:\projects\lf-332`: old exam cherry-picked, AC3 corrected per D109 (702e6d5, exam-only). Implementer next.
-- **#488:** branch `f/488-trusted-proxy-hardening`, worktree `C:\projects\lf-488`: exam writer running.
+- **#490 done:** #503 merged, Deploy 45073550030 deployed 97d96d4, smoke `ok terminal` through `ok end`, issue closed with evidence.
+- **Dependabot done:** #494, #497, #496, #501 merged (SHAs checked against tags). Factory dashboard 45071013209 on 0361637 ran `snapshot` and `publish` green with the new artifact pair. Note: the gh token has no `workflow` scope, so a Dependabot squash merge only works right after `@dependabot rebase`.
+- **#332:** PR #507 (branch `f/332-login-mylabs-design-2`, worktree `C:\projects\lf-332`). Review round 1: changes (page stylesheet per D108, live-lab banner names and links the lab plus a live badge, translated `aria-valuetext`, badge wrap). Implementer fixing.
+- **#488:** branch `f/488-trusted-proxy-hardening`, worktree `C:\projects\lf-488`, exam 7e81c6a (AC1 case dropped and replaced, mutation-checked). Implementer running.
+- Cleanup: 26 agent worktrees and 64 old `lf-*` worktrees of merged/closed PRs removed.
 
 Older pass notes (lf-ef8a and before) are in `history.md` and git history (`git log -p docs/factory/STATE.md`).
 
