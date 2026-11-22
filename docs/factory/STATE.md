@@ -4,14 +4,24 @@
 
 ## Now
 
-**Pass lf-q7x4 (laptop, from 02:57 UTC 2026-11-22) running.** Took over lf-w6d2's claims.
-- #453 (#452) reviewed (approve; leftovers folded into #454) and merged as adff271; main CI and Deploy running.
-- #450 (#319) rebased by cherry-pick onto adff271 (dcc4b2e); CI running; merge next.
-- #444 in flight: exam e02db8b (scratch PR #455 proves the manager half red), implementer working in `C:\projects\lf-444`.
+**Pass lf-q7x4 (laptop, 02:57-~04:40 UTC 2026-11-22) stopped at 3 merged PRs:** #453 (p0 #452), #450 (#319), #456 (#444).
+
+**Resume here, first:**
+1. **#454 / PR #457** (branch `f/454-smoke-shape-from-api`, worktree `C:\projects\lf-454`; claim released). Review round 1 approved; PR CI green on 418b447, already cherry-picked onto 30b964a. If main has moved, cherry-pick `bec1b0d` (exam) and `418b447` (fix) onto it again, wait for green, then merge. The Deploy smoke must still reach `ok quiz-show` and `ok end` (the smoke now requires `solution_available: false` on the quiz). Close #454 with: the exam's mutation runs from the review (comment on #457), the PR and main CI, and that Deploy.
+   - Two non-blocking review notes are on #457 (the built-in mutation guard is nearly vacuous; the smoke module is imported as top-level `tasks` via `sys.path`). Fold them into a later exam commit or a p3 issue; they do not block the merge.
+2. Then the Next list.
+
+**Closed with evidence:** #452 and #451 (the same failed run; Deploy 44980307879 green through `ok end`), #154 (evidence comment), #319 (mutations #440 and #449, Deploy 44981926735), #444 (scratch #455 red 14/22 and 8/10, review round 2 approved, Deploy 44985231868 deployed 30b964a, the live bundle carries the new code).
+**Decisions:** D128 amended (the solution-view date is in the teacher's local time; only tasks still in `lab.yaml` mark the class cell).
+**New issues:** #458 (exam cases for the solution-view time zone, RTL and removed tasks, p3).
+**Worktrees:** `lf-452`, `lf-319`, `lf-154` and `lf-434` removed. Keep `lf-454`. `lf-444` is shipped and safe to remove.
+
+**Lesson (pass lf-q7x4): a new key in a response breaks older exams that compare the whole object.** #163 and #164 pinned a class cell as exactly `{status, flag}`. Before adding a field, grep the acceptance exams for `== {` on that shape and widen them in an exam-only commit placed before the code (D100).
+**Lesson (pass lf-q7x4): `gh run watch --exit-status` can return 1 for a run that ends green.** Read the run's conclusion before calling main red.
 
 _Previous:_ **Pass lf-w6d2 (laptop, 00:55-~02:45 UTC 2026-11-22) stopping.** Merged: #441 (#434) and #447 (#154).
 
-**Resume here, first (one merge at a time; rebase by cherry-pick, never `gh pr update-branch`):**
+**Its resume list below was finished by pass lf-q7x4 (kept for the record):**
 1. **p0 incident #452 / PR #453** (branch `f/452-smoke-solution-key`, worktree `C:\projects\lf-452`, claim lf-w6d2).
    - The Deploy of #447 (44975984318, deployed 2422238) went red at the smoke's `quiz-show`. The smoke's quiz allow-list lacked `solution_available`. The app is live and works: the smoke reached `ok check-pass`.
    - The PR has the exam commit (12 red on main) and the fix (66 passed locally). Merge it on green CI plus review, then watch the Deploy: the smoke must reach `ok end`.
@@ -361,9 +371,9 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
 ## Next (in order)
 
-1. **#332** after O23.
+1. **#457** merge (see Now). Then **#332** after O23.
 2. **#423** (validator misses moved out of #414: pipes in substitutions, escaped delimiters, `!` jobs, groups spanning lines; p3). Time real shells first.
-3. **#444** (teacher views of solution views), **#448**. Review leftovers: **#319** (now also the 390 px typed-command proof from #349) WebSocket relay proof, **#154** Solution tab (D57 b), **#142**.
+3. **#448** (Solution tab polish), **#458** (teacher-view exam cases), **#142**.
 4. **#436**, **#431**, **#434** (lab screen and origin-check follow-ups, p3). **#85** deploy follow-ups, **#93**; p2 list: #81, #76, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
@@ -380,6 +390,7 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
 ## Recently done
 
+- 2026-11-22 pass lf-q7x4: #452 (#453; Deploy 44980307879, smoke ok), #319 (#450; Deploy 44981926735), #444 (#456; main CI 44983612487, Deploy 44985231868 deployed 30b964a, smoke ok).
 - 2026-11-21 pass lf-t5w2: #391 (#401; main CI 44932880926), #408 (#412; main CI 44934730508, Deploy 44936571157 deployed ff12d82 past a docs-only commit), #337 (#418 after #411/#415, D121; Deploy 44939668791, smoke ok).
 - 2026-11-21 pass lf-m8r2: #400 (#406; Dashboard CI runs 44920984247, 44924721514), #395 (#402, #405, #407; main CI 44927424876, Deploy 44922347898 deployed past a `history.md` commit), #399 (#409; Deploy 44931215561, smoke ok, live framing headers).
 - 2026-11-21 pass lf-w3n7: #364 (#375 exam; main CI 44889775470), #376 (#382; Deploy 44894087812, smoke ok), #355 (#367); closed #55, #378, #380 with Deploy 44889309740.
