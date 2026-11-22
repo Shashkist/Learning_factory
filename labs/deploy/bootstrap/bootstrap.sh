@@ -199,59 +199,82 @@ ensure_jq() {
   apt_get install -y jq
 }
 
+# The live dockerd command line, one argument per element, in DOCKERD_ARGS. Fails when there is none.
+DOCKERD_ARGS=()
+dockerd_args() {
+  local pid
+  DOCKERD_ARGS=()
+  pid="$(dockerd_pid)"
+  [ -n "$pid" ] && [ -r "/proc/$pid/cmdline" ] || return 1
+  mapfile -d '' -t DOCKERD_ARGS < "/proc/$pid/cmdline" || true
+}
+
 # Lab isolation lives in DOCKER-USER rules: dockerd with iptables disabled (flag or daemon.json)
 # never evaluates them. Fails the run, dry runs included, before anything is applied.
-iptables_disabled_check() {
-  local pid a how="" i n args=()
-  pid="$(dockerd_pid)"
-  if [ -n "$pid" ] && [ -r "/proc/$pid/cmdline" ]; then
-    mapfile -d '' -t args < "/proc/$pid/cmdline" || true
-    n=${#args[@]}
-    for ((i = 0; i < n; i++)); do
-      a=${args[i]}
-      if [ "$a" = "--iptables=false" ]; then how="the dockerd flag --iptables=false"
-      elif [ "$a" = "--iptables" ] && [ "${args[i+1]:-}" = false ]; then how="the dockerd flag --iptables false"; fi
-    done
-  fi
-  if [ -z "$how" ] && [ -f "$DAEMON_JSON" ] && jq -e '.iptables == false' "$DAEMON_JSON" >/dev/null 2>&1; then
-    how="\"iptables\": false in $DAEMON_JSON"
-  fi
-  if [ -n "$how" ]; then
-    err "dockerd runs with iptables disabled ($how): Docker never evaluates the DOCKER-USER chain, so the lab isolation rules would do nothing."
-    err "Nothing was changed. The owner has to enable iptables for dockerd (that needs a docker restart, which this script never does), then re-run."
-    log "BOOTSTRAP RESULT: failed"
-    exit 1
+iptables_fail() {
+  err "dockerd runs with iptables disabled ($1): Docker never evaluates the DOCKER-USER chain, so the lab isolation rules would do nothing."
+  err "Nothing was changed. The owner has to enable iptables for dockerd (that needs a docker restart, which this script never does), then re-run."
+  log "BOOTSTRAP RESULT: failed"
+  exit 1
+}
+
+# The flag form needs no jq. dockerd parses the value with Go's ParseBool.
+iptables_flag_check() {
+  local a
+  dockerd_args || return 0
+  for a in "${DOCKERD_ARGS[@]}"; do
+    case "$a" in
+      --iptables=0|--iptables=f|--iptables=F|--iptables=false|--iptables=False|--iptables=FALSE)
+        iptables_fail "the dockerd flag $a" ;;
+    esac
+  done
+}
+
+# The config-file form (the live --config-file value, else the default file) needs jq.
+iptables_file_check() {
+  local i n file=$DAEMON_JSON
+  dockerd_args || true
+  n=${#DOCKERD_ARGS[@]}
+  for ((i = 0; i < n; i++)); do
+    case "${DOCKERD_ARGS[i]}" in
+      --config-file=*) file=${DOCKERD_ARGS[i]#*=} ;;
+      --config-file) [ $((i + 1)) -lt $n ] && file=${DOCKERD_ARGS[i+1]} ;;
+    esac
+  done
+  if [ -f "$file" ] && jq -e '.iptables == false' "$file" >/dev/null 2>&1; then
+    iptables_fail "\"iptables\": false in $file"
   fi
 }
 
 # Flags whose values are harmless to print; every other flag value is redacted (the output goes
 # to a public Actions log). Host flags print only fd:// and unix:// values (a tcp host is an address).
 SAFE_DOCKERD_FLAGS=" --containerd --add-runtime --config-file --data-root --iptables --ip-forward --live-restore "
-HOST_DOCKERD_FLAGS=" -H --host "
 
-# The live dockerd command line (from /proc/<pid>/cmdline) with values redacted.
+# The live dockerd command line with values redacted. An argument that does not start with - is a
+# value (kept only after a safe flag); a flag not on the safe list prints as <name>=<redacted>,
+# where a short flag's name is its first two characters (-Hxyz, -Dfoo).
 dockerd_cmdline() {
-  local pid a name v i n out=() args=()
-  pid="$(dockerd_pid)"
-  [ -n "$pid" ] && [ -r "/proc/$pid/cmdline" ] || return 1
-  mapfile -d '' -t args < "/proc/$pid/cmdline" || true
-  n=${#args[@]}
+  local a name v i n out=()
+  dockerd_args || return 1
+  n=${#DOCKERD_ARGS[@]}
   for ((i = 0; i < n; i++)); do
-    a=${args[i]}
-    name=${a%%=*}
-    if [[ "$a" == -* && "$HOST_DOCKERD_FLAGS" == *" $name "* ]]; then
+    a=${DOCKERD_ARGS[i]}
+    if [[ "$a" != -* ]]; then out+=("$a"); continue; fi
+    if [[ "$a" == --* ]]; then name=${a%%=*}; else name=${a:0:2}; fi
+    if [ "$name" = -H ] || [ "$name" = --host ]; then
       v=""
-      if [[ "$a" == *=* ]]; then v=${a#*=}
-      elif [ $((i + 1)) -lt $n ]; then i=$((i + 1)); v=${args[i]}; fi
+      if [ "$name" = -H ] && [ ${#a} -gt 2 ]; then v=${a:2}; v=${v#=}
+      elif [ "$name" = --host ] && [[ "$a" == *=* ]]; then v=${a#*=}
+      elif [ $((i + 1)) -lt $n ]; then i=$((i + 1)); v=${DOCKERD_ARGS[i]}; fi
       case "$v" in
         fd://*|unix://*) out+=("$name=$v") ;;
         *) out+=("$name=<redacted>") ;;
       esac
-    elif [[ "$a" == -* && "$SAFE_DOCKERD_FLAGS" != *" $name "* ]]; then
-      out+=("$name=<redacted>")
-      if [[ "$a" != *=* && $((i + 1)) -lt $n && "${args[i+1]}" != -* ]]; then i=$((i + 1)); fi
-    else
+    elif [[ "$SAFE_DOCKERD_FLAGS" == *" $name "* ]]; then
       out+=("$a")
+    else
+      out+=("$name=<redacted>")
+      if [[ "$a" != *=* && "$a" == --* && $((i + 1)) -lt $n && "${DOCKERD_ARGS[i+1]}" != -* ]]; then i=$((i + 1)); fi
     fi
   done
   echo "${out[*]}"
@@ -290,16 +313,14 @@ need_runtime() {
 # (a flag and the same key in the file make dockerd refuse to start). No pipeline: under pipefail
 # a probe that exits early would kill the run.
 validate_daemon_json() {
-  local file=$1 pid a skip=0 help out rc=0 args=() keep=()
+  local file=$1 a skip=0 help out rc=0 first keep=()
   help="$(dockerd --help 2>&1 || true)"
   if [[ "$help" != *--validate* ]]; then
     log "dockerd does not support --validate: skipping the config validation"
     return 0
   fi
-  pid="$(dockerd_pid)"
-  if [ -n "$pid" ] && [ -r "/proc/$pid/cmdline" ]; then
-    mapfile -d '' -t args < "/proc/$pid/cmdline" || true
-    for a in "${args[@]:1}"; do
+  if dockerd_args; then
+    for a in "${DOCKERD_ARGS[@]:1}"; do
       if [ "$skip" = 1 ]; then skip=0; continue; fi
       case "$a" in
         --config-file) skip=1 ;;
@@ -309,14 +330,13 @@ validate_daemon_json() {
     done
   fi
   printf '+ dockerd <the live flags, %s of them> --validate --config-file %s\n' "${#keep[@]}" "$file"
-  # The error text quotes values from the file and the flags: print it with the values masked.
+  # The error text quotes values from the file and the flags, and no pattern list can be complete:
+  # print one generic line and the message text before its first colon, nothing else.
   out="$(dockerd ${keep[@]+"${keep[@]}"} --validate --config-file "$file" 2>&1)" || rc=$?
-  if [ -n "$out" ]; then
-    printf '%s\n' "$out" | sed -E \
-      -e 's/(from (flag|file): )[^,)]*/\1<redacted>/g' \
-      -e 's/(invalid value )("[^"]*"|[^ ]+)/\1<redacted>/g' \
-      -e 's#[A-Za-z][A-Za-z0-9+.-]*://[^ ,)"]*#<redacted-url>#g' \
-      -e 's/"[^"]*"/"<redacted>"/g' >&2
+  if [ "$rc" != 0 ]; then
+    first=${out%%$'\n'*}
+    err "dockerd --validate rejected the candidate daemon.json (exit $rc); details are not printed because they can contain values"
+    [ -n "$first" ] && err "${first%%:*}"
   fi
   return "$rc"
 }
@@ -870,8 +890,9 @@ fi
 
 if [ "$(id -u)" != 0 ]; then err "run as root"; exit 1; fi
 
+iptables_flag_check
 ensure_jq
-iptables_disabled_check
+iptables_file_check
 
 log "== baseline"
 BASE_STATE="$(container_state)"
