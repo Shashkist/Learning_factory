@@ -15,7 +15,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field, StrictInt
 
 from app import db
@@ -97,6 +97,9 @@ def _detail(lab: Lab, task: Task, row: Any) -> dict[str, Any]:
     else:
         out["text"] = {lang: _read(lab, task, f"task.{lang}.md") for lang in LANGS}
         out["checklist"] = [dict(i) for i in task.checklist]
+    out["solution_available"] = (
+        task.kind == "hands-on" and row is not None and int(row["attempts"] or 0) > 0
+    )
     return out
 
 
@@ -223,7 +226,7 @@ async def _record_shown(ctx: _Ctx, task: Task, bound: float = DB_STEP_BOUND_S) -
             f"insert into {T}.task_results (student, lab_id, session_id, task_id, shown_at) "
             "values ($1, $2, $3, $4, now()) on conflict (session_id, task_id) "
             "do update set shown_at = coalesce(task_results.shown_at, now()) "
-            "returning shown_at, passed_at",
+            "returning shown_at, passed_at, attempts",
             ctx.student,
             ctx.lab.id,
             ctx.sid,
@@ -264,7 +267,7 @@ async def _result(ctx: _Ctx, task: Task, code: str = "setup_timeout") -> Any:
     return await _bounded(
         ctx,
         lambda conn: conn.fetchrow(
-            f"select shown_at, passed_at from {T}.task_results "
+            f"select shown_at, passed_at, attempts from {T}.task_results "
             "where session_id = $1 and task_id = $2",
             ctx.sid,
             task.id,
@@ -628,3 +631,30 @@ async def answer_task(
         raise HTTPException(422, "invalid_option")
     correct = body.option == task.correct
     return {"correct": correct, "attempts": await _count_attempt(ctx, task, correct)}
+
+
+@router.post("/{task_id}/solution")
+async def solution(
+    task_id: str, response: Response, ctx: Annotated[_Ctx, Depends(_ctx)]
+) -> dict[str, Any]:
+    """The solution text, after the first graded attempt of this task; records the first view."""
+    task = ctx.task(task_id)
+    if task is None:
+        raise HTTPException(404, "unknown_task")
+    if task.kind != "hands-on":
+        raise HTTPException(404, "no_solution")
+    en = _read(ctx.lab, task, "solution.en.md")
+    he = _read(ctx.lab, task, "solution.he.md")
+    stamped = await _bounded(
+        ctx,
+        lambda conn: conn.fetchval(
+            f"update {T}.task_results set solution_viewed_at = coalesce(solution_viewed_at, now()) "
+            "where session_id = $1 and task_id = $2 and attempts > 0 returning 1",
+            ctx.sid,
+            task.id,
+        ),
+    )
+    if stamped is None:
+        raise HTTPException(403, "solution_locked")
+    response.headers["Cache-Control"] = "no-store"
+    return {"solution": {"en": en, "he": he}}
