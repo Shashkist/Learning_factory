@@ -301,7 +301,8 @@ function agentCard(a, titles, workers, generated) {
   card.appendChild(el("div", joined([elapsed(a.started, LIVE_ENDED[a.state] ? a.last : null), subs.length ? done + "/" + subs.length : ""]), "muted"));
   var cur = null;
   subs.forEach(function (s) { if (stepOpen(a, s, subs, generated)) cur = s; });
-  cur = cur || subs[subs.length - 1];
+  var latest = subs[subs.length - 1];
+  cur = cur || (latest && latest.status !== "start" ? latest : null);   // never name a stale start as "now"
   if (cur) {
     var now = el("div", "now: ", "live-now");
     now.appendChild(lel("b", S(cur.substep), "", { "data-current-substep": "" }));
