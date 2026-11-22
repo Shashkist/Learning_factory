@@ -19,4 +19,4 @@ COPY --from=web /web/dist /srv/web
 COPY content /srv/content
 ENV LF_WEB_DIR=/srv/web LF_CONTENT_DIR=/srv/content
 EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-proxy-headers"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-proxy-headers", "--ws-max-size", "1048576"]

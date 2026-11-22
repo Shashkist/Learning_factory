@@ -200,8 +200,11 @@ async def _bridge(websocket: WebSocket, sid: uuid.UUID) -> None:
     address, target = _target(websocket, sid)
     wanted = list(websocket.scope.get("subprotocols") or [])
     try:
+        ip_host, _, ip_port = (await resolve(address)).rpartition(":")
         upstream = await connect(
             f"ws://{address}{target}",
+            host=ip_host.strip("[]"),
+            port=int(ip_port),
             subprotocols=[s for s in wanted if s] or None,
             additional_headers=forward_headers(websocket, WS_NOT_FORWARDED),
             max_size=MAX_WS_MESSAGE,
@@ -212,9 +215,16 @@ async def _bridge(websocket: WebSocket, sid: uuid.UUID) -> None:
         )
     except Exception as exc:
         log.warning("terminal upstream unreachable: %s", type(exc).__name__)
-        await _refuse(websocket, 502, "terminal_unreachable")
+        if isinstance(exc, TimeoutError):
+            await _refuse(websocket, 504, "terminal_timeout")
+        else:
+            await _refuse(websocket, 502, "terminal_unreachable")
         return
-    await websocket.accept(subprotocol=upstream.subprotocol)
+    try:
+        await websocket.accept(subprotocol=upstream.subprotocol)
+    except BaseException:
+        await upstream.close()
+        raise
 
     counts = {"up": 0, "down": 0}
 
