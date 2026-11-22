@@ -216,7 +216,7 @@ def render(events: list[dict]) -> dict:
             runner.update(state=e.get("state", "idle"), note=e.get("note", ""))
         elif kind == "step":
             aid = e["agent"]
-            a = agents.setdefault(aid, {"id": aid, "role": e["role"], "issue": e.get("issue"), "station": e["station"],
+            a = agents.setdefault(aid, {"id": aid, "role": e["role"], "issue": e.get("issue") or None, "station": e["station"],
                                         "state": "running", "started": e["at"], "last": e["at"], "substeps": []})
             a["last"], a["station"] = e["at"], e["station"]
             sub = next((s for s in a["substeps"] if s["substep"] == e["substep"] and s["station"] == e["station"]), None)
@@ -229,9 +229,9 @@ def render(events: list[dict]) -> dict:
                 a["state"] = "failed" if e["status"] == "fail" else "stopped"
             elif e["substep"] == "finished" and e["status"] == "done":
                 a["state"] = "done"
-            elif a["state"] not in ("failed", "stopped"):
-                a["state"] = "running"
-            if e.get("issue") is not None:
+            elif a["state"] != "stopped":
+                a["state"] = "running"   # a later start/done recovers from a failure
+            if e.get("issue"):
                 i = issues.setdefault(e["issue"], {"issue": e["issue"], "title": "", "station": e["station"]})
                 i["station"] = e["station"]
                 if e.get("title"):
@@ -249,7 +249,8 @@ def render(events: list[dict]) -> dict:
                     "substeps": [{"station": s["station"], "substep": s["substep"], "status": s["status"],
                                   "started": s["started"], "at": s["at"], "detail": scrub(s["detail"])}
                                  for s in a["substeps"]]} for a in agents.values()],
-        "workers": render_workers(evs, parse(t)),
+        "workers": [w for w in render_workers(evs, parse(t))
+                    if not runner["pass_started"] or w["started"] >= runner["pass_started"]],
         "crew": render_crew(parse(t)),
         "log": [{"at": e["at"], "issue": e.get("issue"), "agent": e["agent"], "role": e["role"],
                  "station": e["station"], "substep": e["substep"], "status": e["status"],

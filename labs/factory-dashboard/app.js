@@ -273,12 +273,22 @@ function runnerText(r) {
   return joined([names[s] || s, S(r.note)]);
 }
 
-function agentCard(a, titles, workers) {
+var LIVE_STALE_MS = 15 * 60 * 1000;
+
+// A sub-step shows the hourglass only while it is the agent's latest, still open, and the agent is not silent.
+function liveSubstep(a, s, subs, generated) {
+  var later = subs.some(function (x) { return S(x.at) > S(s.at); });   // strictly later: same-second steps tie
+  var gen = Date.parse(generated), last = Date.parse(a.last);
+  var silent = !isNaN(gen) && !isNaN(last) && gen - last >= LIVE_STALE_MS;
+  return !later && !silent;
+}
+
+function agentCard(a, titles, workers, generated) {
   var subs = arr(a.substeps);
   var card = lel("div", null, "live-agent", { "data-agent-id": S(a.id), "data-state": S(a.state) });
   var head = el("div", null, "live-head");
   head.appendChild(el("b", (LIVE_ROLE_ICONS[a.role] || "") + " " + S(a.role)));
-  var issue = a.issue === null || a.issue === undefined ? "" : " #" + a.issue + " " + S(titles[a.issue]) + " ";
+  var issue = !(Number(a.issue) > 0) ? "" : " #" + a.issue + " " + S(titles[a.issue]) + " ";
   if (issue) head.appendChild(el("span", issue));
   card.appendChild(head);
   var done = subs.filter(function (s) { return s.status === "done"; }).length;
@@ -293,7 +303,8 @@ function agentCard(a, titles, workers) {
   }
   var ul = el("ul", null, "live-steps");
   subs.forEach(function (s) {
-    ul.appendChild(lel("li", (LIVE_ICONS[s.status] || "") + " " + S(s.substep), "",
+    var icon = s.status === "start" ? (liveSubstep(a, s, subs, generated) ? LIVE_ICONS.start : "–") : (LIVE_ICONS[s.status] || "");
+    ul.appendChild(lel("li", icon + " " + S(s.substep), "",
       { "data-substep": S(s.substep), "data-status": S(s.status) }));
   });
   card.appendChild(ul);
@@ -588,7 +599,7 @@ function renderLive(d) {
     line.appendChild(st);
   });
   function station(name) { return at[S(name).toLowerCase()] || at.plan; }
-  arr(d.issues).forEach(function (i) {
+  arr(d.issues).filter(function (i) { return Number(i.issue) > 0; }).forEach(function (i) {
     titles[i.issue] = S(i.title);
     station(i.station).appendChild(el("div", "#" + S(i.issue) + " " + S(i.title), "live-issue"));
   });
@@ -601,7 +612,7 @@ function renderLive(d) {
     if (same.length === 1) (mine[same[0].id] = mine[same[0].id] || []).push(w);
     else loose.push(w);
   });
-  agents.forEach(function (a) { station(a.station).appendChild(agentCard(a, titles, mine[a.id] || [])); });
+  agents.forEach(function (a) { station(a.station).appendChild(agentCard(a, titles, mine[a.id] || [], d.generated_at)); });
   var stationsBox = el("div");
   stationsBox.appendChild(line);
   if (loose.length) {

@@ -249,3 +249,22 @@ def test_read_stdin_returns_payload_and_none_on_timeout(monkeypatch):
             return ""
     monkeypatch.setattr(sys, "stdin", Never())
     assert _hook_io.read_stdin(0.2) is None
+
+
+def test_failed_agent_recovers_on_a_later_substep_but_stopped_is_sticky():
+    fp.main(["pass-start", "--pass-no", "1", "--budget", "1"])
+    add(5, "a", "implementer", "build", "ci 1", "fail")
+    assert fp.render(fp.read_events())["agents"][0]["state"] == "failed"
+    add(5, "a", "implementer", "build", "ci 2", "start")
+    assert fp.render(fp.read_events())["agents"][0]["state"] == "running"
+    add(5, "a", "implementer", "build", "ci 2", "stopped")
+    add(5, "a", "implementer", "build", "ci 3", "done")
+    assert fp.render(fp.read_events())["agents"][0]["state"] == "stopped"
+
+
+def test_issue_zero_creates_no_issue_row_and_no_agent_issue():
+    fp.main(["pass-start", "--pass-no", "1", "--budget", "1"])
+    add(0, "m", "manager", "ship", "manager pass", "start")
+    live = fp.render(fp.read_events())
+    assert live["issues"] == []
+    assert live["agents"][0]["issue"] is None
