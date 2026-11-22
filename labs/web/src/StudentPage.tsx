@@ -293,7 +293,7 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
               <tr>
                 <td />
                 <th scope="col" className="num">{t("admin.student.attempts")}</th>
-                <td colSpan={2} />
+                <td colSpan={3} />
               </tr>
             </thead>
             <tbody>
@@ -306,9 +306,14 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
                   <td className="num">{`${t("admin.student.time")}: ${secs(task.seconds)}`}</td>
                   <td className="num">{`${t("admin.student.median")}: ${secs(task.median_seconds)}`}</td>
                   <td data-testid={`student-solution-${lab.id}-${task.id}`}>
-                    {task.solution_viewed_at
-                      ? `${t("admin.student.solution_viewed")}: ${task.solution_viewed_at.slice(0, 10)}`
-                      : t("admin.student.solution_not_viewed")}
+                    {task.solution_viewed_at ? (
+                      <>
+                        {`${t("admin.student.solution_viewed")}: `}
+                        <bdi dir="ltr">{localStamp(task.solution_viewed_at)}</bdi>
+                      </>
+                    ) : (
+                      t("admin.student.solution_not_viewed")
+                    )}
                   </td>
                 </tr>
               ))}
