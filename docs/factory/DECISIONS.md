@@ -1298,6 +1298,12 @@ in force · factory · 2026-11-22
 **Why.** Research (KodeKloud first): KodeKloud shows a plain Solution tab next to the task with no documented gate. iximiuz Labs asks students to read the solution "after solving the Challenge, or after making a serious attempt", without enforcing it. Instruqt's Skip runs the solve script with no gate and no recording. Real Python unlocks after a first test run. None records views; a class with a teacher needs that. The `attempts` counter already exists, so "one attempt first" needs no new counter and no per-lab setting.
 **Alternatives.** (a) Always available, view recorded: the answer is one click away before any try. (c) After N failed Checks: a threshold to tune per class. A timer. A penalty for viewing.
 **Revert.** Drop the attempts gate in the endpoint (that is (a)), or remove the endpoint and the tab returns to D57 (b). The column is nullable and read by nothing else.
+**Amended 2026-11-22 (review of #442).**
+- There is no English fallback for a missing `solution.he.md`. The content validator already refuses a hands-on task without both solution files (spec file layout; #5 and #12 exams), so a fallback would be dead code. The exam's fixture lab carries both files.
+- The endpoint reads the files before it stamps the view, so a read failure never records a view the student did not get.
+- A Check that timed out counts an attempt (D-entry for #88), so it unlocks the solution. The lab screen unlocks the tab in place after a failed or timed-out Check, but not after `reason: "error"`, which counts no attempt.
+- A quiz's Solution tab shows the "not available" text without the "run Check" hint.
+- The teacher views are #444.
 
 ## D129 · #434: an empty host label warns, and that check runs before the IPv4-form checks
 in force · factory · 2026-11-22
