@@ -4,18 +4,18 @@
 
 ## Now
 
-**Pass lf-k7w3 running (laptop, from 20:57 UTC 2026-11-22).** Lanes:
-- **#490 done:** #503 merged, Deploy 45073550030 deployed 97d96d4, smoke `ok terminal` through `ok end`, issue closed with evidence.
-- **Dependabot done:** #494, #497, #496, #501 merged (SHAs checked against tags). Factory dashboard 45071013209 on 0361637 ran `snapshot` and `publish` green with the new artifact pair. Note: the gh token has no `workflow` scope, so a Dependabot squash merge only works right after `@dependabot rebase`.
-- **#332:** PR #507 (branch `f/332-login-mylabs-design-2`, worktree `C:\projects\lf-332`). Review round 1: changes (page stylesheet per D108, live-lab banner names and links the lab plus a live badge, translated `aria-valuetext`, badge wrap). Implementer fixing.
-- **#488:** branch `f/488-trusted-proxy-hardening`, worktree `C:\projects\lf-488`, exam 7e81c6a (AC1 case dropped and replaced, mutation-checked). Implementer running.
-- Cleanup: 26 agent worktrees and 64 old `lf-*` worktrees of merged/closed PRs removed.
+**Pass lf-n3r6 running (laptop, from 22:57 UTC 2026-11-22).** Lanes (each its own worktree `C:\projects\lf-<n>`):
+- **#510** (trusted proxy: one warning per exhausted window, one read of the setting, D135 notes), branch `f/510-trusted-proxy-warn-once`. Exam next.
+- **#508** (My labs: live-lab exam cases, layout tokens, loading state), branch `f/508-mylabs-live-exam`. Exam next.
+- **#505** (deploy seam check: bare key, BOM; redirect-hook comment), branch `f/505-seam-check-bom`. Exam next.
 
-Older pass notes (lf-ef8a and before) are in `history.md` and git history (`git log -p docs/factory/STATE.md`).
+Pass lf-k7w3 finished: #332 (#507) and #488 (#509) shipped, Deploy 45079262786 deployed 756c3be, smoke ok, both closed with evidence; follow-ups #508, #510.
+
+Older pass notes are in `history.md` and git history (`git log -p docs/factory/STATE.md`).
 
 ## Next (in order)
 
-1. See Now (#490 merge, Dependabot). Then **#332** after O23. p3 follow-ups: **#488** (trusted proxy, review of #486), **#481** and **#504** (live view, one dashboard issue at a time: both touch `app.js`), **#505** (seam check leftovers, after #490).
+1. See Now. p3 follow-ups: **#481** and **#504** (live view, one dashboard issue at a time: both touch `app.js`).
 2. **#468** (bootstrap exam nits, p3; now on top of #56's exam), **#423** (validator misses, p3; time real shells first; an old worktree `C:\projects\lf-423` exists, check it before starting).
 3. **#436**, **#431** (lab screen follow-ups, p3). **#85** deploy follow-ups; p2 list: #81, #84, #64, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
@@ -23,7 +23,6 @@ Older pass notes (lf-ef8a and before) are in `history.md` and git history (`git 
 
 - **O25 (new, optional):** run Linux 1 once more on the live site: tasks 1 to 3 with Next and Skip, the terminal should stay put (#427 is fixed and deployed).
 - **O24 (optional):** try the lab screen on a phone (#349): tap Terminal, type; Tasks and back; rotate.
-- **O23:** #332 card action naming: "332: a" (name = word, title as description; the factory corrects the exam) or "332: b" (aria-label with the title; loosen three older name checks).
 - **O21 (new):** bound the guard hook's stdin read, the guard half of #230 (ready-to-apply plan in OWNER.md; fail closed).
 - **O22 (new, optional):** a time-keeping dispatch of the dashboard workflow (#155, D77), or "skip" for push-only freshness.
 - **O19 (read only):** the break-glass admin login steps, needed only if Google sign-in breaks: since #99 a password admin session is refused at once while Google is configured.
@@ -33,6 +32,7 @@ Older pass notes (lf-ef8a and before) are in `history.md` and git history (`git 
 
 ## Recently done
 
+- 2026-11-22 pass lf-k7w3: #490 (#503; Deploy 45073550030, smoke ok), #488 (#509), #332 (#507, D139; Deploy 45079262786 deployed 756c3be, smoke ok). Dependabot #494, #496, #497, #501.
 - 2026-11-22 pass lf-d9q2: Dependabot #495 (checkout v7.0.1; Deploy 45060978121, smoke ok), #498 (setup-node v7.1.0; main CI 45061457138, Deploy 45063469070, smoke ok), #487 (#502, re-sequenced #499; Factory dashboard 45065366470, live app.js byte-equal to f8a7014). #490 in PR #503 (approved). Closed by lf-c4z8: #76, #485.
 - 2026-11-22 pass lf-m5t9: #68 (#484; Factory dashboard run 45025165110, live app.js equals b982775), #480 (#486; Deploy 45028016533 deployed e393877, smoke ok). #76 in PR #492.
 - 2026-11-22 pass lf-v6k1: #142 (#464; Deploy 44997642716 deployed 13b5c25, smoke ok), #93 (#473; main CI 45001011370), #56 (#474; main CI 45001996726, live bootstrap dry run 45001996629). Deploy 45003588025 deployed de2c945 (both), smoke ok, `trusted proxy nginx-proxy3 -> 172.18.0.14`.
