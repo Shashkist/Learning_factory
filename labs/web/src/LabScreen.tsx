@@ -100,6 +100,8 @@ const makeCall = (skew: { current: number }) =>
     return (r.status === 204 ? undefined : await r.json()) as T;
   };
 
+const withoutKey = <T,>(o: Record<string, T>, k: string) =>
+  Object.fromEntries(Object.entries(o).filter(([key]) => key !== k));
 // The session is over (ended, expired or gone) as far as the server is concerned.
 const isEnded = (e: unknown) =>
   e instanceof Failure &&
@@ -316,6 +318,10 @@ export default function LabScreen({
         if (alive.current) setSolutions((prev) => ({ ...prev, [wantSolution]: r.solution }));
       })
       .catch((e) => {
+        if (isEnded(e)) {
+          setPhase("ended");
+          return;
+        }
         if (e instanceof Failure && e.detail === "solution_locked") {
           if (alive.current) setSolutions((prev) => ({ ...prev, [wantSolution]: null }));
           return; // shows the locked text
@@ -455,6 +461,11 @@ export default function LabScreen({
         }
       }
     });
+  // A lock answered earlier no longer holds after a graded attempt: ask again on the next open.
+  const refetchSolution = () => {
+    asked.current.delete(task.id);
+    setSolutions((prev) => (prev[task.id] === null ? withoutKey(prev, task.id) : prev));
+  };
   const check = () =>
     run(async () => {
       const r = await call<{
@@ -465,7 +476,11 @@ export default function LabScreen({
       if (r.reason === "timeout" || r.reason === "error") {
         setCheckFailed(true);
         // a timeout counts an attempt on the server, an error does not
-        if (r.reason === "timeout") setTask({ ...task, solution_available: true });
+        if (r.reason === "timeout") {
+          setTask({ ...task, solution_available: true });
+          refetchSolution();
+        }
+        if (tab === "solution") focusTask.current = true;
         setTab("task"); // Check may be pressed from the locked Solution tab: show its message
         return;
       }
@@ -477,8 +492,15 @@ export default function LabScreen({
       );
       setPassed(r.passed);
       setTask({ ...task, solution_available: true }); // a graded attempt unlocks the solution
+      refetchSolution();
+      if (tab === "solution") focusTask.current = true;
       setTab("task"); // Check may be pressed from the locked Solution tab: show its result
     });
+  const checkButton = (
+    <button className="primary" onClick={check} disabled={pending} aria-busy={pending}>
+      {t("lab.check")}
+    </button>
+  );
   const answer = () =>
     run(async () => {
       const r = await call<{ correct: boolean }>(
@@ -685,14 +707,7 @@ export default function LabScreen({
                 {hands && (
                   <>
                     <p>{t("lab.solution.hint")}</p>
-                    <button
-                      className="primary"
-                      onClick={check}
-                      disabled={pending}
-                      aria-busy={pending}
-                    >
-                      {t("lab.check")}
-                    </button>
+                    {checkButton}
                   </>
                 )}
               </>
@@ -722,14 +737,7 @@ export default function LabScreen({
                       );
                     })}
                   </ul>
-                  <button
-                    className="primary"
-                    onClick={check}
-                    disabled={pending}
-                    aria-busy={pending}
-                  >
-                    {t("lab.check")}
-                  </button>
+                  {checkButton}
                 </>
               ) : (
                 <>
