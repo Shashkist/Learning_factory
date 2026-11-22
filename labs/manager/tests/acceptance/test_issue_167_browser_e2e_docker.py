@@ -18,7 +18,9 @@ lab-<session> container on the lab network (the session id comes from the reques
 bytes both ways (HTTP and the WebSocket upgrade). The forwarder replaces only name resolution;
 the manager's proxy code (auth, header filtering, WebSocket relay) is the real one.
 The `.xterm` check in the browser flow proves the HTTP path to ttyd under this session's base path;
-it does not prove the WebSocket relay (ttyd draws .xterm before it connects).
+it does not prove the WebSocket relay (ttyd draws .xterm before it connects). The typed-command
+proof does, in both directions: a file written in the container (keys in) and an OSC title that
+reaches the iframe's document.title (shell output back).
 
 Lab content (decision, see the hand-back of #167): the catalog never lists `internal` or `draft`
 labs, not even to the smoke cohort (#129 exam). So the exam gives the manager its own content
