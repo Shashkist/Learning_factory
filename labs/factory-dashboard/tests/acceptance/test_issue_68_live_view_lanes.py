@@ -7,7 +7,8 @@ sub-step is shown as current:
   A `start` sub-step counts as RUNNING only if (1) it is the agent's latest sub-step (no sub-step of that
   agent has a strictly later timestamp; same-second ties keep it running), (2) the agent was silent for
   less than 15 minutes (agent `last` vs live.json `generated_at`) and (3) the agent state is not ended
-  (`ended`, `done`, `failed`, `stopped`, i.e. after pass-end).
+  (`ended` or `done`, i.e. after pass-end; `failed` and `stopped` keep their latest step running, D136 and
+  the #51 exam).
 
 Observable places, all read from the page fed with the real reducer's output (#51 harness plus a click,
 see dom_harness_68.js):

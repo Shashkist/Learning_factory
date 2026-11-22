@@ -228,11 +228,13 @@ def render(events: list[dict]) -> dict:
             a = agents.setdefault(aid, {"id": aid, "role": e["role"], "issue": issue_no(e.get("issue")) or None, "station": e["station"],
                                         "state": "running", "started": e["at"], "last": e["at"], "substeps": []})
             a["last"], a["station"] = e["at"], e["station"]
-            sub = next((s for s in a["substeps"] if s["substep"] == e["substep"] and s["station"] == e["station"]), None)
+            step_issue = issue_no(e.get("issue")) or a["issue"]
+            sub = next((s for s in a["substeps"] if s["substep"] == e["substep"] and s["station"] == e["station"]
+                        and s.get("issue") == step_issue), None)
             if sub:
-                sub.update(status=e["status"], at=e["at"], detail=e.get("detail", ""))
+                sub.update(status=e["status"], at=e["at"], detail=e.get("detail", ""), issue=step_issue)
             else:
-                a["substeps"].append({"station": e["station"], "substep": e["substep"], "status": e["status"],
+                a["substeps"].append({"station": e["station"], "substep": e["substep"], "status": e["status"], "issue": step_issue,
                                       "started": e["at"], "at": e["at"], "detail": e.get("detail", "")})
             if e["status"] in ("fail", "stopped"):
                 a["state"] = "failed" if e["status"] == "fail" else "stopped"
@@ -257,7 +259,7 @@ def render(events: list[dict]) -> dict:
         "agents": [{"id": a["id"], "role": a["role"], "issue": a["issue"], "station": a["station"], "state": a["state"],
                     "started": a["started"], "last": a["last"],
                     "substeps": [{"station": s["station"], "substep": s["substep"], "status": s["status"],
-                                  "started": s["started"], "at": s["at"], "detail": scrub(s["detail"])}
+                                  "issue": s["issue"], "started": s["started"], "at": s["at"], "detail": scrub(s["detail"])}
                                  for s in a["substeps"]]} for a in agents.values()],
         "workers": render_workers(
             [e for e in evs if not runner["pass_started"] or parse(e["at"]) >= parse(runner["pass_started"])], parse(t)),
