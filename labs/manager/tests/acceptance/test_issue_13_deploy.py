@@ -699,7 +699,10 @@ def test_deploy_prints_the_managers_trusted_proxy_startup_line(server):
 def test_deploy_does_not_pin_the_proxy_address_and_survives_a_missing_proxy_line(server):
     r = server.run(_stdin(), STUB_NO_PROXY_LINE="1")
     _ok(r)
-    assert "trusted proxy nginx-proxy3" in r.stdout + r.stderr  # the say line names the proxy
+    out = r.stdout + r.stderr
+    # no manager startup line: nothing may pretend an address was found or pinned
+    assert "->" not in out and "172.20.0.5" not in out
+    assert "deployed lf-manager" in out
     assert "PROXY=172.20.0.5" not in " ".join(server.calls())
 
 

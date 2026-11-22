@@ -21,7 +21,7 @@ NAME = "nginx-proxy-test.invalid"
 A = "10.93.0.5"
 B = "10.93.0.77"
 REAL = "203.0.113.9"
-TTL = 0.2
+TTL = 1.0  # the smallest effective TTL: LF_TRUSTED_PROXY_TTL_S is clamped to 1..3600 (#475)
 
 
 def _req(peer: str, xff: str | None = None) -> Request:
@@ -125,11 +125,16 @@ def test_lookup_repeats_after_the_ttl(monkeypatch):
 
 def test_default_ttl_is_thirty_seconds(monkeypatch):
     monkeypatch.delenv("LF_TRUSTED_PROXY_TTL_S", raising=False)
+    clock = [5000.0]
+    monkeypatch.setattr(time, "monotonic", lambda: clock[0])
     fake = _use(monkeypatch, [A])
     auth.client_ip(_req(A, REAL))
-    time.sleep(0.5)
+    clock[0] += 29.0
     auth.client_ip(_req(A, REAL))
-    assert len(fake.calls) == 1
+    assert len(fake.calls) == 1, "looked up again before 30 s"
+    clock[0] += 2.0
+    auth.client_ip(_req(A, REAL))
+    assert len(fake.calls) == 2, "no new lookup after 30 s"
 
 
 def test_dns_failure_ignores_xff_and_uses_the_peer_without_raising(monkeypatch):

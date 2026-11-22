@@ -10,6 +10,7 @@ import hashlib
 import hmac
 import ipaddress
 import logging
+import math
 import os
 import secrets
 import socket
@@ -229,29 +230,89 @@ def _group_ip(ip: str) -> str:
 
 _proxy_log = logging.getLogger("app.auth")
 _PROXY_TTL_DEFAULT = 30.0
+_PROXY_TTL_MIN = 1.0
+_PROXY_TTL_MAX = 3600.0
 _proxy_lock = threading.Lock()
 # (name, expires at monotonic, trusted addresses)
 _proxy_cache: tuple[str, float, frozenset[str]] | None = None
 _proxy_logged: tuple[str, frozenset[str]] | None = None
+_proxy_refreshing = False
+_proxy_generation = 0
 
 
 def reset_trusted_proxy_cache() -> None:
-    global _proxy_cache, _proxy_logged
+    global _proxy_cache, _proxy_logged, _proxy_refreshing, _proxy_generation
     with _proxy_lock:
         _proxy_cache = None
         _proxy_logged = None
+        _proxy_refreshing = False
+        _proxy_generation += 1  # a refresh still running is forgotten: its answer is dropped
 
 
 def _proxy_ttl() -> float:
+    """LF_TRUSTED_PROXY_TTL_S clamped to 1..3600 s; unset, garbage, inf, nan, <= 0 mean 30."""
     try:
-        return max(0.0, float(os.environ.get("LF_TRUSTED_PROXY_TTL_S", _PROXY_TTL_DEFAULT)))
+        ttl = float(os.environ.get("LF_TRUSTED_PROXY_TTL_S", _PROXY_TTL_DEFAULT))
     except ValueError:
         return _PROXY_TTL_DEFAULT
+    if not math.isfinite(ttl) or ttl <= 0:
+        return _PROXY_TTL_DEFAULT
+    return min(max(ttl, _PROXY_TTL_MIN), _PROXY_TTL_MAX)
+
+
+def _resolve_proxy(trusted: str) -> frozenset[str]:
+    """One blocking lookup, cached for the TTL; any failure means nobody is trusted."""
+    global _proxy_cache, _proxy_logged
+    with _proxy_lock:
+        generation = _proxy_generation
+    try:
+        found = frozenset(str(info[4][0]) for info in socket.getaddrinfo(trusted, None))
+    except (OSError, ValueError) as exc:  # UnicodeError is a ValueError
+        found = frozenset()
+        _proxy_log.warning("trusted proxy %s: lookup failed (%s); nobody trusted", trusted, exc)
+    with _proxy_lock:
+        if generation != _proxy_generation:
+            return found
+        _proxy_cache = (trusted, time.monotonic() + _proxy_ttl(), found)
+        if _proxy_logged != (trusted, found):
+            _proxy_logged = (trusted, found)
+            _proxy_log.info("trusted proxy %s -> %s", trusted, ", ".join(sorted(found)) or "(none)")
+    return found
+
+
+def _refresh_proxy_in_background(trusted: str) -> None:
+    global _proxy_refreshing
+    with _proxy_lock:
+        if _proxy_refreshing:
+            return
+        _proxy_refreshing = True
+        generation = _proxy_generation
+
+    def run() -> None:
+        global _proxy_refreshing
+        try:
+            _resolve_proxy(trusted)
+        finally:
+            with _proxy_lock:
+                if generation == _proxy_generation:
+                    _proxy_refreshing = False
+
+    threading.Thread(target=run, name="lf-proxy-lookup", daemon=True).start()
+
+
+def _in_event_loop() -> bool:
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return False
+    return True
 
 
 def trusted_proxy_addresses() -> frozenset[str]:
-    """Addresses LF_TRUSTED_PROXY stands for: an IP literal as is, a name resolved and cached."""
-    global _proxy_cache, _proxy_logged
+    """Addresses LF_TRUSTED_PROXY stands for: an IP literal as is, a name resolved and cached.
+
+    Inside a running event loop this only reads the cache: a missing or expired entry is refreshed
+    in a worker thread (nobody trusted until the first answer, the last answer meanwhile)."""
     trusted = (os.environ.get("LF_TRUSTED_PROXY") or "").strip()
     if not trusted:
         return frozenset()
@@ -261,20 +322,17 @@ def trusted_proxy_addresses() -> frozenset[str]:
     except ValueError:
         pass
     with _proxy_lock:
-        now = time.monotonic()
         cached = _proxy_cache
-        if cached and cached[0] == trusted and now < cached[1]:
+    if cached and cached[0] == trusted:
+        if time.monotonic() < cached[1]:
             return cached[2]
-        try:
-            found = frozenset(str(info[4][0]) for info in socket.getaddrinfo(trusted, None))
-        except OSError as exc:
-            found = frozenset()
-            _proxy_log.warning("trusted proxy %s: lookup failed (%s); nobody trusted", trusted, exc)
-        _proxy_cache = (trusted, now + _proxy_ttl(), found)
-        if _proxy_logged != (trusted, found):
-            _proxy_logged = (trusted, found)
-            _proxy_log.info("trusted proxy %s -> %s", trusted, ", ".join(sorted(found)) or "(none)")
-        return found
+        known = cached[2]
+    else:
+        known = frozenset()
+    if _in_event_loop():
+        _refresh_proxy_in_background(trusted)
+        return known
+    return _resolve_proxy(trusted)
 
 
 def client_ip(request: HTTPConnection) -> str:

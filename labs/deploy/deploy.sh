@@ -198,7 +198,15 @@ verify_container() {
   say "$mig"
   # best effort: the address the manager resolved for the proxy name
   "$docker" logs ${started:+--since "$started"} lf-manager 2>&1 | grep "trusted proxy" | tail -n1 \
-    | while read -r l; do say "$l"; done || true
+    | while read -r l; do
+        say "$l"
+        case "$l" in
+          *"(none)"*|*"lookup failed"*)
+            pname=${l#trusted proxy }; pname=${pname%%[ :]*}
+            say "WARNING: trusted proxy $pname did not resolve; logins are rate-limited per proxy, not per client"
+            ;;
+        esac
+      done || true
 }
 
 say "starting lf-manager:$tag"
