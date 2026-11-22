@@ -228,8 +228,9 @@ def render(events: list[dict]) -> dict:
             a = agents.setdefault(aid, {"id": aid, "role": e["role"], "issue": issue_no(e.get("issue")) or None, "station": e["station"],
                                         "state": "running", "started": e["at"], "last": e["at"], "substeps": []})
             a["last"], a["station"] = e["at"], e["station"]
-            sub = next((s for s in a["substeps"] if s["substep"] == e["substep"] and s["station"] == e["station"]), None)
             step_issue = issue_no(e.get("issue")) or a["issue"]
+            sub = next((s for s in a["substeps"] if s["substep"] == e["substep"] and s["station"] == e["station"]
+                        and s.get("issue") == step_issue), None)
             if sub:
                 sub.update(status=e["status"], at=e["at"], detail=e.get("detail", ""), issue=step_issue)
             else:
