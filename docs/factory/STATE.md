@@ -5,9 +5,9 @@
 ## Now
 
 **Pass lf-d9q2 (laptop, from 19:00 UTC 2026-11-22).** Took over #487 and #490 from pass lf-c4z8 (ended ~18:40 UTC, no live session).
-- **Dependabot:** #495 (checkout v7.0.1) merged as 0ee800d; main CI and Deploy running. Next #498 (setup-node v7.1.0), then #494 (setup-python v7.1.0); #497 (upload-artifact v7.0.2) and #496 (download-artifact v8.0.2) go together (dashboard publish uses both). All five SHAs checked against their upstream tags; release notes checked (node24, ESM, download v8 errors on hash mismatch).
-- **#487** (claim lf-d9q2): PR #499, CI green, reviewer running.
-- **#490** (claim lf-d9q2): exam 7f4345e pushed, implementer running in `C:\projects\lf-490`.
+- **Dependabot:** #495 (checkout v7.0.1) merged as 0ee800d, Deploy 45060978121 green, smoke ok. #498 (setup-node v7.1.0) merged as 06439fc; main CI and Deploy running. Next #494 (setup-python v7.1.0, rebase requested); #497 (upload-artifact v7.0.2) and #496 (download-artifact v8.0.2) go together (the dashboard publish job uses both). All five SHAs match their upstream tags; release notes checked (node24, ESM, download v8 errors on a hash mismatch).
+- **#487** (claim lf-d9q2): PR #499. Review round 1: changes requested (steps keyed by issue, only the current lane is working, one silence helper). Round-2 exam 7a999a8 pushed; implementer fixing in `C:\projects\lf-487`.
+- **#490** (claim lf-d9q2): PR #500 (exam 7f4345e, fix 27ae5d5). CI and review round 1 running.
 - #76 and #485 are closed.
 
 Older pass notes (lf-ef8a and before) are in `history.md` and git history (`git log -p docs/factory/STATE.md`).
