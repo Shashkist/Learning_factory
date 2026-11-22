@@ -13,13 +13,16 @@ import { expect, test, type Page } from "@playwright/test";
 // `docker exec lab-<session> cat /home/student/<file>`. It does not depend on how ttyd renders
 // (DOM, canvas or WebGL) nor on any ttyd global such as window.term, and the file can only hold the
 // token if the shell ran the command (the token is also in the typed text, so the echoed screen
-// proves nothing; the file does). The same proof runs again in a 390 px viewport after tapping the
+// proves nothing; the file does). The same command also makes the shell emit an OSC 0 title
+// sequence (OSC 0, ESC ] 0 ; token BEL via printf): ttyd 1.7.7's client (html/src/components/terminal/
+// xterm/index.ts, `terminal.onTitleChange(data => { document.title = data + ' | ' + this.title })`, lines
+// 170-172 at tag 1.7.7) writes it into the iframe's document.title, so the browser only sees the token
+// if frames came BACK through the relay (lab -> browser). ttyd's client sends keys as soon as its socket
+// is open, without waiting for a server frame, so the file alone cannot prove the downstream half.
+// The same proof runs again in a 390 px viewport after tapping the
 // Terminal tab. Everything happens in ONE test and one lab session: the pytest harness expects
 // exactly one passing test and one lf-session annotation.
-declare const process: {
-  env: Record<string, string | undefined>;
-  getBuiltinModule?: (id: string) => unknown;
-};
+declare const process: { env: Record<string, string | undefined> };
 
 type ExecFile = (
   file: string,
@@ -27,15 +30,14 @@ type ExecFile = (
   opts: { timeout: number },
   cb: (err: unknown, stdout: string) => void,
 ) => void;
-// No Node types in the app's tsconfig: a computed specifier / getBuiltinModule keeps tsc quiet.
-const execFile = (
-  (process.getBuiltinModule?.("node:" + "child_process") ?? {}) as { execFile?: ExecFile }
-).execFile;
+// No Node types in the app's tsconfig: a computed specifier keeps tsc quiet (same idiom as
+// issue-331-design-foundation.test.tsx).
+const node = async (name: string) => (await import(/* @vite-ignore */ "node:" + name)) as never;
+const { execFile } = (await node("child_process")) as { execFile: ExecFile };
 
 /** Contents of a file in the student's home inside the lab container; "" while it is not there. */
 const readInLab = (session: string, file: string): Promise<string> =>
   new Promise((resolve) => {
-    if (!execFile) throw new Error("Node 22 process.getBuiltinModule is needed to run docker exec");
     execFile(
       "docker",
       ["exec", `lab-${session}`, "cat", `/home/student/${file}`],
@@ -44,7 +46,28 @@ const readInLab = (session: string, file: string): Promise<string> =>
     );
   });
 
-/** Type `echo <token> > ~/<file>` into the lab terminal and wait (bounded) until the shell wrote it. */
+/** ttyd's own page title before the connect frame (SET_WINDOW_TITLE) replaces it. */
+const INITIAL_TITLE = "ttyd - Terminal";
+
+/** The terminal iframe's Frame (ttyd's page), found by URL; null while it has not loaded. */
+const termFrame = (page: Page, session: string) =>
+  page.frames().find((f) => f.url().includes(`/s/${session}/term/`)) ?? null;
+
+const frameTitle = async (page: Page, session: string): Promise<string> => {
+  const f = termFrame(page, session);
+  if (!f) return "";
+  try {
+    return await f.evaluate(() => document.title);
+  } catch {
+    return ""; // navigating
+  }
+};
+
+/**
+ * Type `echo <token> > ~/<file>; printf <OSC 0 title <token>-back>` into the lab terminal. Wait (bounded)
+ * until the shell wrote the file (keys went up the relay), then until the iframe's document.title carries
+ * `<token>-back` (the shell's output came back down the relay and xterm.js fired onTitleChange).
+ */
 async function typeAndProve(page: Page, session: string, label: string) {
   const token = `lf-ok-${Math.random().toString(36).slice(2, 10)}`;
   const file = `${token}.txt`;
@@ -54,7 +77,7 @@ async function typeAndProve(page: Page, session: string, label: string) {
   // write) a few times; each attempt waits 8 s. A broken relay fails after ~32 s, not at the 240 s test limit.
   for (let attempt = 0; attempt < 4 && seen !== token; attempt++) {
     await term.click();
-    await page.keyboard.type(`echo ${token} > ~/${file}`, { delay: 15 });
+    await page.keyboard.type(`echo ${token} > ~/${file}; printf '\\033]0;%s\\007' ${token}-back`, { delay: 15 });
     await page.keyboard.press("Enter");
     const deadline = Date.now() + 8_000;
     while (seen !== token && Date.now() < deadline) {
@@ -63,6 +86,12 @@ async function typeAndProve(page: Page, session: string, label: string) {
     }
   }
   expect(seen, `${label}: the typed command did not run in lab-${session} (WebSocket relay broken?)`).toBe(token);
+  await expect
+    .poll(() => frameTitle(page, session), {
+      timeout: 15_000,
+      message: `${label}: the shell ran the command but its output never reached the browser (downstream relay broken?)`,
+    })
+    .toContain(`${token}-back`);
 }
 
 const need = (name: string): string => {
@@ -119,18 +148,27 @@ test("smoke student: login, My labs, Start, terminal iframe, End lab", async ({ 
   await expect(tasksTab).toBeVisible(wait);
   await expect(tasksTab).toHaveAttribute("aria-selected", "true");
   await expect(phoneTerminal, "the terminal pane is hidden on the Tasks tab").toBeHidden();
-  // ttyd focuses its textarea once it has loaded; give it time to try, then check where focus is.
-  await page.waitForTimeout(3_000);
-  const focus = await page.evaluate(() => {
-    const a = document.activeElement;
-    return {
-      iframe: a instanceof HTMLIFrameElement,
-      inTasks: !!a?.closest("#lab-panel-tasks, [data-testid=task-panel]"),
-      desc: a ? `${a.tagName}#${a.id}` : "none",
-    };
-  });
-  expect(focus.iframe, `focus went into the terminal on load (${focus.desc})`).toBe(false);
-  expect(focus.inTasks, `focus is not in the Tasks pane after load (${focus.desc})`).toBe(true);
+  // ttyd focuses its textarea when it connects. The iframe loads while hidden (visibility only), so it
+  // should connect: wait (bounded) for its connect frame, which replaces the initial document title.
+  // If it never connects while hidden there is nothing to steal focus, so a timeout is not a failure.
+  await expect
+    .poll(async () => ![INITIAL_TITLE, ""].includes(await frameTitle(page, m![1])), { timeout: 15_000 })
+    .toBe(true)
+    .catch(() => undefined);
+  // The blur guard in LabScreen.tsx hands focus back with setTimeout(0): poll for the settled state.
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const a = document.activeElement;
+          return {
+            iframe: a instanceof HTMLIFrameElement,
+            inTasks: !!a?.closest("#lab-panel-tasks"),
+          };
+        }),
+      { timeout: 5_000, message: "focus must be in #lab-panel-tasks and not in the terminal iframe after load" },
+    )
+    .toEqual({ iframe: false, inTasks: true });
   await terminalTab.click();
   await expect(phoneTerminal).toBeVisible(wait);
   await expect(
