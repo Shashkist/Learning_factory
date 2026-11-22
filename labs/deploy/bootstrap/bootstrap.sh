@@ -55,6 +55,7 @@ CURRENT=""
 BASE_STATE=""
 DAEMON_BACKUP=""
 DAEMON_WRITTEN=0
+DOCKER_DIR_CREATED=0
 
 log() { printf '%s\n' "$*"; }
 err() { printf '%s\n' "$*" >&2; }
@@ -397,6 +398,7 @@ apply_runtime() {
       printf '+ write temp file in /etc/docker, dockerd --validate, mv to %s\n' "$DAEMON_JSON"
     else
       # A host that never had a daemon.json may not have /etc/docker at all.
+      if [ ! -d /etc/docker ]; then DOCKER_DIR_CREATED=1; fi
       mkdir -p -m 0755 /etc/docker
       DAEMON_TMP="$(mktemp /etc/docker/daemon.json.lf-new.XXXXXX)"
       # mktemp makes a 0600 file: give it the mode and owner of the file it replaces.
@@ -493,6 +495,8 @@ rollback_runtime() {
     if [ "$RELOAD_EXISTING" = 0 ]; then systemctl reload docker || true; fi
     wait_runsc_gone || true
   fi
+  # An /etc/docker this run created goes away only when empty (rmdir fails on anything else).
+  if [ "$DOCKER_DIR_CREATED" = 1 ]; then rmdir /etc/docker 2>/dev/null || true; fi
   if [ "$RUNSC_INSTALLED" = 1 ]; then rm -f "$RUNSC_DEST" || true; fi
   rm -f "$RUNSC_DEST.lf-new" || true
 }
