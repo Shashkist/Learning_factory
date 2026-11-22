@@ -276,6 +276,12 @@ function runnerText(r) {
 var LIVE_STALE_MS = 15 * 60 * 1000;
 
 // A sub-step shows the hourglass only while it is the agent's latest, still open, and the agent is not silent.
+function agentLive(a, generated) {
+  var gen = Date.parse(generated), last = Date.parse(a.last);
+  var silent = !isNaN(gen) && !isNaN(last) && gen - last >= LIVE_STALE_MS;
+  return a.state === "running" && !silent;
+}
+
 function liveSubstep(a, s, subs, generated) {
   var t = Date.parse(s.at);
   var later = subs.some(function (x) { return Date.parse(x.at) > t; });   // strictly later: same-second steps tie
@@ -378,10 +384,13 @@ function laneData(d) {
     if (Number(i.issue) > 0) lanes[i.issue] = { issue: Number(i.issue), title: S(i.title), station: S(i.station), steps: [], agents: [], crew: [] };
   });
   arr(d.agents).forEach(function (a) {
-    var l = lanes[a.issue];
-    if (!l) return;
-    l.agents.push(a);
-    arr(a.substeps).forEach(function (s) { l.steps.push({ s: s, a: a, open: stepOpen(a, s, arr(a.substeps), d.generated_at) }); });
+    arr(a.substeps).forEach(function (s) {
+      var l = lanes[Number(s.issue) > 0 ? s.issue : a.issue];   // a step belongs to the issue it was logged for
+      if (!l) return;
+      if (l.agents.indexOf(a) < 0) l.agents.push(a);
+      l.steps.push({ s: s, a: a, open: stepOpen(a, s, arr(a.substeps), d.generated_at) });
+    });
+    if (lanes[a.issue] && lanes[a.issue].agents.indexOf(a) < 0) lanes[a.issue].agents.push(a);
   });
   crewNodes(arr(d.crew).slice(0, 1)).forEach(function (n) {   // the current pass only: older passes' agents confuse the lane
     var i = issueOf(n.title);
@@ -397,7 +406,7 @@ function laneData(d) {
     l.first = l.steps.reduce(function (m, x) { return !m || S(x.s.started) < m ? S(x.s.started) : m; }, "");
     var busy = l.crew.filter(function (n) { return n.state === "busy" || n.state === "thinking"; });
     var openSteps = l.steps.filter(function (x) { return x.open; });
-    l.running = busy.length > 0 || l.agents.some(function (a) { return a.state === "running"; });
+    l.running = busy.length > 0 || l.agents.some(function (a) { return agentLive(a, d.generated_at); });
     var cur = LIVE_STATIONS.indexOf(l.station);
     busy.forEach(function (n) {   // an agent at work is the strongest evidence of where the task is
       var at = LIVE_STATIONS.indexOf(ROLE_STATION[S(n.type)] || "");
