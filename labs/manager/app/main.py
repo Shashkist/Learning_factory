@@ -164,7 +164,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     if not proxy_log.handlers and not logging.getLogger().handlers:
         proxy_log.addHandler(logging.StreamHandler())
     try:
-        auth.trusted_proxy_addresses()  # resolve once now: logs the address, never stops startup
+        # resolve once now, in a worker: logs the address, never stops startup
+        await asyncio.to_thread(auth.trusted_proxy_addresses)
     except Exception:  # noqa: BLE001
         log.warning("trusted proxy lookup failed at startup")
     app.state.pool = None
