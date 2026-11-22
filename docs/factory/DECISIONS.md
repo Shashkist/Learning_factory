@@ -1398,3 +1398,12 @@ in force · factory · 2026-11-23 · revertible
 **Dependabot (D138 note).** The gh token has no `workflow` scope; a squash merge of a Dependabot PR that changes `.github/workflows/*` is refused unless the PR was just rebased by Dependabot. Comment `@dependabot rebase`, wait for the new head, merge at once.
 **Alternatives.** A third review round (the fixes are small and checked by bundle order and screenshots); swapping the import order in `main.tsx` (wider cascade change).
 **Revert.** Revert the #507 squash commit; for the CSS only, drop the `.card.` / `.badge.` prefixes in `labs/web/src/styles/student.css`.
+
+## D140 · #510: a failed refresh-thread start keeps the in-flight flag only for an interrupt; #508: layout sizes become tokens
+in force · factory · 2026-11-23 · revertible
+
+**Decision (#510, amends D135).** (1) A failed `Thread.start()` (RuntimeError, threads exhausted) returns the known set and stores it with a short backoff expiry, so one exhausted window logs one WARNING, not one per request. (2) Each caller reads `LF_TRUSTED_PROXY` once: the shared name helper returns the stripped value and whether it is an IP literal. (3) **Accepted trade-off:** a `KeyboardInterrupt` raised inside `Thread.start()` before the worker exists leaves the in-flight flag set for the rest of the process, so the cache is never refreshed again. Uvicorn turns SIGINT into a shutdown, so an interrupt there means the process is ending anyway.
+**D135 corrections.** Revert now also drops the two `case` blocks in `verify_container` (`labs/deploy/deploy.sh`: the unresolved-name warning and the startup lookup-bug warning from #488), not one. Leftovers: a failed start no longer leaves the flag set (#488 fixed it; it returns the known set), and the warning flood after it is #510.
+**Decision (#508, amends D105).** Layout sizes used by more than one page (the form max width, the card minimum width, the progress bar height) are tokens in the token stylesheet, used by the login, My labs, teacher and lab screen stylesheets, instead of literals per page. One-off sizes inside a single component may stay literal.
+**Alternatives.** Warn only on the first failure of a process (hides a later window); allow all layout literals (D105 (2) left open; the review asked for one rule).
+**Revert.** #510: revert its squash commit (the warning per failed start comes back). #508: inline the token values back into the page stylesheets.
