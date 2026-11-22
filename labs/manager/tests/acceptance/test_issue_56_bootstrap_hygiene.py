@@ -493,7 +493,9 @@ exec sh -c "$cmd"
 """
 
 
-def _lock_run(tmp_path: Path, *, hold_lock: bool, orphans: bool) -> SimpleNamespace:
+def _lock_run(
+    tmp_path: Path, *, hold_lock: bool, orphans: bool, empty_newer: bool = False
+) -> SimpleNamespace:
     bindir = tmp_path / "bin"
     bindir.mkdir()
     for name, text in (("ssh", SSH_STUB), ("scp", h54.SCP_STUB)):
@@ -519,6 +521,10 @@ def _lock_run(tmp_path: Path, *, hold_lock: bool, orphans: bool) -> SimpleNamesp
             (d / "bootstrap.rc").write_text("0\n")
         for p in (*d.iterdir(), d):
             os.utime(p, (base + i * 1000, base + i * 1000))
+    if empty_newer:  # left by an earlier refused run: no bootstrap.log, no bootstrap.rc
+        empty = dest_root / "run-500-1"
+        empty.mkdir()
+        os.utime(empty, (base + 9000, base + 9000))
     calls = tmp_path / "calls.log"
     calls.write_text("")
     script = tmp_path / "step.sh"
@@ -583,6 +589,126 @@ def test_no_orphan_log_is_printed_when_the_lock_is_free(tmp_path):
     r = _lock_run(tmp_path, hold_lock=False, orphans=True)
     assert r.res.returncode == 0, r.out[-2000:]
     assert "ORPHAN-NEWEST-LOG-LINE" not in r.out, r.out[-2000:]
+
+
+# ---------------------------------------------------------------- round 2 (code review)
+
+
+@needs_linux
+def test_lock_refusal_after_an_earlier_refusal_prints_the_orphan_log_not_the_empty_directory(
+    tmp_path,
+):
+    r = _lock_run(tmp_path, hold_lock=True, orphans=True, empty_newer=True)
+    assert r.res.returncode != 0, r.out[-2000:]
+    assert "still running" in r.out, r.out[-2000:]
+    assert "scp " not in r.calls, "the script was copied although the lock was held"
+    assert "ORPHAN-NEWEST-LOG-LINE" in r.out, \
+        "the orphan's log was not printed (an empty newer run directory was chosen?)\n" \
+        + r.out[-2000:]
+    for other in ("ORPHAN-OLDER-LOG-LINE", "FINISHED-RUN-LOG-LINE",
+                  "FINISHED-NEWEST-RUN-LOG-LINE"):
+        assert other not in r.out, f"'{other}' is not the newest orphan's log"
+
+
+def _apt_calls(h: _Host) -> list[str]:
+    return [c for c in h.seq if c.startswith("apt-get")] + \
+        [ln for ln in h.out.splitlines() if "apt-get" in ln]
+
+
+@needs_linux
+def test_dry_run_without_jq_never_calls_apt_get_and_fails_saying_a_real_run_installs_jq(tmp_path):
+    h = _Host(tmp_path, daemon={"log-driver": "json-file"}, dry=True, jq=False)
+    assert not _apt_calls(h), "apt-get was called in a dry run\n" + h.tail()
+    assert h.res.returncode != 0, "a dry run without jq passed\n" + h.tail()
+    assert h.last_line == f"{RESULT} failed", h.tail()
+    assert re.search(r"real run.*jq", h.out, re.I | re.S), \
+        "no line says that a real run installs jq\n" + h.tail()
+    _assert_no_change(h)
+
+
+@needs_linux
+def test_iptables_flag_guard_runs_before_jq_is_installed_in_a_real_run(tmp_path):
+    h = _Host(tmp_path, daemon=None, cmdline=["dockerd", "--iptables=false"], dry=False, jq=False)
+    assert h.res.returncode != 0, h.tail()
+    assert h.last_line == f"{RESULT} failed", h.tail()
+    assert "iptables" in h.out and "DOCKER-USER" in h.out, h.tail()
+    assert not _apt_calls(h), "apt-get ran before the iptables flag check\n" + h.tail()
+    _assert_no_change(h)
+
+
+@needs_linux
+def test_iptables_flag_guard_message_is_printed_in_a_dry_run_without_jq(tmp_path):
+    h = _Host(tmp_path, daemon=None, cmdline=["dockerd", "--iptables=false"], dry=True, jq=False)
+    assert h.res.returncode != 0, h.tail()
+    assert "iptables" in h.out and "DOCKER-USER" in h.out, h.tail()
+    assert not _apt_calls(h), h.tail()
+
+
+@needs_linux
+@pytest.mark.parametrize("value", ["0", "f", "F", "False", "FALSE"])
+def test_run_fails_for_iptables_false_spelled_the_way_dockerd_accepts(tmp_path, value):
+    h = _Host(tmp_path, daemon=None, cmdline=["dockerd", f"--iptables={value}"], dry=True)
+    assert h.res.returncode != 0, f"--iptables={value} was not taken for false\n" + h.tail()
+    assert h.last_line == f"{RESULT} failed", h.tail()
+    assert "iptables" in h.out and "DOCKER-USER" in h.out, h.tail()
+
+
+@needs_linux
+@pytest.mark.parametrize("value", ["1", "true", "True"])
+def test_iptables_enabled_spellings_do_not_fail_the_run(tmp_path, value):
+    h = _Host(tmp_path, daemon=None, cmdline=["dockerd", f"--iptables={value}"], dry=True)
+    assert h.res.returncode == 0, h.tail()
+    assert h.last_line == f"{RESULT} dry run", h.tail()
+
+
+@needs_linux
+@pytest.mark.parametrize("daemon", [None, {"log-driver": "json-file"}])
+def test_iptables_false_in_the_config_file_given_by_dockerd_flag_fails_the_run(tmp_path, daemon):
+    other = tmp_path / "other.json"
+    other.write_text(json.dumps({"iptables": False}) + "\n")
+    h = _Host(tmp_path, daemon=daemon, cmdline=["dockerd", "--config-file", str(other)], dry=True)
+    assert h.res.returncode != 0, "the live --config-file was not read\n" + h.tail()
+    assert h.last_line == f"{RESULT} failed", h.tail()
+    assert "iptables" in h.out and "DOCKER-USER" in h.out, h.tail()
+
+
+@needs_linux
+def test_dockerd_host_flag_spellings_all_hide_tcp_addresses_and_show_unix(tmp_path):
+    cmd = ["dockerd", "-Htcp://10.9.8.7:2375", "--host", "tcp://10.9.8.6:2375",
+           "-H=tcp://10.9.8.5:2375", "-Hunix:///var/run/docker.sock"]
+    h = _Host(tmp_path, daemon=None, cmdline=cmd)
+    assert h.res.returncode == 0, h.tail()
+    for ip in ("10.9.8.7", "10.9.8.6", "10.9.8.5"):
+        assert ip not in h.out, f"a tcp host address ({ip}) is in the log\n" + h.tail()
+    assert "unix:///var/run/docker.sock" in h.section("live dockerd command line"), h.tail()
+
+
+@needs_linux
+def test_separate_flag_value_starting_with_a_dash_stays_redacted(tmp_path):
+    h = _Host(tmp_path, daemon=None, cmdline=["dockerd", "--label", "-examsecretlabel"])
+    assert "examsecretlabel" not in h.out, h.tail()
+
+
+VALIDATE_ERRORS = [
+    "unable to configure the Docker daemon with file /etc/docker/daemon.json: the following "
+    "directives are specified both as a flag and in the configuration file: labels: "
+    "(from flag: [env=prod,token=EXAMTOKEN1], from file: [team='EXAMTOKEN2'])",
+    "IP address is not correctly formatted: 10.99.88.77",
+    "insecure registry 10.5.5.5:5000/EXAMPATH is not valid",
+]
+
+
+@needs_linux
+@pytest.mark.parametrize("msg", VALIDATE_ERRORS)
+def test_realistic_validate_failures_leak_nothing_and_fail_the_run(tmp_path, msg):
+    h = _Host(tmp_path, daemon={"log-driver": "json-file"}, dry=False, validate_error=msg)
+    assert any(c.startswith("dockerd") and "--validate" in c for c in h.seq), \
+        "exam precondition: the candidate was validated\n" + h.tail()
+    for leaked in ("EXAMTOKEN1", "EXAMTOKEN2", "10.99.88.77", "10.5.5.5", "EXAMPATH"):
+        assert leaked not in h.out, f"'{leaked}' (a validate error value) is logged\n" + h.tail()
+    assert h.res.returncode != 0, h.tail()
+    assert h.last_line == f"{RESULT} failed", h.tail()
+    assert h.after == h.seed, "daemon.json changed although --validate failed\n" + h.tail()
 
 
 # ---------------------------------------------------------------- 8: D29 records the layout
