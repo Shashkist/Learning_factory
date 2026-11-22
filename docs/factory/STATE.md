@@ -4,11 +4,11 @@
 
 ## Now
 
-**Pass lf-c4z8 (laptop, from 14:55 UTC 2026-11-22).**
-- **#76**: PR #492 was merged as ad89c9e by pass lf-m5t9. Main CI 45034776048 and then the Deploy must go green; the smoke must reach `ok terminal` and `ok end`. Then close #76 (leftovers in #490).
-- **#485** (claim lf-c4z8): PR #493, branch `f/485-dependabot-actions`, worktree `C:\projects\lf-485`. CI, then review.
-- **#490** (claim lf-c4z8): exam being written, branch `f/490-term-proxy-redirects`, worktree `C:\projects\lf-490`.
-- **#487** (claim lf-c4z8): exam being written, branch `f/487-live-view-leftovers`, worktree `C:\projects\lf-487`.
+**Pass lf-d9q2 (laptop, from 19:00 UTC 2026-11-22).** Took over #487 and #490 from pass lf-c4z8 (ended ~18:40 UTC, no live session).
+- **Dependabot:** #495 (checkout v7.0.1) merged as 0ee800d; main CI and Deploy running. Next #498 (setup-node v7.1.0), then #494 (setup-python v7.1.0); #497 (upload-artifact v7.0.2) and #496 (download-artifact v8.0.2) go together (dashboard publish uses both). All five SHAs checked against their upstream tags; release notes checked (node24, ESM, download v8 errors on hash mismatch).
+- **#487** (claim lf-d9q2): PR #499, CI green, reviewer running.
+- **#490** (claim lf-d9q2): exam 7f4345e pushed, implementer running in `C:\projects\lf-490`.
+- #76 and #485 are closed.
 
 Older pass notes (lf-ef8a and before) are in `history.md` and git history (`git log -p docs/factory/STATE.md`).
 
