@@ -1348,3 +1348,12 @@ in force · factory · 2026-11-22
 **Why.** A dry run runs on every push to the bootstrap paths, on the production server that also hosts the owner's other services; "dry run" has to mean no change at all. The production host already has jq (its dry run on 13b5c25 printed no jq-missing line), so nothing stops there today.
 **Alternatives.** Install jq in a dry run too (a small package install, but a dry run that changes the host). Keep the jq-less fallbacks (the review of #50 found they mis-detect runtimes).
 **Revert.** In `ensure_jq`, drop the dry-run branch so `apt_get install -y jq` runs in both modes, and flip the #56 exam's dry-run-without-jq case.
+
+## D134 · #466: the Solution tab's refetch decides from a ref that mirrors the rendered state
+in force · factory · 2026-11-22
+
+**Decision.** `refetchSolution` in `labs/web/src/LabScreen.tsx` reads the current entry from a ref (`solutionsNow`) that mirrors the last rendered `solutions` state, and acts only when that entry is `null` (a known lock). A loaded or in-flight entry is left alone, so a Check pressed while the first `/solution` POST is pending no longer causes a second POST. This deviates from #466's criterion 2 ("decide inside the `setSolutions` updater"), which would put the `asked` side effect inside a state updater.
+**Assumption.** A 403 lock that answers after a Check pressed while it was pending is asked again only after the next Check (main asked again at once). The server returns that 403 only when attempts are 0 (`tasks.py`), and the client asks only when `solution_available` says an attempt was counted, so this needs the two to disagree. The same holds for the updater design.
+**Why.** The review of #476 confirmed one POST in en, he and under `<StrictMode>`; the residual gap (a 403 and a Check answering in the same event-loop turn before a render) is far below a page reload.
+**Alternatives.** Clear `asked` inside the updater when `prev[id] === null` (a side effect in an updater, idempotent under StrictMode); track in-flight ids in their own ref.
+**Revert.** Restore `if (solutions[task.id]) return;` and drop the `solutionsNow` ref; the #466 exam goes red again.
