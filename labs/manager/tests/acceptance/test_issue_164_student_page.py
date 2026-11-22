@@ -632,7 +632,7 @@ def test_dismissing_a_task_flag_stores_a_timestamp_and_clears_the_class_table_bo
     assert stored is not None and abs(stored - dt.datetime.now(dt.UTC)) < dt.timedelta(minutes=5)
     assert _dismissed_at(env, s, "stu-a", T2) is None
     cell = class_cell(admin, s, "stu-a")
-    assert cell == {"status": "2/3", "flag": False}
+    assert cell == {"status": "2/3", "flag": False, "solution_viewed": False}
 
 
 def test_dismissing_a_lab_flag_clears_the_bolt_and_keeps_the_lab_done(env, admin):
@@ -641,7 +641,9 @@ def test_dismissing_a_lab_flag_clears_the_bolt_and_keeps_the_lab_done(env, admin
     key = env.key(s)
     (flag,) = lab_of(admin.get(page_url(key)).json(), "stu-b")["flags"]
     assert admin.post(f"{page_url(key)}/flags/{flag['id']}/dismiss").status_code == 200
-    assert class_cell(admin, s, "stu-b") == {"status": "done", "flag": False}
+    assert class_cell(admin, s, "stu-b") == {
+        "status": "done", "flag": False, "solution_viewed": False
+    }
 
 
 def test_one_dismissal_leaves_the_students_other_flags_alone(env, admin):
