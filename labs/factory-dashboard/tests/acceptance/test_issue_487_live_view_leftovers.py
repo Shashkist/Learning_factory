@@ -50,9 +50,13 @@ def lane_head_text(root, issue: int) -> str:
 # ---- 1. stale wait -----------------------------------------------------------------------------------
 
 def test_stale_wait_lane_line_does_not_say_now_ci(tmp_path):
-    root = m.run_page(tmp_path, render(stale_wait()))
-    if m.lanes(root, 86):
-        assert "now: ci" not in m.lane_now_text(root, 86)
+    # another agent keeps #86's lane open, so there is a lane line to check (the shipped lane has none)
+    live = render([*stale_wait(), step("implementer-86", 86, "build", "tests", "start", ago(1), role="implementer", title="Task 86")])
+    root = m.run_page(tmp_path, live)
+    assert m.lanes(root, 86), "lane #86 should be open while the implementer works on it"
+    t = m.lane_now_text(root, 86)
+    assert t.startswith("now: ") and "tests" in t, t
+    assert "now: ci" not in t and "ci" not in t.replace("close", ""), t
 
 
 def test_stale_wait_check_detail_shows_no_running(tmp_path):
@@ -169,3 +173,82 @@ def test_ship_steps_of_a_manager_that_started_on_another_issue_show_in_their_own
     if m.lanes(root, 3):
         assert "deploy" not in m.lane_now_text(root, 3)
         assert HOURGLASS not in text(m.lanes(root, 3)[0])
+
+
+def test_left_lane_of_two_issues_is_not_running(tmp_path):
+    root = m.run_page(tmp_path, render([*_two_issues(), other()]))
+    assert m.lanes(root, 3), "lane #3 should still be listed"
+    assert m.lanes(root, 3)[0]["a"].get("data-running") == "0", m.lanes(root, 3)[0]["a"]
+    assert "working" not in lane_head_text(root, 3)
+    assert m.lanes(root, 86)[0]["a"].get("data-running") == "1"
+
+
+# ---- 2/4. the same step names on several issues; a lane the manager has left ----------------------------
+
+def _repeated_names():
+    return [
+        start_pass(120),
+        step("manager", 3, "check", "ci wait", "wait", ago(30), title="Task 3"),
+        step("manager", 3, "ship", "merge", "start", ago(29), title="Task 3"),
+        step("manager", 85, "check", "ci wait", "wait", ago(15), title="Task 85"),
+        step("manager", 85, "ship", "merge", "done", ago(14), title="Task 85"),
+        step("manager", 85, "ship", "close #85", "done", ago(13), title="Task 85"),
+        step("implementer-85", 85, "build", "tests", "start", ago(1), role="implementer", title="Task 85"),
+        step("manager", 86, "check", "ci wait", "wait", ago(2), title="Task 86"),
+    ]
+
+
+def _ship_items(root, issue: int) -> dict[str, str]:
+    det = [n for n in walk(m.lanes(root, issue)[0]) if n["a"].get("data-lane-detail") == "ship"]
+    assert det, f"no ship detail in lane #{issue}"
+    return {text(li): li["a"].get("data-status") for li in walk(det[0]) if li["t"] == "li"}
+
+
+def test_same_step_names_on_several_issues_stay_in_their_own_lane(tmp_path):
+    clicks = [{"lane": 3, "st": "ship"}, {"lane": 85, "st": "ship"}]
+    root = m.run_page(tmp_path, render(_repeated_names()), clicks=clicks)
+    for n in (3, 85, 86):
+        assert m.lanes(root, n), f"lane #{n} missing"
+    in3, in85 = _ship_items(root, 3), _ship_items(root, 85)
+    merge3 = [st for t, st in in3.items() if "merge" in t]
+    merge85 = [st for t, st in in85.items() if "merge" in t]
+    assert merge3 == ["start"], f"lane #3 should keep its own merge (started): {in3}"
+    assert merge85 == ["done"], f"lane #85 should have its own merge (done), not #3's: {in85}"
+    assert any("close #85" in t for t in in85), in85
+    assert not any("close" in t for t in in3), in3
+    assert "merge" in m.lane_now_text(root, 3), m.lane_now_text(root, 3)
+
+
+def test_lane_keeps_its_own_ci_wait_when_other_issues_log_the_same_step(tmp_path):
+    root = m.run_page(tmp_path, render(_repeated_names()), clicks=[{"lane": 3, "st": "check"}])
+    det = [n for n in walk(m.lanes(root, 3)[0]) if n["a"].get("data-lane-detail") == "check"]
+    assert det, "no check detail in lane #3"
+    lis = [li for li in walk(det[0]) if li["t"] == "li" and "ci wait" in text(li)]
+    assert len(lis) == 1 and lis[0]["a"].get("data-status") == "wait", [text(x) for x in lis]
+
+
+def test_lane_elapsed_time_uses_its_own_issues_start(tmp_path):
+    root = m.run_page(tmp_path, render(_repeated_names()))
+    t = m.lane_now_text(root, 86)
+    assert t.startswith("now: ") and "ci wait" in t, t
+    assert "2 min" in t or "120 s" in t, f"lane #86 should show about 2 min since its own start: {t!r}"
+    assert "30 min" not in t and "15 min" not in t, t
+
+
+def _left_lanes():
+    return [
+        start_pass(120),
+        step("manager", 3, "orient", "orient", "done", ago(56), title="Task 3"),
+        step("manager", 85, "plan", "pick #85", "done", ago(55), title="Task 85"),
+        step("manager", 85, "plan", "decide D140", "done", ago(55), title="Task 85"),
+        step("manager", 86, "plan", "pick #86", "done", ago(1), title="Task 86"),
+        step("manager", 86, "build", "dispatch implementer", "start", ago(1), title="Task 86"),
+    ]
+
+
+def test_only_the_lane_the_manager_is_on_is_working(tmp_path):
+    root = m.run_page(tmp_path, render(_left_lanes()))
+    running = {n: m.lanes(root, n)[0]["a"].get("data-running") for n in (3, 85, 86)}
+    assert running == {3: "0", 85: "0", 86: "1"}, running
+    assert "working" not in lane_head_text(root, 3) and "working" not in lane_head_text(root, 85)
+    assert "working" in lane_head_text(root, 86)
