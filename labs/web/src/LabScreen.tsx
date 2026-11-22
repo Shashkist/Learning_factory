@@ -170,6 +170,8 @@ export default function LabScreen({
   const [solutions, setSolutions] = useState<Record<string, Bi | null>>({}); // per task id, fetched once; null: locked
   // task ids already requested; cleared for a locked one after a Check, so it is asked again
   const asked = useRef(new Set<string>());
+  const solutionsNow = useRef(solutions); // mirrors the latest state, for decisions outside a render
+  solutionsNow.current = solutions;
   const inFlight = useRef(false);
   const alive = useRef(true);
   const frame = useRef<HTMLDivElement>(null);
@@ -463,7 +465,7 @@ export default function LabScreen({
   // A lock answered earlier no longer holds after a graded attempt: ask again on the next open.
   // A solution that has loaded stays: it is never fetched twice.
   const refetchSolution = () => {
-    if (solutions[task.id]) return;
+    if (solutionsNow.current[task.id] !== null) return; // loaded, or still in flight: leave it
     asked.current.delete(task.id);
     setSolutions((prev) =>
       prev[task.id] === null
