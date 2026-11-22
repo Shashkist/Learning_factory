@@ -1277,3 +1277,11 @@ The non-blocking items go to #423: a group that spans lines is not joined, plus 
 **Decision (assumption, revertible).** The #423 exam encodes these measurements. Where they differ from the issue text, the measurement wins: the issue asked for a warning on the `!` line under sh only, and the exam adds the quiet bash case.
 **Why.** The validator warns when a real shell holds the exec's output (D56). An earlier pass lost two PRs encoding an unmeasured claim (#414).
 **Revert.** Flip the bash `!` and `>(...)` cases in the #423 exam and the matching branches in `content.py`.
+
+## D127 · #430: the lab screen reads only the API's checklist shape, and the task pane has an error boundary
+
+**Decision.** This supersedes D124's "accepts both shapes" (the rest of D124 stands). The lab screen reads hands-on `checklist` items only as `{en, he}` and numbers them by position. Every UI fake now sends that shape, and fake Check rows carry `{n, text, passed, hint}` as `POST /check` answers. An error boundary around the task pane's content, keyed on the task and the language, shows one alert in the pane when it fails to render. The terminal iframe, the status line and the move buttons stay outside it, so a bad task never costs the student the terminal session again.
+**Why.** D124's alternative (b) became cheap once the fakes were moving anyway. A second accepted shape would let a fake drift from the API again.
+**Alternatives.** Keep both shapes (D124). Or put the boundary around the whole app: rejected, because that would drop the terminal on any fault, which was the #427 symptom.
+**Leftovers.** #436 (recovery on Restart and view changes, the older Check fakes without `text`) and #431 (one real Check in the browser exam).
+**Revert.** Revert the #430 merge. D124's two-shape `items()` then comes back.
