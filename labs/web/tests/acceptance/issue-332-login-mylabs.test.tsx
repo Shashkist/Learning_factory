@@ -23,9 +23,10 @@
  *   The text "<n>/<m>" stays visible on in-progress cards (existing exam #129), and the card still
  *   shows `${tasks} ${labs.tasks}`.
  *
- *   Main action (AC3): exactly ONE button in the article. Its accessible name contains BOTH the
- *   lab title (current language) and the visible action word (labs.start / labs.continue /
- *   labs.redo), e.g. aria-label="Start: Shell basics" or visually hidden text. Clicking it still
+ *   Main action (AC3): exactly ONE button in the article. Per D109 its accessible name is
+ *   EXACTLY the visible action word (labs.start / labs.continue / labs.redo), unchanged, and it has
+ *   aria-describedby pointing at the card heading (an element with an id holding the lab title in
+ *   the current language), so its accessible description includes the lab title. Clicking it still
  *   does what #129 pins (POST /api/sessions with {lab_id}).
  *
  *   Status badge (AC4): three NEW i18n keys, in both en.json and he.json, non-empty, pairwise
@@ -175,20 +176,29 @@ describe.each(LANGS)("My labs cards in %s", (lang) => {
     expect(card.textContent).toContain(`3 ${d["labs.tasks"]}`);
   });
 
-  test("AC3: the one main action's accessible name includes the lab title and the action word", async () => {
+  test("AC3: the one main action is named by the action word and described by the lab title (D109)", async () => {
     backend({ me: STUDENT });
     at("/labs", lang);
     await screen.findByRole("heading", { name: LABS[0].title[lang] });
     for (const lab of LABS) {
-      const card = within(articleOf(lab, lang));
+      const article = articleOf(lab, lang);
+      const card = within(article);
       const buttons = card.getAllByRole("button");
       expect(buttons, `${lab.id}: one button`).toHaveLength(1);
-      const byTitle = card.getByRole("button", { name: (n) => n.includes(lab.title[lang]) });
-      expect(byTitle).toBe(buttons[0]);
       const word = d[EXPECT[lab.id as keyof typeof EXPECT].action];
-      expect(card.getByRole("button", { name: (n) => n.includes(word) && n.includes(lab.title[lang]) })).toBe(
+      expect(card.getByRole("button", { name: word }), `${lab.id}: name is exactly the action word`).toBe(
         buttons[0],
       );
+      expect((buttons[0].getAttribute("aria-label") ?? word).trim(), `${lab.id}: name unchanged`).toBe(word);
+      const ids = (buttons[0].getAttribute("aria-describedby") ?? "").split(/\s+/).filter(Boolean);
+      expect(ids.length, `${lab.id}: button has aria-describedby`).toBeGreaterThan(0);
+      const heading = card.getByRole("heading", { name: lab.title[lang] });
+      expect(ids, `${lab.id}: aria-describedby points at the card heading`).toContain(heading.id);
+      expect(heading.id, `${lab.id}: heading has an id`).not.toBe("");
+      const description = ids
+        .map((id) => document.getElementById(id)?.textContent ?? "")
+        .join(" ");
+      expect(description, `${lab.id}: description includes the lab title`).toContain(lab.title[lang]);
     }
   });
 
