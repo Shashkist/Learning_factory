@@ -185,10 +185,16 @@ runsc_loaded_overlay() {
 
 dockerd_pid() { pgrep -xo dockerd 2>/dev/null || true; }
 
-# jq is needed for every daemon.json and docker info check below. Installed first, also in a dry
-# run (a plain package install: the daemon.json checks and the diff need it).
+# jq is needed for every daemon.json and docker info check below. A real run installs it first.
+# A dry run changes nothing on the host (D133): without jq it shows the planned install and stops.
 ensure_jq() {
   command -v jq >/dev/null 2>&1 && return 0
+  if dry; then
+    log "+ planned: install the jq package with apt"
+    err "jq is not on this host and a dry run installs nothing, so the daemon.json and runtime checks cannot run. A real run installs jq first."
+    log "BOOTSTRAP RESULT: failed"
+    exit 1
+  fi
   log "jq missing: installing it with apt"
   apt_get install -y jq
 }
@@ -347,7 +353,7 @@ RUNSC_INSTALLED=0
 RELOAD_EXISTING=0
 DAEMON_TMP=""
 
-# Executed even in a dry run: used only for the jq install (ensure_jq).
+# Used only for the jq install (ensure_jq), which never runs in a dry run.
 apt_get() {
   printf '+ env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l NEEDRESTART_SUSPEND=1 apt-get -o DPkg::Lock::Timeout=120 %s\n' "$*"
   env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l NEEDRESTART_SUSPEND=1 apt-get -o DPkg::Lock::Timeout=120 "$@" 9>&-
