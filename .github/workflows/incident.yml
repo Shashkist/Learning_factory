@@ -30,7 +30,7 @@ jobs:
       RUN_EVENT: ${{ github.event.workflow_run.event }}
     steps:
       # A broken gate must never hide an incident: checkout and the gate fail open (raise).
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         continue-on-error: true
         with:
           persist-credentials: false
