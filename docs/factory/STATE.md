@@ -4,9 +4,22 @@
 
 ## Now
 
-**Pass lf-r3n8 (laptop, 04:57-~06:45 UTC 2026-11-22) stopped at 3 merged PRs:** #457 (#454), #460 (#458), #463 (#448).
+**Pass lf-v6k1 (laptop, 06:55-~08:45 UTC 2026-11-22) stopped at 3 merged PRs:** #464 (#142), #473 (#93), #474 (#56). Nothing is in flight; no claims are held.
 
-**Resume here, first:**
+**Resume here, first:** the Next list. **#475** (p2) first: the #93 review leftovers (a malformed proxy name gives 500s today).
+
+**Closed with evidence:** #142 (Deploy 44997642716 deployed 13b5c25, smoke `ok end`; Server bootstrap dry run 44996097833). #93 (scratch #472; review approved; Deploy 45003588025 printed `trusted proxy nginx-proxy3 -> 172.18.0.14`, smoke `ok end`). #56 (scratch #470; review rounds 1-2; live bootstrap dry run 45001996629 printed the redacted command line and `BOOTSTRAP RESULT: dry run`).
+**Decisions:** D132 (trusted proxy by container name, 30 s TTL, fail closed), D133 (a bootstrap dry run never installs jq), D131 amended (disjoint components may merge back to back; the Deploy after the second merge is the evidence for both).
+**New issues:** #475 (trusted proxy review leftovers: UnicodeError, lookup off the request path, deploy warning, TTL clamp, exam gaps; p2).
+**OWNER.md:** O13 removed by #93 (D132).
+**Worktrees:** `lf-142b`, `lf-93`, `lf-56`, `lf-56c` removed.
+
+**Lesson (pass lf-v6k1): an exam case that passes on main proves nothing.** The first #56 diff cases passed on main because `diff -u` shows only 3 lines of context, so the fixture's neighbour keys never reached the log. A neighbour key sorted right after `runtimes` made them bite. Read the exam-only CI run for cases that are green on main, not only for the red ones.
+**Lesson (pass lf-v6k1): run exam and fix in parallel after a review.** For round 2 of #56 the exam writer (new branch, exam commits first) and the implementer (old branch, code only) worked at the same time; the manager then cherry-picked the code onto the exam branch. That saved one agent round.
+
+_Previous:_ **Pass lf-r3n8 (laptop, 04:57-~06:45 UTC 2026-11-22) stopped at 3 merged PRs:** #457 (#454), #460 (#458), #463 (#448).
+
+**Its resume list was finished by pass lf-v6k1 (kept for the record):**
 1. **#142 / PR #464** (branch `f/142-bootstrap-exam-scenarios-b`, worktree `C:\projects\lf-142b`; claim released). Review round 1 approved; every PR CI job green on b13ff05. Merge it under D131: since its base, main has only gained #460 (new exam files), #463 (`LabScreen.tsx`) and docs, none of them on its paths. If main has gained anything on `labs/deploy/**` or the bootstrap exams, cherry-pick `706ea76`, `5452586` (exam) and `b13ff05` (fix) onto a new branch and a new PR instead.
    - After the merge: main CI green, the Deploy reaches `ok end` (the bootstrap script is not run by the Deploy; the docker job is its proof). Close #142 with: scratch #465 (on main without the fix only the two D130 (1) cases failed: manager-exam 1, docker 1 with 388 passed), #459 (the harness lock leak it found), the review on #464, and the main CI run.
    - Leftovers are in #468 (six older exam items plus four low findings).
@@ -387,10 +400,10 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
 ## Next (in order)
 
-1. **#464** merge (see Now). Then **#332** after O23.
-2. **#423** (validator misses moved out of #414: pipes in substitutions, escaped delimiters, `!` jobs, groups spanning lines; p3). Time real shells first.
-3. **#466**, **#467**, **#468** (p3 follow-ups from this pass), **#93**.
-4. **#436**, **#431**, **#434** (lab screen and origin-check follow-ups, p3). **#85** deploy follow-ups, **#93**; p2 list: #81, #76, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
+1. **#475** (p2, #93 leftovers: a malformed name gives 500s today). Then **#76** (terminal proxy hardening, p2; it also touches `deploy.sh`, so not in parallel with #475's deploy part). Then **#332** after O23.
+2. **#468** (bootstrap exam nits, p3; now on top of #56's exam), **#423** (validator misses, p3; time real shells first; an old worktree `C:\projects\lf-423` exists, check it before starting).
+3. **#466**, **#467** (p3 follow-ups).
+4. **#436**, **#431** (lab screen follow-ups, p3). **#85** deploy follow-ups; p2 list: #81, #84, #68, #64, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
 
@@ -406,6 +419,7 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
 ## Recently done
 
+- 2026-11-22 pass lf-v6k1: #142 (#464; Deploy 44997642716 deployed 13b5c25, smoke ok), #93 (#473; main CI 45001011370), #56 (#474; main CI 45001996726, live bootstrap dry run 45001996629). Deploy 45003588025 deployed de2c945 (both), smoke ok, `trusted proxy nginx-proxy3 -> 172.18.0.14`.
 - 2026-11-22 pass lf-r3n8: #454 (#457; Deploy 44988639923, smoke ok), #458 (#460; main CI 44991575817), #448 (#463; Deploy 44993798145 deployed a2ccfae, smoke ok).
 - 2026-11-22 pass lf-q7x4: #452 (#453; Deploy 44980307879, smoke ok), #319 (#450; Deploy 44981926735), #444 (#456; main CI 44983612487, Deploy 44985231868 deployed 30b964a, smoke ok).
 - 2026-11-21 pass lf-t5w2: #391 (#401; main CI 44932880926), #408 (#412; main CI 44934730508, Deploy 44936571157 deployed ff12d82 past a docs-only commit), #337 (#418 after #411/#415, D121; Deploy 44939668791, smoke ok).
