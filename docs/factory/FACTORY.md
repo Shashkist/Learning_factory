@@ -17,7 +17,7 @@ The factory turns the spec into a running lab platform at `labs.shashkist.com` w
 
 ## The loop (one manager run)
 
-1. **Load memory.** Read `STATE.md`, `gh issue list --state open`, the open PRs and the latest CI and deploy runs. Release stale claims (`scripts/issue_lock.py stale`).
+1. **Load memory.** Read `STATE.md`, `gh issue list --state open`, the open PRs and the latest CI and deploy runs. Release stale claims (`scripts/issue_lock.py stale`). An open Dependabot PR is handled before picking an issue (see "Dependabot PRs" below).
 2. **Fix the line first.** A red `main`, a failed deploy or a failed smoke test goes to the top: open or reopen an issue `type:incident` and work it now.
 3. **Plan.** If fewer than 5 issues are `status:ready`, slice more from the spec or the next phase (the planner hat) and label them.
 4. **Pick** the highest-priority `status:ready` issue whose dependencies (`Depends on #n`) are closed. **Claim** it (`issue_lock.py claim`), label it `status:in-progress`, and write the step to `STATE.md`.
@@ -76,7 +76,13 @@ A full CI run (on a PR or on a push to main) costs about **29 billable minutes**
 - **NEVER** deploy anything that makes a lab container reach the host, other containers, or the open internet (spec §6).
 - **Cost guard:** a run stops starting new issues after ~90 minutes of work or 3 merged PRs, whichever comes first.
 
-**Dependabot PRs (#485).** `.github/dependabot.yml` opens one grouped PR a week that moves the SHA-pinned actions and their `# vX.Y.Z` comments. The factory treats it like any PR, without an issue or an exam: CI green (the pin check in `scripts/test_ci_workflows.py` runs on it), then a quick review of the release notes of each bumped action (look for changed inputs, a new major, or a moved tag), then a squash-merge. A red pin check usually means the upstream tag is not `vX.Y.Z`: pin that action by hand in a normal `f/` branch and close the Dependabot PR. A merged bump counts toward the 3-PR cost guard.
+## Dependabot PRs (#485, D138)
+
+`.github/dependabot.yml` keeps the SHA-pinned actions current: one grouped PR a week for minor and patch bumps, one PR per major bump, and only releases at least 7 days old. Dependabot moves each pin and its `# vX.Y.Z` comment together. The factory handles an open Dependabot PR before picking an issue, without an issue, a claim or an exam:
+- **CI green** (the pin check in `scripts/test_ci_workflows.py` runs on it).
+- **Quick review:** for each bumped action, the new SHA is the commit behind the named tag in the upstream repository, and the release notes show no changed inputs or defaults that our workflows use. A major bump also gets a look at every job that uses the action.
+- **Squash-merge** when both hold. A merged bump counts toward the 3-PR cost guard. `.github/workflows/` is heavy (`scripts/ci_paths.py`), so the merge runs the full CI and a Deploy that replaces `lf-manager`: merge outside lesson hours.
+- **A bump that cannot pass** (red pin check because the upstream tag is not `vX.Y.Z`, or a breaking major): pin that action by hand on a normal `f/` branch if needed, then comment `@dependabot ignore this major version` (or `@dependabot ignore this dependency`) on the PR so the next weekly run does not propose it again, and record it in `DECISIONS.md` under D138.
 
 ## Decisions without the owner
 

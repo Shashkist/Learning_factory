@@ -1,15 +1,22 @@
-# Keeps the SHA-pinned actions current (#485). Dependabot moves each `@<sha> # vX.Y.Z`
+# Keeps the SHA-pinned actions current (#485, D138). Dependabot moves each `@<sha> # vX.Y.Z`
 # pin and its comment together, so the pin check in scripts/test_ci_workflows.py keeps
-# passing. One grouped PR a week; the factory treats it like any PR (FACTORY.md).
+# passing. Minor and patch bumps come as one grouped PR a week; a major bump comes as its
+# own PR, so one breaking major cannot hold back the others. A release must be 7 days old
+# before it is proposed. The factory handles these PRs as in FACTORY.md.
 version: 2
 updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     groups:
-      github-actions:
+      actions-minor-patch:
         patterns:
           - "*"
+        update-types:
+          - "minor"
+          - "patch"
     commit-message:
       prefix: "chore(ci)"
