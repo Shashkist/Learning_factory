@@ -148,12 +148,14 @@ def test_a_request_does_not_answer_500_while_threads_cannot_start(monkeypatch):
         return {"ip": auth.client_ip(request)}
 
     real_start = threading.Thread.start
-    monkeypatch.setattr(threading.Thread, "start", _cannot_start)
-    try:
-        with TestClient(app, raise_server_exceptions=False) as client:
+    # Enter the client first: its own portal thread must start. Only the requests run with
+    # thread starts refused, so the only thread that fails is the proxy refresh worker.
+    with TestClient(app, raise_server_exceptions=False) as client:
+        monkeypatch.setattr(threading.Thread, "start", _cannot_start)
+        try:
             responses = [client.get("/who") for _ in range(3)]
-    finally:
-        monkeypatch.setattr(threading.Thread, "start", real_start)
+        finally:
+            monkeypatch.setattr(threading.Thread, "start", real_start)
     assert [r.status_code for r in responses] == [200, 200, 200]
 
 
