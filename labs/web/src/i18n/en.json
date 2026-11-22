@@ -171,5 +171,7 @@
   "labs.status.done": "Done",
   "labs.progress.label": "Lab progress",
   "labs.lesson": "Lesson",
-  "labs.live.banner": "You have a lab in progress. Continue it below."
+  "labs.live.banner": "Open now:",
+  "labs.live.badge": "Open now",
+  "labs.progress.value": "{n} of {m} tasks passed"
 }

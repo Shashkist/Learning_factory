@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { useI18n, type Lang } from "./i18n";
+import "./styles/student.css";
 
 type Bi = { en: string; he: string };
 export type Lab = {
@@ -100,7 +101,13 @@ export default function MyLabs({ open, signedOut }: { open: (labId: string) => v
       <h1>{t("labs.title")}</h1>
       {error && <p role="alert">{t(error)}</p>}
       {labs.length === 0 && !error && <p>{t("labs.empty")}</p>}
-      {labs.some((l) => l.session_id !== null) && <p className="alert lab-live-banner">{t("labs.live.banner")}</p>}
+      {labs
+        .filter((l) => l.session_id !== null)
+        .map((l) => (
+          <p key={l.id} className="alert lab-live-banner">
+            {t("labs.live.banner")} <a href={`#lab-title-${l.id}`}><bdi>{text(l.title)}</bdi></a>
+          </p>
+        ))}
       {groupByModule(labs).map(([n, group]) => (
           <section key={n} data-testid={`module-${n}`}>
             <h2>
@@ -121,9 +128,12 @@ export default function MyLabs({ open, signedOut }: { open: (labId: string) => v
                 >
                   <div className="lab-card__head">
                     <h3 id={titleId}>{text(l.title)}</h3>
-                    <span className={done ? "badge success" : notStarted ? "badge" : "badge warning"}>
-                      {done && <span aria-hidden="true">✓ </span>}
-                      {t(`labs.status.${status}`)}
+                    <span className="lab-card__badges">
+                      {l.session_id !== null && <span className="badge success">{t("labs.live.badge")}</span>}
+                      <span className={done ? "badge success" : notStarted ? "badge" : "badge warning"}>
+                        {done && <span aria-hidden="true">✓ </span>}
+                        {t(`labs.status.${status}`)}
+                      </span>
                     </span>
                   </div>
                   <p className="lab-card__meta">
@@ -132,16 +142,16 @@ export default function MyLabs({ open, signedOut }: { open: (labId: string) => v
                   <p className="lab-card__desc">{text(l.description)}</p>
                   <div className="lab-card__progress">
                     <div
-                      className="progress-bar"
+                      className="lab-card__bar"
                       role="progressbar"
                       aria-label={t("labs.progress.label")}
                       aria-valuemin={0}
                       aria-valuemax={l.tasks}
                       aria-valuenow={passed}
-                      aria-valuetext={`${passed}/${l.tasks}`}
+                      aria-valuetext={t("labs.progress.value").replace("{n}", String(passed)).replace("{m}", String(l.tasks))}
                     >
                       <div
-                        className="progress-bar__fill"
+                        className="lab-card__bar-fill"
                         style={{ inlineSize: `${l.tasks > 0 ? Math.round((passed / l.tasks) * 100) : 0}%` }}
                       />
                     </div>

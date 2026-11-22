@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 
 import { useI18n } from "./i18n";
+import "./styles/student.css";
 
 export type User = { kind: string; name: string };
 
