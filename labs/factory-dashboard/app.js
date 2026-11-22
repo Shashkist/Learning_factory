@@ -286,7 +286,7 @@ function liveSubstep(a, s, subs, generated) {
 
 // The one rule for "is this sub-step current": a live start, or a wait.
 function stepOpen(a, s, subs, generated) {
-  return s.status === "wait" || (s.status === "start" && liveSubstep(a, s, subs, generated));
+  return (s.status === "wait" || s.status === "start") && liveSubstep(a, s, subs, generated);   // a stale wait is not open either
 }
 
 function agentCard(a, titles, workers, generated) {
