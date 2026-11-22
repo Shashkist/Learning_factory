@@ -152,22 +152,23 @@ def _public_origin_problem(value: str) -> str | None:
     return None
 
 
+def _enable_info_log(logger: logging.Logger) -> None:
+    logger.setLevel(logging.INFO)
+    if not logger.handlers and not logging.getLogger().handlers:
+        logger.addHandler(logging.StreamHandler())
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Only the manager's own logger: never turn on INFO for every library.
-    log.setLevel(logging.INFO)
+    _enable_info_log(log)
     google_auth.install_log_filter()
-    if not log.handlers and not logging.getLogger().handlers:
-        log.addHandler(logging.StreamHandler())
-    proxy_log = logging.getLogger("app.auth")
-    proxy_log.setLevel(logging.INFO)
-    if not proxy_log.handlers and not logging.getLogger().handlers:
-        proxy_log.addHandler(logging.StreamHandler())
+    _enable_info_log(logging.getLogger("app.auth"))
     try:
         # resolve once now, in a worker: logs the address, never stops startup
-        await asyncio.to_thread(auth.trusted_proxy_addresses)
+        await asyncio.to_thread(auth.warm_trusted_proxy)
     except Exception:  # noqa: BLE001
-        log.warning("trusted proxy lookup failed at startup")
+        log.warning("trusted proxy: startup lookup raised unexpectedly")
     app.state.pool = None
     app.state.db_state = "not_configured"
     app.state.runtime = DockerRuntime()

@@ -260,11 +260,12 @@ def _proxy_ttl() -> float:
     return min(max(ttl, _PROXY_TTL_MIN), _PROXY_TTL_MAX)
 
 
-def _resolve_proxy(trusted: str) -> frozenset[str]:
-    """One blocking lookup, cached for the TTL; any failure means nobody is trusted."""
+def _resolve_proxy(trusted: str, generation: int) -> frozenset[str]:
+    """One blocking lookup, cached for the TTL; any failure means nobody is trusted.
+
+    `generation` is the one captured when the lookup was scheduled: after a reset the answer is
+    dropped."""
     global _proxy_cache, _proxy_logged
-    with _proxy_lock:
-        generation = _proxy_generation
     try:
         found = frozenset(str(info[4][0]) for info in socket.getaddrinfo(trusted, None))
     except (OSError, ValueError) as exc:  # UnicodeError is a ValueError
@@ -280,24 +281,58 @@ def _resolve_proxy(trusted: str) -> frozenset[str]:
     return found
 
 
-def _refresh_proxy_in_background(trusted: str) -> None:
+def _claim_lookup() -> int | None:
+    """Mark a lookup as in flight; the generation to resolve for, or None if one already is."""
     global _proxy_refreshing
     with _proxy_lock:
         if _proxy_refreshing:
-            return
+            return None
         _proxy_refreshing = True
-        generation = _proxy_generation
+        return _proxy_generation
+
+
+def _release_lookup(generation: int) -> None:
+    global _proxy_refreshing
+    with _proxy_lock:
+        if generation == _proxy_generation:
+            _proxy_refreshing = False
+
+
+def _refresh_proxy_in_background(trusted: str) -> None:
+    generation = _claim_lookup()
+    if generation is None:
+        return
 
     def run() -> None:
-        global _proxy_refreshing
         try:
-            _resolve_proxy(trusted)
+            _resolve_proxy(trusted, generation)
         finally:
-            with _proxy_lock:
-                if generation == _proxy_generation:
-                    _proxy_refreshing = False
+            _release_lookup(generation)
 
-    threading.Thread(target=run, name="lf-proxy-lookup", daemon=True).start()
+    try:
+        threading.Thread(target=run, name="lf-proxy-lookup", daemon=True).start()
+    except BaseException:
+        _release_lookup(generation)  # no worker will ever clear the flag
+        raise
+
+
+def warm_trusted_proxy() -> None:
+    """Blocking startup lookup, counted as in flight so a request meanwhile starts no second one."""
+    trusted = (os.environ.get("LF_TRUSTED_PROXY") or "").strip()
+    generation = _claim_lookup()
+    if generation is None or not trusted:
+        if generation is not None:
+            _release_lookup(generation)
+        return
+    try:
+        ipaddress.ip_address(trusted)
+    except ValueError:
+        try:
+            _resolve_proxy(trusted, generation)
+        finally:
+            _release_lookup(generation)
+    else:
+        _release_lookup(generation)
 
 
 def _in_event_loop() -> bool:
@@ -332,7 +367,9 @@ def trusted_proxy_addresses() -> frozenset[str]:
     if _in_event_loop():
         _refresh_proxy_in_background(trusted)
         return known
-    return _resolve_proxy(trusted)
+    with _proxy_lock:
+        generation = _proxy_generation
+    return _resolve_proxy(trusted, generation)
 
 
 def client_ip(request: HTTPConnection) -> str:
