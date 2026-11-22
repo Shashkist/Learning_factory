@@ -6,13 +6,13 @@ const TASKS = [
     id: "t1",
     title: bi("List the files", "הצגת הקבצים"),
     text: bi("Run `ls` in the terminal.", "הריצו `ls` בטרמינל."),
-    checklist: [{ n: 1, text: bi("You ran ls", "הרצתם ls") }],
+    checklist: [bi("You ran ls", "הרצתם ls")],
   },
   {
     id: "t2",
     title: bi("Make a folder", "יצירת תיקייה"),
     text: bi("Run `mkdir demo`.", "הריצו `mkdir demo`."),
-    checklist: [{ n: 1, text: bi("demo exists", "demo קיימת") }],
+    checklist: [bi("demo exists", "demo קיימת")],
   },
 ];
 const LAB = {
@@ -79,7 +79,7 @@ export async function fakeBackend(page: Page) {
         return json(route, task(index));
       case key === `POST /api/sessions/${SESSION_ID}/tasks/${TASKS[index]?.id}/check`:
         passedIds.add(TASKS[index].id);
-        return json(route, { passed: true, checklist: [{ n: 1, passed: true, hint: null }] });
+        return json(route, { passed: true, checklist: [{ n: 1, text: TASKS[index].checklist[0], passed: true, hint: null }] });
       case key === `POST /api/sessions/${SESSION_ID}/tasks/current/next`:
         if (index + 1 >= TASKS.length) return json(route, { detail: "no_next_task" }, 409);
         return json(route, task(++index));
