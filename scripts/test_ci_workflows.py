@@ -51,22 +51,33 @@ def test_dashboard_schedule_and_dispatch_unchanged():
 
 _USES = re.compile(r"^\s*(?:-\s+)?uses:\s*(\S+)(.*)$", re.MULTILINE)
 _PINNED = re.compile(r"^[\w.-]+/[\w./-]+@[0-9a-f]{40}$")
+_DIGEST = re.compile(r"^docker://\S+@sha256:[0-9a-f]{64}$")
+_TAG_COMMENT = re.compile(r"\s+#\s*v\d+\.\d+\.\d+\b")
 
 
 def _unpinned(text: str) -> list[str]:
-    """Third-party `uses:` refs that are not a full commit SHA with a tag comment (#482)."""
+    """Third-party `uses:` refs that are not a full commit SHA with a `# vX.Y.Z` comment (#482).
+
+    Local `./` workflows are allowed; `docker://` images only by `@sha256:` digest. Only
+    block-style `uses:` keys are parsed (the form these workflows use), not quoted keys or flow maps.
+    """
     bad = []
     for ref, rest in _USES.findall(text):
         ref = ref.strip("'\"")
-        if ref.startswith(("./", "docker://")):
+        if ref.startswith("./") or _DIGEST.match(ref):
             continue
-        if not _PINNED.match(ref) or not re.match(r"\s+#\s*v\d", rest):
+        if not _PINNED.match(ref) or not _TAG_COMMENT.match(rest):
             bad.append(ref)
     return bad
 
 
+def _workflow_files() -> list[Path]:
+    actions = WF.parent / "actions"
+    return sorted([*WF.glob("*.y*ml"), *actions.glob("**/action.y*ml")])
+
+
 def test_third_party_actions_are_pinned_by_sha():
-    files = sorted(WF.glob("*.yml"))
+    files = _workflow_files()
     assert files
     bad = {f.name: refs for f in files if (refs := _unpinned(f.read_text(encoding="utf-8")))}
     assert not bad, f"pin these by full commit SHA with a '# vX.Y.Z' comment: {bad}"
@@ -78,6 +89,14 @@ def test_pin_check_rejects_tags_branches_and_short_shas():
     assert _unpinned("      - uses: actions/checkout@main\n") == ["actions/checkout@main"]
     assert _unpinned("      - uses: actions/checkout@11d5960\n") == ["actions/checkout@11d5960"]
     assert _unpinned(f"      - uses: actions/checkout@{sha}\n") == [f"actions/checkout@{sha}"]  # no tag comment
+    assert _unpinned(f"      - uses: actions/checkout@{sha} # v4\n") == [f"actions/checkout@{sha}"]  # not vX.Y.Z
+    assert _unpinned("      - uses: 'actions/checkout@v4'\n") == ["actions/checkout@v4"]
+    assert _unpinned('      - uses: "actions/checkout@v4"\n') == ["actions/checkout@v4"]
+    assert _unpinned("    uses: org/repo/.github/workflows/x.yml@v1\n") == ["org/repo/.github/workflows/x.yml@v1"]
+    assert _unpinned("      - uses: docker://alpine:3.20\n") == ["docker://alpine:3.20"]
     assert _unpinned(f"      - uses: actions/checkout@{sha} # v4.4.0\n") == []
+    assert _unpinned(f"      - uses: 'actions/checkout@{sha}' # v4.4.0\n") == []
     assert _unpinned(f"        uses: astral-sh/setup-uv@{sha}  # v5.4.2\n") == []
+    assert _unpinned(f"    uses: org/repo/.github/workflows/x.yml@{sha} # v1.0.0\n") == []
+    assert _unpinned("      - uses: docker://alpine@sha256:" + "a" * 64 + "\n") == []
     assert _unpinned("    uses: ./.github/workflows/smoke.yml\n") == []
