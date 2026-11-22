@@ -1,13 +1,41 @@
 """Unit tests for the smoke tasks client (#128): stale prompts and the quiz allow-list."""
 import asyncio
+import importlib.util
 import sys
 from pathlib import Path
 
 import pytest
 
 ROOT = next(p for p in Path(__file__).resolve().parents if (p / "labs").is_dir())
-sys.path.insert(0, str(ROOT / "labs" / "deploy" / "smoke"))
-import tasks  # noqa: E402
+def _load_smoke_tasks(name):
+    """Load labs/deploy/smoke/tasks.py by path under a unique name, without touching sys.path.
+
+    The module imports its siblings `lab_api` and `terminal` by bare name, so they are loaded by
+    path too and held in sys.modules only while it executes; nothing is left behind.
+    """
+    smoke_dir = ROOT / "labs" / "deploy" / "smoke"
+
+    def load(mod_name, file_name):
+        spec = importlib.util.spec_from_file_location(mod_name, smoke_dir / file_name)
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules[mod_name] = mod
+        spec.loader.exec_module(mod)
+        return mod
+
+    saved = {n: sys.modules.get(n) for n in ("lab_api", "terminal", name)}
+    try:
+        load("lab_api", "lab_api.py")
+        load("terminal", "terminal.py")
+        return load(name, "tasks.py")
+    finally:
+        for n, old in saved.items():
+            if old is None:
+                sys.modules.pop(n, None)
+            else:
+                sys.modules[n] = old
+
+
+tasks = _load_smoke_tasks("lf_deploy_smoke_tasks_128")
 
 
 class FakeWs:

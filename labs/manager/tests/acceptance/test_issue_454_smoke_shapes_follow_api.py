@@ -6,6 +6,7 @@ check and answer responses with only the DB/container helpers (`_gradable`, `_ru
 `_count_attempt`) replaced by fakes. The smoke module is `labs/deploy/smoke/tasks.py`.
 """
 import asyncio
+import importlib.util
 import sys
 import uuid
 from pathlib import Path
@@ -14,8 +15,35 @@ from types import SimpleNamespace
 import pytest
 
 ROOT = next(p for p in Path(__file__).resolve().parents if (p / "labs").is_dir())
-sys.path.insert(0, str(ROOT / "labs" / "deploy" / "smoke"))
-import tasks as smoke  # noqa: E402
+def _load_smoke_tasks(name):
+    """Load labs/deploy/smoke/tasks.py by path under a unique name, without touching sys.path.
+
+    The module imports its siblings `lab_api` and `terminal` by bare name, so they are loaded by
+    path too and held in sys.modules only while it executes; nothing is left behind.
+    """
+    smoke_dir = ROOT / "labs" / "deploy" / "smoke"
+
+    def load(mod_name, file_name):
+        spec = importlib.util.spec_from_file_location(mod_name, smoke_dir / file_name)
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules[mod_name] = mod
+        spec.loader.exec_module(mod)
+        return mod
+
+    saved = {n: sys.modules.get(n) for n in ("lab_api", "terminal", name)}
+    try:
+        load("lab_api", "lab_api.py")
+        load("terminal", "terminal.py")
+        return load(name, "tasks.py")
+    finally:
+        for n, old in saved.items():
+            if old is None:
+                sys.modules.pop(n, None)
+            else:
+                sys.modules[n] = old
+
+
+smoke = _load_smoke_tasks("lf_deploy_smoke_tasks_454")
 
 from app import tasks as api  # noqa: E402
 from app.content import load_labs  # noqa: E402
@@ -48,9 +76,13 @@ def _row(**kw):
 QUIZ_ROWS = [None, _row(), _row(attempts=1), _row(attempts=3, passed_at="t")]
 
 
+def _assert_quiz_subset(detail):
+    assert set(detail) <= smoke.QUIZ_KEYS
+
+
 @pytest.mark.parametrize("row", QUIZ_ROWS)
 def test_the_real_quiz_detail_keys_are_within_the_smoke_quiz_keys(lab, quiz, row):
-    assert set(api._detail(lab, quiz, row)) <= smoke.QUIZ_KEYS
+    _assert_quiz_subset(api._detail(lab, quiz, row))
 
 
 @pytest.mark.parametrize("row", QUIZ_ROWS)
@@ -105,14 +137,15 @@ def test_the_real_answer_response_keys_are_within_the_smoke_answer_keys(lab, qui
     smoke._contract("answer", res, smoke.ANSWER_KEYS)
 
 
-def test_a_key_added_to_the_detail_makes_the_subset_check_fail(lab, quiz, monkeypatch):
-    """Mutation guard: the subset check is not vacuous."""
+@pytest.mark.parametrize("row", QUIZ_ROWS)
+def test_a_key_added_to_the_detail_makes_the_subset_check_fail(lab, quiz, row, monkeypatch):
+    """Mutation guard: the same subset check the real cases run goes red on a patched `_detail`."""
     real = api._detail
     monkeypatch.setattr(api, "_detail", lambda *a: {**real(*a), "extra_field": 1})
-    detail = api._detail(lab, quiz, None)
-    assert not set(detail) <= smoke.QUIZ_KEYS
+    with pytest.raises(AssertionError):
+        _assert_quiz_subset(api._detail(lab, quiz, row))
     with pytest.raises(smoke.StepFail):
-        smoke._quiz_shape(detail)
+        smoke._quiz_shape(api._detail(lab, quiz, row))
 
 
 def test_a_key_added_to_the_check_response_fails_the_contract(lab, hands_on):
