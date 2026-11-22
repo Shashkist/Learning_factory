@@ -1330,6 +1330,7 @@ in force · factory · 2026-11-22
 **Why.** Force-push is blocked here, so a rebase means a new branch and a new PR, plus about 20 more minutes of CI, for a combination that cannot conflict. Docs-only gaps were already merged this way (#457).
 **Alternatives.** Always open a fresh PR on the new `main` (slow, PR churn). Merge any PR behind main (unsafe when shared code moved).
 **Revert.** Delete this entry; D44's rule applies again in full.
+**Amended 2026-11-22 (pass lf-v6k1, #93 and #56).** The exception also covers a PR whose missing commits change existing files, when (a) no path overlaps, (b) the two changes are in different components (here the manager and `deploy.sh` against the bootstrap script and its workflow), and (c) neither PR's acceptance exams read a file the other PR changes (checked with grep before the merge). Merge the two back to back; the `main` CI run and the Deploy after the second merge are the combined check, and that Deploy is the evidence for both. Revert: delete this paragraph.
 
 ## D132 · #93: the manager trusts the proxy by container name, re-resolved every 30 s; a failed lookup trusts nobody
 in force · factory · 2026-11-22
