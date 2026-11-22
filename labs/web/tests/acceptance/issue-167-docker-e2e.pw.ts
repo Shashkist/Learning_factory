@@ -64,8 +64,40 @@ const frameTitle = async (page: Page, session: string): Promise<string> => {
 };
 
 /**
+ * Record every title ttyd's page is given. The lab shell's prompt sets its own title (`student@host: ~`)
+ * right after each command, so the title the command set lives only for a moment; a poll on
+ * document.title can miss it. Setting document.title replaces the <title>'s text node, and each
+ * mutation record keeps the node it added, so no value is lost. Idempotent per page load.
+ */
+const recordTitles = async (page: Page, session: string): Promise<void> => {
+  const f = termFrame(page, session);
+  if (!f) return;
+  await f.evaluate(() => {
+    const w = window as unknown as { lfTitles?: string[] };
+    if (w.lfTitles) return;
+    const seen: string[] = [document.title];
+    w.lfTitles = seen;
+    const el = document.querySelector("title") ?? document.head.appendChild(document.createElement("title"));
+    new MutationObserver((records) => {
+      for (const r of records) for (const n of Array.from(r.addedNodes)) seen.push(n.textContent ?? "");
+      seen.push(document.title);
+    }).observe(el, { childList: true, characterData: true, subtree: true });
+  });
+};
+
+const titlesSeen = async (page: Page, session: string): Promise<string> => {
+  const f = termFrame(page, session);
+  if (!f) return "";
+  try {
+    return await f.evaluate(() => ((window as unknown as { lfTitles?: string[] }).lfTitles ?? []).join(" | "));
+  } catch {
+    return ""; // navigating
+  }
+};
+
+/**
  * Type `echo <token> > ~/<file>; printf <OSC 0 title <token>-back>` into the lab terminal. Wait (bounded)
- * until the shell wrote the file (keys went up the relay), then until the iframe's document.title carries
+ * until the shell wrote the file (keys went up the relay), then until ttyd's page was given the title
  * `<token>-back` (the shell's output came back down the relay and xterm.js fired onTitleChange).
  */
 async function typeAndProve(page: Page, session: string, label: string) {
@@ -77,6 +109,7 @@ async function typeAndProve(page: Page, session: string, label: string) {
   // write) a few times; each attempt waits 8 s. A broken relay fails after ~32 s, not at the 240 s test limit.
   for (let attempt = 0; attempt < 4 && seen !== token; attempt++) {
     await term.click();
+    await recordTitles(page, session);
     await page.keyboard.type(`echo ${token} > ~/${file}; printf '\\033]0;%s\\007' ${token}-back`, { delay: 15 });
     await page.keyboard.press("Enter");
     const deadline = Date.now() + 8_000;
@@ -87,7 +120,7 @@ async function typeAndProve(page: Page, session: string, label: string) {
   }
   expect(seen, `${label}: the typed command did not run in lab-${session} (WebSocket relay broken?)`).toBe(token);
   await expect
-    .poll(() => frameTitle(page, session), {
+    .poll(() => titlesSeen(page, session), {
       timeout: 15_000,
       message: `${label}: the shell ran the command but its output never reached the browser (downstream relay broken?)`,
     })
