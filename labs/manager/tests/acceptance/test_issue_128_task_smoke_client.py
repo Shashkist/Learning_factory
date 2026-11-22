@@ -154,13 +154,17 @@ def _build_app(fake: Fake):
                 "title": {"en": "Create the file", "he": "ליצור"}, "state": "shown",
                 "text": {"en": "touch ~/smoke-ok", "he": "touch ~/smoke-ok"},
                 "checklist": [{"en": "The file exists", "he": "הקובץ קיים"}],
+                "solution_available": False,
             })
         body = {
             "id": QUIZ, "index": 1, "total": 2, "kind": "quiz", "title": {"en": "Q", "he": "ש"},
             "state": "shown", "question": {"en": "Which?", "he": "איזה?"},
             "options": [{"en": "zero", "he": "0"}, {"en": "one", "he": "1"},
                         {"en": "two", "he": "2"}],
+            "solution_available": False,  # every task detail carries it since #154 (D128, #452)
         }
+        if fake.mode == "quiz_solution_available":
+            body["solution_available"] = True
         if fake.mode == "leak_in_show":
             body["correct"] = CORRECT
         if fake.mode == "leak_answer_key_in_show":
@@ -479,6 +483,11 @@ def test_a_quiz_detail_that_carries_the_correct_index_is_a_failure(fake_server):
 
 def test_a_quiz_detail_with_an_answer_key_is_a_failure(fake_server):
     fails_at(fake_server, "leak_answer_key_in_show", "quiz-show")
+
+
+def test_a_quiz_detail_that_says_a_solution_is_available_is_a_failure(fake_server):
+    """#452: a quiz never has a solution (D128), so `solution_available` must be false on it."""
+    fails_at(fake_server, "quiz_solution_available", "quiz-show")
 
 
 def test_an_answer_response_that_carries_the_correct_option_is_a_failure(fake_server):

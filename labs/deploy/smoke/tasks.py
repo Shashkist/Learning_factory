@@ -38,7 +38,9 @@ CHECK_KEYS = {"passed", "attempts", "reason", "checklist"}
 ANSWER_KEYS = {"correct", "attempts"}
 
 
-QUIZ_KEYS = {"id", "index", "total", "kind", "title", "state", "question", "options"}
+QUIZ_KEYS = {
+    "id", "index", "total", "kind", "title", "state", "question", "options", "solution_available",
+}
 LANG_KEYS = {"en", "he"}
 
 
@@ -171,6 +173,8 @@ def _quiz_shape(quiz: dict[str, Any]) -> None:
             raise StepFail("quiz-show", "a quiz text carries something besides en/he strings")
     if bad:
         raise StepFail("quiz-show", f"unexpected keys in the quiz: {', '.join(sorted(bad))}")
+    if quiz.get("solution_available", False) is not False:  # a quiz never has a solution (D128)
+        raise StepFail("quiz-show", "the quiz says a solution is available")
 
 
 def _contract(step: str, res: dict[str, Any], allowed: set[str]) -> None:
