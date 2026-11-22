@@ -79,9 +79,12 @@ const recordTitles = async (page: Page, session: string): Promise<void> => {
     w.lfTitles = seen;
     const el = document.querySelector("title") ?? document.head.appendChild(document.createElement("title"));
     new MutationObserver((records) => {
-      for (const r of records) for (const n of Array.from(r.addedNodes)) seen.push(n.textContent ?? "");
+      for (const r of records) {
+        if (r.type === "characterData" && r.oldValue !== null) seen.push(r.oldValue);
+        for (const n of Array.from(r.addedNodes)) seen.push(n.textContent ?? "");
+      }
       seen.push(document.title);
-    }).observe(el, { childList: true, characterData: true, subtree: true });
+    }).observe(el, { childList: true, characterData: true, characterDataOldValue: true, subtree: true });
   });
 };
 
@@ -110,6 +113,8 @@ async function typeAndProve(page: Page, session: string, label: string) {
   for (let attempt = 0; attempt < 4 && seen !== token; attempt++) {
     await term.click();
     await recordTitles(page, session);
+    // A partial earlier line (keys lost before the socket opened) may have left an open quote: clear it.
+    await page.keyboard.press("Control+C");
     await page.keyboard.type(`echo ${token} > ~/${file}; printf '\\033]0;%s\\007' ${token}-back`, { delay: 15 });
     await page.keyboard.press("Enter");
     const deadline = Date.now() + 8_000;
