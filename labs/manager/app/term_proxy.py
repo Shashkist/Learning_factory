@@ -10,6 +10,7 @@ import os
 import socket
 import uuid
 from collections.abc import AsyncIterator
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 import httpx
@@ -39,7 +40,14 @@ WS_NOT_FORWARDED = NOT_FORWARDED | {
     "sec-websocket-protocol", "sec-websocket-accept", "origin", "content-length",
 }
 RESPONSE_DROP = HOP_BY_HOP | {"set-cookie"}
-MAX_WS_MESSAGE = 8 * 1024 * 1024
+MAX_WS_MESSAGE = 1024 * 1024
+MAX_WS_QUEUE = 16
+MAX_TERMINALS_PER_SESSION = 4
+RESOLVE_TIMEOUT = 5.0
+# Name lookups get their own small pool: a hung lookup must never hold a thread of the default
+# executor (argon2 login checks run there).
+_dns_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="lf-dns")
+_open_terminals: dict[uuid.UUID, int] = {}
 UNSENDABLE_CLOSE = {1005, 1006, 1015}
 
 router = APIRouter()
@@ -84,7 +92,12 @@ async def resolve(address: str) -> str:
     """`host:port` with the host replaced by its IP. The name goes through the event loop's
     resolver as a str (anyio would hand the system resolver an IDNA-encoded bytes host)."""
     host, _, port = address.rpartition(":")
-    infos = await asyncio.get_running_loop().getaddrinfo(host, int(port), type=socket.SOCK_STREAM)
+    infos = await asyncio.wait_for(
+        asyncio.get_running_loop().run_in_executor(
+            _dns_pool, lambda: socket.getaddrinfo(host, int(port), type=socket.SOCK_STREAM)
+        ),
+        RESOLVE_TIMEOUT,
+    )
     ip = str(infos[0][4][0])
     return f"[{ip}]:{port}" if ":" in ip else f"{ip}:{port}"
 
@@ -117,7 +130,7 @@ async def http_proxy(session: str, request: Request) -> StreamingResponse:
             ),
             stream=True,
         )
-    except httpx.TimeoutException:
+    except (httpx.TimeoutException, TimeoutError):
         await client.aclose()
         raise HTTPException(504, "terminal_timeout") from None
     except (httpx.HTTPError, OSError, IndexError, ValueError):
@@ -170,23 +183,48 @@ async def ws_proxy(session: str, websocket: WebSocket) -> None:
         detail = exc.detail["code"] if isinstance(exc.detail, dict) else str(exc.detail)
         await _refuse(websocket, exc.status_code, detail)
         return
+    if _open_terminals.get(sid, 0) >= MAX_TERMINALS_PER_SESSION:
+        await _refuse(websocket, 429, "too_many_terminals")
+        return
+    _open_terminals[sid] = _open_terminals.get(sid, 0) + 1
+    try:
+        await _bridge(websocket, sid)
+    finally:
+        if _open_terminals[sid] <= 1:
+            del _open_terminals[sid]
+        else:
+            _open_terminals[sid] -= 1
+
+
+async def _bridge(websocket: WebSocket, sid: uuid.UUID) -> None:
     address, target = _target(websocket, sid)
     wanted = list(websocket.scope.get("subprotocols") or [])
     try:
+        ip_host, _, ip_port = (await resolve(address)).rpartition(":")
         upstream = await connect(
             f"ws://{address}{target}",
+            host=ip_host.strip("[]"),
+            port=int(ip_port),
             subprotocols=[s for s in wanted if s] or None,
             additional_headers=forward_headers(websocket, WS_NOT_FORWARDED),
             max_size=MAX_WS_MESSAGE,
+            max_queue=MAX_WS_QUEUE,
             compression=None,
             proxy=None,
             open_timeout=5,
         )
     except Exception as exc:
         log.warning("terminal upstream unreachable: %s", type(exc).__name__)
-        await _refuse(websocket, 502, "terminal_unreachable")
+        if isinstance(exc, TimeoutError):
+            await _refuse(websocket, 504, "terminal_timeout")
+        else:
+            await _refuse(websocket, 502, "terminal_unreachable")
         return
-    await websocket.accept(subprotocol=upstream.subprotocol)
+    try:
+        await websocket.accept(subprotocol=upstream.subprotocol)
+    except BaseException:
+        await upstream.close()
+        raise
 
     counts = {"up": 0, "down": 0}
 
