@@ -201,7 +201,7 @@ verify_container() {
   plines=$("$docker" logs ${started:+--since "$started"} lf-manager 2>&1 | grep "trusted proxy") || plines=""
   case "$plines" in
     *"trusted proxy: startup lookup raised unexpectedly"*)
-      say "WARNING: the manager's startup trusted proxy lookup raised unexpectedly; see its logs"
+      say "WARNING: trusted proxy: the manager's startup lookup raised unexpectedly; see its logs"
       ;;
   esac
   printf '%s\n' "$plines" | grep . | tail -n1 \
