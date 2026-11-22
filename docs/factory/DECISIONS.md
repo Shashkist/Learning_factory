@@ -1322,3 +1322,11 @@ in force · factory · 2026-11-22
 **Why.** (1) A rollback should leave the host as it found it, and the first apply on the production server takes exactly this path. `rmdir` on a non-empty directory fails safely. (2) The preflight changes nothing, and the "before" report exists to compare against an "after"; printing it for a run that never starts adds noise to the deploy log.
 **Alternatives.** (1) Keep the empty `/etc/docker` (harmless, but the host differs from the start). (2) Print the "before" report first so the operator sees the state: they can run the script with `--dry-run` for that.
 **Revert.** (1) Drop the `rmdir` line and the created-directory flag in `rollback_runtime` (`labs/deploy/bootstrap/bootstrap.sh`) and flip the #142 exam case. (2) Move `report "before"` above `preflight_subnet` and flip that exam case.
+
+## D131 · A PR whose base is behind main only by changes to disjoint new files may merge on its own green CI
+in force · factory · 2026-11-22
+
+**Decision.** D44 says merges stay one at a time: rebase onto the new `main`, then wait for green CI again. Exception: when the commits the PR is missing touch no path the PR touches, and only add new files (for example another issue's new exam files), the PR may squash-merge on its own green CI. The `main` CI run after the merge is the combined check; a red one is a p0 incident as usual. First used for #463 (#448) after #460 (#458) merged.
+**Why.** Force-push is blocked here, so a rebase means a new branch and a new PR, plus about 20 more minutes of CI, for a combination that cannot conflict. Docs-only gaps were already merged this way (#457).
+**Alternatives.** Always open a fresh PR on the new `main` (slow, PR churn). Merge any PR behind main (unsafe when shared code moved).
+**Revert.** Delete this entry; D44's rule applies again in full.
