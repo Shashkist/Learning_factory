@@ -197,7 +197,14 @@ verify_container() {
   fi
   say "$mig"
   # best effort: the address the manager resolved for the proxy name
-  "$docker" logs ${started:+--since "$started"} lf-manager 2>&1 | grep "trusted proxy" | tail -n1 \
+  local plines
+  plines=$("$docker" logs ${started:+--since "$started"} lf-manager 2>&1 | grep "trusted proxy") || plines=""
+  case "$plines" in
+    *"trusted proxy: startup lookup raised unexpectedly"*)
+      say "WARNING: trusted proxy: the manager's startup lookup raised unexpectedly; see its logs"
+      ;;
+  esac
+  printf '%s\n' "$plines" | grep . | tail -n1 \
     | while read -r l; do
         say "$l"
         case "$l" in

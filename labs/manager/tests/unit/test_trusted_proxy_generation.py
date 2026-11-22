@@ -19,9 +19,25 @@ def test_failed_thread_start_clears_the_in_flight_flag(monkeypatch):
         raise RuntimeError("can't start new thread")
 
     monkeypatch.setattr(threading.Thread, "start", boom)
-    with pytest.raises(RuntimeError):
-        auth._refresh_proxy_in_background("proxy.test")
+    auth._refresh_proxy_in_background("proxy.test")  # swallowed: logged, not raised
     assert auth._proxy_refreshing is False
+
+
+def test_interrupt_from_thread_start_propagates_and_keeps_the_flag(monkeypatch):
+    def interrupt(self, *a, **k):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(threading.Thread, "start", interrupt)
+    with pytest.raises(KeyboardInterrupt):
+        auth._refresh_proxy_in_background("proxy.test")
+    assert auth._proxy_refreshing is True
+
+
+def test_warm_returns_before_claiming_for_blank_or_ip(monkeypatch):
+    for value in ("", "  ", "10.0.0.1"):
+        monkeypatch.setenv("LF_TRUSTED_PROXY", value)
+        monkeypatch.setattr(auth, "_claim_lookup", lambda: pytest.fail("claimed"))
+        auth.warm_trusted_proxy()
 
 
 def test_failed_thread_start_after_a_reset_leaves_the_new_generation_alone(monkeypatch):
@@ -31,8 +47,7 @@ def test_failed_thread_start_after_a_reset_leaves_the_new_generation_alone(monke
         raise RuntimeError("no thread")
 
     monkeypatch.setattr(threading.Thread, "start", reset_then_boom)
-    with pytest.raises(RuntimeError):
-        auth._refresh_proxy_in_background("proxy.test")
+    auth._refresh_proxy_in_background("proxy.test")
     assert auth._proxy_refreshing is True
 
 

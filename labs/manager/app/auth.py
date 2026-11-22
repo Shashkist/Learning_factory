@@ -298,6 +298,18 @@ def _release_lookup(generation: int) -> None:
             _proxy_refreshing = False
 
 
+def _trusted_proxy_name() -> str | None:
+    """The host name in LF_TRUSTED_PROXY; None when unset, blank or an IP literal."""
+    trusted = (os.environ.get("LF_TRUSTED_PROXY") or "").strip()
+    if not trusted:
+        return None
+    try:
+        ipaddress.ip_address(trusted)
+    except ValueError:
+        return trusted
+    return None
+
+
 def _refresh_proxy_in_background(trusted: str) -> None:
     generation = _claim_lookup()
     if generation is None:
@@ -311,27 +323,22 @@ def _refresh_proxy_in_background(trusted: str) -> None:
 
     try:
         threading.Thread(target=run, name="lf-proxy-lookup", daemon=True).start()
-    except BaseException:
+    except Exception as exc:  # not BaseException: an interrupt may leave a running worker
         _release_lookup(generation)  # no worker will ever clear the flag
-        raise
+        _proxy_log.warning("trusted proxy %s: cannot start the lookup thread (%s)", trusted, exc)
 
 
 def warm_trusted_proxy() -> None:
     """Blocking startup lookup, counted as in flight so a request meanwhile starts no second one."""
-    trusted = (os.environ.get("LF_TRUSTED_PROXY") or "").strip()
+    trusted = _trusted_proxy_name()
+    if trusted is None:
+        return
     generation = _claim_lookup()
-    if generation is None or not trusted:
-        if generation is not None:
-            _release_lookup(generation)
+    if generation is None:
         return
     try:
-        ipaddress.ip_address(trusted)
-    except ValueError:
-        try:
-            _resolve_proxy(trusted, generation)
-        finally:
-            _release_lookup(generation)
-    else:
+        _resolve_proxy(trusted, generation)
+    finally:
         _release_lookup(generation)
 
 
@@ -348,14 +355,10 @@ def trusted_proxy_addresses() -> frozenset[str]:
 
     Inside a running event loop this only reads the cache: a missing or expired entry is refreshed
     in a worker thread (nobody trusted until the first answer, the last answer meanwhile)."""
-    trusted = (os.environ.get("LF_TRUSTED_PROXY") or "").strip()
-    if not trusted:
-        return frozenset()
-    try:
-        ipaddress.ip_address(trusted)
-        return frozenset({trusted})
-    except ValueError:
-        pass
+    trusted = _trusted_proxy_name()
+    if trusted is None:
+        literal = (os.environ.get("LF_TRUSTED_PROXY") or "").strip()
+        return frozenset({literal}) if literal else frozenset()
     with _proxy_lock:
         cached = _proxy_cache
     if cached and cached[0] == trusted:
