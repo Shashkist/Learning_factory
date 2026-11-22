@@ -115,8 +115,9 @@ async def build(request: Request, cohort: int | None, flagged: int | None) -> di
     flag_set = {(r["student"], r["lab_id"]) for r in flags}
     # Only tasks still in lab.yaml mark the cell, as in cell_status.
     task_ids = {lab.id: {t.id for t in lab.tasks} for lab in labs}
+    _ = task_ids  # scratch mutation: the filter below is removed
     viewed_set = {
-        (r["student"], r["lab_id"]) for r in viewed if r["task_id"] in task_ids.get(r["lab_id"], ())
+        (r["student"], r["lab_id"]) for r in viewed
     }
     last = {r["student"]: r["at"] for r in seen}
     rows = []
