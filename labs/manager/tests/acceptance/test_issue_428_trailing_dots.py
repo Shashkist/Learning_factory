@@ -16,10 +16,10 @@ Measured with Node `new URL(u).host` (WHATWG URL parser), the form a browser sen
     http://a..b                -> a..b
 
 So a browser does NOT refuse a host with an empty label (the issue text says it does; the
-measurement wins). It sends such a host unchanged, hence the chosen behaviour for two or more
-trailing dots: accepted silently, no startup warning, which is what the forbidden-host rule does
-for empty labels. A single trailing dot on an IPv4 literal is rewritten by the browser, so that
-configured value must keep warning (IPv4 host not in the dotted form a browser sends).
+measurement wins). It sends such a host unchanged. #428 accepted it silently; #434 changed that:
+name resolution rejects empty labels, so the startup check warns ("empty label").
+A single trailing dot on an IPv4 literal is rewritten by the browser, so that configured value
+must keep warning (IPv4 host not in the dotted form a browser sends).
 
 The fake manager is the #69/#373 exams'; no Docker.
 """
@@ -80,7 +80,8 @@ def test_one_trailing_dot_on_a_hostname_stays_quiet(make_client, caplog):
 def test_two_or_more_trailing_dots_do_not_warn_as_a_rewritten_ipv4_form(
     make_client, caplog, value
 ):
+    # Changed by #434: these hosts now warn, but as an empty label, never as a rewritten IPv4 form.
     warnings = _warnings_for(make_client, caplog, value)
     assert not any("IPv4" in w for w in warnings), warnings
-    # the browser sends these hosts unchanged: accepted silently, like any empty label
-    assert warnings == [], [r.getMessage() for r in caplog.records]
+    assert len(warnings) == 1, [r.getMessage() for r in caplog.records]
+    assert "empty label" in warnings[0], warnings[0]
