@@ -4,7 +4,35 @@
 
 ## Now
 
-**Pass lf-w6d2 (laptop, started 00:55 UTC 2026-11-22) in progress.** Lanes: **#154** Solution tab (research, then exam), **#319** typed-command relay proof (exam only), **#434** origin check empty labels.
+**Pass lf-w6d2 (laptop, 00:55-~02:45 UTC 2026-11-22) stopping.** Merged: #441 (#434) and #447 (#154).
+
+**Resume here, first (one merge at a time; rebase by cherry-pick, never `gh pr update-branch`):**
+1. **p0 incident #452 / PR #453** (branch `f/452-smoke-solution-key`, worktree `C:\projects\lf-452`, claim lf-w6d2).
+   - The Deploy of #447 (44975984318, deployed 2422238) went red at the smoke's `quiz-show`. The smoke's quiz allow-list lacked `solution_available`. The app is live and works: the smoke reached `ok check-pass`.
+   - The PR has the exam commit (12 red on main) and the fix (66 passed locally). Merge it on green CI plus review, then watch the Deploy: the smoke must reach `ok end`.
+   - Then close #452, and close **#154** with evidence. #154 closed itself at the merge. Its evidence so far:
+     - scratch #446: manager-exam 21/22 red, web 16/16 red, for the right reasons;
+     - review round 2 approved;
+     - main CI 44974637102 green;
+     - the Deploy smoke after #453.
+2. **#319 / PR #450** (branch `f/319-relay-typed-command-b`, worktree `C:\projects\lf-319`, claim lf-w6d2). It is exam-only and was rebuilt on main after #447 by cherry-picking #439's three commits. Review round 2 approved #439 at c92b43d, and its CI was all green.
+   - 877d566 applies round 2's two non-blocking items: Ctrl+C before each retry, since a half-typed line can leave an open quote, and `characterDataOldValue`. CI is re-running on it.
+   - Rebase (cherry-pick) after #453 merges, wait for green, then merge.
+   - Close #319 with this evidence:
+     - the upstream mutation: #440, red in 36.8 s at the typed-command proof;
+     - the downstream mutation: #449 (run 44973926257), red at the title proof after the file check passed;
+     - the green runs on #439 and #450.
+   - Scratch PR #449 is still open: close it with that evidence.
+3. Then the Next list.
+
+**Closed with evidence:** #434 (main CI 44971725723; Deploy 44973171730 deployed 6478eb5; the smoke reached `ok end`, including `ok terminal` with the production Origin). #430 (the evidence comment left over from lf-m3q8).
+**Decisions:** D128 (the solution unlocks after the first graded attempt, and the first view is recorded; amended after review: no fallback, stamp after the read, a timeout unlocks, the Check button on the locked tab), D129 (an empty host label warns; supersedes part of D125).
+**New issues:** #444 (teacher views of solution views, p2), #448 (Solution tab polish from review, p3), #452 (the incident).
+**Worktrees:** keep `lf-319` and `lf-452`. `lf-154` and `lf-434` are shipped and safe to remove.
+
+**Lesson (pass lf-w6d2): when the API gains a field, grep the deploy smoke's allow-lists (`labs/deploy/smoke/*.py`, `*_KEYS`).** PR CI never runs the task smoke against the new API shape, so the first Deploy found it.
+**Lesson (pass lf-w6d2): when an exam builds its own lab, load it with `app.content.load_labs` before trusting it.** A missing `solution.he.md` would have made all 18 Postgres-only cases red for the wrong reason, and the laptop cannot run them.
+**Lesson (pass lf-w6d2): a terminal title lives only until the next prompt.** Record title changes with a `MutationObserver`, never by polling `document.title`.
 
 _Previous:_ **Pass lf-m3q8 (laptop, ~23:00-00:45 UTC) stopped at 2 merged PRs:** #432 (#428) and #438 (#430). **Closed with evidence:** #428; #430 (main CI 44967001871 green on f60e417, Deploy 44968577911 deployed f60e417, smoke green; the evidence comment was posted by lf-w6d2). Decisions D125-D127. **#423 parked after review round 1 of PR #437 (closed):** the nine findings and the plan are on #423; the next round goes on `f/423-validator-spans-b`, cut from main by cherry-pick (exam 2defa26, new exam commit, code 6161630). New issues #431, #434, #436.
 
@@ -330,7 +358,7 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
 1. **#332** after O23.
 2. **#423** (validator misses moved out of #414: pipes in substitutions, escaped delimiters, `!` jobs, groups spanning lines; p3). Time real shells first.
-3. Review leftovers: **#319** (now also the 390 px typed-command proof from #349) WebSocket relay proof, **#154** Solution tab (D57 b), **#142**.
+3. **#444** (teacher views of solution views), **#448**. Review leftovers: **#319** (now also the 390 px typed-command proof from #349) WebSocket relay proof, **#154** Solution tab (D57 b), **#142**.
 4. **#436**, **#431**, **#434** (lab screen and origin-check follow-ups, p3). **#85** deploy follow-ups, **#93**; p2 list: #81, #76, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
