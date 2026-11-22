@@ -648,7 +648,7 @@ def test_a_fast_lab_flag_marks_the_cell_and_keeps_it_done(env, admin):
     s = env.student(cid)
     env.complete(s, "cls-b", flag=True)
     c = cell(admin, cid, s, "cls-b")
-    assert c == {"status": "done", "flag": True}
+    assert c == {"status": "done", "flag": True, "solution_viewed": False}
 
 
 def test_the_flag_is_only_on_the_lab_it_belongs_to(env, admin):
@@ -667,21 +667,27 @@ def test_a_task_flag_that_is_not_set_leaves_the_cell_unflagged(env, admin):
     s = env.student(cid)
     env.passed(s, "cls-a", [T1, T2, T3])
     env.complete(s, "cls-a")
-    assert cell(admin, cid, s, "cls-a") == {"status": "done", "flag": False}
+    assert cell(admin, cid, s, "cls-a") == {
+        "status": "done", "flag": False, "solution_viewed": False
+    }
 
 
 def test_a_dismissed_task_flag_does_not_mark_the_cell(env, admin):
     cid = env.cohort()
     s = env.student(cid)
     env.passed(s, "cls-a", [T1], flag=True, dismissed=True)
-    assert cell(admin, cid, s, "cls-a") == {"status": "1/3", "flag": False}
+    assert cell(admin, cid, s, "cls-a") == {
+        "status": "1/3", "flag": False, "solution_viewed": False
+    }
 
 
 def test_a_dismissed_lab_flag_does_not_mark_the_cell(env, admin):
     cid = env.cohort()
     s = env.student(cid)
     env.complete(s, "cls-b", flag=True, dismissed=True)
-    assert cell(admin, cid, s, "cls-b") == {"status": "done", "flag": False}
+    assert cell(admin, cid, s, "cls-b") == {
+        "status": "done", "flag": False, "solution_viewed": False
+    }
 
 
 def test_a_live_flag_still_shows_next_to_a_dismissed_one(env, admin):
@@ -772,7 +778,7 @@ def test_flagged_only_keeps_every_cell_of_the_flagged_students(env, admin):
     body = table(admin, cid, flagged=True)
     assert [x["id"] for x in body["labs"] if x["id"] in PUBLISHED] == PUBLISHED
     cells = body["rows"][0]["cells"]
-    assert cells["cls-a"] == {"status": "1/3", "flag": True}
+    assert cells["cls-a"] == {"status": "1/3", "flag": True, "solution_viewed": False}
     assert cells["cls-c"]["status"] == "2/2"
     assert cells["cls-c"]["flag"] is False
 
@@ -829,7 +835,9 @@ def test_the_smoke_runs_do_not_change_a_real_students_row(env, admin):
     s = env.student(cid)
     env.passed(s, "cls-a", [T1])
     smoke_student(env, "lf-smoke")
-    assert cell(admin, cid, s, "cls-a") == {"status": "1/3", "flag": False}
+    assert cell(admin, cid, s, "cls-a") == {
+        "status": "1/3", "flag": False, "solution_viewed": False
+    }
 
 
 # ================================================================== CSV export

@@ -128,10 +128,25 @@ def test_assemble_counts_tasks_attempts_times_and_medians():
     assert (x["status"], x["tasks_passed"], x["tasks_total"], x["attempts"]) == ("1/3", 1, 3, 5) 
     assert [t["id"] for t in x["tasks"]] == ["a", "b", "c"]
     a, b, c = x["tasks"]
-    assert a == {"id": "a", "passed": False, "attempts": 2, "seconds": None, "median_seconds": None}
-    assert b == {"id": "b", "passed": True, "attempts": 3, "seconds": 41.0, "median_seconds": 25.0}
+    assert a == {
+        "id": "a", "passed": False, "attempts": 2, "seconds": None, "median_seconds": None,
+        "solution_viewed_at": None,
+    }
+    assert b == {
+        "id": "b", "passed": True, "attempts": 3, "seconds": 41.0, "median_seconds": 25.0,
+        "solution_viewed_at": None,
+    }
     assert c["attempts"] == 0 and c["passed"] is False
     assert x["flags"] == []
+
+
+def test_assemble_carries_the_first_solution_view_per_task():
+    at = dt.datetime(2026, 11, 20, 23, 30, tzinfo=dt.UTC)
+    views = [{"lab_id": "x", "task_id": "b", "at": at}]
+    body = assemble([lab()], STUDENT, [], [], [], [], [], views=views)
+    a, b, c = body["labs"][0]["tasks"]
+    assert b["solution_viewed_at"] == "2026-11-20T23:30:00+00:00"
+    assert a["solution_viewed_at"] is None and c["solution_viewed_at"] is None
 
 
 def test_assemble_student_fields_carry_the_key_and_no_hash():

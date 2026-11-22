@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useI18n } from "./i18n";
 import { localStamp } from "./localStamp";
 
-type Cell = { status: string; flag: boolean };
+type Cell = { status: string; flag: boolean; solution_viewed?: boolean };
 type Row = { key?: string; name: string; cohort: string; last_activity: string | null; cells: Record<string, Cell> };
 type Lab = { id: string; title: { en: string; he: string } };
 type Table = { labs: Lab[]; rows: Row[] };
@@ -120,6 +120,11 @@ export default function ClassTable({ open }: { open?: (key: string) => void } = 
                   return (
                     <td key={l.id} className="num" data-testid={`class-cell-${i}-${l.id}`}>
                       {mark(c.status)}
+                      {c.solution_viewed && (
+                        <span role="img" aria-label={t("admin.class.solution_viewed")} title={t("admin.class.solution_viewed")}>
+                          📖
+                        </span>
+                      )}
                       {c.flag && (
                         <span className="badge warning td-flag">
                           <span role="img" aria-label={t("admin.class.flag")} title={t("admin.class.flag")}>

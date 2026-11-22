@@ -82,11 +82,13 @@ def assemble(
     flags: Iterable[Row],
     last_activity: Any = None,
     active_seconds: float = 0,
+    views: Iterable[Row] = (),
 ) -> dict[str, Any]:
     """The page body from the query rows (no database here, so it is unit-tested)."""
     by_task = {(r["lab_id"], r["task_id"]): r for r in tasks}
     first = {(r["lab_id"], r["task_id"]): r["secs"] for r in firsts}
     median = {(r["lab_id"], r["task_id"]): r["median"] for r in medians}
+    viewed = {(r["lab_id"], r["task_id"]): r["at"] for r in views}
     done_ids = {r["lab_id"] for r in done}
     flags_by: dict[str, list[Row]] = {}
     for f in flags:
@@ -124,6 +126,9 @@ def assemble(
                         else 0,
                         "seconds": _seconds(first.get((lab.id, t.id))),
                         "median_seconds": _seconds(median.get((lab.id, t.id))),
+                        "solution_viewed_at": at.isoformat()
+                        if (at := viewed.get((lab.id, t.id)))
+                        else None,
                     }
                     for t in lab.tasks
                 ],
@@ -180,6 +185,13 @@ _FIRSTS_SQL = (
     "extract(epoch from passed_at - shown_at)::float8 as secs "
     f"from {T}.task_results where student = $1 and lab_id = any($2) and passed_at is not null "
     "order by lab_id, task_id, passed_at"
+)
+
+# The first time the student opened a task's solution (D128), over all their sessions.
+_VIEWS_SQL = (
+    "select lab_id, task_id, min(solution_viewed_at) as at "
+    f"from {T}.task_results where student = $1 and lab_id = any($2) "
+    "and solution_viewed_at is not null group by lab_id, task_id"
 )
 
 # Every student's first completion, all cohorts but the smoke cohort, no minimum count (D64).
@@ -242,6 +254,7 @@ async def _page(request: Request, pool: Any, key: str) -> dict[str, Any]:
         await pool.fetch(_FLAGS_SQL, h, ids),
         await pool.fetchval("select max(at) from (" + SEEN_SQL + ") q", [h]),
         await pool.fetchval(_ACTIVE_SQL, h),
+        await pool.fetch(_VIEWS_SQL, h, ids),
     )
 
 
