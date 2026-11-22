@@ -1305,6 +1305,7 @@ in force · factory · 2026-11-22
 - A quiz's Solution tab shows the "not available" text without the "run Check" hint.
 - The teacher views are #444.
 - While locked, a hands-on task's Solution tab also shows a Check button, the same action as the Task tab's. After the Check, the screen switches to the Task tab to show the result, and the solution is fetched when the student opens the tab again. The round-2 exam pins this, so reverting it changes the exam. Spec §9 places Check in the task panel without making it exclusive. KodeKloud's Solution tab has no Check, so this is a deliberate deviation.
+**Amended 2026-11-22 (review of #456, #444).** The teacher views show the first view: the student page gives each task's earliest `solution_viewed_at` over the student's sessions, shown as a date and time in the teacher's local time (`localStamp`, in an LTR `bdi`), like the page's other times. The #444 web exam's contract comment says "first 10 characters of the ISO string"; its assertions hold under the CI's `TZ=UTC`, and this entry settles the local-time rule. The class cell's `solution_viewed` (📖, beside and separate from ⚡) counts only tasks still in `lab.yaml`, as `cell_status` does. No score, flag, `?flagged=1` or CSV effect.
 
 ## D129 · #434: an empty host label warns, and that check runs before the IPv4-form checks
 in force · factory · 2026-11-22
