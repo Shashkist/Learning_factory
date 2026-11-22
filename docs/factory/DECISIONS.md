@@ -1285,3 +1285,16 @@ The non-blocking items go to #423: a group that spans lines is not joined, plus 
 **Alternatives.** Keep both shapes (D124). Or put the boundary around the whole app: rejected, because that would drop the terminal on any fault, which was the #427 symptom.
 **Leftovers.** #436 (recovery on Restart and view changes, the older Check fakes without `text`) and #431 (one real Check in the browser exam).
 **Revert.** Revert the #430 merge. D124's two-shape `items()` then comes back.
+
+## D128 · #154: a task's solution unlocks after the first graded attempt, and the first view is recorded
+in force · factory · 2026-11-22
+
+**Decision.**
+- `POST /api/sessions/<sid>/tasks/<task_id>/solution` returns `{solution: {en, he}}` for a hands-on task. It answers only once the task has at least one graded attempt in this session (`task_results.attempts > 0`, a failed or a passing Check). Before that it answers 403 `solution_locked` with no solution text. A quiz answers 404 `no_solution`, and so does an unknown task. A missing `solution.he.md` falls back to the English text.
+- The first successful call stamps `task_results.solution_viewed_at` (new nullable column, `coalesce`, never moved). It is POST because it records the view, like `/show`. The response is `Cache-Control: no-store`.
+- The task detail gains `solution_available: bool`. Nothing else the task API sends carries solution text.
+- The Solution tab loads the text on demand with the task's Markdown renderer (D57 a) in the screen's language, and keeps the "not available yet" text while locked, now with a hint to run Check first. en + he.
+- No score effect and no automatic flag. Showing the stamp to the teacher (student page, a "solution viewed" mark beside the ⚡ flags) is a follow-up issue.
+**Why.** Research (KodeKloud first): KodeKloud shows a plain Solution tab next to the task with no documented gate. iximiuz Labs asks students to read the solution "after solving the Challenge, or after making a serious attempt", without enforcing it. Instruqt's Skip runs the solve script with no gate and no recording. Real Python unlocks after a first test run. None records views; a class with a teacher needs that. The `attempts` counter already exists, so "one attempt first" needs no new counter and no per-lab setting.
+**Alternatives.** (a) Always available, view recorded: the answer is one click away before any try. (c) After N failed Checks: a threshold to tune per class. A timer. A penalty for viewing.
+**Revert.** Drop the attempts gate in the endpoint (that is (a)), or remove the endpoint and the tab returns to D57 (b). The column is nullable and read by nothing else.
