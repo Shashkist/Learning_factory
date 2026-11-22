@@ -1330,3 +1330,11 @@ in force · factory · 2026-11-22
 **Why.** Force-push is blocked here, so a rebase means a new branch and a new PR, plus about 20 more minutes of CI, for a combination that cannot conflict. Docs-only gaps were already merged this way (#457).
 **Alternatives.** Always open a fresh PR on the new `main` (slow, PR churn). Merge any PR behind main (unsafe when shared code moved).
 **Revert.** Delete this entry; D44's rule applies again in full.
+
+## D132 · #93: the manager trusts the proxy by container name, re-resolved every 30 s; a failed lookup trusts nobody
+in force · factory · 2026-11-22
+
+**Decision.** `LF_TRUSTED_PROXY` may be an IP literal (compared with the socket peer, no DNS, as before) or a host name. Deploy now exports the name `nginx-proxy3`. The manager resolves a name with `socket.getaddrinfo` and trusts exactly the addresses it returns, cached for `LF_TRUSTED_PROXY_TTL_S` seconds (default 30). A failed or empty lookup trusts nobody for the same TTL: X-Forwarded-For is ignored and the socket peer is used (fail closed). The manager resolves once at startup and logs `trusted proxy <name> -> <addresses>`; it logs again only when the set changes, and one warning per failed lookup. Deploy prints that startup line after the health wait. This removes owner step O13.
+**Why.** A recreated nginx-proxy3 can get a new address; a pinned address then puts every client in one login rate-limit bucket until someone re-runs Deploy. Docker's embedded DNS on the shared network always knows the current address. A plain TTL is simpler than "re-resolve on an unknown peer", and an unknown peer cannot trigger DNS lookups at will.
+**Alternatives.** Trust the nginx subnet (rejected by the issue: lab containers must never become trusted by accident). Re-resolve on every unknown peer (a lookup per request from any client). Keep O13 as a manual step.
+**Revert.** Export `"$nginx_ip"` again in `labs/deploy/deploy.sh`; the IP-literal path in `client_ip` (`labs/manager/app/auth.py`) still works unchanged. Flip the #93 exam's deploy case and the #13 deploy exam's `PROXY=` assertion back.
