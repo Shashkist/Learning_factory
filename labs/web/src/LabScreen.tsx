@@ -27,6 +27,8 @@ type Task = {
   checklist?: Bi[];
   question?: Bi;
   options?: Bi[];
+  // True from the first graded attempt of this task on (D128); the text is fetched on demand.
+  solution_available?: boolean;
 };
 type Row = { passed: boolean; hint: string | null };
 
@@ -165,6 +167,8 @@ export default function LabScreen({
   const [done, setDone] = useState(false);
   const [labTitle, setTitle] = useState<Bi | null>(null);
   const [pending, setPending] = useState(false);
+  const [solutions, setSolutions] = useState<Record<string, Bi | null>>({}); // per task id, fetched once; null: locked
+  const asked = useRef(new Set<string>());
   const inFlight = useRef(false);
   const alive = useRef(true);
   const frame = useRef<HTMLDivElement>(null);
@@ -302,6 +306,24 @@ export default function LabScreen({
     const clockId = setInterval(tick, 1000);
     return () => clearInterval(clockId);
   }, [sid, phase, expires]);
+
+  const wantSolution = tab === "solution" && task?.solution_available ? task.id : null;
+  useEffect(() => {
+    if (!sid || !wantSolution || asked.current.has(wantSolution)) return;
+    asked.current.add(wantSolution);
+    call<{ solution: Bi }>("POST", `/api/sessions/${sid}/tasks/${wantSolution}/solution`)
+      .then((r) => {
+        if (alive.current) setSolutions((prev) => ({ ...prev, [wantSolution]: r.solution }));
+      })
+      .catch((e) => {
+        if (e instanceof Failure && e.detail === "solution_locked") {
+          if (alive.current) setSolutions((prev) => ({ ...prev, [wantSolution]: null }));
+          return; // shows the locked text
+        }
+        asked.current.delete(wantSolution);
+        if (alive.current) setError("lab.error.load");
+      });
+  }, [sid, wantSolution]);
 
   useEffect(() => {
     if (open || !focusTask.current || !heading.current) return;
@@ -451,6 +473,7 @@ export default function LabScreen({
         ),
       );
       setPassed(r.passed);
+      setTask({ ...task, solution_available: true }); // a graded attempt unlocks the solution
     });
   const answer = () =>
     run(async () => {
@@ -650,7 +673,14 @@ export default function LabScreen({
           ) : done ? (
             <p>{toLabs}</p>
           ) : tab === "solution" ? (
-            <p>{t("lab.solution.none")}</p>
+            solutions[task.id] ? (
+              <Text md={solutions[task.id]![lang]} title="" />
+            ) : task.solution_available && solutions[task.id] === undefined ? null : (
+              <>
+                <p>{t("lab.solution.none")}</p>
+                <p>{t("lab.solution.hint")}</p>
+              </>
+            )
           ) : (
             <>
               <h2 ref={heading} tabIndex={-1}>
