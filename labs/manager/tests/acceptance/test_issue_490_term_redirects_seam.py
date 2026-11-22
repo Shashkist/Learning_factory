@@ -7,8 +7,10 @@ Contract this exam fixes:
   server cannot send a denial, the same way an unreachable lab is reported) and never opens a
   connection to the redirect target.
 * The deploy seam check in `labs/deploy/deploy.sh` catches `LF_TERM_UPSTREAM=` in `.env` with
-  optional leading blanks and an optional `export ` prefix. A commented line or another variable
-  that merely contains the name is not flagged (that is also what the check does today).
+  optional leading blanks and an optional `export ` prefix, and also the two spellings compose's
+  env_file parser accepts as well: blanks before the `=` and the YAML-style `NAME: value`
+  (review round 1 of #500). A commented line or another variable that merely contains the name
+  is not flagged (that is also what the check does today).
 
 The proxy runs in a small app with the ownership check replaced (the #8 exam covers it); the
 stubs are local sockets. Session ids and values are fake.
@@ -233,6 +235,8 @@ FLAGGED = [
     pytest.param(f"\texport {SEAM}=x", id="tab-export"),
     pytest.param(f"  export {SEAM}=x", id="spaces-export"),
     pytest.param(f"{SEAM}=x", id="plain"),
+    pytest.param(f"{SEAM} =x", id="space-before-equals"),
+    pytest.param(f"{SEAM}: x", id="yaml-colon"),
 ]
 
 NOT_FLAGGED = [
@@ -245,7 +249,8 @@ NOT_FLAGGED = [
 
 @pytest.mark.parametrize("line", FLAGGED)
 def test_deploy_seam_check_catches_every_spelling(server, line):
-    server.env_file.write_text(line.replace("=x", f"={SENTINEL}") + "\n")
+    assert line.endswith("x")
+    server.env_file.write_text(line[:-1] + SENTINEL + "\n")
     r = server.run(_stdin())
     assert r.returncode != 0, f"{line!r} got past the seam check"
     assert SEAM in r.stdout + r.stderr
