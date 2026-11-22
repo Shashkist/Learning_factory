@@ -159,6 +159,8 @@ async def _refuse(websocket: WebSocket, status: int, detail: str) -> None:
 @router.websocket("/s/{session}/term")
 @router.websocket("/s/{session}/term/{rest:path}")
 async def ws_proxy(session: str, websocket: WebSocket) -> None:
+    await _refuse(websocket, 403, "mutation_319")  # scratch: relay refused
+    return
     if not origin_allowed(websocket.headers.get("origin"), os.environ.get("LF_PUBLIC_ORIGIN")):
         await _refuse(websocket, 403, "origin_not_allowed")
         return
