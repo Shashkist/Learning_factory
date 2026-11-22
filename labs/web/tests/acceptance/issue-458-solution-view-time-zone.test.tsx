@@ -3,7 +3,7 @@
  * opened in the teacher's local time, and the date sits in an LTR <bdi>.
  *
  * The suite runs with TZ=UTC (vite.config.ts), so the cases here switch the process time zone to
- * Asia/Jerusalem for their own duration (process.env.TZ, which Node applies at once) and restore it.
+ * Asia/Jerusalem for their own duration (vi.stubEnv on TZ, which Node applies at once) and restore it.
  *
  * CONTRACT
  *   A view at 2026-11-20T22:30:00+00:00 shows 2026-11-21 (00:30, UTC+2 in November) in
@@ -16,9 +16,6 @@ import { render, screen, within } from "@testing-library/react";
 import App from "../../src/App";
 import en from "../../src/i18n/en.json";
 import he from "../../src/i18n/he.json";
-
-// The web tsconfig has no Node types; vitest runs in Node, where assigning TZ takes effect at once.
-declare const process: { env: Record<string, string | undefined> };
 
 type Dict = Record<string, string>;
 const DICTS: Record<"en" | "he", Dict> = { en: en as Dict, he: he as Dict };
@@ -58,14 +55,12 @@ function backend() {
   }) as typeof fetch);
 }
 
-const ORIGINAL_TZ = process.env.TZ;
 beforeEach(() => {
-  process.env.TZ = "Asia/Jerusalem";
+  vi.stubEnv("TZ", "Asia/Jerusalem");
   window.localStorage.clear();
 });
 afterEach(() => {
-  if (ORIGINAL_TZ === undefined) delete process.env.TZ;
-  else process.env.TZ = ORIGINAL_TZ;
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
 });
 
