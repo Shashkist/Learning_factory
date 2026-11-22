@@ -190,7 +190,7 @@ def _lock_held():
     """Hold /run/lf-bootstrap.lock with flock(1): a second open file description, exactly what
     a running bootstrap holds."""
     proc = subprocess.Popen(
-        ["sudo", "-n", "flock", LOCK, "sleep", HOLD_SECONDS],
+        ["sudo", "-n", "flock", "-o", LOCK, "sleep", HOLD_SECONDS],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
     try:
@@ -204,15 +204,37 @@ def _lock_held():
         yield
     finally:
         proc.terminate()
-        _run(["sudo", "-n", "pkill", "-f", f"flock {LOCK} sleep {HOLD_SECONDS}"])
+        # flock -o keeps the lock in flock itself, but kill the sleeper too: never leak the lock
+        _run(["sudo", "-n", "pkill", "-f", f"sleep {HOLD_SECONDS}"])
         with contextlib.suppress(Exception):
             proc.wait(timeout=10)
+        deadline = time.time() + 15
+        while time.time() < deadline and not _lock_is_free():
+            time.sleep(0.3)
+        assert _lock_is_free(), (
+            "exam harness: the bootstrap lock is still held after the lock cases "
+            f"(a leftover 'sleep {HOLD_SECONDS}' or flock holder)"
+        )
+
+
+def _lock_is_free() -> bool:
+    return _run(["sudo", "-n", "flock", "-n", LOCK, "true"]).returncode == 0
+
+
+def _assert_lock_free() -> None:
+    """Precondition of every fixture that runs the script: a leaked holder must never look
+    like a script failure."""
+    assert _lock_is_free(), (
+        "exam precondition: /run/lf-bootstrap.lock is held by something else before the "
+        "script runs (exam harness leak or a real bootstrap), so the result is meaningless"
+    )
 
 
 @pytest.fixture(scope="module")
 def lock_held():
     s = SimpleNamespace()
     with _runner_scope() as sc:
+        _assert_lock_free()
         with _lock_held():
             s.second = _bootstrap({"DRY_RUN": "1", **sc.good_env})
             s.second_real = _bootstrap(sc.good_env)
@@ -255,6 +277,7 @@ def create_path():
     """No /etc/docker, runsc unregistered: the first apply of a fresh host."""
     s = SimpleNamespace()
     with _runner_scope() as sc:
+        _assert_lock_free()
         _unregister_runsc(sc)
         _dir_aside(sc, keep_empty_dir=False)
         s.precondition = not _exists(DOCKER_DIR)
@@ -303,6 +326,7 @@ def test_without_etc_docker_no_temp_file_or_backup_is_left_behind(create_path):
 def rollback_created_dir():
     s = SimpleNamespace()
     with _runner_scope() as sc:
+        _assert_lock_free()
         s.__dict__.update(_rollback_scenario(sc, dir_existed=False).__dict__)
     yield from _scope_result(s, sc)
 
@@ -311,6 +335,7 @@ def rollback_created_dir():
 def rollback_existing_dir():
     s = SimpleNamespace()
     with _runner_scope() as sc:
+        _assert_lock_free()
         s.__dict__.update(_rollback_scenario(sc, dir_existed=True).__dict__)
     yield from _scope_result(s, sc)
 
@@ -366,6 +391,7 @@ def test_rollback_keeps_an_etc_docker_that_existed_before_the_run(rollback_exist
 def overlap():
     s = SimpleNamespace()
     with _runner_scope() as sc:
+        _assert_lock_free()
         _unregister_runsc(sc)
         res = _docker("network", "create", "--subnet", OVERLAP_SUBNET, OVERLAP_NET, check=False)
         sc.undo.append(lambda: _docker("network", "rm", OVERLAP_NET, check=False))
