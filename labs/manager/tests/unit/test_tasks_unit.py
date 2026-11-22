@@ -345,3 +345,24 @@ def test_show_while_a_check_holds_the_session_lock_is_session_busy_and_check_vs_
     assert asyncio.run(busy_of("setup_running", "session_busy")) == "session_busy"
     assert asyncio.run(busy_of("setup_running", "setup_running")) == "setup_running"
     assert sid not in tasks._LOCKS and sid not in tasks._HOLDERS
+
+
+def test_solution_available_only_for_a_hands_on_task_with_an_attempt(tmp_path: Path):
+    d = tmp_path / "tasks" / "t1"
+    d.mkdir(parents=True)
+    (d / "task.en.md").write_text("# T\n", encoding="utf-8")
+    (d / "task.he.md").write_text("# T\n", encoding="utf-8")
+    hands = Task(id="t1", kind="hands-on")
+    quiz = Task(id="q", kind="quiz", question={"en": "Q", "he": "S"})
+    lab = Lab(
+        id="l", title={}, status="published", image="term", module=1, lesson=5,
+        path=tmp_path, tasks=[quiz, hands],
+    )
+
+    def row(attempts):
+        return {"shown_at": 1, "passed_at": None, "attempts": attempts}
+
+    assert tasks._detail(lab, hands, None)["solution_available"] is False
+    assert tasks._detail(lab, hands, row(0))["solution_available"] is False
+    assert tasks._detail(lab, hands, row(1))["solution_available"] is True
+    assert tasks._detail(lab, quiz, row(3))["solution_available"] is False
