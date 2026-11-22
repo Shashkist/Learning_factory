@@ -71,6 +71,15 @@ def parse(ts: str) -> datetime:
     return datetime.fromisoformat(ts)
 
 
+def issue_no(v: object) -> int:
+    """A positive issue number, or 0 for anything else ("0", None, text)."""
+    try:
+        n = int(v or 0)  # type: ignore[call-overload]
+    except (TypeError, ValueError):
+        return 0
+    return n if n > 0 else 0
+
+
 def events_path() -> Path:
     p = os.environ.get("LF_PROGRESS_FILE")
     return Path(p) if p else Path.home() / ".lf-factory" / "progress.jsonl"
@@ -216,7 +225,7 @@ def render(events: list[dict]) -> dict:
             runner.update(state=e.get("state", "idle"), note=e.get("note", ""))
         elif kind == "step":
             aid = e["agent"]
-            a = agents.setdefault(aid, {"id": aid, "role": e["role"], "issue": e.get("issue") or None, "station": e["station"],
+            a = agents.setdefault(aid, {"id": aid, "role": e["role"], "issue": issue_no(e.get("issue")) or None, "station": e["station"],
                                         "state": "running", "started": e["at"], "last": e["at"], "substeps": []})
             a["last"], a["station"] = e["at"], e["station"]
             sub = next((s for s in a["substeps"] if s["substep"] == e["substep"] and s["station"] == e["station"]), None)
@@ -231,8 +240,9 @@ def render(events: list[dict]) -> dict:
                 a["state"] = "done"
             elif a["state"] != "stopped":
                 a["state"] = "running"   # a later start/done recovers from a failure
-            if e.get("issue"):
-                i = issues.setdefault(e["issue"], {"issue": e["issue"], "title": "", "station": e["station"]})
+            if issue_no(e.get("issue")):
+                n = issue_no(e["issue"])
+                i = issues.setdefault(n, {"issue": n, "title": "", "station": e["station"]})
                 i["station"] = e["station"]
                 if e.get("title"):
                     i["title"] = e["title"]
@@ -249,8 +259,8 @@ def render(events: list[dict]) -> dict:
                     "substeps": [{"station": s["station"], "substep": s["substep"], "status": s["status"],
                                   "started": s["started"], "at": s["at"], "detail": scrub(s["detail"])}
                                  for s in a["substeps"]]} for a in agents.values()],
-        "workers": [w for w in render_workers(evs, parse(t))
-                    if not runner["pass_started"] or w["started"] >= runner["pass_started"]],
+        "workers": render_workers(
+            [e for e in evs if not runner["pass_started"] or parse(e["at"]) >= parse(runner["pass_started"])], parse(t)),
         "crew": render_crew(parse(t)),
         "log": [{"at": e["at"], "issue": e.get("issue"), "agent": e["agent"], "role": e["role"],
                  "station": e["station"], "substep": e["substep"], "status": e["status"],

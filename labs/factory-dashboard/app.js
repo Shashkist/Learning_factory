@@ -277,10 +277,16 @@ var LIVE_STALE_MS = 15 * 60 * 1000;
 
 // A sub-step shows the hourglass only while it is the agent's latest, still open, and the agent is not silent.
 function liveSubstep(a, s, subs, generated) {
-  var later = subs.some(function (x) { return S(x.at) > S(s.at); });   // strictly later: same-second steps tie
+  var t = Date.parse(s.at);
+  var later = subs.some(function (x) { return Date.parse(x.at) > t; });   // strictly later: same-second steps tie
   var gen = Date.parse(generated), last = Date.parse(a.last);
   var silent = !isNaN(gen) && !isNaN(last) && gen - last >= LIVE_STALE_MS;
-  return !later && !silent;
+  return !later && !silent && a.state !== "ended" && a.state !== "done";   // stopped/failed keep it: #51 exam
+}
+
+// The one rule for "is this sub-step current": a live start, or a wait.
+function stepOpen(a, s, subs, generated) {
+  return s.status === "wait" || (s.status === "start" && liveSubstep(a, s, subs, generated));
 }
 
 function agentCard(a, titles, workers, generated) {
@@ -294,7 +300,7 @@ function agentCard(a, titles, workers, generated) {
   var done = subs.filter(function (s) { return s.status === "done"; }).length;
   card.appendChild(el("div", joined([elapsed(a.started, LIVE_ENDED[a.state] ? a.last : null), subs.length ? done + "/" + subs.length : ""]), "muted"));
   var cur = null;
-  subs.forEach(function (s) { if (s.status === "start" || s.status === "wait") cur = s; });
+  subs.forEach(function (s) { if (stepOpen(a, s, subs, generated)) cur = s; });
   cur = cur || subs[subs.length - 1];
   if (cur) {
     var now = el("div", "now: ", "live-now");
@@ -374,7 +380,7 @@ function laneData(d) {
     var l = lanes[a.issue];
     if (!l) return;
     l.agents.push(a);
-    arr(a.substeps).forEach(function (s) { l.steps.push({ s: s, a: a }); });
+    arr(a.substeps).forEach(function (s) { l.steps.push({ s: s, a: a, open: stepOpen(a, s, arr(a.substeps), d.generated_at) }); });
   });
   crewNodes(arr(d.crew).slice(0, 1)).forEach(function (n) {   // the current pass only: older passes' agents confuse the lane
     var i = issueOf(n.title);
@@ -389,7 +395,7 @@ function laneData(d) {
     }, l.last);
     l.first = l.steps.reduce(function (m, x) { return !m || S(x.s.started) < m ? S(x.s.started) : m; }, "");
     var busy = l.crew.filter(function (n) { return n.state === "busy" || n.state === "thinking"; });
-    var openSteps = l.steps.filter(function (x) { return x.s.status === "start" || x.s.status === "wait"; });
+    var openSteps = l.steps.filter(function (x) { return x.open; });
     l.running = busy.length > 0 || l.agents.some(function (a) { return a.state === "running"; });
     var cur = LIVE_STATIONS.indexOf(l.station);
     busy.forEach(function (n) {   // an agent at work is the strongest evidence of where the task is
@@ -438,12 +444,12 @@ function laneDetail(l, st) {
   if (!steps.length) box.appendChild(el("div", "No sub-steps recorded for this station.", "muted"));
   var ul = el("ul", null, "lane-steps");
   steps.forEach(function (x) {
-    var open = x.s.status === "start" || x.s.status === "wait";
+    var open = x.open;
     var li = lel("li", null, "", { "data-status": S(x.s.status) });
-    li.appendChild(el("span", (LIVE_ICONS[x.s.status] || "") + " "));
+    li.appendChild(el("span", (x.s.status === "start" && !open ? "–" : LIVE_ICONS[x.s.status] || "") + " "));
     li.appendChild(el("b", S(x.s.substep)));
     li.appendChild(el("span", " · " + joined([(LIVE_ROLE_ICONS[x.a.role] || "") + " " + S(x.a.role),
-      clock(x.s.started), open ? "running " + dur(x.s.started) : dur(x.s.started, x.s.at)]), "muted"));
+      clock(x.s.started), open ? "running " + dur(x.s.started) : x.s.status === "start" ? "" : dur(x.s.started, x.s.at)]), "muted"));
     if (x.s.detail) li.appendChild(el("div", S(x.s.detail), "lane-step-detail"));
     ul.appendChild(li);
   });
@@ -506,7 +512,7 @@ function renderLanes(d, rerender) {
       nowLine.appendChild(el("span", l.nowOpen ? "now: " : "last: "));
       nowLine.appendChild(el("b", S(l.now.s.substep)));
       nowLine.appendChild(el("span", " · " + joined([(LIVE_ROLE_ICONS[l.now.a.role] || "") + " " + S(l.now.a.role),
-        S(l.now.s.station), (l.now.s.status === "start" || l.now.s.status === "wait") ? dur(l.now.s.started) : ago(l.now.s.at)]), "muted"));
+        S(l.now.s.station), l.now.open ? dur(l.now.s.started) : ago(l.now.s.at)]), "muted"));
       lane.appendChild(nowLine);
     }
     l.crew.filter(function (n) { return n.state === "busy" || n.state === "thinking"; })

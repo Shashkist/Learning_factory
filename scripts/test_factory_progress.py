@@ -268,3 +268,33 @@ def test_issue_zero_creates_no_issue_row_and_no_agent_issue():
     live = fp.render(fp.read_events())
     assert live["issues"] == []
     assert live["agents"][0]["issue"] is None
+
+def _step(at, issue, agent="a", substep="x", status="start"):
+    return {"kind": "step", "at": at, "issue": issue, "agent": agent, "role": "implementer",
+            "station": "build", "substep": substep, "status": status, "title": "", "detail": ""}
+
+
+def _worker(at, wid="w1"):
+    return {"kind": "worker", "at": at, "worker": wid, "role": "manager", "event": "idle"}
+
+
+def test_workers_come_from_events_after_pass_start_not_whole_workers():
+    evs = [{"kind": "pass-start", "at": "2026-01-01T10:00:00+00:00"},
+           _worker("2026-01-01T09:59:59+00:00"), _worker("2026-01-01T10:00:05+00:00")]
+    w = fp.render(evs)["workers"]
+    assert len(w) == 1 and w[0]["started"] == "2026-01-01T10:00:05+00:00"
+
+
+def test_pass_start_compared_as_datetimes_not_strings():
+    # 10:30+02:00 is 08:30 UTC, before 09:00 UTC, though the string sorts after
+    evs = [{"kind": "pass-start", "at": "2026-01-01T09:00:00+00:00"},
+           _worker("2026-01-01T10:30:00+02:00", "early"), _worker("2026-01-01T09:30:00+00:00", "late")]
+    assert [w["id"] for w in fp.render(evs)["workers"]] == ["late"]
+
+
+def test_issue_zero_string_is_no_issue():
+    evs = [_step("2026-01-01T10:00:00+00:00", "0"), _step("2026-01-01T10:00:01+00:00", "junk", agent="b"),
+           _step("2026-01-01T10:00:02+00:00", "7", agent="c")]
+    live = fp.render(evs)
+    assert [i["issue"] for i in live["issues"]] == [7]
+    assert {a["id"]: a["issue"] for a in live["agents"]} == {"a": None, "b": None, "c": 7}
