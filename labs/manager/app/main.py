@@ -139,6 +139,8 @@ def _public_origin_problem(value: str) -> str | None:
             return "host has a character a browser refuses in a host"
         # A browser drops exactly one trailing dot; with two or more the host is a domain.
         bare = host[:-1] if host.endswith(".") else host
+        if "" in bare.split("."):
+            return "host has an empty label"
         if _IPV4_LAST_LABEL.match(bare.rsplit(".", 1)[-1]) and not (
             _CANONICAL_IPV4.match(host) and all(int(o) <= 255 for o in host.split("."))
         ):
