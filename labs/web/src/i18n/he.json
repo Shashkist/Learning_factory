@@ -12,6 +12,7 @@
   "login.error.generic": "משהו השתבש. נסה שוב.",
   "labs.title": "המעבדות שלי",
   "labs.empty": "אין עדיין מעבדות.",
+  "labs.loading": "טוען את המעבדות שלך…",
   "nav.logout": "יציאה",
   "notFound.title": "הדף לא נמצא",
   "nav.logout_failed": "היציאה נכשלה. עדיין מחוברים; נסו שוב.",
