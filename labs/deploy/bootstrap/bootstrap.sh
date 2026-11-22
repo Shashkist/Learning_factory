@@ -132,14 +132,13 @@ report() {
   log "-- free disk"; df -h / || true
   log "-- $DAEMON_JSON (key names only)"
   if [ ! -f "$DAEMON_JSON" ]; then log "(no file)"
-  elif command -v jq >/dev/null 2>&1; then jq -r 'keys | join(" ")' "$DAEMON_JSON" || log "(not valid JSON)"
-  else log "(jq is not installed: key names not shown)"; fi
+  else jq -r 'keys | join(" ")' "$DAEMON_JSON" || log "(not valid JSON)"; fi
   if [ -f "$DAEMON_JSON" ] && jq -e '.runtimes' "$DAEMON_JSON" >/dev/null 2>&1; then
     log "runtimes: $(jq -c '.runtimes | with_entries(.value |= (.path // ""))' "$DAEMON_JSON" 2>/dev/null)"
   fi
   log "-- reloadable keys a docker reload would apply from the file (besides runsc)"; report_reload_extras
   log "-- runsc version"; { runsc --version 2>/dev/null | head -1; } || log "runsc not installed"
-  log "-- live docker runtimes (docker info)"; log "$(runtimes_json)"
+  log "-- live docker runtimes (names and paths)"; log "$(runtimes_brief)"
   log "-- live dockerd command line"; dockerd_cmdline || log "(dockerd process not found)"
   if runsc_in_file && ! runsc_overlay_ok; then
     log "WARNING: runtimes.runsc in $DAEMON_JSON has no runtimeArgs $RUNSC_OVERLAY: lab root filesystem writes are not capped by the memory limit (existing entry left untouched)"
@@ -154,34 +153,25 @@ report() {
 
 runsc_in_file() {
   [ -f "$DAEMON_JSON" ] || return 1
-  if command -v jq >/dev/null 2>&1; then
-    jq -e '.runtimes.runsc' "$DAEMON_JSON" >/dev/null 2>&1
-  else
-    grep -q '"runsc"' "$DAEMON_JSON"
-  fi
+  jq -e '.runtimes.runsc' "$DAEMON_JSON" >/dev/null 2>&1
 }
 
 RUNSC_OVERLAY="--overlay2=root:memory"
 
 runsc_overlay_ok() {
-  if command -v jq >/dev/null 2>&1; then
-    jq -e --arg a "$RUNSC_OVERLAY" '(.runtimes.runsc.runtimeArgs // []) | any(. == $a)' "$DAEMON_JSON" >/dev/null 2>&1
-  else
-    grep -q -- "$RUNSC_OVERLAY" "$DAEMON_JSON"
-  fi
+  jq -e --arg a "$RUNSC_OVERLAY" '(.runtimes.runsc.runtimeArgs // []) | any(. == $a)' "$DAEMON_JSON" >/dev/null 2>&1
 }
 
 runtimes_json() { docker info --format '{{json .Runtimes}}' 2>/dev/null || true; }
+
+# Runtime names and paths only: the full `docker info` entries carry feature JSON (public log).
+runtimes_brief() { runtimes_json | jq -c 'with_entries(.value |= (.path // ""))' 2>/dev/null || echo "(could not read the live runtimes)"; }
 
 # Exact runtime name in the live runtimes (a key, not a substring of a path or another name).
 runtime_has() {
   local info
   info="$(runtimes_json)"
-  if command -v jq >/dev/null 2>&1; then
-    jq -e --arg n "$1" 'has($n)' <<<"$info" >/dev/null 2>&1
-  else
-    [[ "$info" == *"\"$1\":"* ]]
-  fi
+  jq -e --arg n "$1" 'has($n)' <<<"$info" >/dev/null 2>&1
 }
 
 runsc_loaded() { runtime_has runsc; }
@@ -190,34 +180,110 @@ runsc_loaded() { runtime_has runsc; }
 runsc_loaded_overlay() {
   local info
   info="$(runtimes_json)"
-  if command -v jq >/dev/null 2>&1; then
-    jq -e --arg a "$RUNSC_OVERLAY" '(.runsc.runtimeArgs // []) | any(. == $a)' <<<"$info" >/dev/null 2>&1
-  else
-    [[ "$info" == *'"runsc"'* && "$info" == *"$RUNSC_OVERLAY"* ]]
-  fi
+  jq -e --arg a "$RUNSC_OVERLAY" '(.runsc.runtimeArgs // []) | any(. == $a)' <<<"$info" >/dev/null 2>&1
 }
 
 dockerd_pid() { pgrep -xo dockerd 2>/dev/null || true; }
 
-# Flags whose values are harmless to print; every other flag value is redacted (the output goes
-# to a public Actions log).
-SAFE_DOCKERD_FLAGS=" -H --containerd --add-runtime --config-file --data-root "
+# jq is needed for every daemon.json and docker info check below. A real run installs it first.
+# A dry run changes nothing on the host (D133): without jq it shows the planned install and stops.
+ensure_jq() {
+  command -v jq >/dev/null 2>&1 && return 0
+  if dry; then
+    log "+ planned: install the jq package with apt"
+    err "jq is not on this host and a dry run installs nothing, so the daemon.json and runtime checks cannot run. A real run installs jq first."
+    log "BOOTSTRAP RESULT: failed"
+    exit 1
+  fi
+  log "jq missing: installing it with apt"
+  apt_get install -y jq
+  JQ_INSTALLED=1
+}
 
-# The live dockerd command line (from /proc/<pid>/cmdline) with values redacted.
-dockerd_cmdline() {
-  local pid a name i n out=() args=()
+# The live dockerd command line, one argument per element, in DOCKERD_ARGS. Fails when there is none.
+DOCKERD_ARGS=()
+dockerd_args() {
+  local pid
+  DOCKERD_ARGS=()
   pid="$(dockerd_pid)"
   [ -n "$pid" ] && [ -r "/proc/$pid/cmdline" ] || return 1
-  mapfile -d '' -t args < "/proc/$pid/cmdline" || true
-  n=${#args[@]}
+  mapfile -d '' -t DOCKERD_ARGS < "/proc/$pid/cmdline" || true
+}
+
+# Lab isolation lives in DOCKER-USER rules: dockerd with iptables disabled (flag or daemon.json)
+# never evaluates them. Fails the run, dry runs included, before anything is applied.
+iptables_fail() {
+  err "dockerd runs with iptables disabled ($1): Docker never evaluates the DOCKER-USER chain, so the lab isolation rules would do nothing."
+  if [ "${JQ_INSTALLED:-0}" = 1 ]; then err "Nothing was changed except installing the jq package."; else err "Nothing was changed."; fi
+  err "The owner has to enable iptables for dockerd (that needs a docker restart, which this script never does), then re-run."
+  log "BOOTSTRAP RESULT: failed"
+  exit 1
+}
+
+# The flag form needs no jq. dockerd parses the value with Go's ParseBool.
+iptables_flag_check() {
+  local a
+  dockerd_args || return 0
+  for a in "${DOCKERD_ARGS[@]}"; do
+    case "$a" in
+      --iptables=0|--iptables=f|--iptables=F|--iptables=false|--iptables=False|--iptables=FALSE)
+        iptables_fail "the dockerd flag $a" ;;
+    esac
+  done
+}
+
+# The config-file form (the live --config-file value, else the default file) needs jq.
+iptables_file_check() {
+  local i n file=$DAEMON_JSON
+  dockerd_args || true
+  n=${#DOCKERD_ARGS[@]}
   for ((i = 0; i < n; i++)); do
-    a=${args[i]}
-    name=${a%%=*}
-    if [[ "$a" == -* && "$SAFE_DOCKERD_FLAGS" != *" $name "* ]]; then
-      out+=("$name=<redacted>")
-      if [[ "$a" != *=* && $((i + 1)) -lt $n && "${args[i+1]}" != -* ]]; then i=$((i + 1)); fi
-    else
+    case "${DOCKERD_ARGS[i]}" in
+      --config-file=*) file=${DOCKERD_ARGS[i]#*=} ;;
+      --config-file) [ $((i + 1)) -lt $n ] && file=${DOCKERD_ARGS[i+1]} ;;
+    esac
+  done
+  if [ -f "$file" ] && jq -e '.iptables == false' "$file" >/dev/null 2>&1; then
+    iptables_fail "\"iptables\": false in $file"
+  fi
+}
+
+# Flags whose values are harmless to print; every other flag value is redacted (the output goes
+# to a public Actions log). Host flags print only fd:// and unix:// values (a tcp host is an address).
+SAFE_DOCKERD_FLAGS=" --containerd --add-runtime --config-file --data-root --iptables --ip-forward --live-restore "
+
+# The live dockerd command line with values redacted. The program name prints as is. Any other bare
+# argument (no leading -) is a value: printed only right after a safe flag given without =, else
+# <redacted>. A flag not on the safe list prints as <name>=<redacted>; a single-dash argument's
+# name is its first two characters, so a short flag group (-DH, -Dfoo) shows no value either.
+# -H/--host print fd:// and unix:// values only.
+dockerd_cmdline() {
+  local a name v i n prev_safe=0 out=()
+  dockerd_args || return 1
+  n=${#DOCKERD_ARGS[@]}
+  for ((i = 0; i < n; i++)); do
+    a=${DOCKERD_ARGS[i]}
+    if [[ "$a" != -* ]]; then
+      if [ "$i" = 0 ] || [ "$prev_safe" = 1 ]; then out+=("$a"); else out+=("<redacted>"); fi
+      prev_safe=0
+      continue
+    fi
+    prev_safe=0
+    if [[ "$a" == --* ]]; then name=${a%%=*}; else name=${a:0:2}; fi
+    if [ "$name" = -H ] || [ "$name" = --host ]; then
+      v=""
+      if [ "$name" = -H ] && [ ${#a} -gt 2 ]; then v=${a:2}; v=${v#=}
+      elif [ "$name" = --host ] && [[ "$a" == *=* ]]; then v=${a#*=}
+      elif [ $((i + 1)) -lt $n ] && [[ "${DOCKERD_ARGS[i+1]}" != -* ]]; then i=$((i + 1)); v=${DOCKERD_ARGS[i]}; fi
+      case "$v" in
+        fd://*|unix://*) out+=("$name=$v") ;;
+        *) out+=("$name=<redacted>") ;;
+      esac
+    elif [[ "$a" == --* && "$SAFE_DOCKERD_FLAGS" == *" $name "* ]]; then
       out+=("$a")
+      [[ "$a" == *=* ]] || prev_safe=1
+    else
+      out+=("$name=<redacted>")
     fi
   done
   echo "${out[*]}"
@@ -234,7 +300,7 @@ runsc_flag_registered_check() {
   err "runsc is loaded but not from $DAEMON_JSON (a dockerd flag such as --add-runtime), and it has no $RUNSC_OVERLAY."
   err "Not editing $DAEMON_JSON: the same runtime name there would stop dockerd at its next restart."
   err "The owner has to remove the flag or move runsc into $DAEMON_JSON; that needs a docker restart, which this script never does."
-  err "live docker runtimes: $(runtimes_json)"
+  err "live docker runtimes: $(runtimes_brief)"
   err "live dockerd command line: $(dockerd_cmdline || echo unknown)"
   log "BOOTSTRAP RESULT: failed"
   exit 1
@@ -256,16 +322,14 @@ need_runtime() {
 # (a flag and the same key in the file make dockerd refuse to start). No pipeline: under pipefail
 # a probe that exits early would kill the run.
 validate_daemon_json() {
-  local file=$1 pid a skip=0 help args=() keep=()
+  local file=$1 a skip=0 help out rc=0 keep=()
   help="$(dockerd --help 2>&1 || true)"
   if [[ "$help" != *--validate* ]]; then
     log "dockerd does not support --validate: skipping the config validation"
     return 0
   fi
-  pid="$(dockerd_pid)"
-  if [ -n "$pid" ] && [ -r "/proc/$pid/cmdline" ]; then
-    mapfile -d '' -t args < "/proc/$pid/cmdline" || true
-    for a in "${args[@]:1}"; do
+  if dockerd_args; then
+    for a in "${DOCKERD_ARGS[@]:1}"; do
       if [ "$skip" = 1 ]; then skip=0; continue; fi
       case "$a" in
         --config-file) skip=1 ;;
@@ -275,7 +339,13 @@ validate_daemon_json() {
     done
   fi
   printf '+ dockerd <the live flags, %s of them> --validate --config-file %s\n' "${#keep[@]}" "$file"
-  dockerd ${keep[@]+"${keep[@]}"} --validate --config-file "$file"
+  # The error text quotes values from the file and the flags, anywhere in the message, and no
+  # pattern list can be complete: print one generic line with the exit code, nothing of the text.
+  out="$(dockerd ${keep[@]+"${keep[@]}"} --validate --config-file "$file" 2>&1)" || rc=$?
+  if [ "$rc" != 0 ]; then
+    err "dockerd --validate rejected the candidate daemon.json (exit $rc); details are not printed because they can contain values"
+  fi
+  return "$rc"
 }
 
 # Keys of daemon.json that dockerd applies on a reload. A reload applies the whole file, so
@@ -298,7 +368,6 @@ reload_extras() {
 report_reload_extras() {
   local extras
   if [ ! -f "$DAEMON_JSON" ]; then log "(no file)"; return 0; fi
-  if ! command -v jq >/dev/null 2>&1; then log "(jq is not installed: cannot list them)"; return 0; fi
   extras="$(reload_extras)" || extras="(could not read the file)"
   log "${extras:-(none)}"
 }
@@ -311,8 +380,10 @@ RUNSC_INSTALLED=0
 RELOAD_EXISTING=0
 DAEMON_TMP=""
 
+# Used only for the jq install (ensure_jq), which never runs in a dry run.
 apt_get() {
-  run env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l NEEDRESTART_SUSPEND=1 apt-get -o DPkg::Lock::Timeout=120 "$@"
+  printf '+ env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l NEEDRESTART_SUSPEND=1 apt-get -o DPkg::Lock::Timeout=120 %s\n' "$*"
+  env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l NEEDRESTART_SUSPEND=1 apt-get -o DPkg::Lock::Timeout=120 "$@" 9>&-
 }
 
 # Never through apt: the runsc package's postinst edits daemon.json and reloads docker by itself.
@@ -350,11 +421,6 @@ check_existing_runsc() {
     err "runsc is in $DAEMON_JSON without runtimeArgs $RUNSC_OVERLAY: not editing the file, nothing was changed. Add the arg by hand, then re-run."
     return 1
   fi
-  command -v jq >/dev/null 2>&1 || apt_get install -y jq
-  if ! command -v jq >/dev/null 2>&1; then
-    log "jq is NOT installed on this host: a real run installs it with apt first, so the check for other changes is skipped in this dry run"
-    return 0
-  fi
   extras="$(reload_extras)"
   if [ -n "$extras" ]; then
     err "runsc is in $DAEMON_JSON but not loaded, and a reload would apply more than runsc (the running values are not known):"
@@ -378,21 +444,16 @@ apply_runtime() {
     validate_daemon_json "$DAEMON_JSON"
     RELOAD_EXISTING=1
     run systemctl reload docker
-  elif dry && ! command -v jq >/dev/null 2>&1; then
-    log "jq is NOT installed on this host: a real run installs it with apt first; the daemon.json diff cannot be shown in this dry run"
-    apt_get install -y jq
-    log "planned: add runtimes.runsc={path:$runsc_bin,runtimeArgs:[$RUNSC_OVERLAY]} to $DAEMON_JSON (only that key; everything else compared with jq -S), validate with dockerd --validate, mv into place"
-    run systemctl reload docker
   else
-    command -v jq >/dev/null 2>&1 || apt_get install -y jq
     if [ -f "$DAEMON_JSON" ]; then orig="$(cat "$DAEMON_JSON")"; else orig='{}'; fi
     new="$(printf '%s' "$orig" | jq --arg p "$runsc_bin" --arg a "$RUNSC_OVERLAY" '.runtimes = ((.runtimes // {}) + {runsc: {path: $p, runtimeArgs: [$a]}})')"
     if [ "$(printf '%s' "$new" | jq -S "$strip_runsc")" != "$(printf '%s' "$orig" | jq -S "$strip_runsc")" ]; then
       err "refusing to write $DAEMON_JSON: the merge would change more than runtimes.runsc"
       return 1
     fi
-    log "planned $DAEMON_JSON diff (jq -S, before -> after):"
-    diff -u <(printf '%s' "$orig" | jq -S .) <(printf '%s' "$new" | jq -S .) || true
+    # Only the runtimes key is shown: the neighbouring keys may hold credentials (public log).
+    log "planned $DAEMON_JSON diff (jq -S '{runtimes}', before -> after):"
+    diff -u <(printf '%s' "$orig" | jq -S '{runtimes: (.runtimes // {})}') <(printf '%s' "$new" | jq -S '{runtimes: (.runtimes // {})}') || true
     if dry; then
       [ -d /etc/docker ] || printf '+ mkdir -p -m 0755 /etc/docker\n'
       printf '+ write temp file in /etc/docker, dockerd --validate, mv to %s\n' "$DAEMON_JSON"
@@ -422,7 +483,7 @@ apply_runtime() {
       sleep 1
     done
     if ! runsc_loaded; then err "docker does not list runsc after the reload"; return 1; fi
-    if ! runsc_loaded_overlay; then err "docker lists runsc without $RUNSC_OVERLAY after the reload: $(runtimes_json)"; return 1; fi
+    if ! runsc_loaded_overlay; then err "docker lists runsc without $RUNSC_OVERLAY after the reload: $(runtimes_brief)"; return 1; fi
   fi
   # The check image comes from a local copy; a missing one is pulled from a mirror first, because
   # Docker Hub answers anonymous pulls with 429 (#294). The runsc runs below never pull.
@@ -474,8 +535,7 @@ rollback_runtime() {
     # Docker drops a runtime on reload only when the file still has a "runtimes" key. When the
     # original has none, or when runsc was in the original file, first reload a copy without
     # runsc (keeping an empty "runtimes"), then restore the exact bytes.
-    if command -v jq >/dev/null 2>&1 \
-        && { [ "$RELOAD_EXISTING" = 1 ] || [ -z "$DAEMON_BACKUP" ] || ! jq -e 'has("runtimes")' "$DAEMON_BACKUP" >/dev/null 2>&1; }; then
+    if [ "$RELOAD_EXISTING" = 1 ] || [ -z "$DAEMON_BACKUP" ] || ! jq -e 'has("runtimes")' "$DAEMON_BACKUP" >/dev/null 2>&1; then
       stage="$(mktemp /etc/docker/daemon.json.lf-stage.XXXXXX)" || stage=""
       if [ -n "$stage" ]; then
         if [ -n "$DAEMON_BACKUP" ]; then jq '.runtimes = ((.runtimes // {}) | del(.runsc))' "$DAEMON_BACKUP" > "$stage"; else echo '{"runtimes": {}}' > "$stage"; fi
@@ -836,6 +896,10 @@ if [ "${1:-}" = "--rules-only" ]; then
 fi
 
 if [ "$(id -u)" != 0 ]; then err "run as root"; exit 1; fi
+
+iptables_flag_check
+ensure_jq
+iptables_file_check
 
 log "== baseline"
 BASE_STATE="$(container_state)"

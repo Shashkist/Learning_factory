@@ -75,7 +75,16 @@ jobs:
           lock_st=0
           ssh $ssh_opts "$SERVER_USER@$SERVER_HOST" "flock -n /run/lf-bootstrap.lock true" || lock_st=$?
           if [ "$lock_st" != 0 ]; then
-            if [ "$lock_st" = 255 ]; then echo "ssh failed while checking the bootstrap lock" >&2; else echo "a bootstrap is still running on the server (lock /run/lf-bootstrap.lock is held); nothing was copied or started" >&2; fi
+            if [ "$lock_st" = 255 ]; then
+              echo "ssh failed while checking the bootstrap lock" >&2
+            else
+              echo "a bootstrap is still running on the server (lock /run/lf-bootstrap.lock is held); nothing was copied or started" >&2
+              # Show the log of the newest run directory without bootstrap.rc (the run that holds the
+              # lock), skipping finished runs, this run's own directory and empty directories left by refused
+              # runs; then remove this run's own empty directory (best effort). Nothing else is touched.
+              orphan="for d in \$(ls -1dt ${dest%/*}/run-*/ 2>/dev/null); do d=\${d%/}; [ \"\$d\" = $dest ] && continue; [ -e \"\$d/bootstrap.log\" ] || continue; [ -e \"\$d/bootstrap.rc\" ] && continue; echo \"-- log of the unfinished run \$d (last 200 lines)\"; tail -n 200 \"\$d/bootstrap.log\" 2>/dev/null; break; done; rmdir $dest 2>/dev/null || true"
+              ssh $ssh_opts "$SERVER_USER@$SERVER_HOST" "$orphan" || true
+            fi
             exit 1
           fi
           scp $ssh_opts labs/deploy/bootstrap/bootstrap.sh "$SERVER_USER@$SERVER_HOST:$dest/bootstrap.sh"
