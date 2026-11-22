@@ -262,6 +262,8 @@ NEIGHBOURS = {
     "registry-mirrors": ["https://exam-user:EXAMSECRET@mirror.invalid"],
     "labels": ["exam-label-value"],
     "runtimes": {"other": {"path": "/usr/bin/exam-other"}},
+    # Sorts right after "runtimes": a plain `diff -u` of the whole file shows it as context.
+    "seccomp-profile": "/etc/exam-seccomp-EXAMSECCOMP.json",
 }
 
 
@@ -275,7 +277,8 @@ def test_dry_run_diff_shows_only_the_runtimes_key_and_no_neighbouring_values(tmp
     h = _Host(tmp_path, daemon=NEIGHBOURS, dry=True)
     assert h.res.returncode == 0, h.tail()
     assert h.last_line == f"{RESULT} dry run", h.tail()
-    for leaked in ("EXAMSECRET", "exam-log-driver-value", "exam-label-value", "mirror.invalid"):
+    for leaked in ("EXAMSECRET", "exam-log-driver-value", "exam-label-value", "mirror.invalid",
+                   "EXAMSECCOMP"):
         assert leaked not in h.out, f"'{leaked}' (a neighbouring value) is in the log\n" + h.tail()
     diff = "\n".join(_diff_lines(h.out))
     assert re.search(r'^\+\s+"runsc"', diff, re.M), "no runsc entry in the diff\n" + h.tail()
@@ -285,7 +288,8 @@ def test_dry_run_diff_shows_only_the_runtimes_key_and_no_neighbouring_values(tmp
 @needs_linux
 def test_applied_run_diff_shows_only_the_runtimes_key_and_no_neighbouring_values(tmp_path):
     h = _Host(tmp_path, daemon=NEIGHBOURS, dry=False)
-    for leaked in ("EXAMSECRET", "exam-log-driver-value", "exam-label-value", "mirror.invalid"):
+    for leaked in ("EXAMSECRET", "exam-log-driver-value", "exam-label-value", "mirror.invalid",
+                   "EXAMSECCOMP"):
         assert leaked not in h.out, f"'{leaked}' (a neighbouring value) is in the log\n" + h.tail()
     assert h.after is not None
     written = json.loads(h.after)
