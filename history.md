@@ -633,3 +633,19 @@ Tips:
 - **About 40 minutes from the owner's report to a fix on the branch:** exam written by an agent (~7 min), docker run (~20 min), diagnosis plus a 3-case jsdom exam that reproduced the TypeError exactly, then a 9-line fix (D124).
 - **Lesson.** A fake backend that invents the API shape certifies the wrong contract. Follow-up #430 moves the fakes to the real shape and adds an error boundary, so the terminal survives a render fault.
 - **Housekeeping.** `gh pr merge --delete-branch` fails when the branch is checked out in a local worktree. The merge itself goes through, so delete the remote branch by hand. A PR body's `Closes #n` closes the issue at merge time, so post the evidence as a comment rather than through `gh issue close`.
+
+## Pass lf-m3q8: two merges, one validator parked by a reviewer with a stopwatch (2026-11-22, laptop, ~23:00-00:45 UTC)
+
+- **2 merged PRs:** #432 (#428, origin check: one trailing dot) and #438 (#430, an error boundary around the task pane, and fakes in the real API shape). #423 (validator) is parked after review round 1.
+- **Measure before you encode, twice in one pass.**
+  - #428: Node's built-in WHATWG URL parser showed that `http://1.2.3.4..` stays a domain, not a refused IPv4 host as the issue said. The exam encoded the measurement (D125).
+  - #423: the exam writer timed every line in real dash and bash through WSL. Three claims in the issue were wrong. For example, `! sleep ... &` holds the pipe under dash but not under bash (D126).
+- **The reviewer found what the exam could not.** Its probes on #437 found:
+  - a quadratic scan: 106 s on a line of 8,000 `} 2>/dev/null |` elements, against 0.02 s on main;
+  - a new false positive on `( cd /; cmd >/dev/null 2>&1 ) &`;
+  - a unit test asserting the opposite of what bash does.
+
+  Each finding came with a timing table, so the next round starts from facts.
+- **The same rule bit twice: the exam-integrity gate counts `e2e/fake-backend.ts` and `src/*.test.tsx` as code.** An exam commit that also touched them went red. Separately, `gh pr update-branch` adds a merge commit, which the gate also refuses. With force-push blocked, the fix both times was a fresh branch built by cherry-picking, plus a new PR (#433 → #435 → #438). **Never use `update-branch` here; cherry-pick onto main instead.**
+- **React error boundaries catch only errors from child components.** The first boundary wrapped JSX that was rendered inline by the parent, so it caught nothing. The working fix is a tiny `Render` child that calls the pane's JSX as a function, which avoids moving ~100 lines into a new component.
+- **Parallel lanes paid off.** Three issues were in flight at once, each with its own claim, worktree and lane on the live page: three exam writers, then implementers and reviewers in the background. The manager mostly waited on CI (~17 min per run, the docker job being the long pole).

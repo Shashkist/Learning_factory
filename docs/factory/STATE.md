@@ -4,9 +4,11 @@
 
 ## Now
 
-**Pass lf-m3q8 (laptop, started 2026-11-22) in progress.**
-- **#430** claimed, branch `f/430-lab-screen-boundary`, worktree `C:\projects\lf-430`: exam being written (error boundary, fakes in the `{en, he}` shape, #427 alert timing; criterion 4 goes to a follow-up).
-- **#423** claimed, branch `f/423-validator-spans`, worktree `C:\projects\lf-423`: exam being written after timing real shells.
+**Pass lf-w6d2 (laptop, started 00:55 UTC 2026-11-22) in progress.** Lanes: **#154** Solution tab (research, then exam), **#319** typed-command relay proof (exam only), **#434** origin check empty labels.
+
+_Previous:_ **Pass lf-m3q8 (laptop, ~23:00-00:45 UTC) stopped at 2 merged PRs:** #432 (#428) and #438 (#430). **Closed with evidence:** #428; #430 (main CI 44967001871 green on f60e417, Deploy 44968577911 deployed f60e417, smoke green; the evidence comment was posted by lf-w6d2). Decisions D125-D127. **#423 parked after review round 1 of PR #437 (closed):** the nine findings and the plan are on #423; the next round goes on `f/423-validator-spans-b`, cut from main by cherry-pick (exam 2defa26, new exam commit, code 6161630). New issues #431, #434, #436.
+
+**Lesson (pass lf-m3q8): never use `gh pr update-branch` here;** it adds a merge commit, which the exam-integrity gate refuses. Cherry-pick onto main instead. The gate also counts `e2e/fake-backend.ts` and `src/*.test.tsx` as code, so they never ride in an exam commit.
 
 _Previous:_ **Pass lf-k5p9 (laptop, 21:25-~22:50 UTC) stopped at 3 merged PRs.** The merges were #426 (#414), #425 (#416) and #429 (p0 #427).
 
@@ -327,10 +329,9 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 ## Next (in order)
 
 1. **#332** after O23.
-2. **#430** (p2, lab screen error boundary + real API shape in UI fakes; follow-up of p0 #427).
-3. **#423** (validator misses moved out of #414: pipes in substitutions, escaped delimiters, `!` jobs, groups spanning lines; p3). Time real shells first.
-4. Review leftovers: **#319** (now also the 390 px typed-command proof from #349) WebSocket relay proof, **#154** Solution tab (D57 b), **#142**.
-5. **#85** deploy follow-ups, **#93**; p2 list: #81, #76, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
+2. **#423** (validator misses moved out of #414: pipes in substitutions, escaped delimiters, `!` jobs, groups spanning lines; p3). Time real shells first.
+3. Review leftovers: **#319** (now also the 390 px typed-command proof from #349) WebSocket relay proof, **#154** Solution tab (D57 b), **#142**.
+4. **#436**, **#431**, **#434** (lab screen and origin-check follow-ups, p3). **#85** deploy follow-ups, **#93**; p2 list: #81, #76, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
 
