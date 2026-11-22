@@ -98,7 +98,7 @@ if ! grep -q '^LF_DATABASE_URL=.' "$envf"; then
   exit 0
 fi
 chmod 600 "$envf"
-if grep -q '^LF_TERM_UPSTREAM=' "$envf"; then
+if grep -Eq '^[[:space:]]*(export[[:space:]]+)?LF_TERM_UPSTREAM[[:space:]]*[=:]' "$envf"; then
   die "LF_TERM_UPSTREAM is set in .env (a test seam); remove that line, it must never run in production"
 fi
 

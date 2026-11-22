@@ -196,12 +196,17 @@ async def ws_proxy(session: str, websocket: WebSocket) -> None:
             _open_terminals[sid] -= 1
 
 
+def _refuse_redirect(exc: Exception) -> Exception | str:
+    """A terminal upstream never redirects: any 3xx on the upgrade is an error, never followed."""
+    return exc
+
+
 async def _bridge(websocket: WebSocket, sid: uuid.UUID) -> None:
     address, target = _target(websocket, sid)
     wanted = list(websocket.scope.get("subprotocols") or [])
     try:
         ip_host, _, ip_port = (await resolve(address)).rpartition(":")
-        upstream = await connect(
+        pending = connect(
             f"ws://{address}{target}",
             host=ip_host.strip("[]"),
             port=int(ip_port),
@@ -213,6 +218,8 @@ async def _bridge(websocket: WebSocket, sid: uuid.UUID) -> None:
             proxy=None,
             open_timeout=5,
         )
+        pending.process_redirect = _refuse_redirect  # type: ignore[method-assign]
+        upstream = await pending
     except Exception as exc:
         log.warning("terminal upstream unreachable: %s", type(exc).__name__)
         if isinstance(exc, TimeoutError):
