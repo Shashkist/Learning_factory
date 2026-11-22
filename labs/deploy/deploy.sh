@@ -202,7 +202,7 @@ verify_container() {
         say "$l"
         case "$l" in
           *"(none)"*|*"lookup failed"*)
-            pname=${l#trusted proxy }; pname=${pname%%[ :]*}
+            pname=${l#*trusted proxy }; pname=${pname%%[ :]*}
             say "WARNING: trusted proxy $pname did not resolve; logins are rate-limited per proxy, not per client"
             ;;
         esac
