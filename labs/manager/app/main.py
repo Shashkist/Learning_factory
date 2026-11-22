@@ -169,6 +169,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await asyncio.to_thread(auth.warm_trusted_proxy)
     except Exception:  # noqa: BLE001
         log.warning("trusted proxy: startup lookup raised unexpectedly")
+    if os.environ.get("LF_TERM_UPSTREAM"):
+        log.error("LF_TERM_UPSTREAM is set: it is a test seam and must never be set in production")
     app.state.pool = None
     app.state.db_state = "not_configured"
     app.state.runtime = DockerRuntime()
