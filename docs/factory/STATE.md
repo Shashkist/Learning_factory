@@ -4,7 +4,12 @@
 
 ## Now
 
-**Pass lf-w6d2 (laptop, 00:55-~02:45 UTC 2026-11-22) stopping.** Merged: #441 (#434) and #447 (#154).
+**Pass lf-q7x4 (laptop, from 02:57 UTC 2026-11-22) running.** Took over lf-w6d2's claims.
+- #453 (#452) reviewed (approve; leftovers folded into #454) and merged as adff271; main CI and Deploy running.
+- #450 (#319) rebased by cherry-pick onto adff271 (dcc4b2e); CI running; merge next.
+- #444 in flight: exam e02db8b (scratch PR #455 proves the manager half red), implementer working in `C:\projects\lf-444`.
+
+_Previous:_ **Pass lf-w6d2 (laptop, 00:55-~02:45 UTC 2026-11-22) stopping.** Merged: #441 (#434) and #447 (#154).
 
 **Resume here, first (one merge at a time; rebase by cherry-pick, never `gh pr update-branch`):**
 1. **p0 incident #452 / PR #453** (branch `f/452-smoke-solution-key`, worktree `C:\projects\lf-452`, claim lf-w6d2).
