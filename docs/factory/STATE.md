@@ -4,7 +4,14 @@
 
 ## Now
 
-**Pass lf-q7x4 (laptop, 02:57-~04:40 UTC 2026-11-22) stopped at 3 merged PRs:** #453 (p0 #452), #450 (#319), #456 (#444).
+**Pass lf-r3n8 (laptop, from ~05:00 UTC 2026-11-22) in progress.** Merged so far: #457 (#454; main CI and Deploy pending).
+In flight (claims lf-r3n8, worktrees `C:\projects\lf-<n>`):
+- **#458** `f/458-teacher-view-exam-cases`: exam-only (pins #444 behaviour; mutations prove it bites).
+- **#448** `f/448-solution-tab-polish`: exam, then the `LabScreen.tsx` fixes.
+- **#142** `f/142-bootstrap-exam-scenarios`: docker exam scenarios, D130 (rmdir of a created `/etc/docker`).
+**Decisions:** D130.
+
+_Previous:_ **Pass lf-q7x4 (laptop, 02:57-~04:40 UTC 2026-11-22) stopped at 3 merged PRs:** #453 (p0 #452), #450 (#319), #456 (#444).
 
 **Resume here, first:**
 1. **#454 / PR #457** (branch `f/454-smoke-shape-from-api`, worktree `C:\projects\lf-454`; claim released). Review round 1 approved; PR CI green on 418b447, already cherry-picked onto 30b964a. If main has moved, cherry-pick `bec1b0d` (exam) and `418b447` (fix) onto it again, wait for green, then merge. The Deploy smoke must still reach `ok quiz-show` and `ok end` (the smoke now requires `solution_available: false` on the quiz). Close #454 with: the exam's mutation runs from the review (comment on #457), the PR and main CI, and that Deploy.
