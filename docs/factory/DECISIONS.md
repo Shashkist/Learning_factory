@@ -1338,3 +1338,11 @@ in force · factory · 2026-11-22
 **Why.** A recreated nginx-proxy3 can get a new address; a pinned address then puts every client in one login rate-limit bucket until someone re-runs Deploy. Docker's embedded DNS on the shared network always knows the current address. A plain TTL is simpler than "re-resolve on an unknown peer", and an unknown peer cannot trigger DNS lookups at will.
 **Alternatives.** Trust the nginx subnet (rejected by the issue: lab containers must never become trusted by accident). Re-resolve on every unknown peer (a lookup per request from any client). Keep O13 as a manual step.
 **Revert.** Export `"$nginx_ip"` again in `labs/deploy/deploy.sh`; the IP-literal path in `client_ip` (`labs/manager/app/auth.py`) still works unchanged. Flip the #93 exam's deploy case and the #13 deploy exam's `PROXY=` assertion back.
+
+## D133 · #56: a bootstrap dry run never changes the host, not even to install jq
+in force · factory · 2026-11-22
+
+**Decision.** #56 removes every "jq is missing" fallback from `labs/deploy/bootstrap/bootstrap.sh`, so every daemon.json and runtime check needs jq. A real run installs jq with apt before the runtime step. A dry run installs nothing: without jq it prints the planned install and stops with `BOOTSTRAP RESULT: failed` and a line that says a real run installs jq first. The iptables=false check on the dockerd command line needs no jq and runs before that, so it is reported in either case.
+**Why.** A dry run runs on every push to the bootstrap paths, on the production server that also hosts the owner's other services; "dry run" has to mean no change at all. The production host already has jq (its dry run on 13b5c25 printed no jq-missing line), so nothing stops there today.
+**Alternatives.** Install jq in a dry run too (a small package install, but a dry run that changes the host). Keep the jq-less fallbacks (the review of #50 found they mis-detect runtimes).
+**Revert.** In `ensure_jq`, drop the dry-run branch so `apt_get install -y jq` runs in both modes, and flip the #56 exam's dry-run-without-jq case.
