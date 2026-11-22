@@ -4,12 +4,21 @@
 
 ## Now
 
-**Pass lf-r3n8 (laptop, from ~05:00 UTC 2026-11-22) in progress.** Merged so far: #457 (#454; main CI and Deploy pending).
-In flight (claims lf-r3n8, worktrees `C:\projects\lf-<n>`):
-- **#458** `f/458-teacher-view-exam-cases`: exam-only (pins #444 behaviour; mutations prove it bites).
-- **#448** `f/448-solution-tab-polish`: exam, then the `LabScreen.tsx` fixes.
-- **#142** `f/142-bootstrap-exam-scenarios`: docker exam scenarios, D130 (rmdir of a created `/etc/docker`).
-**Decisions:** D130.
+**Pass lf-r3n8 (laptop, 04:57-~06:45 UTC 2026-11-22) stopped at 3 merged PRs:** #457 (#454), #460 (#458), #463 (#448).
+
+**Resume here, first:**
+1. **#142 / PR #464** (branch `f/142-bootstrap-exam-scenarios-b`, worktree `C:\projects\lf-142b`; claim released). Review round 1 approved; every PR CI job green on b13ff05. Merge it under D131: since its base, main has only gained #460 (new exam files), #463 (`LabScreen.tsx`) and docs, none of them on its paths. If main has gained anything on `labs/deploy/**` or the bootstrap exams, cherry-pick `706ea76`, `5452586` (exam) and `b13ff05` (fix) onto a new branch and a new PR instead.
+   - After the merge: main CI green, the Deploy reaches `ok end` (the bootstrap script is not run by the Deploy; the docker job is its proof). Close #142 with: scratch #465 (on main without the fix only the two D130 (1) cases failed: manager-exam 1, docker 1 with 388 passed), #459 (the harness lock leak it found), the review on #464, and the main CI run.
+   - Leftovers are in #468 (six older exam items plus four low findings).
+2. Then the Next list.
+
+**Closed with evidence:** #454 (Deploy 44988639923 deployed 0ff17bd, smoke to `ok end`), #458 (main CI 44991575817; scratch #461 mutation), #448 (main CI 44992328275; Deploy 44993798145 deployed a2ccfae, smoke to `ok end`, live bundle `index-jdNfMCsE.js` equals the branch build).
+**Decisions:** D130 (bootstrap rollback `rmdir`s an `/etc/docker` it created; a failing preflight prints no "before" report), D131 (merge on own green CI when main moved only by disjoint new files).
+**New issues:** #466 (Solution tab: a Check during the first fetch refetches, p3), #467 (#454 exam: a real mutation guard, no top-level `tasks` import, p3), #468 (bootstrap exam nits, leftovers of #142, p3).
+**Worktrees:** `lf-444`, `lf-454`, `lf-458`, `lf-448`, `lf-448b`, `lf-142` removed. Keep `lf-142b`.
+
+**Lesson (pass lf-r3n8): prove a docker exam on main with a scratch PR before trusting the real PR.** #459 showed 9 cases red for one harness reason (`flock LOCK sleep` gives the lock to `sleep`, which outlives `pkill flock`); `flock -o` and a lock-free precondition fixed it.
+**Lesson (pass lf-r3n8): a local `tsc` can pass on types from outside the repo** (a stray `@types/node` under `C:/projects/node_modules`). In web exams use `vi.stubEnv`, never `process.env`; CI is the judge.
 
 _Previous:_ **Pass lf-q7x4 (laptop, 02:57-~04:40 UTC 2026-11-22) stopped at 3 merged PRs:** #453 (p0 #452), #450 (#319), #456 (#444).
 
@@ -378,9 +387,9 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
 ## Next (in order)
 
-1. **#457** merge (see Now). Then **#332** after O23.
+1. **#464** merge (see Now). Then **#332** after O23.
 2. **#423** (validator misses moved out of #414: pipes in substitutions, escaped delimiters, `!` jobs, groups spanning lines; p3). Time real shells first.
-3. **#448** (Solution tab polish), **#458** (teacher-view exam cases), **#142**.
+3. **#466**, **#467**, **#468** (p3 follow-ups from this pass), **#93**.
 4. **#436**, **#431**, **#434** (lab screen and origin-check follow-ups, p3). **#85** deploy follow-ups, **#93**; p2 list: #81, #76, #69, #64, #68, #55, #56, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
@@ -397,6 +406,7 @@ _Previous pass (lf-q3m8, ~15:35 UTC) notes below._
 
 ## Recently done
 
+- 2026-11-22 pass lf-r3n8: #454 (#457; Deploy 44988639923, smoke ok), #458 (#460; main CI 44991575817), #448 (#463; Deploy 44993798145 deployed a2ccfae, smoke ok).
 - 2026-11-22 pass lf-q7x4: #452 (#453; Deploy 44980307879, smoke ok), #319 (#450; Deploy 44981926735), #444 (#456; main CI 44983612487, Deploy 44985231868 deployed 30b964a, smoke ok).
 - 2026-11-21 pass lf-t5w2: #391 (#401; main CI 44932880926), #408 (#412; main CI 44934730508, Deploy 44936571157 deployed ff12d82 past a docs-only commit), #337 (#418 after #411/#415, D121; Deploy 44939668791, smoke ok).
 - 2026-11-21 pass lf-m8r2: #400 (#406; Dashboard CI runs 44920984247, 44924721514), #395 (#402, #405, #407; main CI 44927424876, Deploy 44922347898 deployed past a `history.md` commit), #399 (#409; Deploy 44931215561, smoke ok, live framing headers).
