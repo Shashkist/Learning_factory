@@ -275,19 +275,21 @@ function runnerText(r) {
 
 var LIVE_STALE_MS = 15 * 60 * 1000;
 
-// A sub-step shows the hourglass only while it is the agent's latest, still open, and the agent is not silent.
-function agentLive(a, generated) {
+// The one silence rule, for the agent and for its sub-steps.
+function agentSilent(a, generated) {
   var gen = Date.parse(generated), last = Date.parse(a.last);
-  var silent = !isNaN(gen) && !isNaN(last) && gen - last >= LIVE_STALE_MS;
-  return a.state === "running" && !silent;
+  return !isNaN(gen) && !isNaN(last) && gen - last >= LIVE_STALE_MS;
 }
 
+function agentLive(a, generated) {
+  return a.state === "running" && !agentSilent(a, generated);
+}
+
+// A sub-step shows the hourglass only while it is the agent's latest, still open, and the agent is not silent.
 function liveSubstep(a, s, subs, generated) {
   var t = Date.parse(s.at);
   var later = subs.some(function (x) { return Date.parse(x.at) > t; });   // strictly later: same-second steps tie
-  var gen = Date.parse(generated), last = Date.parse(a.last);
-  var silent = !isNaN(gen) && !isNaN(last) && gen - last >= LIVE_STALE_MS;
-  return !later && !silent && a.state !== "ended" && a.state !== "done";   // stopped/failed keep it: #51 exam
+  return !later && !agentSilent(a, generated) && a.state !== "ended" && a.state !== "done";   // stopped/failed keep it: #51 exam
 }
 
 // The one rule for "is this sub-step current": a live start, or a wait.
@@ -378,6 +380,12 @@ function dur(a, b) {
   return s < 90 ? s + " s" : s < 5400 ? Math.round(s / 60) + " min" : (s / 3600).toFixed(1) + " h";
 }
 
+function latestIssue(a) {   // the lane of the agent's latest sub-step; old data falls back to the agent's issue
+  var last = null;
+  arr(a.substeps).forEach(function (s) { if (!last || Date.parse(s.at) >= Date.parse(last.at)) last = s; });
+  return Number(last && last.issue) > 0 ? Number(last.issue) : Number(a.issue);
+}
+
 function laneData(d) {
   var lanes = Object.create(null);
   arr(d.issues).forEach(function (i) {
@@ -406,7 +414,7 @@ function laneData(d) {
     l.first = l.steps.reduce(function (m, x) { return !m || S(x.s.started) < m ? S(x.s.started) : m; }, "");
     var busy = l.crew.filter(function (n) { return n.state === "busy" || n.state === "thinking"; });
     var openSteps = l.steps.filter(function (x) { return x.open; });
-    l.running = busy.length > 0 || l.agents.some(function (a) { return agentLive(a, d.generated_at); });
+    l.running = busy.length > 0 || l.agents.some(function (a) { return agentLive(a, d.generated_at) && latestIssue(a) === l.issue; });
     var cur = LIVE_STATIONS.indexOf(l.station);
     busy.forEach(function (n) {   // an agent at work is the strongest evidence of where the task is
       var at = LIVE_STATIONS.indexOf(ROLE_STATION[S(n.type)] || "");
