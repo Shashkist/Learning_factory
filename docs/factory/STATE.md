@@ -4,7 +4,9 @@
 
 ## Now
 
-**Pass lf-v6k1 (laptop, 06:55-~08:45 UTC 2026-11-22) stopped at 3 merged PRs:** #464 (#142), #473 (#93), #474 (#56). Nothing is in flight; no claims are held.
+**Pass lf-k8w2 (laptop, started ~09:00 UTC 2026-11-22) in flight:** #475 (branch `f/475-trusted-proxy-leftovers`, worktree `C:\projects\lf-475`) and #466 (branch `f/466-solution-refetch`, worktree `C:\projects\lf-466`), both claimed, exam stage.
+
+_Previous:_ **Pass lf-v6k1 (laptop, 06:55-~08:45 UTC 2026-11-22) stopped at 3 merged PRs:** #464 (#142), #473 (#93), #474 (#56). Nothing is in flight; no claims are held.
 
 **Resume here, first:** the Next list. **#475** (p2) first: the #93 review leftovers (a malformed proxy name gives 500s today).
 
