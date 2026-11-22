@@ -4,12 +4,11 @@
 
 ## Now
 
-**Pass lf-m5t9 (laptop, 12:57-~14:50 UTC 2026-11-22).** It took over pass lf-ef8a's open work (that session had ended with both PRs open).
-- **#68**: merged as #484 (b982775) and closed with evidence. The live `factory.shashkist.com/app.js` is byte-identical to the merged commit.
-- **#480**: merged as #486 (e393877) and closed with evidence: Deploy 45028016533 printed `trusted proxy nginx-proxy3 -> 172.18.0.14` and the smoke reached `ok end`. Review leftovers are in **#488**.
-- **#76 / PR #492** (branch `f/76-term-proxy-limits-b`, worktree `C:\projects\lf-76`, claim lf-m5t9). D137 plus amendments. Review rounds 1 (#489) and 2 (#491) are done. Round 2 confirmed the code. Its only blocker was an over-long exam line, which is now wrapped. The manager decided to merge on green CI without a third review.
-  - **If #492 is still open when you read this:** run `git log --oneline origin/main..origin/f/76-term-proxy-limits-b` (it should show 2 exam commits, then 2 fix commits). Merge it on green CI. Watch the Deploy: the smoke must reach `ok terminal` and `ok end`, because the smoke opens a real terminal through the new WebSocket path. Then close #76 with the PR, the Deploy and the smoke. Leftovers are in **#490**.
-  - #489 and #491 were closed as replaced. A force-push was refused, so each round went to a new branch. The old branches `f/76-term-proxy-hardening` and `f/76-term-proxy-limits` can be deleted after the merge.
+**Pass lf-c4z8 (laptop, from 14:55 UTC 2026-11-22).**
+- **#76**: PR #492 was merged as ad89c9e by pass lf-m5t9. Main CI 45034776048 and then the Deploy must go green; the smoke must reach `ok terminal` and `ok end`. Then close #76 (leftovers in #490).
+- **#485** (claim lf-c4z8): PR #493, branch `f/485-dependabot-actions`, worktree `C:\projects\lf-485`. CI, then review.
+- **#490** (claim lf-c4z8): exam being written, branch `f/490-term-proxy-redirects`, worktree `C:\projects\lf-490`.
+- **#487** (claim lf-c4z8): exam being written, branch `f/487-live-view-leftovers`, worktree `C:\projects\lf-487`.
 
 Older pass notes (lf-ef8a and before) are in `history.md` and git history (`git log -p docs/factory/STATE.md`).
 
