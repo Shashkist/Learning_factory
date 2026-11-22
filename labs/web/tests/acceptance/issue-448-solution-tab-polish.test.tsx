@@ -2,12 +2,13 @@
  * Exam for #448 (from #154, D57 (d), D128): polish of the Solution tab of the lab screen.
  *
  * Wanted, in English and Hebrew:
- *  1. A Check pressed on the (locked) Solution tab returns to the Task tab; focus must then be inside
- *     the task panel (its heading), not on document.body.
+ *  1. A Check pressed on the (locked) Solution tab returns to the Task tab; focus must then be on
+ *     the task heading itself, not on document.body.
  *  2. A 410 session_ended answer from POST .../solution shows the ended-session state (lab.ended,
  *     role=status), not the generic load error (no role=alert).
  *  3. A 403 solution_locked answer is not cached: after a graded Check, opening the Solution tab
  *     POSTs to /solution again and shows the solution.
+ *  4. A solution that already loaded is fetched once: a Check and reopening the tab do not POST again.
  */
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
@@ -86,6 +87,9 @@ const openTab = (lang: "en" | "he") =>
 const taskTab = (lang: "en" | "he") =>
   fireEvent.click(within(panel()).getByRole("tab", { name: d(lang)["lab.task.tab"] }));
 const checkButton = (lang: "en" | "he") => screen.getByRole("button", { name: d(lang)["lab.check"] });
+/** The graded result of a Check: the failed checklist row carries the cross mark (as in the #130 exam). */
+const gradedMark = () =>
+  waitFor(() => expect(within(panel()).getAllByRole("listitem").some((r) => r.textContent?.includes("✗"))).toBe(true));
 const solutionPosts = () => calls.filter((c) => c === `POST ${SOLUTION_URL}`);
 
 beforeEach(() => {
@@ -100,7 +104,7 @@ afterEach(() => {
 for (const lang of ["en", "he"] as const) {
   const name = lang === "en" ? "English" : "Hebrew";
 
-  test(`${name}: focus lands in the task panel after a Check pressed on the Solution tab, not on body`, async () => {
+  test(`${name}: focus lands on the task heading after a Check pressed on the Solution tab, not on body`, async () => {
     backend(false, ok({ solution: SOLUTION }));
     await open(lang);
     openTab(lang);
@@ -111,9 +115,8 @@ for (const lang of ["en", "he"] as const) {
     await waitFor(() => expect(calls).toContain(`POST ${CHECK_URL}`));
     // back on the Task tab: the checklist row text is shown
     await waitFor(() => expect(panel().textContent).not.toContain(d(lang)["lab.solution.hint"]));
-    await waitFor(() => expect(document.activeElement).not.toBe(document.body));
-    expect(document.activeElement, "focus is inside the task panel").not.toBeNull();
-    expect(panel().contains(document.activeElement)).toBe(true);
+    const heading = await within(panel()).findByRole("heading", { name: task(false).title[lang] });
+    await waitFor(() => expect(document.activeElement).toBe(heading));
   });
 
   test(`${name}: a 410 session_ended from the solution fetch shows the ended-session state`, async () => {
@@ -138,9 +141,24 @@ for (const lang of ["en", "he"] as const) {
     taskTab(lang);
     fireEvent.click(checkButton(lang));
     await waitFor(() => expect(calls).toContain(`POST ${CHECK_URL}`));
-    await screen.findByText(d(lang)["lab.check"]);
+    await gradedMark();
     openTab(lang);
     await waitFor(() => expect(panel().textContent).toContain(`${lang.toUpperCase()}-solution-prose`));
     expect(solutionPosts(), "fetched again after the Check").toHaveLength(2);
+  });
+
+  test(`${name}: a loaded solution is fetched once, a Check and reopening the tab do not fetch it again`, async () => {
+    backend(true, ok({ solution: SOLUTION }));
+    await open(lang);
+    openTab(lang);
+    await waitFor(() => expect(panel().textContent).toContain(`${lang.toUpperCase()}-solution-prose`));
+    expect(solutionPosts()).toHaveLength(1);
+    taskTab(lang);
+    fireEvent.click(checkButton(lang));
+    await waitFor(() => expect(calls).toContain(`POST ${CHECK_URL}`));
+    await gradedMark();
+    openTab(lang);
+    await waitFor(() => expect(panel().textContent).toContain(`${lang.toUpperCase()}-solution-prose`));
+    expect(solutionPosts(), "still one fetch after the Check").toHaveLength(1);
   });
 }
