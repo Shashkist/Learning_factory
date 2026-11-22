@@ -100,8 +100,6 @@ const makeCall = (skew: { current: number }) =>
     return (r.status === 204 ? undefined : await r.json()) as T;
   };
 
-const withoutKey = <T,>(o: Record<string, T>, k: string) =>
-  Object.fromEntries(Object.entries(o).filter(([key]) => key !== k));
 // The session is over (ended, expired or gone) as far as the server is concerned.
 const isEnded = (e: unknown) =>
   e instanceof Failure &&
@@ -170,6 +168,7 @@ export default function LabScreen({
   const [labTitle, setTitle] = useState<Bi | null>(null);
   const [pending, setPending] = useState(false);
   const [solutions, setSolutions] = useState<Record<string, Bi | null>>({}); // per task id, fetched once; null: locked
+  // task ids already requested; cleared for a locked one after a Check, so it is asked again
   const asked = useRef(new Set<string>());
   const inFlight = useRef(false);
   const alive = useRef(true);
@@ -462,9 +461,15 @@ export default function LabScreen({
       }
     });
   // A lock answered earlier no longer holds after a graded attempt: ask again on the next open.
+  // A solution that has loaded stays: it is never fetched twice.
   const refetchSolution = () => {
+    if (solutions[task.id]) return;
     asked.current.delete(task.id);
-    setSolutions((prev) => (prev[task.id] === null ? withoutKey(prev, task.id) : prev));
+    setSolutions((prev) =>
+      prev[task.id] === null
+        ? Object.fromEntries(Object.entries(prev).filter(([k]) => k !== task.id))
+        : prev,
+    );
   };
   const check = () =>
     run(async () => {
