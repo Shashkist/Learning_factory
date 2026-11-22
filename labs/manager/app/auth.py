@@ -12,6 +12,8 @@ import ipaddress
 import logging
 import os
 import secrets
+import socket
+import threading
 import time
 from collections import deque
 from collections.abc import Callable, Iterator
@@ -225,13 +227,63 @@ def _group_ip(ip: str) -> str:
     return ip
 
 
+_proxy_log = logging.getLogger("app.auth")
+_PROXY_TTL_DEFAULT = 30.0
+_proxy_lock = threading.Lock()
+# (name, expires at monotonic, trusted addresses)
+_proxy_cache: tuple[str, float, frozenset[str]] | None = None
+_proxy_logged: tuple[str, frozenset[str]] | None = None
+
+
+def reset_trusted_proxy_cache() -> None:
+    global _proxy_cache, _proxy_logged
+    with _proxy_lock:
+        _proxy_cache = None
+        _proxy_logged = None
+
+
+def _proxy_ttl() -> float:
+    try:
+        return max(0.0, float(os.environ.get("LF_TRUSTED_PROXY_TTL_S", _PROXY_TTL_DEFAULT)))
+    except ValueError:
+        return _PROXY_TTL_DEFAULT
+
+
+def trusted_proxy_addresses() -> frozenset[str]:
+    """Addresses LF_TRUSTED_PROXY stands for: an IP literal as is, a name resolved and cached."""
+    global _proxy_cache, _proxy_logged
+    trusted = (os.environ.get("LF_TRUSTED_PROXY") or "").strip()
+    if not trusted:
+        return frozenset()
+    try:
+        ipaddress.ip_address(trusted)
+        return frozenset({trusted})
+    except ValueError:
+        pass
+    with _proxy_lock:
+        now = time.monotonic()
+        cached = _proxy_cache
+        if cached and cached[0] == trusted and now < cached[1]:
+            return cached[2]
+        try:
+            found = frozenset(str(info[4][0]) for info in socket.getaddrinfo(trusted, None))
+        except OSError as exc:
+            found = frozenset()
+            _proxy_log.warning("trusted proxy %s: lookup failed (%s); nobody trusted", trusted, exc)
+        _proxy_cache = (trusted, now + _proxy_ttl(), found)
+        if _proxy_logged != (trusted, found):
+            _proxy_logged = (trusted, found)
+            _proxy_log.info("trusted proxy %s -> %s", trusted, ", ".join(sorted(found)) or "(none)")
+        return found
+
+
 def client_ip(request: HTTPConnection) -> str:
     """The socket peer; X-Forwarded-For (last hop) only when the peer is LF_TRUSTED_PROXY.
 
+    LF_TRUSTED_PROXY is an IP literal or a host name (re-resolved on a TTL, D132).
     IPv6 addresses are grouped by /64."""
     peer = request.client.host if request.client else "unknown"
-    trusted = os.environ.get("LF_TRUSTED_PROXY")
-    if trusted and peer == trusted:
+    if peer in trusted_proxy_addresses():
         hops = [h.strip() for h in request.headers.get("x-forwarded-for", "").split(",")]
         hops = [h for h in hops if h]
         if hops:

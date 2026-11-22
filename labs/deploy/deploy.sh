@@ -132,12 +132,11 @@ net_line=$("$docker" inspect -f '{{range $k,$v := .NetworkSettings.Networks}}{{$
 [ "$(printf '%s
 ' "$net_line" | grep -c .)" -le 1 ]   || die "nginx-proxy3 is on more than one user network; refusing to guess which one the manager joins"
 nginx_net=${net_line%% *}
-nginx_ip=${net_line#* }
-[ -n "$nginx_net" ] && [ -n "$nginx_ip" ] && [ "$nginx_net" != "$net_line" ] \
+[ -n "$nginx_net" ] && [ "$nginx_net" != "$net_line" ] \
   || die "cannot read the network of nginx-proxy3"
-export LF_MANAGER_TAG="$tag" LF_NGINX_NETWORK="$nginx_net" LF_TRUSTED_PROXY="$nginx_ip"
+export LF_MANAGER_TAG="$tag" LF_NGINX_NETWORK="$nginx_net" LF_TRUSTED_PROXY=nginx-proxy3
 export LF_DOCKER="$docker"
-say "nginx network $nginx_net, trusted proxy $nginx_ip"
+say "nginx network $nginx_net, trusted proxy nginx-proxy3 (the manager re-resolves it)"
 
 compose_up() {
   LF_MANAGER_TAG="$1" "$docker" compose -p learning-factory -f "$root/compose.yml" up -d
@@ -197,6 +196,9 @@ verify_container() {
     return 1
   fi
   say "$mig"
+  # best effort: the address the manager resolved for the proxy name
+  "$docker" logs ${started:+--since "$started"} lf-manager 2>&1 | grep "trusted proxy" | tail -n1 \
+    | while read -r l; do say "$l"; done || true
 }
 
 say "starting lf-manager:$tag"

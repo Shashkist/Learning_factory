@@ -159,6 +159,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     google_auth.install_log_filter()
     if not log.handlers and not logging.getLogger().handlers:
         log.addHandler(logging.StreamHandler())
+    proxy_log = logging.getLogger("app.auth")
+    proxy_log.setLevel(logging.INFO)
+    if not proxy_log.handlers and not logging.getLogger().handlers:
+        proxy_log.addHandler(logging.StreamHandler())
+    try:
+        auth.trusted_proxy_addresses()  # resolve once now: logs the address, never stops startup
+    except Exception:  # noqa: BLE001
+        log.warning("trusted proxy lookup failed at startup")
     app.state.pool = None
     app.state.db_state = "not_configured"
     app.state.runtime = DockerRuntime()

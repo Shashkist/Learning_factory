@@ -47,7 +47,7 @@ The factory never waits on these. It works around them and comes back when they 
   ```
   Type the password when prompted (or pipe it: `printf '%s\n' "$PW" | docker exec -i lf-manager python -m app.cli create-admin <username>`). To change it later add `--reset`. The deploy needs the production environment to hold `SSH_PRIVATE_KEY`, `SERVER_HOST`, `SERVER_USER`, `LF_DATABASE_URL` (O10) and the variable `SERVER_HOST_KEY`; without them it prints which are missing and does nothing.
 - [x] **O12 · Back up `/root/learning-factory/.env`** — **owner decision 2026-11-15: skipped. If the file is ever lost, students re-register ("we will remake it").** Do not ask again; a factory change that would make the loss worse (e.g. more secrets in that file) must say so in its PR. Original note: the first deploy generates `LF_ID_SECRET` there; every student ID hash depends on it.
-- [x] **O13 · nginx-proxy3 recreated → re-run Deploy** — **owner: "you decide"; decided 2026-11-15: removed by making it self-healing (#93). Until #93 ships:** after recreating `nginx-proxy3`, re-run the Deploy workflow (a plain restart keeps the address, checked 2026-11-15).
+- [x] **O13** removed by #93, D132.
 
 - [x] **O9 · What `lf_app` can reach through `PUBLIC`** — **handed to the manager by the owner (2026-11-15): issue #61.** The original note and query are kept below for the manager.
   The role sees tables only in `learning_factory`, but like every role it inherits `PUBLIC`'s rights: it can call functions in schema `public` and read the catalog. A `SECURITY DEFINER` function in `public` would run with its owner's rights. Check:
