@@ -8,7 +8,7 @@
 1. **#490: merge PR #503** (branch `f/490-term-proxy-redirects-2`, worktree `C:\projects\lf-490`, claim released). Review round 2 approved; exam integrity green; when this pass stopped, `manager-exam` was green and `docker` still running. Check `gh pr checks 503`, claim, merge, watch the Deploy and smoke (`ok terminal`), then post the evidence with `gh issue comment 490` (the merge closes it). Leftovers: #505.
 2. **Dependabot:** #494 (setup-python v7.1.0, rebased by Dependabot), then #497 (upload-artifact v7.0.2) and #496 (download-artifact v8.0.2) together in one pass, because the dashboard `publish` job downloads what `snapshot` uploads. This pass checked every SHA against its upstream tag and read the release notes (node24, ESM; download v8 fails on a digest mismatch). After the artifact pair, confirm one Factory dashboard run on main publishes.
 3. The normal queue (Next).
-- Cleanup: the agent worktree `C:\projects\Learning_factory\.claude\worktrees\agent-ac07bba89b5f0910a` (clean, nothing ahead of main) could not be removed (a process held it): `git worktree remove` it, then `git branch -D worktree-agent-ac07bba89b5f0910a`. About 28 older `agent-*` worktrees from earlier passes are also still there.
+- Cleanup: about 28 old `agent-*` worktrees from earlier passes are still under `C:\projects\Learning_factory\.claude\worktrees\`. Remove the clean ones that have nothing ahead of main. When this pass ended, PR #503 was fully green.
 
 Older pass notes (lf-ef8a and before) are in `history.md` and git history (`git log -p docs/factory/STATE.md`).
 
