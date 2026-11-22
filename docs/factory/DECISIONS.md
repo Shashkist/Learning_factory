@@ -1304,6 +1304,7 @@ in force · factory · 2026-11-22
 - A Check that timed out counts an attempt (D-entry for #88), so it unlocks the solution. The lab screen unlocks the tab in place after a failed or timed-out Check, but not after `reason: "error"`, which counts no attempt.
 - A quiz's Solution tab shows the "not available" text without the "run Check" hint.
 - The teacher views are #444.
+- While locked, a hands-on task's Solution tab also shows a Check button, the same action as the Task tab's. After the Check, the screen switches to the Task tab to show the result, and the solution is fetched when the student opens the tab again. The round-2 exam pins this, so reverting it changes the exam. Spec §9 places Check in the task panel without making it exclusive. KodeKloud's Solution tab has no Check, so this is a deliberate deviation.
 
 ## D129 · #434: an empty host label warns, and that check runs before the IPv4-form checks
 in force · factory · 2026-11-22
