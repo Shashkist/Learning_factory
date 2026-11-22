@@ -118,7 +118,7 @@ body.lab-wide :is(#root, #root > div) {
   margin-block-end: var(--space-2);
 }
 .lab-progress__fill {
-  block-size: 4px;
+  block-size: calc(var(--bar-h) / 2);
   background: var(--color-primary);
 }
 .lab-step {

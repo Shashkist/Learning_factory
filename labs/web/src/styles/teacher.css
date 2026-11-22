@@ -41,7 +41,7 @@
 
 .summary {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(var(--cell-min), 1fr));
   gap: var(--space-3);
   margin-block: var(--space-3);
 }

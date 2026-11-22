@@ -95,7 +95,7 @@ export default function MyLabs({ open, signedOut }: { open: (labId: string) => v
         : "labs.continue";
   const text = (v: Bi, l: Lang = lang) => v[l];
 
-  if (labs === null) return null; // nothing flashes while the catalog loads
+  if (labs === null) return <p role="status">{t("labs.loading")}</p>;
   return (
     <>
       <h1>{t("labs.title")}</h1>
