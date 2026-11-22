@@ -168,6 +168,7 @@ export default function LabScreen({
   const [labTitle, setTitle] = useState<Bi | null>(null);
   const [pending, setPending] = useState(false);
   const [solutions, setSolutions] = useState<Record<string, Bi | null>>({}); // per task id, fetched once; null: locked
+  // task ids already requested; cleared for a locked one after a Check, so it is asked again
   const asked = useRef(new Set<string>());
   const inFlight = useRef(false);
   const alive = useRef(true);
@@ -316,6 +317,10 @@ export default function LabScreen({
         if (alive.current) setSolutions((prev) => ({ ...prev, [wantSolution]: r.solution }));
       })
       .catch((e) => {
+        if (isEnded(e)) {
+          setPhase("ended");
+          return;
+        }
         if (e instanceof Failure && e.detail === "solution_locked") {
           if (alive.current) setSolutions((prev) => ({ ...prev, [wantSolution]: null }));
           return; // shows the locked text
@@ -455,6 +460,17 @@ export default function LabScreen({
         }
       }
     });
+  // A lock answered earlier no longer holds after a graded attempt: ask again on the next open.
+  // A solution that has loaded stays: it is never fetched twice.
+  const refetchSolution = () => {
+    if (solutions[task.id]) return;
+    asked.current.delete(task.id);
+    setSolutions((prev) =>
+      prev[task.id] === null
+        ? Object.fromEntries(Object.entries(prev).filter(([k]) => k !== task.id))
+        : prev,
+    );
+  };
   const check = () =>
     run(async () => {
       const r = await call<{
@@ -465,7 +481,11 @@ export default function LabScreen({
       if (r.reason === "timeout" || r.reason === "error") {
         setCheckFailed(true);
         // a timeout counts an attempt on the server, an error does not
-        if (r.reason === "timeout") setTask({ ...task, solution_available: true });
+        if (r.reason === "timeout") {
+          setTask({ ...task, solution_available: true });
+          refetchSolution();
+        }
+        if (tab === "solution") focusTask.current = true;
         setTab("task"); // Check may be pressed from the locked Solution tab: show its message
         return;
       }
@@ -477,8 +497,15 @@ export default function LabScreen({
       );
       setPassed(r.passed);
       setTask({ ...task, solution_available: true }); // a graded attempt unlocks the solution
+      refetchSolution();
+      if (tab === "solution") focusTask.current = true;
       setTab("task"); // Check may be pressed from the locked Solution tab: show its result
     });
+  const checkButton = (
+    <button className="primary" onClick={check} disabled={pending} aria-busy={pending}>
+      {t("lab.check")}
+    </button>
+  );
   const answer = () =>
     run(async () => {
       const r = await call<{ correct: boolean }>(
@@ -685,14 +712,7 @@ export default function LabScreen({
                 {hands && (
                   <>
                     <p>{t("lab.solution.hint")}</p>
-                    <button
-                      className="primary"
-                      onClick={check}
-                      disabled={pending}
-                      aria-busy={pending}
-                    >
-                      {t("lab.check")}
-                    </button>
+                    {checkButton}
                   </>
                 )}
               </>
@@ -722,14 +742,7 @@ export default function LabScreen({
                       );
                     })}
                   </ul>
-                  <button
-                    className="primary"
-                    onClick={check}
-                    disabled={pending}
-                    aria-busy={pending}
-                  >
-                    {t("lab.check")}
-                  </button>
+                  {checkButton}
                 </>
               ) : (
                 <>
