@@ -1357,3 +1357,12 @@ in force · factory · 2026-11-22
 **Why.** The review of #476 confirmed one POST in en, he and under `<StrictMode>`; the residual gap (a 403 and a Check answering in the same event-loop turn before a render) is far below a page reload.
 **Alternatives.** Clear `asked` inside the updater when `prev[id] === null` (a side effect in an updater, idempotent under StrictMode); track in-flight ids in their own ref.
 **Revert.** Restore `if (solutions[task.id]) return;` and drop the `solutionsNow` ref; the #466 exam goes red again.
+
+## D135 · #475: the trusted-proxy lookup runs in a worker thread, the TTL is clamped, an expired entry is trusted while it refreshes
+in force · factory · 2026-11-22
+
+**Decision.** Amends D132. Inside the event loop `trusted_proxy_addresses` (and so `client_ip`) only reads the cache; a missing or expired entry is refreshed in one daemon thread at a time (`lf-proxy-lookup`). Nobody is trusted until the first answer; while a refresh after expiry runs, the last answer is still trusted. Startup resolves once via `asyncio.to_thread`. `OSError` and `ValueError` (`UnicodeError`) from `getaddrinfo` both mean "trust nobody", cached for the TTL, one warning per lookup. `LF_TRUSTED_PROXY_TTL_S` is clamped to 1..3600 s; unset, garbage, non-finite and <= 0 mean 30. `deploy.sh` prints a `WARNING: trusted proxy <name> did not resolve` line when the manager's last `trusted proxy` line shows `(none)` or `lookup failed`, and never fails the deploy.
+**Why.** A malformed name gave a 500 on every login; a slow resolver could stall the event loop once per TTL. A thread, not an asyncio task, so a cache reset needs no task cancellation across event loops (tests create several).
+**Assumption.** Trusting the last answer for the length of one refresh is safe: nginx's address changes only when its container is recreated, and the next lookup corrects it within seconds.
+**Leftovers** (review of #479, non-blocking) are in #480: a failed `Thread.start()` leaves the refresh flag set; the generation is read twice; the startup lookup is not marked in flight; the deploy parse also matches main.py's `trusted proxy lookup failed at startup`; the logger-setup helper.
+**Revert.** Restore the inline lookup under the lock in `trusted_proxy_addresses` (`labs/manager/app/auth.py`), the `max(0.0, ...)` TTL and the `except OSError`; drop the `case` block in `verify_container` (`labs/deploy/deploy.sh`). The #475 exam goes red.
