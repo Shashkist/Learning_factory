@@ -4,9 +4,11 @@
 
 ## Now
 
-**Pass lf-k8w2 (laptop, ~09:00 UTC 2026-11-22) in flight:** #466 shipped (#476) and #467 shipped (#478). **#475 / PR #479** (branch `f/475-trusted-proxy-leftovers`, worktree `C:\projects\lf-475`): CI green, review round 1 running.
+**Pass lf-ef8a (laptop, 10:57 UTC 2026-11-22) in flight:** #480 (branch `f/480-proxy-refresh-leftovers`, worktree `C:\projects\lf-480`) and #68 (branch `f/68-live-view-state`, worktree `C:\projects\lf-68`; items 4-6 split into #481): exams being written. #475 closed with evidence (Deploy 45015372680 deployed eae385f, `trusted proxy nginx-proxy3 -> 172.18.0.14`, smoke `ok end`).
 
-_Previous:_ **Pass lf-v6k1 (laptop, 06:55-~08:45 UTC 2026-11-22) stopped at 3 merged PRs:** #464 (#142), #473 (#93), #474 (#56). Nothing is in flight; no claims are held.
+_Previous:_ **Pass lf-k8w2 (laptop, ~09:00-10:50 UTC 2026-11-22) stopped at 3 merged PRs:** #476 (#466), #478 (#467), #479 (#475). New issue #480 (review leftovers of #479).
+
+_Before that:_ **Pass lf-v6k1 (laptop, 06:55-~08:45 UTC 2026-11-22) stopped at 3 merged PRs:** #464 (#142), #473 (#93), #474 (#56). Nothing is in flight; no claims are held.
 
 **Resume here, first:** the Next list. **#475** (p2) first: the #93 review leftovers (a malformed proxy name gives 500s today).
 
