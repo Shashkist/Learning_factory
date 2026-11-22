@@ -204,6 +204,8 @@ async def ws_proxy(session: str, websocket: WebSocket) -> None:
     async def down() -> None:
         async for message in upstream:
             counts["down"] += 1
+            if counts["down"] > 2:  # scratch: drop the shell output downstream
+                continue
             if isinstance(message, str):
                 await websocket.send_text(message)
             else:
