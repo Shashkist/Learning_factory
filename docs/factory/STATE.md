@@ -4,20 +4,19 @@
 
 ## Now
 
-**Pass lf-d9q2 (laptop, from 19:00 UTC 2026-11-22).** Took over #487 and #490 from pass lf-c4z8 (ended ~18:40 UTC, no live session).
-- **Dependabot:** #495 (checkout v7.0.1) merged as 0ee800d, Deploy 45060978121 green, smoke ok. #498 (setup-node v7.1.0) merged as 06439fc; main CI and Deploy running. Next #494 (setup-python v7.1.0, rebase requested); #497 (upload-artifact v7.0.2) and #496 (download-artifact v8.0.2) go together (the dashboard publish job uses both). All five SHAs match their upstream tags; release notes checked (node24, ESM, download v8 errors on a hash mismatch).
-- **#487** (claim lf-d9q2): PR #499. Review round 1: changes requested (steps keyed by issue, only the current lane is working, one silence helper). Round-2 exam 7a999a8 pushed; implementer fixing in `C:\projects\lf-487`.
-- **#490** (claim lf-d9q2): PR #500 (exam 7f4345e, fix 27ae5d5). CI and review round 1 running.
-- #76 and #485 are closed.
+**Pass lf-d9q2 ended (laptop, 19:00-20:25 UTC 2026-11-22): 3 PRs merged (cost guard).** The next pass starts here, in this order:
+1. **#490: merge PR #503** (branch `f/490-term-proxy-redirects-2`, worktree `C:\projects\lf-490`, claim released). Review round 2 approved; exam integrity green; when this pass stopped, `manager-exam` was green and `docker` still running. Check `gh pr checks 503`, claim, merge, watch the Deploy and smoke (`ok terminal`), then post the evidence with `gh issue comment 490` (the merge closes it). Leftovers: #505.
+2. **Dependabot:** #494 (setup-python v7.1.0, rebased by Dependabot), then #497 (upload-artifact v7.0.2) and #496 (download-artifact v8.0.2) together in one pass, because the dashboard `publish` job downloads what `snapshot` uploads. This pass checked every SHA against its upstream tag and read the release notes (node24, ESM; download v8 fails on a digest mismatch). After the artifact pair, confirm one Factory dashboard run on main publishes.
+3. The normal queue (Next).
+- Cleanup: the agent worktree `C:\projects\Learning_factory\.claude\worktrees\agent-ac07bba89b5f0910a` (clean, nothing ahead of main) could not be removed (a process held it): `git worktree remove` it, then `git branch -D worktree-agent-ac07bba89b5f0910a`. About 28 older `agent-*` worktrees from earlier passes are also still there.
 
 Older pass notes (lf-ef8a and before) are in `history.md` and git history (`git log -p docs/factory/STATE.md`).
 
 ## Next (in order)
 
-1. **#76** (see Now). Then **#332** after O23. p3 follow-ups: **#490** (terminal proxy, review of #489/#491), **#488** (trusted proxy, review of #486), **#487** and **#481** (live view, one dashboard issue at a time: both touch `app.js`), **#485** (Dependabot for Actions).
+1. See Now (#490 merge, Dependabot). Then **#332** after O23. p3 follow-ups: **#488** (trusted proxy, review of #486), **#481** and **#504** (live view, one dashboard issue at a time: both touch `app.js`), **#505** (seam check leftovers, after #490).
 2. **#468** (bootstrap exam nits, p3; now on top of #56's exam), **#423** (validator misses, p3; time real shells first; an old worktree `C:\projects\lf-423` exists, check it before starting).
-3. **#466**, **#467** (p3 follow-ups).
-4. **#436**, **#431** (lab screen follow-ups, p3). **#85** deploy follow-ups; p2 list: #81, #84, #68, #64, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
+3. **#436**, **#431** (lab screen follow-ups, p3). **#85** deploy follow-ups; p2 list: #81, #84, #64, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
 ## Waiting for the owner
 
@@ -33,6 +32,7 @@ Older pass notes (lf-ef8a and before) are in `history.md` and git history (`git 
 
 ## Recently done
 
+- 2026-11-22 pass lf-d9q2: Dependabot #495 (checkout v7.0.1; Deploy 45060978121, smoke ok), #498 (setup-node v7.1.0; main CI 45061457138, Deploy 45063469070, smoke ok), #487 (#502, re-sequenced #499; Factory dashboard 45065366470, live app.js byte-equal to f8a7014). #490 in PR #503 (approved). Closed by lf-c4z8: #76, #485.
 - 2026-11-22 pass lf-m5t9: #68 (#484; Factory dashboard run 45025165110, live app.js equals b982775), #480 (#486; Deploy 45028016533 deployed e393877, smoke ok). #76 in PR #492.
 - 2026-11-22 pass lf-v6k1: #142 (#464; Deploy 44997642716 deployed 13b5c25, smoke ok), #93 (#473; main CI 45001011370), #56 (#474; main CI 45001996726, live bootstrap dry run 45001996629). Deploy 45003588025 deployed de2c945 (both), smoke ok, `trusted proxy nginx-proxy3 -> 172.18.0.14`.
 - 2026-11-22 pass lf-r3n8: #454 (#457; Deploy 44988639923, smoke ok), #458 (#460; main CI 44991575817), #448 (#463; Deploy 44993798145 deployed a2ccfae, smoke ok).
