@@ -4,11 +4,11 @@
 
 ## Now
 
-**Pass lf-d9q2 ended (laptop, 19:00-20:25 UTC 2026-11-22): 3 PRs merged (cost guard).** The next pass starts here, in this order:
-1. **#490: merge PR #503** (branch `f/490-term-proxy-redirects-2`, worktree `C:\projects\lf-490`, claim released). Review round 2 approved; exam integrity green; when this pass stopped, `manager-exam` was green and `docker` still running. Check `gh pr checks 503`, claim, merge, watch the Deploy and smoke (`ok terminal`), then post the evidence with `gh issue comment 490` (the merge closes it). Leftovers: #505.
-2. **Dependabot:** #494 (setup-python v7.1.0, rebased by Dependabot), then #497 (upload-artifact v7.0.2) and #496 (download-artifact v8.0.2) together in one pass, because the dashboard `publish` job downloads what `snapshot` uploads. This pass checked every SHA against its upstream tag and read the release notes (node24, ESM; download v8 fails on a digest mismatch). After the artifact pair, confirm one Factory dashboard run on main publishes.
-3. The normal queue (Next).
-- Cleanup: about 28 old `agent-*` worktrees from earlier passes are still under `C:\projects\Learning_factory\.claude\worktrees\`. Remove the clean ones that have nothing ahead of main. When this pass ended, PR #503 was fully green.
+**Pass lf-k7w3 running (laptop, from 20:57 UTC 2026-11-22).** Lanes:
+- **#490:** PR #503 merged (21:00 UTC); main CI and Deploy pending, then smoke (`ok terminal`) and the evidence comment.
+- **Dependabot:** #494 merged. #497 and #496 verified (SHAs equal their tags) but the gh token has no `workflow` scope, so a squash merge of a workflow change only works right after Dependabot rebased the PR (`@dependabot rebase`, then merge at once). #501 (setup-uv 5 -> 10) not looked at yet.
+- **#332:** branch `f/332-login-mylabs-design-2`, worktree `C:\projects\lf-332`: old exam cherry-picked, AC3 corrected per D109 (702e6d5, exam-only). Implementer next.
+- **#488:** branch `f/488-trusted-proxy-hardening`, worktree `C:\projects\lf-488`: exam writer running.
 
 Older pass notes (lf-ef8a and before) are in `history.md` and git history (`git log -p docs/factory/STATE.md`).
 
