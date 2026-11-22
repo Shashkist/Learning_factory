@@ -137,33 +137,9 @@ def test_a_reset_while_a_refresh_is_scheduled_voids_that_workers_answer(monkeypa
     )
 
 
-def test_an_old_worker_does_not_use_up_a_later_fake_resolver_answer(monkeypatch):
-    """Gated resolver: the old worker is inside the lookup while the test resets and re-arms."""
-    gate = threading.Event()
-    entered = threading.Event()
-    answers = {"n": 0}
-
-    def resolver(host, port=None, *args, **kwargs):
-        answers["n"] += 1
-        if answers["n"] == 1:
-            entered.set()
-            gate.wait(5)
-            return _answer(A)  # the old worker's answer
-        return _answer(B)
-
-    monkeypatch.setattr(socket, "getaddrinfo", resolver)
-
-    async def scenario():
-        auth.client_ip(_req(A, REAL))  # schedules the old worker
-        assert await _until(entered.is_set, 5), "the refresh never reached the resolver"
-        auth.reset_trusted_proxy_cache()  # the next test starts here
-        gate.set()
-        await asyncio.sleep(0.5)  # the old worker finishes and must write nothing
-
-    asyncio.run(scenario())
-    # A fresh sync lookup now: must see the new world (B), not the old worker's A.
-    assert auth.client_ip(_req(B, f"9.9.9.9, {REAL}")) == REAL
-    assert auth.client_ip(_req(A, f"9.9.9.9, {REAL}")) == A, "the old address was cached"
+# The gated-resolver case that was here reset inside getaddrinfo, after both generation reads,
+# so it could not catch the old double read. Its replacement is in
+# test_issue_488_trusted_proxy_hardening.
 
 
 # ============================================================ 3. startup lookup in flight
