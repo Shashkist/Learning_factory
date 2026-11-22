@@ -17,6 +17,9 @@ import App from "../../src/App";
 import en from "../../src/i18n/en.json";
 import he from "../../src/i18n/he.json";
 
+// The web tsconfig has no Node types; vitest runs in Node, where assigning TZ takes effect at once.
+declare const process: { env: Record<string, string | undefined> };
+
 type Dict = Record<string, string>;
 const DICTS: Record<"en" | "he", Dict> = { en: en as Dict, he: he as Dict };
 const LANGS = ["en", "he"] as const;
