@@ -171,7 +171,7 @@
   "labs.status.done": "הושלם",
   "labs.progress.label": "התקדמות במעבדה",
   "labs.lesson": "שיעור",
-  "labs.live.banner": "פתוח עכשיו:",
-  "labs.live.badge": "פתוח עכשיו",
+  "labs.live.banner": "פתוחה עכשיו:",
+  "labs.live.badge": "פתוחה עכשיו",
   "labs.progress.value": "{n} מתוך {m} משימות עברו"
 }

@@ -129,7 +129,7 @@ export default function MyLabs({ open, signedOut }: { open: (labId: string) => v
                   <div className="lab-card__head">
                     <h3 id={titleId}>{text(l.title)}</h3>
                     <span className="lab-card__badges">
-                      {l.session_id !== null && <span className="badge success">{t("labs.live.badge")}</span>}
+                      {l.session_id !== null && <span className="badge live">{t("labs.live.badge")}</span>}
                       <span className={done ? "badge success" : notStarted ? "badge" : "badge warning"}>
                         {done && <span aria-hidden="true">✓ </span>}
                         {t(`labs.status.${status}`)}
