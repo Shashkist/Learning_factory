@@ -1096,10 +1096,10 @@ in force · factory · 2026-11-21 · revertible
 
 **Revert.** Open an issue for an End lab confirmation and amend the #130 exam there.
 
-## D109 · #332 AC3 versus older exams: proposed resolution, waits for the owner (O23)
-proposed · factory · 2026-11-21 · revertible
+## D109 · #332 AC3 versus older exams: (a), the button keeps its word, the card heading describes it (O23)
+in force · owner (O23, 2026-11-22) · revertible
 
-**Assumption until O23 is answered.** #332 AC3 ("the card's main action has an accessible name that includes the lab title") contradicts AC6 ("existing tests unchanged"): the #129 and #147 exams and `e2e/main-flow.spec.ts` pin the button's name to exactly the action word. The factory's proposal is (a): the button keeps its word as its name and `aria-describedby` points at the card heading ("Start, button, Shell basics"), which needs a one-case correction of the new #332 exam. The factory's guard refused that exam edit from a manager session, so #332 is parked (`status:needs-owner`) with its exam pushed on `f/332-login-mylabs-design`.
+**Decision (owner, O23: "332: a").** #332 AC3 ("the card's main action has an accessible name that includes the lab title") contradicts AC6 ("existing tests unchanged"): the #129 and #147 exams and `e2e/main-flow.spec.ts` pin the button's name to exactly the action word. The factory's proposal is (a): the button keeps its word as its name and `aria-describedby` points at the card heading ("Start, button, Shell basics"), which needs a one-case correction of the new #332 exam. The exam correction is made by the exam writer in an exam-only commit on a `-2` branch (D103) before any code; the older #129, #147 and e2e name checks stay exact.
 
 **Alternatives.** (b) An `aria-label` like "Start: Shell basics" and loosen the three older name checks to "contains".
 
