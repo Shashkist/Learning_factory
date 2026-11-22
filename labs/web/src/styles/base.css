@@ -85,7 +85,7 @@ button[type="submit"] {
 }
 button.secondary {
   background: var(--color-surface);
-  border-color: var(--color-border);
+  border-color: var(--color-border-strong);
   color: var(--color-text);
 }
 button.danger {
@@ -241,3 +241,60 @@ th {
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* Login */
+.login-card {
+  max-inline-size: 26rem;
+  margin-inline: auto;
+  margin-block-start: var(--space-6);
+}
+.login-card__intro { color: var(--color-text-muted); }
+.login-card button[type="submit"] { inline-size: 100%; }
+.login-card [role="alert"] { margin-block: var(--space-3) 0; }
+
+/* My labs */
+.lab-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
+  gap: var(--space-4);
+  margin-block-end: var(--space-5);
+}
+.lab-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.lab-card h3,
+.lab-card p { margin-block-end: 0; }
+.lab-card--live {
+  border-color: var(--color-primary);
+  border-width: 2px;
+}
+.lab-card__meta { color: var(--color-text-muted); font-size: var(--text-sm); }
+.lab-card__desc { flex: 1; }
+.lab-card__progress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.lab-card__count { color: var(--color-text-muted); font-size: var(--text-sm); white-space: nowrap; }
+.lab-card button { align-self: flex-start; }
+.lab-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.progress-bar {
+  flex: 1;
+  block-size: 0.5rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 999px;
+  background: var(--color-surface);
+  overflow: hidden;
+}
+.progress-bar__fill {
+  block-size: 100%;
+  background: var(--color-primary);
+}
+.lab-live-banner { margin-block-end: var(--space-4); }

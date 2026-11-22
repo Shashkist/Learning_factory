@@ -100,28 +100,60 @@ export default function MyLabs({ open, signedOut }: { open: (labId: string) => v
       <h1>{t("labs.title")}</h1>
       {error && <p role="alert">{t(error)}</p>}
       {labs.length === 0 && !error && <p>{t("labs.empty")}</p>}
+      {labs.some((l) => l.session_id !== null) && <p className="alert lab-live-banner">{t("labs.live.banner")}</p>}
       {groupByModule(labs).map(([n, group]) => (
           <section key={n} data-testid={`module-${n}`}>
             <h2>
               {t("labs.module")} {n}
             </h2>
-            {group.map((l) => (
-              <article key={l.id} data-testid={`lab-card-${l.id}`}>
-                <h3>{text(l.title)}</h3>
-                <p>{text(l.description)}</p>
-                <p>
-                  {l.tasks} {t("labs.tasks")}
-                </p>
-                <p>
-                  {l.progress === "done"
-                    ? `✓ ${t("labs.progress.done")}`
-                    : l.progress === "not_started"
-                      ? t("labs.progress.not_started")
-                      : l.progress}
-                </p>
-                <button disabled={pending} onClick={() => start(l.id)}>{t(button(l))}</button>
-              </article>
-            ))}
+            <div className="lab-grid">
+            {group.map((l) => {
+              const done = l.progress === "done";
+              const notStarted = l.progress === "not_started";
+              const passed = done ? l.tasks : notStarted ? 0 : Number(l.progress.split("/")[0]) || 0;
+              const status = done ? "done" : notStarted ? "not_started" : "in_progress";
+              const titleId = `lab-title-${l.id}`;
+              return (
+                <article
+                  key={l.id}
+                  className={l.session_id !== null ? "card lab-card lab-card--live" : "card lab-card"}
+                  data-testid={`lab-card-${l.id}`}
+                >
+                  <div className="lab-card__head">
+                    <h3 id={titleId}>{text(l.title)}</h3>
+                    <span className={done ? "badge success" : notStarted ? "badge" : "badge warning"}>
+                      {done && <span aria-hidden="true">✓ </span>}
+                      {t(`labs.status.${status}`)}
+                    </span>
+                  </div>
+                  <p className="lab-card__meta">
+                    {t("labs.module")} {l.module} · {t("labs.lesson")} {l.lesson} · {l.tasks} {t("labs.tasks")}
+                  </p>
+                  <p className="lab-card__desc">{text(l.description)}</p>
+                  <div className="lab-card__progress">
+                    <div
+                      className="progress-bar"
+                      role="progressbar"
+                      aria-label={t("labs.progress.label")}
+                      aria-valuemin={0}
+                      aria-valuemax={l.tasks}
+                      aria-valuenow={passed}
+                      aria-valuetext={`${passed}/${l.tasks}`}
+                    >
+                      <div
+                        className="progress-bar__fill"
+                        style={{ inlineSize: `${l.tasks > 0 ? Math.round((passed / l.tasks) * 100) : 0}%` }}
+                      />
+                    </div>
+                    <span className="lab-card__count">{`${passed}/${l.tasks}`}</span>
+                  </div>
+                  <button className="primary" aria-describedby={titleId} disabled={pending} onClick={() => start(l.id)}>
+                    {t(button(l))}
+                  </button>
+                </article>
+              );
+            })}
+            </div>
           </section>
         ))}
       {conflict && (
