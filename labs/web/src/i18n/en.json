@@ -164,5 +164,14 @@
   "admin.cohorts.edit.legend": "Edit this cohort",
   "admin.live.col.actions": "Row actions",
   "admin.student.card.tasks": "Tasks passed",
-  "admin.student.card.flags": "Open flags"
+  "admin.student.card.flags": "Open flags",
+  "login.intro": "Sign in with your ID and your class password to open your hands-on labs.",
+  "labs.status.not_started": "Not started",
+  "labs.status.in_progress": "In progress",
+  "labs.status.done": "Done",
+  "labs.progress.label": "Lab progress",
+  "labs.lesson": "Lesson",
+  "labs.live.banner": "Open now:",
+  "labs.live.badge": "Open now",
+  "labs.progress.value": "{n} of {m} tasks passed"
 }

@@ -164,5 +164,14 @@
   "admin.cohorts.edit.legend": "עריכת הקבוצה",
   "admin.live.col.actions": "פעולות בשורה",
   "admin.student.card.tasks": "משימות שעברו",
-  "admin.student.card.flags": "דגלים פתוחים"
+  "admin.student.card.flags": "דגלים פתוחים",
+  "login.intro": "נכנסים עם תעודת הזהות וסיסמת הכיתה כדי לפתוח את מעבדות התרגול.",
+  "labs.status.not_started": "לא התחיל",
+  "labs.status.in_progress": "בתהליך",
+  "labs.status.done": "הושלם",
+  "labs.progress.label": "התקדמות במעבדה",
+  "labs.lesson": "שיעור",
+  "labs.live.banner": "פתוחה עכשיו:",
+  "labs.live.badge": "פתוחה עכשיו",
+  "labs.progress.value": "{n} מתוך {m} משימות עברו"
 }

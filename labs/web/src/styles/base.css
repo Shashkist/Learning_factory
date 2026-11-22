@@ -85,7 +85,7 @@ button[type="submit"] {
 }
 button.secondary {
   background: var(--color-surface);
-  border-color: var(--color-border);
+  border-color: var(--color-border-strong);
   color: var(--color-text);
 }
 button.danger {
@@ -241,3 +241,4 @@ th {
   clip-path: inset(50%);
   white-space: nowrap;
 }
+

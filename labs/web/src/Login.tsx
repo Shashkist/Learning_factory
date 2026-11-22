@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 
 import { useI18n } from "./i18n";
+import "./styles/student.css";
 
 export type User = { kind: string; name: string };
 
@@ -42,8 +43,9 @@ export default function Login({ onUser }: { onUser: (u: User) => void }) {
   };
 
   return (
-    <form onSubmit={submit}>
+    <form className="card login-card" onSubmit={submit}>
       <h1>{t("login.title")}</h1>
+      <p className="login-card__intro">{t("login.intro")}</p>
       <label>
         {t("login.id")}
         <input dir="ltr" autoComplete="username" inputMode="numeric" required value={id} onChange={(e) => setId(e.target.value)} />
@@ -52,7 +54,7 @@ export default function Login({ onUser }: { onUser: (u: User) => void }) {
         {t("login.password")}
         <input dir="ltr" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
       </label>
-      <button type="submit" disabled={busy}>{t("login.submit")}</button>
+      <button type="submit" disabled={busy} aria-busy={busy}>{t("login.submit")}</button>
       {error && <p role="alert">{t(error)}</p>}
     </form>
   );
