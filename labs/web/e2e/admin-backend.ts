@@ -68,7 +68,7 @@ export async function fakeAdminBackend(page: Page) {
         tasks_passed: 1,
         tasks_total: 2,
         attempts: 2,
-        tasks: [{ id: "t1", passed: true, attempts: 2, seconds: 3, median_seconds: 40 }],
+        tasks: [{ id: "t1", passed: true, attempts: 2, seconds: 3, median_seconds: 40, solution_viewed_at: null }],
         flags: s.flags.map((f) => ({ ...f, scope: "task", task_id: "t1" })),
       },
     ],
@@ -117,7 +117,7 @@ export async function fakeAdminBackend(page: Page) {
             name: s.name,
             cohort: cohortName(s.cohort),
             last_activity: null,
-            cells: { [LAB.id]: { status: "done", flag: live(s) } },
+            cells: { [LAB.id]: { status: "done", flag: live(s), solution_viewed: false } },
           }));
         return json(route, { labs: [LAB], rows });
       }

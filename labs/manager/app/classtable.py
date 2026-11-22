@@ -101,12 +101,19 @@ async def build(request: Request, cohort: int | None, flagged: int | None) -> di
             keys,
             lab_ids,
         )
+        viewed = await pool.fetch(
+            f"select distinct student, lab_id from {T}.task_results "
+            "where solution_viewed_at is not null and student = any($1) and lab_id = any($2)",
+            keys,
+            lab_ids,
+        )
         seen = await pool.fetch(SEEN_SQL, keys)
     passed_by: dict[tuple[str, str], set[str]] = {}
     for r in passed:
         passed_by.setdefault((r["student"], r["lab_id"]), set()).add(r["task_id"])
     done_set = {(r["student"], r["lab_id"]) for r in done}
     flag_set = {(r["student"], r["lab_id"]) for r in flags}
+    viewed_set = {(r["student"], r["lab_id"]) for r in viewed}
     last = {r["student"]: r["at"] for r in seen}
     rows = []
     for s in students:
@@ -117,6 +124,7 @@ async def build(request: Request, cohort: int | None, flagged: int | None) -> di
                     lab, passed_by.get((key, lab.id), set()), (key, lab.id) in done_set
                 ),
                 "flag": (key, lab.id) in flag_set,
+                "solution_viewed": (key, lab.id) in viewed_set,
             }
             for lab in labs
         }

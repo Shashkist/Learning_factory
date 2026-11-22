@@ -9,7 +9,7 @@ type Flag = {
 };
 
 const REASON_CODES = ["fast_task", "fast_lab_min", "fast_lab_median"];
-type Task = { id: string; passed: boolean; attempts: number; seconds: number | null; median_seconds: number | null };
+type Task = { id: string; passed: boolean; attempts: number; seconds: number | null; median_seconds: number | null; solution_viewed_at?: string | null };
 type Lab = {
   id: string;
   title: { en: string; he: string };
@@ -305,6 +305,11 @@ export default function StudentPage({ studentKey, go }: { studentKey: string; go
                   <td className="num">{task.attempts}</td>
                   <td className="num">{`${t("admin.student.time")}: ${secs(task.seconds)}`}</td>
                   <td className="num">{`${t("admin.student.median")}: ${secs(task.median_seconds)}`}</td>
+                  <td data-testid={`student-solution-${lab.id}-${task.id}`}>
+                    {task.solution_viewed_at
+                      ? `${t("admin.student.solution_viewed")}: ${task.solution_viewed_at.slice(0, 10)}`
+                      : t("admin.student.solution_not_viewed")}
+                  </td>
                 </tr>
               ))}
             </tbody>
