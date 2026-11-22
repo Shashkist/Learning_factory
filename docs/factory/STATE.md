@@ -4,16 +4,18 @@
 
 ## Now
 
-**Pass lf-m5t9 (laptop, 12:57 UTC 2026-11-22) in flight.** Took over pass lf-ef8a's work (its session had ended with both PRs open):
-- **#68** merged as #484 (b982775). Live `factory.shashkist.com/app.js` is byte-identical to the merged commit. Waiting for main CI, then close.
-- **#480** merged as #486 (e393877; review approved, non-blocking findings in #488). Close after the Deploy prints `trusted proxy ... ->` and the smoke reaches `ok end`.
-- **#76** (branch `f/76-term-proxy-hardening`, worktree `C:\projects\lf-76`, claim lf-m5t9): D137; exam 3bf7615 (11 of 14 red on main); implementer running.
+**Pass lf-m5t9 (laptop, 12:57-~14:50 UTC 2026-11-22).** It took over pass lf-ef8a's open work (that session had ended with both PRs open).
+- **#68**: merged as #484 (b982775) and closed with evidence. The live `factory.shashkist.com/app.js` is byte-identical to the merged commit.
+- **#480**: merged as #486 (e393877) and closed with evidence: Deploy 45028016533 printed `trusted proxy nginx-proxy3 -> 172.18.0.14` and the smoke reached `ok end`. Review leftovers are in **#488**.
+- **#76 / PR #492** (branch `f/76-term-proxy-limits-b`, worktree `C:\projects\lf-76`, claim lf-m5t9). D137 plus amendments. Review rounds 1 (#489) and 2 (#491) are done. Round 2 confirmed the code. Its only blocker was an over-long exam line, which is now wrapped. The manager decided to merge on green CI without a third review.
+  - **If #492 is still open when you read this:** run `git log --oneline origin/main..origin/f/76-term-proxy-limits-b` (it should show 2 exam commits, then 2 fix commits). Merge it on green CI. Watch the Deploy: the smoke must reach `ok terminal` and `ok end`, because the smoke opens a real terminal through the new WebSocket path. Then close #76 with the PR, the Deploy and the smoke. Leftovers are in **#490**.
+  - #489 and #491 were closed as replaced. A force-push was refused, so each round went to a new branch. The old branches `f/76-term-proxy-hardening` and `f/76-term-proxy-limits` can be deleted after the merge.
 
 Older pass notes (lf-ef8a and before) are in `history.md` and git history (`git log -p docs/factory/STATE.md`).
 
 ## Next (in order)
 
-1. **#76** (in flight, see Now). Then **#332** after O23. p3 follow-ups: **#488** (trusted proxy, review of #486), **#487** and **#481** (live view, one dashboard issue at a time: both touch `app.js`), **#485** (Dependabot for Actions).
+1. **#76** (see Now). Then **#332** after O23. p3 follow-ups: **#490** (terminal proxy, review of #489/#491), **#488** (trusted proxy, review of #486), **#487** and **#481** (live view, one dashboard issue at a time: both touch `app.js`), **#485** (Dependabot for Actions).
 2. **#468** (bootstrap exam nits, p3; now on top of #56's exam), **#423** (validator misses, p3; time real shells first; an old worktree `C:\projects\lf-423` exists, check it before starting).
 3. **#466**, **#467** (p3 follow-ups).
 4. **#436**, **#431** (lab screen follow-ups, p3). **#85** deploy follow-ups; p2 list: #81, #84, #68, #64, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
@@ -32,6 +34,7 @@ Older pass notes (lf-ef8a and before) are in `history.md` and git history (`git 
 
 ## Recently done
 
+- 2026-11-22 pass lf-m5t9: #68 (#484; Factory dashboard run 45025165110, live app.js equals b982775), #480 (#486; Deploy 45028016533 deployed e393877, smoke ok). #76 in PR #492.
 - 2026-11-22 pass lf-v6k1: #142 (#464; Deploy 44997642716 deployed 13b5c25, smoke ok), #93 (#473; main CI 45001011370), #56 (#474; main CI 45001996726, live bootstrap dry run 45001996629). Deploy 45003588025 deployed de2c945 (both), smoke ok, `trusted proxy nginx-proxy3 -> 172.18.0.14`.
 - 2026-11-22 pass lf-r3n8: #454 (#457; Deploy 44988639923, smoke ok), #458 (#460; main CI 44991575817), #448 (#463; Deploy 44993798145 deployed a2ccfae, smoke ok).
 - 2026-11-22 pass lf-q7x4: #452 (#453; Deploy 44980307879, smoke ok), #319 (#450; Deploy 44981926735), #444 (#456; main CI 44983612487, Deploy 44985231868 deployed 30b964a, smoke ok).
