@@ -47,3 +47,37 @@ def test_dashboard_schedule_and_dispatch_unchanged():
     text = _read("factory-dashboard.yml")
     assert '- cron: "7,22,37,52 * * * *"' in text
     assert re.search(r"^  workflow_dispatch:", text, re.MULTILINE)
+
+
+_USES = re.compile(r"^\s*(?:-\s+)?uses:\s*(\S+)(.*)$", re.MULTILINE)
+_PINNED = re.compile(r"^[\w.-]+/[\w./-]+@[0-9a-f]{40}$")
+
+
+def _unpinned(text: str) -> list[str]:
+    """Third-party `uses:` refs that are not a full commit SHA with a tag comment (#482)."""
+    bad = []
+    for ref, rest in _USES.findall(text):
+        ref = ref.strip("'\"")
+        if ref.startswith(("./", "docker://")):
+            continue
+        if not _PINNED.match(ref) or not re.match(r"\s+#\s*v\d", rest):
+            bad.append(ref)
+    return bad
+
+
+def test_third_party_actions_are_pinned_by_sha():
+    files = sorted(WF.glob("*.yml"))
+    assert files
+    bad = {f.name: refs for f in files if (refs := _unpinned(f.read_text(encoding="utf-8")))}
+    assert not bad, f"pin these by full commit SHA with a '# vX.Y.Z' comment: {bad}"
+
+
+def test_pin_check_rejects_tags_branches_and_short_shas():
+    sha = "11d5960a326750d5838078e36cf38b85af677262"
+    assert _unpinned("      - uses: actions/checkout@v4\n") == ["actions/checkout@v4"]
+    assert _unpinned("      - uses: actions/checkout@main\n") == ["actions/checkout@main"]
+    assert _unpinned("      - uses: actions/checkout@11d5960\n") == ["actions/checkout@11d5960"]
+    assert _unpinned(f"      - uses: actions/checkout@{sha}\n") == [f"actions/checkout@{sha}"]  # no tag comment
+    assert _unpinned(f"      - uses: actions/checkout@{sha} # v4.4.0\n") == []
+    assert _unpinned(f"        uses: astral-sh/setup-uv@{sha}  # v5.4.2\n") == []
+    assert _unpinned("    uses: ./.github/workflows/smoke.yml\n") == []
