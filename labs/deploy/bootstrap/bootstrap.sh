@@ -197,6 +197,7 @@ ensure_jq() {
   fi
   log "jq missing: installing it with apt"
   apt_get install -y jq
+  JQ_INSTALLED=1
 }
 
 # The live dockerd command line, one argument per element, in DOCKERD_ARGS. Fails when there is none.
@@ -213,7 +214,8 @@ dockerd_args() {
 # never evaluates them. Fails the run, dry runs included, before anything is applied.
 iptables_fail() {
   err "dockerd runs with iptables disabled ($1): Docker never evaluates the DOCKER-USER chain, so the lab isolation rules would do nothing."
-  err "Nothing was changed. The owner has to enable iptables for dockerd (that needs a docker restart, which this script never does), then re-run."
+  if [ "${JQ_INSTALLED:-0}" = 1 ]; then err "Nothing was changed except installing the jq package."; else err "Nothing was changed."; fi
+  err "The owner has to enable iptables for dockerd (that needs a docker restart, which this script never does), then re-run."
   log "BOOTSTRAP RESULT: failed"
   exit 1
 }
@@ -250,31 +252,38 @@ iptables_file_check() {
 # to a public Actions log). Host flags print only fd:// and unix:// values (a tcp host is an address).
 SAFE_DOCKERD_FLAGS=" --containerd --add-runtime --config-file --data-root --iptables --ip-forward --live-restore "
 
-# The live dockerd command line with values redacted. An argument that does not start with - is a
-# value (kept only after a safe flag); a flag not on the safe list prints as <name>=<redacted>,
-# where a short flag's name is its first two characters (-Hxyz, -Dfoo).
+# The live dockerd command line with values redacted. The program name prints as is. Any other bare
+# argument (no leading -) is a value: printed only right after a safe flag given without =, else
+# <redacted>. A flag not on the safe list prints as <name>=<redacted>; a single-dash argument's
+# name is its first two characters, so a short flag group (-DH, -Dfoo) shows no value either.
+# -H/--host print fd:// and unix:// values only.
 dockerd_cmdline() {
-  local a name v i n out=()
+  local a name v i n prev_safe=0 out=()
   dockerd_args || return 1
   n=${#DOCKERD_ARGS[@]}
   for ((i = 0; i < n; i++)); do
     a=${DOCKERD_ARGS[i]}
-    if [[ "$a" != -* ]]; then out+=("$a"); continue; fi
+    if [[ "$a" != -* ]]; then
+      if [ "$i" = 0 ] || [ "$prev_safe" = 1 ]; then out+=("$a"); else out+=("<redacted>"); fi
+      prev_safe=0
+      continue
+    fi
+    prev_safe=0
     if [[ "$a" == --* ]]; then name=${a%%=*}; else name=${a:0:2}; fi
     if [ "$name" = -H ] || [ "$name" = --host ]; then
       v=""
       if [ "$name" = -H ] && [ ${#a} -gt 2 ]; then v=${a:2}; v=${v#=}
       elif [ "$name" = --host ] && [[ "$a" == *=* ]]; then v=${a#*=}
-      elif [ $((i + 1)) -lt $n ]; then i=$((i + 1)); v=${DOCKERD_ARGS[i]}; fi
+      elif [ $((i + 1)) -lt $n ] && [[ "${DOCKERD_ARGS[i+1]}" != -* ]]; then i=$((i + 1)); v=${DOCKERD_ARGS[i]}; fi
       case "$v" in
         fd://*|unix://*) out+=("$name=$v") ;;
         *) out+=("$name=<redacted>") ;;
       esac
-    elif [[ "$SAFE_DOCKERD_FLAGS" == *" $name "* ]]; then
+    elif [[ "$a" == --* && "$SAFE_DOCKERD_FLAGS" == *" $name "* ]]; then
       out+=("$a")
+      [[ "$a" == *=* ]] || prev_safe=1
     else
       out+=("$name=<redacted>")
-      if [[ "$a" != *=* && "$a" == --* && $((i + 1)) -lt $n && "${DOCKERD_ARGS[i+1]}" != -* ]]; then i=$((i + 1)); fi
     fi
   done
   echo "${out[*]}"
@@ -313,7 +322,7 @@ need_runtime() {
 # (a flag and the same key in the file make dockerd refuse to start). No pipeline: under pipefail
 # a probe that exits early would kill the run.
 validate_daemon_json() {
-  local file=$1 a skip=0 help out rc=0 first keep=()
+  local file=$1 a skip=0 help out rc=0 keep=()
   help="$(dockerd --help 2>&1 || true)"
   if [[ "$help" != *--validate* ]]; then
     log "dockerd does not support --validate: skipping the config validation"
@@ -330,13 +339,11 @@ validate_daemon_json() {
     done
   fi
   printf '+ dockerd <the live flags, %s of them> --validate --config-file %s\n' "${#keep[@]}" "$file"
-  # The error text quotes values from the file and the flags, and no pattern list can be complete:
-  # print one generic line and the message text before its first colon, nothing else.
+  # The error text quotes values from the file and the flags, anywhere in the message, and no
+  # pattern list can be complete: print one generic line with the exit code, nothing of the text.
   out="$(dockerd ${keep[@]+"${keep[@]}"} --validate --config-file "$file" 2>&1)" || rc=$?
   if [ "$rc" != 0 ]; then
-    first=${out%%$'\n'*}
     err "dockerd --validate rejected the candidate daemon.json (exit $rc); details are not printed because they can contain values"
-    [ -n "$first" ] && err "${first%%:*}"
   fi
   return "$rc"
 }
