@@ -100,3 +100,23 @@ def test_pin_check_rejects_tags_branches_and_short_shas():
     assert _unpinned(f"    uses: org/repo/.github/workflows/x.yml@{sha} # v1.0.0\n") == []
     assert _unpinned("      - uses: docker://alpine@sha256:" + "a" * 64 + "\n") == []
     assert _unpinned("    uses: ./.github/workflows/smoke.yml\n") == []
+
+
+def test_dependabot_keeps_action_pins_current():
+    # #485: SHA pins never update by themselves; one grouped weekly PR moves them.
+    text = (WF.parent / "dependabot.yml").read_text(encoding="utf-8")
+    assert re.search(r"^version:\s*2\s*$", text, re.MULTILINE)
+    entry = re.search(r'package-ecosystem:\s*"?github-actions"?\n((?:[ ]{4,}.*\n)+)', text)
+    assert entry, "dependabot.yml needs a github-actions entry"
+    body = entry.group(1)
+    assert re.search(r'directory:\s*"?/"?\s*$', body, re.MULTILINE)
+    assert re.search(r'interval:\s*"?weekly"?\s*$', body, re.MULTILINE)
+    assert re.search(r"groups:\n\s+[\w-]+:\n\s+patterns:\n\s+-\s*\"?\*\"?", body), "one grouped PR"
+
+
+def test_pin_check_accepts_a_dependabot_bump():
+    # Dependabot rewrites the SHA and the `# vX.Y.Z` comment together, keeping the spacing.
+    old, new = "11d5960a326750d5838078e36cf38b85af677262", "a" * 40
+    assert _unpinned(f"      - uses: actions/checkout@{old} # v4.4.0\n") == []
+    assert _unpinned(f"      - uses: actions/checkout@{new} # v4.5.1\n") == []
+    assert _unpinned(f"      - uses: astral-sh/setup-uv@{new}  # v6.0.0\n") == []

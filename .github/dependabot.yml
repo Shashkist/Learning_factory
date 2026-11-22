@@ -1,0 +1,15 @@
+# Keeps the SHA-pinned actions current (#485). Dependabot moves each `@<sha> # vX.Y.Z`
+# pin and its comment together, so the pin check in scripts/test_ci_workflows.py keeps
+# passing. One grouped PR a week; the factory treats it like any PR (FACTORY.md).
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "chore(ci)"

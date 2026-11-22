@@ -76,6 +76,8 @@ A full CI run (on a PR or on a push to main) costs about **29 billable minutes**
 - **NEVER** deploy anything that makes a lab container reach the host, other containers, or the open internet (spec §6).
 - **Cost guard:** a run stops starting new issues after ~90 minutes of work or 3 merged PRs, whichever comes first.
 
+**Dependabot PRs (#485).** `.github/dependabot.yml` opens one grouped PR a week that moves the SHA-pinned actions and their `# vX.Y.Z` comments. The factory treats it like any PR, without an issue or an exam: CI green (the pin check in `scripts/test_ci_workflows.py` runs on it), then a quick review of the release notes of each bumped action (look for changed inputs, a new major, or a moved tag), then a squash-merge. A red pin check usually means the upstream tag is not `vX.Y.Z`: pin that action by hand in a normal `f/` branch and close the Dependabot PR. A merged bump counts toward the 3-PR cost guard.
+
 ## Decisions without the owner
 
 The manager decides. Order of evidence: the spec → `DECISIONS.md` → how KodeKloud does it (observed behaviour is in spec §2) → other lab platforms → the simplest thing that keeps the guardrails. Every decision gets a D-number, the options considered, why, and **how to revert it**. Ilia reads `DECISIONS.md` when he wants and reverts by writing "revert D12" in an issue or a session.
