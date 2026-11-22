@@ -46,7 +46,7 @@ def test_the_hi_step_consumes_the_prompt_after_hi():
 GOOD = {
     "id": "01-quiz", "index": 1, "total": 2, "kind": "quiz", "title": {"en": "Q", "he": "ש"},
     "state": "shown", "question": {"en": "?", "he": "?"},
-    "options": [{"en": "a", "he": "a"}, {"en": "b", "he": "b"}],
+    "options": [{"en": "a", "he": "a"}, {"en": "b", "he": "b"}], "solution_available": False,
 }
 
 
@@ -59,6 +59,8 @@ def test_a_clean_quiz_detail_passes():
     {**GOOD, "correct": 1},
     {**GOOD, "extra": 1},
     {**GOOD, "question": {"en": "?", "he": "?", "answer": 1}},
+    {**GOOD, "solution_available": True},
+    {k: v for k, v in GOOD.items() if k != "solution_available"},
 ])
 def test_any_extra_key_in_the_quiz_detail_fails(bad):
     with pytest.raises(tasks.StepFail) as exc:
