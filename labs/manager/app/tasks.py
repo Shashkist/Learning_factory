@@ -643,6 +643,8 @@ async def solution(
         raise HTTPException(404, "unknown_task")
     if task.kind != "hands-on":
         raise HTTPException(404, "no_solution")
+    en = _read(ctx.lab, task, "solution.en.md")
+    he = _read(ctx.lab, task, "solution.he.md")
     stamped = await _bounded(
         ctx,
         lambda conn: conn.fetchval(
@@ -654,10 +656,5 @@ async def solution(
     )
     if stamped is None:
         raise HTTPException(403, "solution_locked")
-    en = _read(ctx.lab, task, "solution.en.md")
-    try:
-        he = _read(ctx.lab, task, "solution.he.md")
-    except FileNotFoundError:
-        he = en
     response.headers["Cache-Control"] = "no-store"
     return {"solution": {"en": en, "he": he}}

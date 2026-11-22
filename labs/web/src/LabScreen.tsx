@@ -464,6 +464,9 @@ export default function LabScreen({
       }>("POST", `${base}/${task.id}/check`);
       if (r.reason === "timeout" || r.reason === "error") {
         setCheckFailed(true);
+        // a timeout counts an attempt on the server, an error does not
+        if (r.reason === "timeout") setTask({ ...task, solution_available: true });
+        setTab("task"); // Check may be pressed from the locked Solution tab: show its message
         return;
       }
       setCheckFailed(false);
@@ -474,6 +477,7 @@ export default function LabScreen({
       );
       setPassed(r.passed);
       setTask({ ...task, solution_available: true }); // a graded attempt unlocks the solution
+      setTab("task"); // Check may be pressed from the locked Solution tab: show its result
     });
   const answer = () =>
     run(async () => {
@@ -678,7 +682,19 @@ export default function LabScreen({
             ) : task.solution_available && solutions[task.id] === undefined ? null : (
               <>
                 <p>{t("lab.solution.none")}</p>
-                <p>{t("lab.solution.hint")}</p>
+                {hands && (
+                  <>
+                    <p>{t("lab.solution.hint")}</p>
+                    <button
+                      className="primary"
+                      onClick={check}
+                      disabled={pending}
+                      aria-busy={pending}
+                    >
+                      {t("lab.check")}
+                    </button>
+                  </>
+                )}
               </>
             )
           ) : (
