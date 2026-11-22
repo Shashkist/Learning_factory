@@ -460,7 +460,8 @@ case "$sub" in
     echo nginx-proxy3 | { [ -n "${STUB_NO_NGINX:-}" ] && cat >/dev/null || cat; }
     printf 'openclaw\nn8n\nlf-manager\n' ;;
   logs) [ -n "${STUB_NO_MIGRATION_LINE:-}" ] || \
-          echo "lab-manager database ready, migrations applied: ['001_initial', '002_auth_sessions']" ;;
+          echo "lab-manager database ready, migrations applied: ['001_initial', '002_auth_sessions']"
+        [ -n "${STUB_NO_PROXY_LINE:-}" ] || echo "trusted proxy nginx-proxy3 -> 172.20.0.5" ;;
   exec)
     case " $all " in
       *" ip "*)
@@ -630,11 +631,11 @@ def test_compose_gets_tag_network_and_trusted_proxy_exported(server):
     up = server.compose_up()
     assert up, server.calls()
     assert re.search(r"\bup\b.*-d\b|-d\b.*\bup\b", up[0].split("##")[0])
-    assert up[0].endswith(f"TAG={NEW_TAG} NET=proxy_net PROXY=172.20.0.5"), up[0]
+    assert up[0].endswith(f"TAG={NEW_TAG} NET=proxy_net PROXY=nginx-proxy3"), up[0]
     for line in server.calls_of("docker compose"):
         if re.search(r"\bversion\b", line.split("##")[0]):
             continue
-        assert "NET=proxy_net" in line and "PROXY=172.20.0.5" in line, line
+        assert "NET=proxy_net" in line and "PROXY=nginx-proxy3" in line, line
 
 
 def test_images_are_pulled_through_a_stdin_login_before_up_and_the_login_is_removed(server):
@@ -687,6 +688,19 @@ def test_deploy_prints_the_compose_version_and_the_migration_line(server):
     _ok(r)
     assert "2.40.0" in r.stdout
     assert "migrations applied" in r.stdout
+
+
+def test_deploy_prints_the_managers_trusted_proxy_startup_line(server):
+    r = server.run(_stdin())
+    _ok(r)
+    assert "trusted proxy nginx-proxy3 -> 172.20.0.5" in r.stdout + r.stderr
+
+
+def test_deploy_does_not_pin_the_proxy_address_and_survives_a_missing_proxy_line(server):
+    r = server.run(_stdin(), STUB_NO_PROXY_LINE="1")
+    _ok(r)
+    assert "trusted proxy nginx-proxy3" in r.stdout + r.stderr  # the say line names the proxy
+    assert "PROXY=172.20.0.5" not in " ".join(server.calls())
 
 
 def test_missing_migration_line_in_the_manager_logs_fails_the_deploy(server):
