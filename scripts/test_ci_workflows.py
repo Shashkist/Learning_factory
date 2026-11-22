@@ -111,11 +111,11 @@ def test_dependabot_keeps_action_pins_current():
     body = entry.group(1)
     assert re.search(r'directory:\s*"?/"?\s*$', body, re.MULTILINE)
     assert re.search(r'interval:\s*"?weekly"?\s*$', body, re.MULTILINE)
-    assert re.search(r"cooldown:\n\s+default-days:\s*[1-9]\d*\s*$", body, re.MULTILINE), "wait for new releases"
+    assert re.search(r"^    cooldown:\n      default-days:[ ]*[1-9]\d*[ ]*$", body, re.MULTILINE), "wait for new releases"
     group = re.search(r"groups:\n((?:[ ]{6,}.*\n)+)", body)
     assert group, "minor and patch bumps come grouped"
     assert re.search(r'update-types:\n\s+-\s*"?minor"?\n\s+-\s*"?patch"?\n', group.group(1))
     assert "major" not in group.group(1), "a major bump comes as its own PR"
     # Nothing that silently turns the updates off.
     assert not re.search(r"open-pull-requests-limit:\s*0\b", body)
-    assert not re.search(r'dependency-name:\s*"?\*"?\s*$', body, re.MULTILINE)
+    assert not re.search(r"""dependency-name:\s*['"]?\*['"]?\s*$""", body, re.MULTILINE)
