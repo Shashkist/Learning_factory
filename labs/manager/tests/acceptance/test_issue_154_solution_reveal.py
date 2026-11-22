@@ -9,7 +9,12 @@ CONTRACT (D128):
         task_results.attempts > 0 in this session (a failed or a passing Check);
         before that 403 {"detail": "solution_locked"} and no solution text anywhere in the body.
      -> 404 no_solution for a quiz, 404 unknown_task for an unknown task (the router's code).
-     A missing solution.he.md falls back to the English text. Header Cache-Control: no-store.
+     Both solution files exist for every hands-on task (the content validator requires them), so
+     there is no English fallback: en and he come back as their own texts.
+     Header Cache-Control: no-store. An ended session answers 410 session_ended.
+  Only graded attempts of THIS session count: attempts of an earlier, ended session of the same
+  student do not unlock the task in a new one. A Check that timed out counts an attempt (#88) and
+  unlocks; a Check with reason "error" counts none and stays locked.
   The first successful call stamps task_results.solution_viewed_at (new nullable column), later
   calls never move it. Another student's session answers 403 not_your_session.
   Every task detail (show, current, navigation) gains `solution_available: bool`: false before
@@ -49,13 +54,13 @@ _n = itertools.count(1)
 
 LAB = "solver"
 QUIZ = "01-quiz"
-BOTH = "02-both"  # solution.en.md and solution.he.md
-EN_ONLY = "03-en-only"  # no solution.he.md: falls back to English
+BOTH = "02-both"  # hands-on, both solution files
+SECOND = "03-second"  # hands-on, both solution files, its own texts
 OPTIONS = ["OPT-alpha", "OPT-bravo"]
 CORRECT = 1
 SOLUTION = {
     BOTH: {"en": "SOLUTIONTEXT-both-en-zq81", "he": "SOLUTIONTEXT-both-he-zq81"},
-    EN_ONLY: {"en": "SOLUTIONTEXT-enonly-en-zq81", "he": "SOLUTIONTEXT-enonly-en-zq81"},
+    SECOND: {"en": "SOLUTIONTEXT-second-en-zq81", "he": "SOLUTIONTEXT-second-he-zq81"},
 }
 MARKER = "SOLUTIONTEXT"
 
@@ -87,7 +92,7 @@ tasks:
     + f"    correct: {CORRECT}\n"
     + "".join(
         f"  - id: {tid}\n    kind: hands-on\n    checklist:\n      - en: Do it\n        he: לעשות\n"
-        for tid in (BOTH, EN_ONLY)
+        for tid in (BOTH, SECOND)
     )
 )
 
@@ -100,14 +105,13 @@ def write_content(root: Path) -> Path:
     quiz.mkdir(parents=True)
     # a solution file next to a quiz must never be served
     (quiz / "solution.en.md").write_text(f"{MARKER}-quiz-en\n", encoding="utf-8")
-    for tid in (BOTH, EN_ONLY):
+    for tid in (BOTH, SECOND):
         t = d / "tasks" / tid
         t.mkdir(parents=True)
         (t / "task.en.md").write_text(f"# Task {tid}\n\nBODY-{tid}-en\n", encoding="utf-8")
         (t / "task.he.md").write_text(f"# משימה {tid}\n\nBODY-{tid}-he\n", encoding="utf-8")
         (t / "solution.en.md").write_text(SOLUTION[tid]["en"] + "\n", encoding="utf-8")
-        if tid == BOTH:
-            (t / "solution.he.md").write_text(SOLUTION[tid]["he"] + "\n", encoding="utf-8")
+        (t / "solution.he.md").write_text(SOLUTION[tid]["he"] + "\n", encoding="utf-8")
         (t / "setup.sh").write_text("#!/bin/sh\n# SETUP\nexit 0\n", encoding="utf-8")
         (t / "check.sh").write_text(f"#!/bin/sh\n# CHECK-{tid}\nexit 0\n", encoding="utf-8")
         for name in ("setup.sh", "check.sh"):
@@ -121,10 +125,12 @@ def write_content(root: Path) -> Path:
 
 class FakeRuntime:
     """Starts and removes nothing for real. Setups succeed; a check prints `PASS 1` (exit 0)
-    unless `passing` is switched off (then `FAIL 1 not yet`, exit 1)."""
+    unless `passing` is switched off (then `FAIL 1 not yet`, exit 1). `outcome` overrides that:
+    ExecResult(None, "", True) is a timed-out check, an exception is a runtime error."""
 
     def __init__(self) -> None:
         self.passing = True
+        self.outcome = None  # an ExecResult to return, or an Exception to raise, for a check
 
     async def start(self, spec):
         return str(spec["name"])
@@ -141,6 +147,10 @@ class FakeRuntime:
         text = script.decode() if isinstance(script, bytes) else script
         if "CHECK-" not in text:
             return ExecResult(0, "", False)
+        if isinstance(self.outcome, Exception):
+            raise self.outcome
+        if self.outcome is not None:
+            return self.outcome
         if self.passing:
             return ExecResult(0, "PASS 1\n", False)
         return ExecResult(1, "FAIL 1 not yet\n", False)
@@ -384,7 +394,7 @@ def test_before_any_attempt_the_solution_is_403_solution_locked_without_text(env
 
 def test_a_task_never_shown_is_also_locked(env):
     client, sid = env.owner()
-    resp = solution(client, sid, EN_ONLY)
+    resp = solution(client, sid, SECOND)
     assert resp.status_code == 403, resp.text
     assert resp.json() == {"detail": "solution_locked"}
     assert MARKER not in resp.text
@@ -416,24 +426,26 @@ def test_after_a_passing_check_the_solution_is_200(env):
 
 def test_the_unlock_is_per_task_not_per_session(env):
     client, sid = shown(env)
-    show(client, sid, EN_ONLY)
+    show(client, sid, SECOND)
     env.runtime.passing = False
     check(client, sid, BOTH)
     assert solution(client, sid, BOTH).status_code == 200
-    other = solution(client, sid, EN_ONLY)
+    other = solution(client, sid, SECOND)
     assert other.status_code == 403
     assert other.json() == {"detail": "solution_locked"}
 
 
-def test_a_missing_hebrew_solution_falls_back_to_the_english_text(env):
-    client, sid = shown(env, EN_ONLY)
+def test_each_language_comes_back_as_its_own_text_for_every_task(env):
+    client, sid = shown(env)
+    show(client, sid, SECOND)
     env.runtime.passing = False
-    check(client, sid, EN_ONLY)
-    resp = solution(client, sid, EN_ONLY)
-    assert resp.status_code == 200, resp.text
-    sol = resp.json()["solution"]
-    assert SOLUTION[EN_ONLY]["en"] in sol["en"]
-    assert SOLUTION[EN_ONLY]["en"] in sol["he"]
+    for tid in (BOTH, SECOND):
+        check(client, sid, tid)
+        resp = solution(client, sid, tid)
+        assert resp.status_code == 200, resp.text
+        sol = resp.json()["solution"]
+        assert SOLUTION[tid]["en"] in sol["en"] and SOLUTION[tid]["he"] not in sol["en"]
+        assert SOLUTION[tid]["he"] in sol["he"] and SOLUTION[tid]["en"] not in sol["he"]
 
 
 def test_the_solution_response_is_cache_control_no_store(env):
@@ -450,6 +462,71 @@ def test_reading_the_solution_does_not_count_as_an_attempt(env):
     before = env.result(sid, BOTH)["attempts"]
     assert solution(client, sid, BOTH).status_code == 200
     assert env.result(sid, BOTH)["attempts"] == before
+
+
+# ---------------------------------------------------------------- timeout counts, error does not
+
+
+def test_a_check_that_timed_out_counts_an_attempt_and_unlocks_the_solution(env):
+    from app.runtime import ExecResult
+
+    client, sid = shown(env)
+    env.runtime.outcome = ExecResult(None, "", True)
+    body = check(client, sid, BOTH).json()
+    assert body["reason"] == "timeout" and body["passed"] is False
+    assert body["attempts"] == 1
+    assert env.result(sid, BOTH)["attempts"] == 1
+    resp = solution(client, sid, BOTH)
+    assert resp.status_code == 200, resp.text
+    assert SOLUTION[BOTH]["en"] in resp.json()["solution"]["en"]
+    assert client.get(f"{tasks_url(sid)}/current").json()["solution_available"] is True
+
+
+def test_a_check_that_ended_with_reason_error_counts_nothing_and_stays_locked(env):
+    client, sid = shown(env)
+    env.runtime.outcome = RuntimeError("docker is gone")
+    body = check(client, sid, BOTH).json()
+    assert body["reason"] == "error" and body["passed"] is False
+    assert body["attempts"] == 0
+    assert env.result(sid, BOTH)["attempts"] == 0
+    resp = solution(client, sid, BOTH)
+    assert resp.status_code == 403, resp.text
+    assert resp.json() == {"detail": "solution_locked"}
+    assert MARKER not in resp.text
+    assert env.result(sid, BOTH)["solution_viewed_at"] is None
+    assert client.get(f"{tasks_url(sid)}/current").json()["solution_available"] is False
+
+
+# ---------------------------------------------------------------- session scope
+
+
+def test_an_ended_session_answers_410_with_no_text_and_stamps_nothing(env):
+    client, sid = shown(env)
+    check(client, sid, BOTH)
+    assert client.post(f"/api/sessions/{sid}/end").status_code == 204
+    resp = solution(client, sid, BOTH)
+    assert resp.status_code == 410, resp.text
+    assert resp.json() == {"detail": "session_ended"}
+    assert MARKER not in resp.text
+    assert env.result(sid, BOTH)["solution_viewed_at"] is None
+
+
+def test_attempts_in_an_earlier_ended_session_do_not_unlock_a_new_session(env):
+    client, sid = shown(env)
+    env.runtime.passing = False
+    check(client, sid, BOTH)
+    assert solution(client, sid, BOTH).status_code == 200
+    assert client.post(f"/api/sessions/{sid}/end").status_code == 204
+    resp = client.post("/api/sessions", json={"lab_id": LAB})
+    assert resp.status_code in (200, 201), resp.text
+    new_sid = resp.json()["id"]
+    assert new_sid != sid
+    assert show(client, new_sid, BOTH).json()["solution_available"] is False
+    locked = solution(client, new_sid, BOTH)
+    assert locked.status_code == 403, locked.text
+    assert locked.json() == {"detail": "solution_locked"}
+    assert MARKER not in locked.text
+    assert env.result(new_sid, BOTH)["solution_viewed_at"] is None
 
 
 # ---------------------------------------------------------------- recording the view
@@ -528,7 +605,7 @@ def test_solution_available_follows_the_task_through_navigation(env):
     check(client, sid, BOTH)
     nxt = client.post(f"{tasks_url(sid)}/current/next")
     assert nxt.status_code == 200, nxt.text
-    assert nxt.json()["id"] == EN_ONLY
+    assert nxt.json()["id"] == SECOND
     assert nxt.json()["solution_available"] is False
     back = client.post(f"{tasks_url(sid)}/current/previous")
     assert back.status_code == 200, back.text
@@ -552,7 +629,7 @@ def test_no_other_task_response_carries_solution_text_before_or_after_an_attempt
 
     def sweep():
         bodies.append(show(client, sid, BOTH).text)
-        bodies.append(show(client, sid, EN_ONLY).text)
+        bodies.append(show(client, sid, SECOND).text)
         bodies.append(client.get(f"{tasks_url(sid)}/current").text)
         bodies.append(client.get(tasks_url(sid)).text)
         bodies.append(client.post(f"{tasks_url(sid)}/current/previous").text)
@@ -562,7 +639,7 @@ def test_no_other_task_response_carries_solution_text_before_or_after_an_attempt
     sweep()
     env.runtime.passing = False
     bodies.append(check(client, sid, BOTH).text)
-    bodies.append(check(client, sid, EN_ONLY).text)
+    bodies.append(check(client, sid, SECOND).text)
     env.runtime.passing = True
     bodies.append(check(client, sid, BOTH).text)
     bodies.append(client.post(f"{tasks_url(sid)}/{QUIZ}/answer", json={"option": 0}).text)

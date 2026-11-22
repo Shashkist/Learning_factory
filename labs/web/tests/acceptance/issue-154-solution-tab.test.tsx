@@ -16,6 +16,12 @@
  *    the other language is not shown).
  *  - a 403 solution_locked answer (the screen thought it was available, the server disagrees)
  *    shows the "not available yet" text, not an error card (no role="alert").
+ *  - round 2 (D128 amended): pressing Check unlocks the tab in place, with no reload of the task:
+ *    after a failed Check (reason null) or a timed-out one (reason "timeout", the manager counts an
+ *    attempt) the hint is gone and opening the tab POSTs once and shows the text. A Check with
+ *    reason "error" counts no attempt, so the tab stays locked (hint still there, no POST).
+ *  - a quiz task's Solution tab shows lab.solution.none and NOT the lab.solution.hint text (a quiz
+ *    has no Check button), and never POSTs to /solution.
  */
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
@@ -46,16 +52,36 @@ const SOLUTION = {
 
 let calls: string[] = [];
 
-function backend(available: boolean, solutionReply: Reply = ok({ solution: SOLUTION })) {
+const quiz = {
+  id: "02-directory-tree", index: 2, total: 10, kind: "quiz", state: "shown", solution_available: false,
+  title: { en: "Pick one", he: "בחרו אחת" },
+  text: { en: "", he: "" },
+  question: { en: "Which command makes a folder?", he: "איזו פקודה יוצרת תיקייה?" },
+  options: [{ en: "mkdir", he: "mkdir" }, { en: "rmdir", he: "rmdir" }],
+};
+const CHECK_URL = `${API}/tasks/02-directory-tree/check`;
+const checkReply = (reason: string | null, attempts = 1): Reply =>
+  ok({
+    passed: false, attempts, reason,
+    checklist: [{ n: 1, text: { en: "The folder exists", he: "התיקייה קיימת" }, passed: false, hint: null }],
+  });
+
+function backend(
+  available: boolean,
+  solutionReply: Reply = ok({ solution: SOLUTION }),
+  extra: Record<string, Reply> = {},
+  detail: unknown = task(available),
+) {
   const all: Record<string, Reply> = {
     "GET /api/auth/me": ok({ kind: "student", name: "Dana Test" }),
     "GET /api/labs": ok([]),
     "GET /api/sessions/current": ok({
       id: SID, lab_id: "linux-1", status: "running", expires_at: new Date(Date.now() + 45 * 60_000).toISOString(),
     }),
-    [`GET ${API}/tasks/current`]: ok(task(available)),
+    [`GET ${API}/tasks/current`]: ok(detail),
     [`POST ${API}/heartbeat`]: { status: 204 },
     [`POST ${SOLUTION_URL}`]: solutionReply,
+    ...extra,
   };
   vi.spyOn(globalThis, "fetch").mockImplementation((async (url: RequestInfo | URL, init?: RequestInit) => {
     const method = (init?.method ?? "GET").toUpperCase();
@@ -81,6 +107,7 @@ const d = (lang: "en" | "he"): Dict => (lang === "en" ? en : he) as Dict;
 const panel = () => screen.getByTestId("task-panel");
 const openTab = (lang: "en" | "he") =>
   fireEvent.click(within(panel()).getByRole("tab", { name: d(lang)["lab.solution.tab"] }));
+const checkButton = (lang: "en" | "he") => screen.getByRole("button", { name: d(lang)["lab.check"] });
 const solutionPosts = () => calls.filter((c) => c === `POST ${SOLUTION_URL}`);
 
 beforeEach(() => {
@@ -147,5 +174,64 @@ for (const lang of ["en", "he"] as const) {
     await waitFor(() => expect(solutionPosts()).toHaveLength(1));
     await waitFor(() => expect(panel().textContent).toContain(d(lang)["lab.solution.none"]));
     expect(screen.queryAllByRole("alert"), "no error card").toHaveLength(0);
+  });
+
+  test(`${name}: pressing Check with a failed result unlocks the tab in place, without a reload`, async () => {
+    backend(false, ok({ solution: SOLUTION }), { [`POST ${CHECK_URL}`]: checkReply(null) });
+    await open(lang);
+    openTab(lang);
+    const hint = d(lang)["lab.solution.hint"];
+    expect(hint, "i18n key lab.solution.hint exists").toBeTruthy();
+    expect(panel().textContent).toContain(hint);
+    const loads = calls.filter((c) => c === `GET ${API}/tasks/current`).length;
+    fireEvent.click(checkButton(lang));
+    await waitFor(() => expect(calls).toContain(`POST ${CHECK_URL}`));
+    await waitFor(() => expect(panel().textContent).not.toContain(hint));
+    expect(solutionPosts(), "the Check alone does not fetch the solution").toHaveLength(0);
+    openTab(lang);
+    await waitFor(() => expect(panel().textContent).toContain(`${lang.toUpperCase()}-solution-prose`));
+    expect(solutionPosts()).toHaveLength(1);
+    expect(calls.filter((c) => c === `GET ${API}/tasks/current`).length, "no reload").toBe(loads);
+  });
+
+  test(`${name}: a timed-out Check also unlocks the tab in place`, async () => {
+    backend(false, ok({ solution: SOLUTION }), { [`POST ${CHECK_URL}`]: checkReply("timeout") });
+    await open(lang);
+    openTab(lang);
+    const hint = d(lang)["lab.solution.hint"];
+    expect(hint, "i18n key lab.solution.hint exists").toBeTruthy();
+    expect(panel().textContent).toContain(hint);
+    fireEvent.click(checkButton(lang));
+    await waitFor(() => expect(calls).toContain(`POST ${CHECK_URL}`));
+    await waitFor(() => expect(panel().textContent).not.toContain(hint));
+    openTab(lang);
+    await waitFor(() => expect(panel().textContent).toContain(`${lang.toUpperCase()}-solution-prose`));
+    expect(solutionPosts()).toHaveLength(1);
+  });
+
+  test(`${name}: a Check that ended with reason "error" does not unlock the tab`, async () => {
+    backend(false, ok({ solution: SOLUTION }), { [`POST ${CHECK_URL}`]: checkReply("error", 0) });
+    await open(lang);
+    openTab(lang);
+    const hint = d(lang)["lab.solution.hint"];
+    expect(hint, "i18n key lab.solution.hint exists").toBeTruthy();
+    fireEvent.click(checkButton(lang));
+    await waitFor(() => expect(calls).toContain(`POST ${CHECK_URL}`));
+    await screen.findByText(d(lang)["lab.check_failed"]);
+    openTab(lang);
+    expect(panel().textContent).toContain(d(lang)["lab.solution.none"]);
+    expect(panel().textContent).toContain(hint);
+    expect(solutionPosts(), "no request to /solution").toHaveLength(0);
+  });
+
+  test(`${name}: a quiz's Solution tab says not available, without the run-Check hint, and never POSTs`, async () => {
+    backend(false, ok({ solution: SOLUTION }), {}, quiz);
+    await open(lang);
+    openTab(lang);
+    const hint = d(lang)["lab.solution.hint"];
+    expect(hint, "i18n key lab.solution.hint exists").toBeTruthy();
+    expect(panel().textContent).toContain(d(lang)["lab.solution.none"]);
+    expect(panel().textContent).not.toContain(hint);
+    expect(solutionPosts()).toHaveLength(0);
   });
 }
