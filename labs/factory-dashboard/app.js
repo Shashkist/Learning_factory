@@ -273,19 +273,36 @@ function runnerText(r) {
   return joined([names[s] || s, S(r.note)]);
 }
 
-function agentCard(a, titles, workers) {
+var LIVE_STALE_MS = 15 * 60 * 1000;
+
+// A sub-step shows the hourglass only while it is the agent's latest, still open, and the agent is not silent.
+function liveSubstep(a, s, subs, generated) {
+  var t = Date.parse(s.at);
+  var later = subs.some(function (x) { return Date.parse(x.at) > t; });   // strictly later: same-second steps tie
+  var gen = Date.parse(generated), last = Date.parse(a.last);
+  var silent = !isNaN(gen) && !isNaN(last) && gen - last >= LIVE_STALE_MS;
+  return !later && !silent && a.state !== "ended" && a.state !== "done";   // stopped/failed keep it: #51 exam
+}
+
+// The one rule for "is this sub-step current": a live start, or a wait.
+function stepOpen(a, s, subs, generated) {
+  return (s.status === "wait" || s.status === "start") && liveSubstep(a, s, subs, generated);   // a stale wait is not open either
+}
+
+function agentCard(a, titles, workers, generated) {
   var subs = arr(a.substeps);
   var card = lel("div", null, "live-agent", { "data-agent-id": S(a.id), "data-state": S(a.state) });
   var head = el("div", null, "live-head");
   head.appendChild(el("b", (LIVE_ROLE_ICONS[a.role] || "") + " " + S(a.role)));
-  var issue = a.issue === null || a.issue === undefined ? "" : " #" + a.issue + " " + S(titles[a.issue]) + " ";
+  var issue = !(Number(a.issue) > 0) ? "" : " #" + a.issue + " " + S(titles[a.issue]) + " ";
   if (issue) head.appendChild(el("span", issue));
   card.appendChild(head);
   var done = subs.filter(function (s) { return s.status === "done"; }).length;
   card.appendChild(el("div", joined([elapsed(a.started, LIVE_ENDED[a.state] ? a.last : null), subs.length ? done + "/" + subs.length : ""]), "muted"));
   var cur = null;
-  subs.forEach(function (s) { if (s.status === "start" || s.status === "wait") cur = s; });
-  cur = cur || subs[subs.length - 1];
+  subs.forEach(function (s) { if (stepOpen(a, s, subs, generated)) cur = s; });
+  var latest = subs[subs.length - 1];
+  cur = cur || (latest && latest.status !== "start" ? latest : null);   // never name a stale start as "now"
   if (cur) {
     var now = el("div", "now: ", "live-now");
     now.appendChild(lel("b", S(cur.substep), "", { "data-current-substep": "" }));
@@ -293,7 +310,8 @@ function agentCard(a, titles, workers) {
   }
   var ul = el("ul", null, "live-steps");
   subs.forEach(function (s) {
-    ul.appendChild(lel("li", (LIVE_ICONS[s.status] || "") + " " + S(s.substep), "",
+    var icon = s.status === "start" ? (liveSubstep(a, s, subs, generated) ? LIVE_ICONS.start : "–") : (LIVE_ICONS[s.status] || "");
+    ul.appendChild(lel("li", icon + " " + S(s.substep), "",
       { "data-substep": S(s.substep), "data-status": S(s.status) }));
   });
   card.appendChild(ul);
@@ -363,7 +381,7 @@ function laneData(d) {
     var l = lanes[a.issue];
     if (!l) return;
     l.agents.push(a);
-    arr(a.substeps).forEach(function (s) { l.steps.push({ s: s, a: a }); });
+    arr(a.substeps).forEach(function (s) { l.steps.push({ s: s, a: a, open: stepOpen(a, s, arr(a.substeps), d.generated_at) }); });
   });
   crewNodes(arr(d.crew).slice(0, 1)).forEach(function (n) {   // the current pass only: older passes' agents confuse the lane
     var i = issueOf(n.title);
@@ -378,7 +396,7 @@ function laneData(d) {
     }, l.last);
     l.first = l.steps.reduce(function (m, x) { return !m || S(x.s.started) < m ? S(x.s.started) : m; }, "");
     var busy = l.crew.filter(function (n) { return n.state === "busy" || n.state === "thinking"; });
-    var openSteps = l.steps.filter(function (x) { return x.s.status === "start" || x.s.status === "wait"; });
+    var openSteps = l.steps.filter(function (x) { return x.open; });
     l.running = busy.length > 0 || l.agents.some(function (a) { return a.state === "running"; });
     var cur = LIVE_STATIONS.indexOf(l.station);
     busy.forEach(function (n) {   // an agent at work is the strongest evidence of where the task is
@@ -427,12 +445,12 @@ function laneDetail(l, st) {
   if (!steps.length) box.appendChild(el("div", "No sub-steps recorded for this station.", "muted"));
   var ul = el("ul", null, "lane-steps");
   steps.forEach(function (x) {
-    var open = x.s.status === "start" || x.s.status === "wait";
+    var open = x.open;
     var li = lel("li", null, "", { "data-status": S(x.s.status) });
-    li.appendChild(el("span", (LIVE_ICONS[x.s.status] || "") + " "));
+    li.appendChild(el("span", (x.s.status === "start" && !open ? "–" : LIVE_ICONS[x.s.status] || "") + " "));
     li.appendChild(el("b", S(x.s.substep)));
     li.appendChild(el("span", " · " + joined([(LIVE_ROLE_ICONS[x.a.role] || "") + " " + S(x.a.role),
-      clock(x.s.started), open ? "running " + dur(x.s.started) : dur(x.s.started, x.s.at)]), "muted"));
+      clock(x.s.started), open ? "running " + dur(x.s.started) : x.s.status === "start" ? "" : dur(x.s.started, x.s.at)]), "muted"));
     if (x.s.detail) li.appendChild(el("div", S(x.s.detail), "lane-step-detail"));
     ul.appendChild(li);
   });
@@ -495,7 +513,7 @@ function renderLanes(d, rerender) {
       nowLine.appendChild(el("span", l.nowOpen ? "now: " : "last: "));
       nowLine.appendChild(el("b", S(l.now.s.substep)));
       nowLine.appendChild(el("span", " · " + joined([(LIVE_ROLE_ICONS[l.now.a.role] || "") + " " + S(l.now.a.role),
-        S(l.now.s.station), (l.now.s.status === "start" || l.now.s.status === "wait") ? dur(l.now.s.started) : ago(l.now.s.at)]), "muted"));
+        S(l.now.s.station), l.now.open ? dur(l.now.s.started) : ago(l.now.s.at)]), "muted"));
       lane.appendChild(nowLine);
     }
     l.crew.filter(function (n) { return n.state === "busy" || n.state === "thinking"; })
@@ -588,7 +606,7 @@ function renderLive(d) {
     line.appendChild(st);
   });
   function station(name) { return at[S(name).toLowerCase()] || at.plan; }
-  arr(d.issues).forEach(function (i) {
+  arr(d.issues).filter(function (i) { return Number(i.issue) > 0; }).forEach(function (i) {
     titles[i.issue] = S(i.title);
     station(i.station).appendChild(el("div", "#" + S(i.issue) + " " + S(i.title), "live-issue"));
   });
@@ -601,7 +619,7 @@ function renderLive(d) {
     if (same.length === 1) (mine[same[0].id] = mine[same[0].id] || []).push(w);
     else loose.push(w);
   });
-  agents.forEach(function (a) { station(a.station).appendChild(agentCard(a, titles, mine[a.id] || [])); });
+  agents.forEach(function (a) { station(a.station).appendChild(agentCard(a, titles, mine[a.id] || [], d.generated_at)); });
   var stationsBox = el("div");
   stationsBox.appendChild(line);
   if (loose.length) {
