@@ -74,6 +74,8 @@ Update `STATE.md` → **Now** and commit it straight to `main` (`chore(factory):
 
 For every open question: the spec says → `DECISIONS.md` says → research (dispatch the `researcher` agent: KodeKloud first, then Killercoda, iximiuz Labs, Instruqt) → choose the simplest option that keeps the guardrails. Write a D-entry (decision or assumption, why, alternatives, how to revert). **Take the next D-number only right after `git pull --rebase origin main`**: other sessions write here too. If a rebase shows two entries with your number, renumber yours. Only owner-only blockers (a secret, DNS, money, the owner's other services) go to `OWNER.md` and the issue gets `status:needs-owner`. Then **go back to step 3** with another issue.
 
+**Exams that contradict each other are not an owner question.** If an issue's criteria contradict each other or an older exam, choose the option that keeps every older exam as strict as it is, write the D-entry, and dispatch the `exam-writer` to correct only the new exam in an exam-only commit before any code (a fresh `f/<n>-<slug>-2` branch if code is already committed, D103). Never edit an exam yourself, never park such an issue on the owner. Loosen an older exam only when the spec requires it, and name each loosened case in the D-entry; the reviewer checks that no exam got weaker.
+
 ## 5 · Exam → build → check (make · check · fix)
 
 1. Dispatch the `exam-writer` agent with the issue and the spec sections. It commits acceptance tests under `labs/**/tests/acceptance/`.
