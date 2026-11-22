@@ -58,15 +58,30 @@ def test_connect_gets_ip_and_keeps_name_in_uri(monkeypatch):
     asyncio.run(_test_connect_gets_ip_and_keeps_name_in_uri(monkeypatch))
 
 
+class _Pending:
+    """Stands in for the object `connect(...)` returns: awaitable, takes process_redirect."""
+
+    def __init__(self, outcome):
+        self.outcome = outcome
+
+    def __await__(self):
+        async def run():
+            if isinstance(self.outcome, Exception):
+                raise self.outcome
+            return self.outcome
+
+        return run().__await__()
+
+
 async def _test_connect_gets_ip_and_keeps_name_in_uri(monkeypatch):
     async def fake_resolve(address):
         return "[::1]:7681"
 
     seen = {}
 
-    async def fake_connect(uri, **kw):
+    def fake_connect(uri, **kw):
         seen.update(uri=uri, **kw)
-        raise OSError("stop")
+        return _Pending(OSError("stop"))
 
     async def refuse(*a):
         pass
@@ -96,8 +111,8 @@ async def _test_failed_accept_closes_upstream(monkeypatch):
     async def fake_resolve(address):
         return "127.0.0.1:7681"
 
-    async def fake_connect(uri, **kw):
-        return Up()
+    def fake_connect(uri, **kw):
+        return _Pending(Up())
 
     monkeypatch.setattr(term_proxy, "resolve", fake_resolve)
     monkeypatch.setattr(term_proxy, "connect", fake_connect)
