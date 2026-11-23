@@ -183,3 +183,63 @@ def test_each_step_on_the_card_shows_its_own_issue(tmp_path):
     assert seen == {"ci wait": {3, 86}, "merge": {3, 86}}, seen
     by_status = {(li["a"]["data-substep"], li["a"].get("data-status")): text(li) for li in lis}
     assert "#3" in by_status[("merge", "done")] and "#86" in by_status[("merge", "start")], by_status
+
+
+# ---- 2b. an unscoped step also moves the lane's station (review round 1 of the #504 PR) -------------------
+
+def _unscoped(station, substep, status, at):
+    return {"kind": "step", "at": at, "issue": None, "title": "", "agent": "manager", "role": "manager",
+            "station": station, "substep": substep, "status": status, "detail": ""}
+
+
+def _marks(root, issue: int) -> dict:
+    got = m.lanes(root, issue)
+    assert got, f"no lane for #{issue}"
+    return {n["a"].get("data-st"): n["a"].get("data-mark") for n in m.by_class(got[0], "lane-st")}
+
+
+def test_unscoped_step_moves_the_issue_row_station_in_the_script_output(tmp_path):
+    script = str(base.REPO / "scripts" / "factory_progress.py")
+    env = {**os.environ, "LF_PROGRESS_FILE": str(tmp_path / "progress.jsonl")}
+    env.pop("LF_CREW_DIR", None)
+
+    def run(*args):
+        p = subprocess.run([sys.executable, script, *args], capture_output=True, text=True, timeout=60, cwd=tmp_path, env=env)
+        assert p.returncode == 0, p.stdout + p.stderr
+
+    run("pass-start", "--pass-no", "1", "--budget", "4")
+    run("add", "--issue", "3", "--agent", "manager", "--role", "manager", "--station", "plan", "--substep", "pick", "--status", "done", "--title", "Task 3")
+    run("add", "--issue", "86", "--agent", "manager", "--role", "manager", "--station", "plan", "--substep", "pick", "--status", "done", "--title", "Task 86")
+    run("add", "--agent", "manager", "--role", "manager", "--station", "check", "--substep", "verify", "--status", "start")
+    run("render", "--out", str(tmp_path / "live.json"))
+    live = json.loads((tmp_path / "live.json").read_text(encoding="utf-8"))
+    rows = {i["issue"]: i for i in live["issues"]}
+    assert rows[86]["station"] == "check", rows
+    assert rows[3]["station"] == "plan", rows
+    assert rows[86]["title"] == "Task 86", rows
+
+
+def test_unscoped_step_moves_the_issue_row_station_in_stored_state():
+    live = render([*_journey(), _unscoped_step(None)])
+    rows = {i["issue"]: i for i in live["issues"]}
+    assert rows[86]["station"] == "check", rows
+    assert rows[3]["station"] == "plan", rows
+
+
+def test_unscoped_step_lane_station_bar_shows_check_as_the_active_station(tmp_path):
+    root = m.run_page(tmp_path, render([*_journey(), _unscoped_step(None)]))
+    marks = _marks(root, 86)
+    assert marks.get("check") == "active", marks
+    assert marks.get("plan") == "done", marks
+
+
+def test_unscoped_ship_step_marks_the_lane_shipped_like_a_scoped_one(tmp_path):
+    def shipped(issue):
+        ship = {**_unscoped("ship", "merge", "done", ago(1)), "issue": issue}
+        root = m.run_page(tmp_path, render([*_journey(), step("manager", 86, "check", "verify", "done", ago(5), title="Task 86"), ship,
+                                            step("exam-4", 4, "exam", "read issue", "start", ago(1), role="exam-writer", title="Other")]))
+        done = " ".join(text(n) for n in m.by_class(root, "lane-done"))
+        return "#86" in done and not m.lanes(root, 86)
+
+    assert shipped(86), "control: the scoped ship step should mark #86 shipped"
+    assert shipped(None), "an unscoped ship step should mark #86 shipped"
