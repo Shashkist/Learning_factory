@@ -109,7 +109,8 @@ def test_the_refresh_works_again_after_the_window_and_a_new_window_can_warn_agai
     started: list[threading.Thread] = []
 
     def spy(self, *args, **kwargs):
-        started.append(self)
+        if self.name == "lf-proxy-lookup":  # not the executor workers the test itself starts
+            started.append(self)
         return real_start(self, *args, **kwargs)
 
     async def window_exhausted():
