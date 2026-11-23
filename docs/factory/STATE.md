@@ -4,7 +4,12 @@
 
 ## Now
 
-**Pass lf-c7m4 running (laptop, from 10:26 UTC 2026-11-23).** In flight: **#530** PR #538 (`f/530-proxy-deploy-line-2`, worktree `C:\projects\lf-530-2`; CI green, review round 2 running; claim taken over from lf-b4t8). **#542** and **#543** (slices 1 and 2 of #536, D143; worktrees `C:\projects\lf-542`, `C:\projects\lf-543`; exam-writers running). Incident **#541**: main CI 45154808144 on af1def6 red from a slow Ubuntu mirror, failed jobs re-run.
+**Pass lf-c7m4 (laptop, 10:26 UTC 2026-11-23, stopping ~12:10).** Resume here, all claims held by lf-c7m4 (take them over with `--steal`):
+- **Incident #541 (p0) first:** main CI 45154808144 on af1def6 red twice, only the `docker` job (`lf-lab-term:exam` build timed out after 900 s on a slow archive.ubuntu.com, D143). Attempt 3 was re-run at ~11:20 UTC; if it is green, close #541 with that run; if red again, work **#545** (hardening, p2 → treat as p0 while main is red).
+- **#530** merged: PR #538 (review round 2 approved, nits only) squashed as **c494eb4** at ~11:50 UTC. Its main CI and Deploy follow (the docker job may hit the mirror again, see #541). Once a Deploy has deployed c494eb4 and the smoke passed, close #530 with that evidence (deploy log line `trusted proxy ... -> <addresses>`), label `status:done`, release the claim, and remove the worktree `C:\projects\lf-530-2` (branch `f/530-proxy-deploy-line-2` is merged).
+- **#542** (slice 1 of #536, worktree `C:\projects\lf-542`): exam bec0e2b (assumes `LF_REPOS_FILE`), implementer dispatched ~11:35 UTC. Check the branch for its commit; then PR, CI, review.
+- **#543** (slice 2, worktree `C:\projects\lf-543`): exam a436a56, implementer dispatched ~11:45 UTC. Same next steps. Do not touch `issue_lock.py` here (#542 owns it).
+- Tools are very slow this pass (exam-writers ~25 min each, hook timeouts on Edit/Write: retry).
 
 **Pass lf-b4t8 (08:26-10:18 UTC, stopped by its time limit).** Merged #537 (#534) and #539 (#532); opened #538 (#530).
 
@@ -22,7 +27,7 @@ Older pass notes are in `history.md` and git history (`git log -p docs/factory/S
 
 ## Next (in order)
 
-1. **#530** (see Now). **#536 slices (p1, D143):** #542, #543, then #544 (needs #542); #536 closes after a pass builds and merges Shashkist/factory#1 (criterion 5). Small p3 follow-ups: **#527** (`app.js`; after #543), **#523** (exam-only).
+1. **#541** / **#545** (main CI), **#530** close with deploy evidence (see Now). **#536 slices (p1, D143):** #542, #543, then #544 (needs #542); #536 closes after a pass builds and merges Shashkist/factory#1 (criterion 5). Small p3 follow-ups: **#527** (`app.js`; after #543), **#523** (exam-only).
 2. **#468** (bootstrap exam nits, p3; now on top of #56's exam), **#423** (validator misses, p3; time real shells first; an old worktree `C:\projects\lf-423` exists, check it before starting).
 3. **#436**, **#431** (lab screen follow-ups, p3). **#85** deploy follow-ups; p2 list: #81, #84, #64, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
@@ -38,6 +43,8 @@ Older pass notes are in `history.md` and git history (`git log -p docs/factory/S
 - O16/O7 resolved by D43 (public repository). O12 (back up `.env`), O13 (re-deploy after recreating nginx-proxy3), O5 reopened.
 
 ## Recently done
+
+- 2026-11-23 pass lf-c7m4: #538 (#530, c494eb4; deploy evidence pending); closed #532 (#539) with Dashboard CI 45154808016; sliced #536 into #542-#544 (D143); incident #541 and hardening #545 opened.
 
 - 2026-11-23 pass lf-f5r1: #524 (#531; main CI 45127726835), #481 (#533; Factory dashboard 45132438673, live app.js byte-equal to 4891f15); closed #521 (#528) for lf-h2v9. Open: #535 (#530, changes).
 - 2026-11-23 pass lf-q8m2: #515 (#518) and #505 (#520) (Deploy 45106491102 deployed e496bf8, smoke ok), #519 (#522; Deploy 45108693143 deployed ca06aef, smoke ok). Open: #526 (#504, D141).
