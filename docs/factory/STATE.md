@@ -4,17 +4,10 @@
 
 ## Now
 
-**Pass lf-r9d2 (laptop, 12:28 UTC 2026-11-23, stopping ~14:00).** Took over lf-c7m4's claims. Closed #530 (Deploy 45172324113 deployed c494eb4, `trusted proxy nginx-proxy3 -> 172.18.0.14`, smoke ok), #541 (main CI 45168565636 green) and duplicate #540. In flight:
-- **#543** PR #547: CI green, reviewer round 1.
-- **#542** worktree `C:\projects\lf-542`: the implementer left uncommitted `issue_lock.py` + `repos.yaml`; finishing it, then PR.
-- **#545** (p0, mirror resilience): deciding, then exam and build.
-
-**Pass lf-c7m4 (laptop, 10:26 UTC 2026-11-23, stopping ~12:10).** Resume here, all claims held by lf-c7m4 (take them over with `--steal`):
-- **Incident #541 (p0) first:** main CI 45154808144 on af1def6 red twice, only the `docker` job (`lf-lab-term:exam` build timed out after 900 s on a slow archive.ubuntu.com, D143). Attempt 3 (re-run ~11:20 UTC) was red too, so **work #545 first (raised to p0)**: the exam image build must not depend on archive.ubuntu.com alone. Close #541 with the first green main CI after it.
-- **#530** merged: PR #538 (review round 2 approved, nits only) squashed as **c494eb4** at ~11:50 UTC. Its main CI and Deploy follow (the docker job may hit the mirror again, see #541). Once a Deploy has deployed c494eb4 and the smoke passed, close #530 with that evidence (deploy log line `trusted proxy ... -> <addresses>`), label `status:done`, release the claim, and remove the worktree `C:\projects\lf-530-2` (branch `f/530-proxy-deploy-line-2` is merged).
-- **#542** (slice 1 of #536, worktree `C:\projects\lf-542`): exam bec0e2b (assumes `LF_REPOS_FILE`), implementer dispatched ~11:35 UTC. Check the branch for its commit; then PR, CI, review.
-- **#543** (slice 2, worktree `C:\projects\lf-543`): exam a436a56, code a276921, **PR #547** opened ~12:08 UTC; next: CI, then reviewer round 1. Do not touch `issue_lock.py` here (#542 owns it).
-- Tools are very slow this pass (exam-writers ~25 min each, hook timeouts on Edit/Write: retry).
+**Pass lf-r9d2 finished (laptop, 12:28-14:00 UTC 2026-11-23, stopped at 3 merges).** Resume here:
+- **#545 (p0) PR #552** (exam-only, branch `f/545-mirror-list-exam`, worktree `C:\projects\lf-545b`, claim lf-r9d2: take over with `--steal --reason`). The code shipped in #550 (ae1057b): its `image-term` job built through `azure.archive.ubuntu.com` and passed the restored-sources check. Next: wait for #552's CI (its `docker` job is the first exam image build through the mirror list; expect it well under the old 18 min), dispatch a reviewer (round 1 of the exam PR; the exam was reviewed twice inside #548/#550), squash-merge, close #545 with: #550 + #552 merges, main CI green after both, and a main `docker` job log showing `azure.archive.ubuntu.com` in the exam build.
+- Main CI on ae1057b/1b6261a was running when the pass stopped: check it is green (the `image-term` push on main publishes `lf-lab-term:latest` built through the mirror list; the next Deploy pulls it, so watch that Deploy's smoke too).
+- Merged this pass: **#547** (#543, 2c5392e; live `app.js` byte-equal), **#550** (part of #545, ae1057b), **#549** (#542, 1b6261a; tooling, no deploy). Closed #530, #541, #540 (duplicate), #543, #542. Follow-up **#551** (redaction gaps, crew titles like `PR#547`; p2).
 
 **Pass lf-b4t8 (08:26-10:18 UTC, stopped by its time limit).** Merged #537 (#534) and #539 (#532); opened #538 (#530).
 
@@ -32,7 +25,7 @@ Older pass notes are in `history.md` and git history (`git log -p docs/factory/S
 
 ## Next (in order)
 
-1. **#541** / **#545** (main CI), **#530** close with deploy evidence (see Now). **#536 slices (p1, D143):** #542, #543, then #544 (needs #542); #536 closes after a pass builds and merges Shashkist/factory#1 (criterion 5). Small p3 follow-ups: **#527** (`app.js`; after #543), **#523** (exam-only).
+1. **#545** PR #552 (see Now). **#544** (slice 3 of #536, pick order across repositories; #542 merged, so it is unblocked; D143 amendment 1 note: a full `status --json` with a non-default repository unreadable still exits 0 with its rows missing). Then #536 criterion 5 (a pass builds and merges Shashkist/factory#1). **#551** (p2, `factory_progress.py` + `app.js`), **#527** (`app.js`, p3; #543 merged), **#523** (exam-only).
 2. **#468** (bootstrap exam nits, p3; now on top of #56's exam), **#423** (validator misses, p3; time real shells first; an old worktree `C:\projects\lf-423` exists, check it before starting).
 3. **#436**, **#431** (lab screen follow-ups, p3). **#85** deploy follow-ups; p2 list: #81, #84, #64, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
