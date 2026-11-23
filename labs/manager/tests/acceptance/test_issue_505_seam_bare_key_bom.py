@@ -80,3 +80,27 @@ def test_deploy_seam_check_ignores_an_unrelated_key_behind_a_byte_order_mark(ser
 def test_deploy_seam_check_ignores_a_longer_name_behind_a_byte_order_mark(server):
     server.env_file.write_bytes(BOM + f"{SEAM}_X=1\n".encode())
     _ok(server.run(_stdin()))
+
+
+# A large .env: the check must not depend on how much of the file a pipeline reads
+# (a reader that quits at the first match can turn the match into a failure under pipefail).
+def _filler(min_bytes: int = 1024 * 1024) -> bytes:
+    out, size, i = [], 0, 0
+    while size < min_bytes:
+        line = f"LF_FILLER_KEY_{i:07d}=harmless-value-{i:07d}\n".encode()
+        out.append(line)
+        size += len(line)
+        i += 1
+    return b"".join(out)
+
+
+def test_deploy_seam_check_catches_the_seam_on_line_one_of_a_large_env_file(server):
+    _refused(server, f"{SEAM}={SENTINEL}\n".encode() + _filler())
+
+
+def test_deploy_seam_check_catches_the_seam_behind_a_byte_order_mark_in_a_large_env_file(server):
+    _refused(server, BOM + f"{SEAM}={SENTINEL}\n".encode() + _filler())
+
+
+def test_deploy_seam_check_catches_a_bare_seam_on_line_one_of_a_large_env_file(server):
+    _refused(server, f"{SEAM}\n".encode() + _filler())
