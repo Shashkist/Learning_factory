@@ -40,7 +40,15 @@ const LEN = "[\\d.]+(?:rem|px|em|ch)";
 const nodeFs = (await import(/* @vite-ignore */ "node:" + "fs")) as unknown as {
   readFileSync: (p: string, e: string) => string;
 };
-const css = (name: string) => nodeFs.readFileSync(`src/styles/${name}`, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+const nodeUrl = (await import(/* @vite-ignore */ "node:" + "url")) as unknown as {
+  fileURLToPath: (u: string) => string;
+};
+const nodePath = (await import(/* @vite-ignore */ "node:" + "path")) as unknown as {
+  resolve: (...p: string[]) => string;
+};
+// Resolved from this file, not from the process folder, so any vitest --root or cwd works.
+const STYLES = (name: string) => nodePath.resolve(nodeUrl.fileURLToPath(import.meta.url), "../../../src/styles", name);
+const css = (name: string) => nodeFs.readFileSync(STYLES(name), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
 
 const LABS = [
   {

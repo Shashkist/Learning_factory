@@ -61,13 +61,17 @@ type NodeFs = {
 };
 const node = async (name: string) => (await import(/* @vite-ignore */ "node:" + name)) as never;
 const fs = (await node("fs")) as NodeFs;
-const SRC = "src"; // tests run from labs/web (npm test), like the other exams
+const url = (await node("url")) as { fileURLToPath: (u: string) => string };
+const nodePath = (await node("path")) as { resolve: (...p: string[]) => string };
+// Resolved from this file, not from the process folder, so any vitest --root or cwd works.
+const WEB_ROOT = nodePath.resolve(url.fileURLToPath(import.meta.url), "../../..").split(String.fromCharCode(92)).join("/");
+const SRC = `${WEB_ROOT}/src`;
 const SOURCES: Record<string, string> = {};
 const walkSrc = (dir: string) => {
   for (const name of fs.readdirSync(dir)) {
     const full = `${dir}/${name}`;
     if (fs.statSync(full).isDirectory()) walkSrc(full);
-    else if (/\.(?:css|tsx?)$/.test(name)) SOURCES[`../../${full}`] = fs.readFileSync(full, "utf8");
+    else if (/\.(?:css|tsx?)$/.test(name)) SOURCES[`../../${full.slice(WEB_ROOT.length + 1)}`] = fs.readFileSync(full, "utf8");
   }
 };
 walkSrc(SRC);
@@ -440,11 +444,11 @@ describe("AC5: the built app makes no other-origin request", () => {
       execFileSync: (c: string, a: string[], o: object) => unknown;
     };
     out = fs.mkdtempSync(path.join(os.tmpdir(), "lf331-dist-"));
-    const proc = (globalThis as unknown as { process: { execPath: string; cwd: () => string } }).process;
+    const proc = (globalThis as unknown as { process: { execPath: string } }).process;
     cp.execFileSync(
       proc.execPath,
-      [path.join(proc.cwd(), "node_modules", "vite", "bin", "vite.js"), "build", "--outDir", out, "--emptyOutDir", "--logLevel", "error"],
-      { cwd: proc.cwd(), stdio: "pipe" },
+      [path.join(WEB_ROOT, "node_modules", "vite", "bin", "vite.js"), "build", "--outDir", out, "--emptyOutDir", "--logLevel", "error"],
+      { cwd: WEB_ROOT, stdio: "pipe" },
     );
     const walk = (dir: string, prefix: string) => {
       for (const name of fs.readdirSync(dir)) {
