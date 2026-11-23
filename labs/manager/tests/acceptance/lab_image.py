@@ -12,6 +12,7 @@ Contract:
   without a second build attempt.
 - `ImageBuilder(build)` is the cache; tests give it a fake `build` callable.
 - `build_image(run=...)` is the real build; tests give it a fake `run`.
+- `build_image` adds `--build-arg APT_MIRRORS=$LF_APT_MIRRORS` only when set (#545, D144).
 """
 
 from __future__ import annotations
@@ -40,7 +41,11 @@ def build_image(run: Callable[..., object] = subprocess.run) -> str:
     """Run `docker build` once. Raise ImageBuildFailed with the output tail on failure."""
     if not (IMAGE_DIR / "Dockerfile").is_file():
         raise ImageBuildFailed("labs/images/term/Dockerfile is missing")
-    cmd = ["docker", "build", "-t", TAG, str(IMAGE_DIR)]
+    cmd = ["docker", "build", "-t", TAG]
+    mirrors = os.environ.get("LF_APT_MIRRORS")
+    if mirrors:
+        cmd += ["--build-arg", f"APT_MIRRORS={mirrors}"]
+    cmd.append(str(IMAGE_DIR))
     try:
         res = run(cmd, capture_output=True, text=True, timeout=BUILD_TIMEOUT)
     except subprocess.TimeoutExpired as exc:
