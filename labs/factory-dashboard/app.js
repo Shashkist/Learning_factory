@@ -112,10 +112,7 @@ function agoAt(iso) {
 }
 
 function showAge() {
-  var parts = [];
-  if (lastLive) parts.push("live status " + agoAt(lastLive.generated_at));
-  if (lastGenerated) parts.push("GitHub data " + agoAt(lastGenerated));
-  if (parts.length) document.getElementById("updated").textContent = "updated: " + parts.join(" · ");
+  if (lastGenerated) document.getElementById("updated").textContent = "snapshot updated " + agoAt(lastGenerated);
 }
 
 function render(s) {
@@ -227,6 +224,8 @@ function load() {
 var LIVE_STATIONS = ["plan", "exam", "build", "check", "ship"];
 var LIVE_ICONS = { start: "⏳", done: "✅", fail: "❌", wait: "⏸", skip: "⏭", stopped: "⏹" };
 var LIVE_OFFLINE_MS = 2 * 60 * 1000;
+var LIVE_IDLE_OFFLINE_MS = 35 * 60 * 1000;   // the runner polls every 30 min while it is not running
+var LIVE_QUIET = { idle: 1, paused: 1, budget: 1 };
 var LIVE_LOG_MAX = 60;
 var LIVE_ROLE_ICONS = { manager: "🧭", "exam-writer": "📝", implementer: "🔨", reviewer: "🔍",
   researcher: "🔬", scribe: "✍️", agent: "🤖" };
@@ -316,6 +315,7 @@ function agentCard(a, titles, workers, generated) {
     var now = el("div", "now: ", "live-now");
     now.appendChild(lel("b", S(cur.substep), "", { "data-current-substep": "" }));
     card.appendChild(now);
+    if (S(cur.detail)) card.appendChild(el("div", S(cur.detail), "live-detail muted"));
   }
   var ul = el("ul", null, "live-steps");
   subs.forEach(function (s) {
@@ -621,7 +621,9 @@ function renderCrew(crew) {
 function renderLive(d) {
   var titles = Object.create(null);
   var box = el("div", null, "live-box");
-  box.appendChild(el("div", runnerText(d.runner || {}), "live-runner"));
+  var runner = el("div", runnerText(d.runner || {}), "live-runner");
+  runner.appendChild(el("span", " · " + (LIVE_QUIET[S((d.runner || {}).state)] ? "idle, last check " : "") + ago(d.generated_at), "muted"));
+  box.appendChild(runner);
 
   box.appendChild(renderLanes(d, function () { renderLive(d); }));
 
@@ -682,7 +684,7 @@ function showOffline() {
   // would show its last state in every step.
   var banner = el("p", "Laptop offline or asleep: showing the last state received.", "live-offline");
   banner.id = "live-offline";
-  banner.hidden = isNaN(t) || Date.now() - t <= LIVE_OFFLINE_MS;
+  banner.hidden = isNaN(t) || Date.now() - t <= (LIVE_QUIET[S((lastLive.runner || {}).state)] ? LIVE_IDLE_OFFLINE_MS : LIVE_OFFLINE_MS);
   var old = document.getElementById("live-offline");
   if (old) old.remove();
   var body = document.getElementById("live-body");
