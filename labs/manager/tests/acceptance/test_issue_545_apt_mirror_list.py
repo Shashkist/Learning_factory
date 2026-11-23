@@ -59,6 +59,11 @@ def _fake_run(calls: list[list[str]]):
     return run
 
 
+def _todays_command() -> list[str]:
+    head = ["docker", "build", "-t", lab_image.TAG]
+    return [*head, str(lab_image.IMAGE_DIR)]
+
+
 def _cmd(monkeypatch: pytest.MonkeyPatch, mirrors: str | None) -> list[str]:
     if mirrors is None:
         monkeypatch.delenv("LF_APT_MIRRORS", raising=False)
@@ -150,14 +155,14 @@ def test_c2_harness_command_without_env_is_todays_command(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     cmd = _cmd(monkeypatch, None)
-    assert cmd == ["docker", "build", "-t", lab_image.TAG, str(lab_image.IMAGE_DIR)]
+    assert cmd == _todays_command()
 
 
 def test_c2_harness_command_with_empty_env_is_todays_command(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     cmd = _cmd(monkeypatch, "")
-    assert cmd == ["docker", "build", "-t", lab_image.TAG, str(lab_image.IMAGE_DIR)]
+    assert cmd == _todays_command()
 
 
 def test_c1_harness_passes_build_arg_when_lf_apt_mirrors_is_set(
