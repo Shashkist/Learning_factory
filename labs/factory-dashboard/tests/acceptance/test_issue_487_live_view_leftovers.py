@@ -238,7 +238,7 @@ def test_lane_elapsed_time_uses_its_own_issues_start(tmp_path):
 def _left_lanes():
     return [
         start_pass(120),
-        step("manager", 3, "orient", "orient", "done", ago(56), title="Task 3"),
+        step("manager", 3, "plan", "orient", "done", ago(56), title="Task 3"),
         step("manager", 85, "plan", "pick #85", "done", ago(55), title="Task 85"),
         step("manager", 85, "plan", "decide D140", "done", ago(55), title="Task 85"),
         step("manager", 86, "plan", "pick #86", "done", ago(1), title="Task 86"),
