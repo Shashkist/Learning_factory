@@ -189,7 +189,9 @@ def test_agent_card_detail_is_plain_text_never_markup(tmp_path):
     assert hostile in text(c)
     assert not out["innerHTML"], out["innerHTML"]
     assert out["pwned"] is None
-    assert not [n for n in walk(c) if n["t"] in ("img", "b")]
+    assert not [n for n in walk(c) if n["t"] == "img"]
+    harmless = card(run_full(tmp_path, _detail_live("plain words"))["live"], "manager")
+    assert len([n for n in walk(c) if n["t"] == "b"]) == len([n for n in walk(harmless) if n["t"] == "b"])
 
 
 def test_agent_without_detail_renders_as_before(tmp_path):
