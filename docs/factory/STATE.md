@@ -4,10 +4,11 @@
 
 ## Now
 
-**Pass lf-h6q3 running (laptop, from 15:58 UTC 2026-11-23).** In flight, all claimed by lf-h6q3:
-- **Shashkist/factory#1** (CI foundation): PR factory#9, branch `f/1-ci-foundation`, worktree `C:\projectsactory-1`; review round 1 CHANGES fixed (e58bb28, 8e2fe48), round 2 running. Layout: factory D3. Follow-up factory#10.
-- **#527** (unscoped done): PR #557, worktree `C:\projects\lf-527`, CI green, review round 1 running.
-- **#556** (pick-order nits): branch `f/556-pick-order-nits`, worktree `C:\projects\lf-556`, exam being written.
+**Pass lf-h6q3 running (laptop, from 15:58 UTC 2026-11-23).** Claims held by lf-h6q3:
+- **Shashkist/factory#1 shipped**: PR factory#9 squash-merged e3fc8b2 after 2 review rounds, main CI 45219016530 green, issue closed with evidence. Follow-ups factory#10, factory#11 (p2). Factory D3 + amendment 1.
+- **#536** stays open only for the live `factory#1` lane: the page stopped publishing at 16:00:49 UTC in this pass (**#558**, p1, needs:laptop).
+- **#527**: PR #557, worktree `C:\projects\lf-527`, CI green, review round 1 running.
+- **#556**: worktree `C:\projects\lf-556`, exam d2a93d8, implementer running.
 
 **Pass lf-w2k6 finished (laptop, 13:57-15:27 UTC 2026-11-23, stopped at 3 merges).** No issue in flight, no claim held. Resume here:
 - **#536 criterion 5**: all three slices are merged (#542, #543, #544), so the factory can now pick from Shashkist/factory. `python scripts/factory_pick.py` (on main) lists Shashkist/factory#1 (p1) first; that is the next pick (work it in a worktree of its clone, `C:\projectsactory-<n>`, `gh -R Shashkist/factory`, `issue_lock.py --repo`, that repository's own CLAUDE.md). #536 itself closes when a pass builds and merges factory#1.
