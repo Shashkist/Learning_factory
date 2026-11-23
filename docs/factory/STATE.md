@@ -4,8 +4,9 @@
 
 ## Now
 
-**Pass lf-q8m2 finished (laptop, 03:00-~04:15 UTC 2026-11-23): 3 PRs merged (the cap), one PR left open for the next pass.** Claim on #504 stays with lf-q8m2; steal it with a reason (`issue_lock.py claim 504 --steal`).
-- **#504**, PR #526 (`f/504-live-view-ties-2`, worktree `C:\projects\lf-504b`): rebuilt after review round 1 on #525 (CHANGES: an unscoped step did not move its issue row's station; D141). Commits: exam 5d408ed, exam 0984d59, code bd5a931 + e2711da; local: 214 dashboard exam cases pass, exam integrity ok. **Review round 2: APPROVE** (comment 7091379200), CI green on head e2711da. Not merged only because this pass hit the 3-PR cap. **Next:** re-check `gh pr checks 526` (rebase onto main if GitHub asks), squash-merge, then the Factory dashboard run (not Deploy) publishes `app.js`; check the live `app.js` matches the merge commit, post the evidence with `gh issue comment 504` (a `Closes` PR closes the issue at merge, so `gh issue close --comment` posts nothing), set `status:done`, release the claim, remove worktree `lf-504b`. Round 2 non-blocking note: #527.
+**Pass lf-h2v9 running (laptop, from 04:28 UTC 2026-11-23).** Merged #526 (#504 closed: live `app.js` byte-equal to cd25671). In flight:
+- **#481** on `f/481-live-view-freshness` (worktree `C:\projects\lf-481`): exam then build.
+- **#521** on `f/521-proxy-warn-run` (worktree `C:\projects\lf-521`): exam then build.
 
 Pass lf-q8m2 shipped #515 (#518) and #505 (#520): Deploy 45106491102 deployed e496bf8, smoke ok; #519 (#522, exam-only): Deploy 45108693143 deployed ca06aef, smoke ok. Follow-ups: #521 (from #518), #523 (from #522), #524 (scripts test leaks `LF_CREW_DIR` on the laptop: unset it when running `uvx pytest scripts` locally). Old worktrees `C:\projects\lf-505`, `lf-510`, `lf-68b`, `lf-76`, `lf-76e`, `lf-331`, `lf-331e` and an empty `lf-515` folder can likely go; check each is clean and its PR closed first (`git worktree list`). A qa plugin guard hook blocks shell loops over git worktrees; use one literal path per command.
 
