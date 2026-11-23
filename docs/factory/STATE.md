@@ -4,10 +4,10 @@
 
 ## Now
 
-**Pass lf-7c20 running (laptop, from 00:56 UTC 2026-11-23).** Pass lf-n3r6 ended by timeout at 00:48 UTC; it had merged #512 (#508) and #514 (#510). lf-7c20 closed both with evidence (Deploy 45091479162 deployed 8a5a4eb, smoke ok). Lanes (each its own worktree `C:\projects\lf-<n>`):
-- **#505**, PR #516 (`f/505-seam-check-bom`), taken over from lf-n3r6: CI, then review round 1.
-- **#515** (trusted proxy backoff keeps a fresher answer, warning throttled), branch `f/515-proxy-backoff-fresh`. Exam next.
-- **#513** (web exams read stylesheets relative to the test file; exam-only), branch `f/513-exam-paths-from-file`. Exam next.
+**Pass lf-7c20 (laptop, from 00:56 UTC 2026-11-23), wrapping up.** Pass lf-n3r6 ended by timeout at 00:48 UTC after merging #512 (#508) and #514 (#510); lf-7c20 closed both with evidence (Deploy 45091479162 deployed 8a5a4eb, smoke ok). Lanes (each its own worktree `C:\projects\lf-<n>`, claims held by lf-7c20):
+- **#513** merged as #517 (8c13bec, exam-only). Close with main CI 45098711352 once green. Follow-up #519 (Playwright exams).
+- **#515**, PR #518 (`f/515-proxy-backoff-fresh`, worktree `lf-515`): CI and review round 1 running in parallel. Merge on green + APPROVE, then Deploy + smoke, close.
+- **#505**, rebuilt as `f/505-seam-check-bom-2` (worktree `lf-505b`) after review round 1 of #516 (CHANGES: `sed | grep -q` under pipefail misses the seam on a large `.env`; #516 closed). Exam commits 8b816a9 + c4c4901 (large `.env` cases) first; implementer cherry-picks 453c958, 3914cf1 and drops the pipe. Next: push, PR, CI, review round 2.
 
 Pass lf-k7w3 finished: #332 (#507) and #488 (#509) shipped, Deploy 45079262786 deployed 756c3be, smoke ok, both closed with evidence; follow-ups #508, #510.
 
