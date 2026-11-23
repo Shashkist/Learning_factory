@@ -279,6 +279,83 @@ def _worker(at, wid="w1"):
     return {"kind": "worker", "at": at, "worker": wid, "role": "manager", "event": "idle"}
 
 
+def _issues_of(events, agent, substep):
+    live = fp.render([{"kind": "pass-start", "at": "2999-01-01T00:00:00Z", "pass_no": 1, "budget": 1}, *events])
+    return {s["issue"]: s["status"] for a in live["agents"] if a["id"] == agent for s in a["substeps"] if s["substep"] == substep}
+
+
+def test_unscoped_done_closes_the_latest_open_step_of_the_same_agent_and_substep():
+    ev = [_step("2999-01-01T00:00:01Z", 3, "m", "ci wait"), _step("2999-01-01T00:00:02Z", 5, "m", "ci wait"),
+          _step("2999-01-01T00:00:03Z", 86, "m", "merge"), _step("2999-01-01T00:00:04Z", None, "m", "ci wait", "done")]
+    assert _issues_of(ev, "m", "ci wait") == {3: "start", 5: "done"}
+
+
+def test_unscoped_done_with_no_open_step_falls_back_to_the_previous_substep_issue():
+    ev = [_step("2999-01-01T00:00:01Z", 3, "m", "ci wait", "done"), _step("2999-01-01T00:00:02Z", 86, "m", "merge"),
+          _step("2999-01-01T00:00:03Z", None, "m", "ci wait", "done")]
+    assert _issues_of(ev, "m", "ci wait") == {3: "done", 86: "done"}
+
+
+def test_unscoped_done_never_closes_another_agents_step():
+    ev = [_step("2999-01-01T00:00:01Z", 3, "other", "ci wait"), _step("2999-01-01T00:00:02Z", 86, "m", "merge"),
+          _step("2999-01-01T00:00:03Z", None, "m", "ci wait", "fail")]
+    assert _issues_of(ev, "other", "ci wait") == {3: "start"}
+    assert _issues_of(ev, "m", "ci wait") == {86: "fail"}
+
+
+def _e(sec, issue, sub, status="start", station="check", repo="", agent="m"):
+    return {"kind": "step", "at": f"2999-01-01T00:00:{sec:02d}Z", "issue": issue, "repo": repo, "agent": agent, "role": "manager",
+            "station": station, "substep": sub, "status": status, "title": "", "detail": ""}
+
+
+def _live(events):
+    return fp.render([{"kind": "pass-start", "at": "2999-01-01T00:00:00Z", "pass_no": 1, "budget": 1}, *events])
+
+
+def _rows(live, sub, agent="m"):
+    return {(s["repo"], s["issue"]): s["status"] for a in live["agents"] if a["id"] == agent for s in a["substeps"] if s["substep"] == sub}
+
+
+def test_open_step_match_keeps_the_previous_issue_pointer_and_agent_station():
+    live = _live([_e(1, 3, "ci wait"), _e(2, 86, "merge", station="ship"), _e(3, None, "ci wait", "done"), _e(4, None, "deploy")])
+    assert _rows(live, "deploy") == {("", 86): "start"}
+    assert _rows(live, "ci wait") == {("", 3): "done"}
+    # station right after the close is still the one of the merge step
+    live = _live([_e(1, 3, "ci wait"), _e(2, 86, "merge", station="ship"), _e(3, None, "ci wait", "done")])
+    assert live["agents"][0]["station"] == "ship"
+
+
+def test_unscoped_close_naming_a_repository_only_matches_that_repository():
+    ev = [_e(1, 3, "ci wait"), _e(2, 86, "merge", station="ship"), _e(3, None, "ci wait", "done", repo="Shashkist/factory")]
+    rows = _rows(_live(ev), "ci wait")
+    assert rows == {("", 3): "start", ("", 86): "done"}
+
+
+def test_unscoped_close_without_repo_matches_the_open_step_of_a_foreign_repository():
+    ev = [_e(1, 3, "ci wait", repo="Shashkist/factory"), _e(2, 86, "merge", station="ship"), _e(3, None, "ci wait", "done")]
+    assert _rows(_live(ev), "ci wait") == {("Shashkist/factory", 3): "done"}
+
+
+def test_a_wait_step_counts_as_open():
+    ev = [_e(1, 3, "ci wait", "wait"), _e(2, 86, "merge", station="ship"), _e(3, None, "ci wait", "done")]
+    assert _rows(_live(ev), "ci wait") == {("", 3): "done"}
+
+
+def test_the_station_must_match_for_the_close():
+    ev = [_e(1, 3, "ci wait", station="ship"), _e(2, 86, "merge", station="ship"), _e(3, None, "ci wait", "done", station="check")]
+    assert _rows(_live(ev), "ci wait") == {("", 3): "start", ("", 86): "done"}
+
+
+def test_an_unscoped_start_follows_the_previous_substep_not_the_open_step():
+    ev = [_e(1, 3, "ci wait"), _e(2, 86, "merge", station="ship"), _e(3, None, "ci wait", "start")]
+    assert _rows(_live(ev), "ci wait") == {("", 3): "start", ("", 86): "start"}
+
+
+def test_a_tie_on_at_closes_the_step_logged_last():
+    ev = [_e(1, 3, "ci wait"), _e(1, 5, "ci wait"), _e(2, 86, "merge", station="ship"), _e(3, None, "ci wait", "done")]
+    assert _rows(_live(ev), "ci wait") == {("", 3): "start", ("", 5): "done"}
+
+
 def test_workers_come_from_events_after_pass_start_not_whole_workers():
     evs = [{"kind": "pass-start", "at": "2026-01-01T10:00:00+00:00"},
            _worker("2026-01-01T09:59:59+00:00"), _worker("2026-01-01T10:00:05+00:00")]
