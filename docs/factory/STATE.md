@@ -4,9 +4,10 @@
 
 ## Now
 
-**Pass lf-7c20 finished (laptop, 00:56-02:40 UTC 2026-11-23); two PRs left open for the next pass.** Claims stay with lf-7c20; steal them with a reason (`issue_lock.py claim <n> --steal`).
-- **#515**, PR #518 (`f/515-proxy-backoff-fresh`, worktree `C:\projects\lf-515`): review round 1 was dispatched at 02:08 in parallel with CI. Check the PR for a `Verdict:` comment. On APPROVE + green CI: merge, Deploy, smoke, close. On CHANGES: implementer; if a new exam case is needed, use a `-2` branch with exam commits first (D103).
-- **#505**, PR #520 (`f/505-seam-check-bom-2`, worktree `C:\projects\lf-505b`), rebuilt after #516's review round 1 (CHANGES: `sed | grep -q` under pipefail missed the seam on a large `.env`; #516 closed). CI started 02:36. Next: dispatch the reviewer (round 2 of #505), merge on green + APPROVE, Deploy, smoke, close. The pass-through deploy cases time out locally on Windows (as on #516); CI decides.
+**Pass lf-q8m2 running (laptop, from 03:00 UTC 2026-11-23).** Claims: #515, #505 (stolen from lf-7c20, whose reviews never posted a verdict), #519.
+- **#515**, PR #518 (`f/515-proxy-backoff-fresh`, worktree `C:\projects\lf-515`): CI green; review round 1 dispatched 03:00.
+- **#505**, PR #520 (`f/505-seam-check-bom-2`, worktree `C:\projects\lf-505b`): CI green; review round 2 dispatched 03:00.
+- **#519** (`f/519-pw-i18n-paths`, worktree `C:\projects\lf-519`): exam-only fix in progress.
 
 Pass lf-7c20 also closed #510 (#514) and #508 (#512) for the timed-out pass lf-n3r6 (Deploy 45091479162 deployed 8a5a4eb, smoke ok), and shipped #513 (#517, exam-only; main CI 45098711352, Deploy 45100497842 deployed 8c13bec, smoke ok). New follow-up: #519.
 
