@@ -36,7 +36,8 @@ const i18nFile = (lang: string) => nodeUrl.fileURLToPath(new URL(`../../src/i18n
 const copy = (lang: "en" | "he") =>
   JSON.parse(fs.readFileSync(i18nFile(lang), "utf8")) as Record<string, string>;
 const COPY = { en: copy("en"), he: copy("he") };
-const SHOTS = "test-results/design-screenshots";
+// Also resolved from this file: always labs/web/test-results/design-screenshots/, whatever the cwd.
+const SHOTS = nodeUrl.fileURLToPath(new URL("../../test-results/design-screenshots", import.meta.url).href);
 type Lang = "en" | "he";
 
 const HINT = "demo is still missing";
@@ -199,8 +200,9 @@ for (const state of SHOT_STATES)
   for (const lang of ["en", "he"] as const)
     for (const scheme of ["light", "dark"] as const)
       for (const width of [1280, 390]) {
-        const file = `${SHOTS}/333-lab-${state}-${lang}-${scheme}-${width}.png`;
-        test(`AC7: screenshot of the lab screen (${state}), ${lang}, ${scheme}, ${width} px is saved to ${file}`, async ({ page }) => {
+        const shot = `333-lab-${state}-${lang}-${scheme}-${width}.png`;
+        const file = `${SHOTS}/${shot}`;
+        test(`AC7: screenshot of the lab screen (${state}), ${lang}, ${scheme}, ${width} px is saved to test-results/design-screenshots/${shot}`, async ({ page }) => {
           fs.mkdirSync(SHOTS, { recursive: true });
           await page.emulateMedia({ colorScheme: scheme });
           const { state: mode } = await openLab(page, lang, width, width === 1280 ? 800 : 844);

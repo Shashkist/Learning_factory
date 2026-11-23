@@ -28,7 +28,8 @@ const i18nFile = (lang: string) => nodeUrl.fileURLToPath(new URL(`../../src/i18n
 const copy = (lang: "en" | "he") =>
   JSON.parse(fs.readFileSync(i18nFile(lang), "utf8")) as Record<string, string>;
 const COPY = { en: copy("en"), he: copy("he") };
-const SHOTS = "test-results/design-screenshots";
+// Also resolved from this file: always labs/web/test-results/design-screenshots/, whatever the cwd.
+const SHOTS = nodeUrl.fileURLToPath(new URL("../../test-results/design-screenshots", import.meta.url).href);
 
 async function setLang(page: Page, lang: "en" | "he") {
   await page.addInitScript((l) => window.localStorage.setItem("lf-lang", l), lang);
@@ -158,8 +159,9 @@ const SHOTS_MATRIX = [
 ];
 
 for (const s of SHOTS_MATRIX) {
-  const file = `${SHOTS}/${s.pg}-${s.lang}-${s.scheme}-${s.width}.png`;
-  test(`AC9: screenshot of the ${s.pg} page, ${s.lang}, ${s.scheme}, ${s.width} px is saved to ${file}`, async ({ page }) => {
+  const shot = `${s.pg}-${s.lang}-${s.scheme}-${s.width}.png`;
+  const file = `${SHOTS}/${shot}`;
+  test(`AC9: screenshot of the ${s.pg} page, ${s.lang}, ${s.scheme}, ${s.width} px is saved to test-results/design-screenshots/${shot}`, async ({ page }) => {
     fs.mkdirSync(SHOTS, { recursive: true });
     await setLang(page, s.lang);
     await page.emulateMedia({ colorScheme: s.scheme });
