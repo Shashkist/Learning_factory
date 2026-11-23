@@ -247,6 +247,7 @@ def reset_trusted_proxy_cache() -> None:
         _proxy_cache = None
         _proxy_logged = None
         _proxy_refreshing = False
+        _proxy_warned.clear()
         _proxy_generation += 1  # a refresh still running is forgotten: its answer is dropped
 
 
@@ -311,15 +312,26 @@ def _trusted_proxy_setting() -> tuple[str, bool]:
     return trusted, True
 
 
-def _back_off_proxy(trusted: str, known: frozenset[str], generation: int) -> None:
-    """Keep the known answer for a short backoff so one exhausted window logs one warning."""
-    global _proxy_cache
+_PROXY_WARN_EVERY = 60.0
+_proxy_warned: dict[str, tuple[float, int]] = {}  # name -> (last warning, suppressed since)
+
+
+def _warn_start_failed(trusted: str, exc: Exception) -> None:
+    """At most one warning per minute per name; the next one reports how many were suppressed."""
+    now = time.monotonic()
     with _proxy_lock:
-        if generation == _proxy_generation:
-            _proxy_cache = (trusted, time.monotonic() + min(_proxy_ttl(), _PROXY_BACKOFF), known)
+        last, suppressed = _proxy_warned.get(trusted, (None, 0))
+        if last is not None and now - last < _PROXY_WARN_EVERY:
+            _proxy_warned[trusted] = (last, suppressed + 1)
+            return
+        _proxy_warned[trusted] = (now, 0)
+    note = f" ({suppressed} similar warnings suppressed)" if suppressed else ""
+    _proxy_log.warning(
+        "trusted proxy %s: cannot start the lookup thread (%s)%s", trusted, exc, note
+    )
 
 
-def _refresh_proxy_in_background(trusted: str, known: frozenset[str] = frozenset()) -> None:
+def _refresh_proxy_in_background(trusted: str) -> None:
     generation = _claim_lookup()
     if generation is None:
         return
@@ -333,9 +345,24 @@ def _refresh_proxy_in_background(trusted: str, known: frozenset[str] = frozenset
     try:
         threading.Thread(target=run, name="lf-proxy-lookup", daemon=True).start()
     except Exception as exc:  # not BaseException: an interrupt may leave a running worker
-        _release_lookup(generation)  # no worker will ever clear the flag
-        _back_off_proxy(trusted, known, generation)
-        _proxy_log.warning("trusted proxy %s: cannot start the lookup thread (%s)", trusted, exc)
+        _back_off_proxy(trusted, generation)  # no worker will ever clear the flag
+        _warn_start_failed(trusted, exc)
+
+
+def _back_off_proxy(trusted: str, generation: int) -> None:
+    """Failed start: release the flag and retry in _PROXY_BACKOFF, keeping a fresher answer."""
+    global _proxy_cache, _proxy_refreshing
+    with _proxy_lock:
+        if generation != _proxy_generation:
+            return
+        _proxy_refreshing = False
+        now = time.monotonic()
+        cached = _proxy_cache
+        if cached and cached[0] == trusted:
+            if cached[1] <= now:
+                _proxy_cache = (trusted, now + _PROXY_BACKOFF, cached[2])
+        else:
+            _proxy_cache = (trusted, now + _PROXY_BACKOFF, frozenset())
 
 
 def warm_trusted_proxy() -> None:
@@ -379,7 +406,7 @@ def trusted_proxy_addresses() -> frozenset[str]:
     else:
         known = frozenset()
     if _in_event_loop():
-        _refresh_proxy_in_background(trusted, known)
+        _refresh_proxy_in_background(trusted)
         return known
     with _proxy_lock:
         generation = _proxy_generation
