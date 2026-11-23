@@ -292,8 +292,10 @@ function agentCard(a, titles, workers, generated) {
   var card = lel("div", null, "live-agent", { "data-agent-id": S(a.id), "data-state": S(a.state) });
   var head = el("div", null, "live-head");
   head.appendChild(el("b", (LIVE_ROLE_ICONS[a.role] || "") + " " + S(a.role)));
-  var latest = latestIssues(a).pop();
-  var issue = !(latest > 0) ? "" : " #" + latest + " " + S(titles[latest]) + " ";
+  var latest = latestKeys(a).pop(), lr = null;
+  subs.forEach(function (s) { var r = stepRef(a, s); if (laneKey(r.repo, r.issue) === latest) lr = r; });
+  lr = lr || { repo: S(a.repo), issue: Number(a.issue) };
+  var issue = !(lr.issue > 0) ? "" : " " + laneLabel(lr.repo, lr.issue) + " " + S(titles[latest]) + " ";
   if (issue) head.appendChild(el("span", issue));
   card.appendChild(head);
   var done = subs.filter(function (s) { return s.status === "done"; }).length;
@@ -311,8 +313,8 @@ function agentCard(a, titles, workers, generated) {
   var ul = el("ul", null, "live-steps");
   subs.forEach(function (s) {
     var icon = s.status === "start" ? (liveSubstep(a, s, subs, generated) ? LIVE_ICONS.start : "–") : (LIVE_ICONS[s.status] || "");
-    var n = stepIssue(a, s);
-    ul.appendChild(lel("li", icon + " " + S(s.substep) + (n > 0 ? " #" + n : ""), "",
+    var r = stepRef(a, s);
+    ul.appendChild(lel("li", icon + " " + S(s.substep) + (r.issue > 0 ? " " + laneLabel(r.repo, r.issue) : ""), "",
       { "data-substep": S(s.substep), "data-status": S(s.status) }));
   });
   card.appendChild(ul);
@@ -344,9 +346,17 @@ var LANE_MARK = { done: "✓", active: "●", failed: "✗", waiting: "⏸", pen
 var ROLE_STATION = { researcher: "plan", planner: "plan", "exam-writer": "exam", implementer: "build", reviewer: "check" };
 var foldOpen = Object.create(null);   // collapsible section -> open, kept across polls
 
-function issueOf(text) {
-  var m = /#(\d+)/.exec(S(text));
-  return m ? Number(m[1]) : null;
+function crewRef(title, d) {   // "#12" is this repository's issue; "factory#1" names a repository present in the snapshot
+  var m = /([\w.-]+)?#(\d+)/.exec(S(title));
+  if (!m) return null;
+  var issue = Number(m[2]), short = (m[1] || "").toLowerCase();
+  if (!short || short === "learning_factory") return { repo: "", issue: issue };
+  var issues = arr(d.issues);
+  for (var j = 0; j < issues.length; j++) {
+    var repo = S(issues[j].repo);
+    if (repo && repo.split("/").pop().toLowerCase() === short) return { repo: repo, issue: issue };
+  }
+  return null;
 }
 
 function prFor(issue) {
@@ -373,16 +383,10 @@ function dur(a, b) {
   return s < 90 ? s + " s" : s < 5400 ? Math.round(s / 60) + " min" : (s / 3600).toFixed(1) + " h";
 }
 
-function stepIssue(a, s) {   // the issue a step belongs to: its own, else its predecessor's, else the agent's first
+function stepRef(a, s) {   // the issue a step belongs to (its own, else its predecessor's, else the agent's first) and its repository ("" = this one)
   var subs = arr(a.substeps);
-  for (var j = subs.indexOf(s); j >= 0; j--) if (Number(subs[j].issue) > 0) return Number(subs[j].issue);
-  return Number(a.issue);
-}
-
-function stepRepo(a, s) {   // the repository of that issue ("" = this repository)
-  var subs = arr(a.substeps);
-  for (var j = subs.indexOf(s); j >= 0; j--) if (Number(subs[j].issue) > 0) return S(subs[j].repo);
-  return S(a.repo);
+  for (var j = subs.indexOf(s); j >= 0; j--) if (Number(subs[j].issue) > 0) return { repo: S(subs[j].repo), issue: Number(subs[j].issue) };
+  return { repo: S(a.repo), issue: Number(a.issue) };
 }
 
 function laneKey(repo, n) { return repo ? repo + "#" + n : String(n); }   // this repository's lanes keep the bare number
@@ -392,14 +396,10 @@ function latestKeys(a) {   // the lane keys holding the agent's latest sub-steps
   var subs = arr(a.substeps), max = 0, out = [];
   subs.forEach(function (s) { max = Math.max(max, Date.parse(s.at) || 0); });
   subs.forEach(function (s) {
-    var i = stepIssue(a, s), k = laneKey(stepRepo(a, s), i);
-    if ((Date.parse(s.at) || 0) === max && i > 0 && out.indexOf(k) < 0) out.push(k);
+    var r = stepRef(a, s), k = laneKey(r.repo, r.issue);
+    if ((Date.parse(s.at) || 0) === max && r.issue > 0 && out.indexOf(k) < 0) out.push(k);
   });
   return out.length ? out : [laneKey(S(a.repo), Number(a.issue))];
-}
-
-function latestIssues(a) {
-  return latestKeys(a).map(function (k) { return Number(k.split("#").pop()); });
 }
 
 function laneData(d) {
@@ -409,15 +409,15 @@ function laneData(d) {
   });
   arr(d.agents).forEach(function (a) {
     arr(a.substeps).forEach(function (s) {
-      var l = lanes[laneKey(stepRepo(a, s), stepIssue(a, s))];
+      var r = stepRef(a, s), l = lanes[laneKey(r.repo, r.issue)];
       if (!l) return;
       if (l.agents.indexOf(a) < 0) l.agents.push(a);
       l.steps.push({ s: s, a: a, open: stepOpen(a, s, arr(a.substeps), d.generated_at) });
     });
   });
   crewNodes(arr(d.crew).slice(0, 1)).forEach(function (n) {   // the current pass only: older passes' agents confuse the lane
-    var i = issueOf(n.title);
-    if (i !== null && lanes[i]) lanes[i].crew.push(n);
+    var r = crewRef(n.title, d), k = r ? laneKey(r.repo, r.issue) : "";
+    if (r && lanes[k]) lanes[k].crew.push(n);
   });
   return Object.keys(lanes).map(function (k) {
     var l = lanes[k];
@@ -653,8 +653,8 @@ function renderLive(d) {
   });
   function station(name) { return at[S(name).toLowerCase()] || at.plan; }
   arr(d.issues).filter(function (i) { return Number(i.issue) > 0; }).forEach(function (i) {
-    titles[i.issue] = S(i.title);
-    station(i.station).appendChild(el("div", "#" + S(i.issue) + " " + S(i.title), "live-issue"));
+    titles[laneKey(S(i.repo), i.issue)] = S(i.title);
+    station(i.station).appendChild(el("div", laneLabel(S(i.repo), i.issue) + " " + S(i.title), "live-issue"));
   });
   // Workers carry no issue: one running agent with the same role owns the worker, else it goes in the row.
   var agents = arr(d.agents);

@@ -299,3 +299,36 @@ def test_issue_zero_string_is_no_issue():
     live = fp.render(evs)
     assert [i["issue"] for i in live["issues"]] == [7]
     assert {a["id"]: a["issue"] for a in live["agents"]} == {"a": None, "b": None, "c": 7}
+
+
+def _add_repo(repo):
+    return fp.main(["add", "--issue", "5", "--repo", repo, "--agent", "a", "--role", "implementer", "--station", "build",
+                    "--substep", "x", "--status", "start"])
+
+
+def test_only_allowlisted_repositories_reach_live_json(events_file, capsys):
+    token = "A" * 40
+    for bad in ("evil/secret-project", f"{token}/x", f"owner/{token}"):
+        assert _add_repo(bad) == 0   # never fails the caller, same as other bad input
+        assert "factory_progress" in capsys.readouterr().err
+    assert not events_file.exists()
+    assert _add_repo("SHASHKIST/Factory") == 0
+    assert _add_repo("shashkist/learning_factory") == 0
+    live = fp.render(fp.read_events())
+    assert token not in json.dumps(live)
+    assert sorted(i["repo"] for i in live["issues"]) == ["", "Shashkist/factory"]
+
+
+def test_render_drops_hand_edited_events_with_a_foreign_repo(events_file):
+    ev = {"kind": "step", "at": fp.now(), "issue": 1, "repo": "leak/name", "agent": "a", "role": "implementer",
+          "station": "build", "substep": "x", "status": "start", "detail": "", "title": ""}
+    events_file.write_text(json.dumps(ev) + chr(10), encoding="utf-8")
+    assert "leak/name" not in json.dumps(fp.render(fp.read_events()))
+
+
+def test_dot_segments_and_lookalike_urls_are_redacted():
+    for url in ("https://github.com/Shashkist/factory/../../someone/else/pull/1",
+                "https://github.com/Shashkist/factory/%2e%2e/x", "https://github.com/Shashkist/Learning_factory-evil/x"):
+        assert fp.scrub("see " + url) == "see <url>"
+    ok = "https://github.com/Shashkist/Learning_factory/pull/9"
+    assert fp.scrub(ok) == ok

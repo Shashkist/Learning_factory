@@ -46,6 +46,18 @@ TOOL_CATEGORIES = {"Bash": "Bash", "PowerShell": "Bash", "Read": "Read", "Edit":
                    "TodoWrite": "Plan"}
 THIS_REPO = "Shashkist/Learning_factory"   # events without a repository belong here
 _REPO = re.compile(r"^[\w.-]{1,40}/[\w.-]{1,60}$")
+# Repositories whose names may appear in the public live.json (compared case-insensitively). #544/repos.yaml can feed this later.
+ALLOWED_REPOS = {r.lower(): r for r in (THIS_REPO, "Shashkist/factory")}
+
+
+def canon_repo(repo: object) -> str | None:
+    """"" for this repository (or none given), the canonical name of another allowed one, None for anything else."""
+    if not repo:
+        return ""
+    name = ALLOWED_REPOS.get(str(repo).lower())
+    if name is None:
+        return None
+    return "" if name == THIS_REPO else name
 DETAIL_MAX = 160
 LOG_TAIL = 60
 ABANDONED = timedelta(minutes=15)   # a tool with no PostToolUse after this long is not shown as running
@@ -59,7 +71,8 @@ _SLUG = re.compile(r"^[\w .:/#()+\-]{1,60}$", re.UNICODE)
 _SCRUB = [
     (re.compile(r"\b\d{1,3}(?:\.\d{1,3}){3}\b"), "<ip>"),
     (re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+"), "<email>"),
-    (re.compile(r"https?://(?!github\.com/Shashkist/Learning_factory)(?!github\.com/Shashkist/factory/)(?![\w.-]*shashkist\.com)\S+"), "<url>"),
+    (re.compile(r"https?://(?!github\.com/Shashkist/Learning_factory(?:[/?#\s]|$))(?!github\.com/Shashkist/factory/)(?![\w.-]*shashkist\.com)\S+"), "<url>"),
+    (re.compile(r"https?://\S*(?:/\.\.|%2e)\S*", re.IGNORECASE), "<url>"),
     (re.compile(r"(?:[A-Za-z]:\\|/(?:root|home|Users|etc|var|tmp|c)/)\S*"), "<path>"),
     (re.compile(r"\b[A-Za-z0-9_\-]{32,}\b"), "<redacted>"),
 ]
@@ -207,7 +220,9 @@ def render_crew(at: datetime) -> list[dict]:
 
 
 def render(events: list[dict]) -> dict:
-    evs = current_pass(events)
+    # the redaction boundary: step events of a repository that is not on the allowlist are dropped, names normalised
+    evs = [{**e, "repo": canon_repo(e.get("repo"))} if e.get("kind") == "step" else e
+           for e in current_pass(events) if e.get("kind") != "step" or canon_repo(e.get("repo")) is not None]
     t = now()
     runner = {"state": "idle", "pass_no": None, "budget": None, "pass_started": None, "pass_ended": None,
               "result": None, "note": ""}
@@ -227,6 +242,9 @@ def render(events: list[dict]) -> dict:
         elif kind == "runner-state":
             runner.update(state=e.get("state", "idle"), note=e.get("note", ""))
         elif kind == "step":
+            if canon_repo(e.get("repo")) is None:   # the redaction boundary: no foreign repository name gets through
+                continue
+            e = {**e, "repo": canon_repo(e.get("repo"))}
             aid = e["agent"]
             a = agents.setdefault(aid, {"id": aid, "role": e["role"], "issue": issue_no(e.get("issue")) or None, "station": e["station"],
                                         "state": "running", "started": e["at"], "last": e["at"], "substeps": [],
@@ -283,9 +301,9 @@ def cmd_add(a: argparse.Namespace) -> None:
         raise ValueError(f"station must be {STATIONS}, status {STATUSES}, role {ROLES}")
     if not _SLUG.match(a.substep) or not _SLUG.match(a.agent):
         raise ValueError("agent and substep: up to 60 letters, digits, space and . : / # ( ) + -")
-    if a.repo and not _REPO.match(a.repo):
-        raise ValueError("repo: owner/name")
-    repo = "" if not a.repo or a.repo == THIS_REPO else a.repo
+    repo = canon_repo(a.repo)
+    if repo is None or (a.repo and not _REPO.match(a.repo)):
+        raise ValueError("repo: this repository or Shashkist/factory")
     detail = sys.stdin.read() if a.detail_file == "-" else ""
     append({"kind": "step", "at": now(), "issue": a.issue, "repo": repo, "title": clean(a.title or "", 90),
             "agent": a.agent, "role": a.role, "station": a.station, "substep": a.substep,
