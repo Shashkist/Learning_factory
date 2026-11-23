@@ -27,9 +27,11 @@ import hashlib
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import types
 from datetime import datetime, timedelta, timezone
@@ -354,13 +356,81 @@ def content_hash(live: dict) -> str:
     return hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()
 
 
+_ssh_proc: list[subprocess.Popen] = []   # the push in flight, for the watchdog
+
+
+def _publish_timeout() -> float:
+    try:
+        t = float(os.environ.get("LF_PUBLISH_TIMEOUT_S") or 30)
+    except ValueError:
+        return 30.0
+    return t if t > 0 else 30.0
+
+
+def _kill_tree(proc: subprocess.Popen) -> None:
+    try:
+        if os.name == "nt":
+            subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], timeout=5, check=False,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            os.killpg(proc.pid, signal.SIGKILL)  # its own session: pgid == pid
+    except (OSError, subprocess.SubprocessError):
+        pass
+    try:
+        proc.kill()
+    except OSError:
+        pass
+
+
+def _push(argv: list[str], data: bytes, timeout: float) -> None:
+    """Run ssh with `data` on stdin, bounded; on timeout or error kill its whole process tree. ssh's output
+    goes to the null device so nothing it starts can hold a pipe of the caller or of this process."""
+    proc = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                            start_new_session=os.name != "nt")
+    _ssh_proc.append(proc)
+    try:
+        proc.communicate(input=data, timeout=timeout)
+        if proc.returncode:
+            raise subprocess.CalledProcessError(proc.returncode, argv[0])
+    except BaseException:
+        _kill_tree(proc)
+        try:
+            proc.wait(timeout=5)
+        except subprocess.SubprocessError:
+            pass
+        raise
+    finally:
+        _ssh_proc.clear()
+
+
+def _publish_expired(state: Path) -> None:
+    for proc in _ssh_proc:
+        _kill_tree(proc)
+    try:
+        state.write_text(f"fail {time.time()}")
+    except OSError:
+        pass
+    os._exit(0)
+
+
 def cmd_publish(a: argparse.Namespace) -> bool:
     """Push live.json when its content changed (at most every MIN_GAP_S), or every HEARTBEAT_S as a
     liveness signal; after a failure wait BACKOFF_S. State file: '<hash> <time>' or 'fail <time>'.
     --force pushes now (the final state of a pass must not be dropped by the gap); --min-age N is the
     between-passes heartbeat: push iff the last push is at least N s old, whatever the content."""
-    live = render(read_events())
     state = Path(a.key + ".last")
+    # Started before anything can block (read_events, render, ssh): the process ends at T + 15 s whatever hangs.
+    watchdog = threading.Timer(_publish_timeout() + 15, _publish_expired, (state,))
+    watchdog.daemon = True
+    watchdog.start()
+    try:
+        return _publish(a, state)
+    finally:
+        watchdog.cancel()
+
+
+def _publish(a: argparse.Namespace, state: Path) -> bool:
+    live = render(read_events())
     h = content_hash(live)
     now = time.time()
     try:
@@ -379,9 +449,10 @@ def cmd_publish(a: argparse.Namespace) -> bool:
         pass
     data = json.dumps(live, ensure_ascii=False).encode("utf-8")
     # The server key has a forced command that writes stdin to live.json (tmp + rename) and nothing else.
+    argv = ["ssh", "-i", a.key, "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", "ConnectTimeout=10",
+            "-o", "ServerAliveInterval=5", "-o", "ServerAliveCountMax=3", a.host]
     try:
-        subprocess.run(["ssh", "-i", a.key, "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes",
-                        "-o", "ConnectTimeout=10", a.host], input=data, check=True, timeout=30, capture_output=True)
+        _push(argv, data, _publish_timeout())
     except (OSError, subprocess.SubprocessError):
         state.write_text(f"fail {now}")
         raise
