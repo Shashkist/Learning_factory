@@ -1450,3 +1450,10 @@ in force · factory · 2026-11-23 · revertible
 **Why.** Fails safe either way, the fix is one regex, and a third round costs more than it finds. The remaining forms (`raw.githubusercontent.com`, `github.com:other`, runner note, bare allowed host followed by punctuation now redacted) are in #555.
 **Alternatives.** A round 3 review; rebuild as `f/551-...-2` with an exam-only commit for the new cases.
 **Revert.** Reopen review of `scrub` in `scripts/factory_progress.py`.
+
+## D146 · #527: review cases pinned as unit tests; an unscoped close does not move the agent's lane
+in force · factory · 2026-11-23 · revertible
+
+**Decision.** Review round 1 of #557 found that the #527 exam lets wrong versions pass (repository dropped from the match, `wait` not counted as open, station not checked, rule applied to `start`), and that a close found by the open-step match moved the agent's previous issue and station to the closed step's issue (the next unscoped `deploy start` reopened lane #3 while the manager works #86). (1) A close found by the open-step match leaves the agent's previous issue and station as they were; only the D141 fallback moves them. (2) An unscoped close that names `--repo` matches open steps of that repository only; an empty repository matches any. (3) A tie on `at` goes to the step logged last. (4) As in D145, the review cases are unit tests in `scripts/test_factory_progress.py`, not exam edits: nothing contradicts the exam, it is only incomplete, and a `-2` branch would cost more than it finds.
+**Alternatives.** Rebuild as `f/527-unscoped-done-2` with an exam-only commit for the five cases (D103); keep the moving pointer as a D141 reading (it reopens a finished lane, the bug #527 fixes).
+**Revert.** Revert the #527 squash commit.
