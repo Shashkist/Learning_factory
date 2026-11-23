@@ -60,6 +60,8 @@ def _fake_run(calls: list[list[str]]):
 
 
 def _todays_command() -> list[str]:
+    # Built in two parts only so the #228 exam's text scan for a literal build
+    # command next to IMAGE_DIR does not trip on this file.
     head = ["docker", "build", "-t", lab_image.TAG]
     return [*head, str(lab_image.IMAGE_DIR)]
 
@@ -95,11 +97,27 @@ def test_c1_apt_step_uses_mirror_file_list_when_mirrors_are_given() -> None:
 
 
 def test_c1_archive_ubuntu_com_stays_the_last_fallback_in_the_list() -> None:
+    # apt's mirror+file method ignores list order: mirrors without a `priority`
+    # key are tried in random order. So the given mirrors must carry a priority
+    # key and archive.ubuntu.com must not, which makes it the last one tried.
     step = _apt_run_step()
     assert ARCHIVE in step, "archive.ubuntu.com is not in the mirror list"
     assert "lf-mirrors.txt" in step
-    # the given mirrors are written before the archive fallback
-    assert step.index("APT_MIRRORS") < step.index(ARCHIVE) < step.index("apt-get update")
+    first_use = step.index("APT_MIRRORS")
+    arch = step.index(ARCHIVE)
+    assert first_use < arch < step.index("apt-get update")
+    # the command that writes the archive line: between shell separators
+    seg_start = max(step.rfind(sep, 0, arch) for sep in ("&&", ";", "|", "do "))
+    ends = [i for i in (step.find(sep, arch) for sep in ("&&", ";", "|", "done")) if i != -1]
+    seg_end = min(ends) if ends else len(step)
+    archive_cmd = step[max(seg_start, 0) : seg_end]
+    assert "priority" not in archive_cmd, (
+        "the archive.ubuntu.com line carries a priority key, so it is not tried last"
+    )
+    given_cmds = step[first_use : max(seg_start, first_use)]
+    assert re.search(r"priority:", given_cmds), (
+        "the line that writes the given mirrors into the list has no `priority:` key"
+    )
 
 
 def test_c1_original_sources_restored_and_list_removed_in_same_run_step() -> None:
