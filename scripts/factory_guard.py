@@ -20,10 +20,25 @@ server keys, forced-command SSH key for the live view, owner-only secrets).
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
+import threading
 
-from _hook_io import read_stdin, start_watchdog  # same folder; bounded input (#230)
+# Bounded input (O21, #230). Self-contained on purpose: the guard imports nothing a factory pass may edit.
+# STDIN_TIMEOUT_S stays below the guard's hook timeout in factory-hooks.json, so a deny is seen.
+# The payload is in the pipe before python starts, so a slow start does not eat into it.
+STDIN_TIMEOUT_S = 3.0
+WATCHDOG_S = 30.0
+
+
+def read_stdin(timeout: float = STDIN_TIMEOUT_S) -> str | None:
+    """All of stdin, or None if it did not close within `timeout` seconds."""
+    box: list[str] = []
+    t = threading.Thread(target=lambda: box.append(sys.stdin.read()), daemon=True)
+    t.start()
+    t.join(timeout)
+    return box[0] if box else None
 
 SERVER = re.compile(r"207\.154\.193\.238|(?<![\w.-])(?:[\w-]+\.)*shashkist\.com\b")
 REMOTE_TOOLS = re.compile(r"(?<![\w.-])(?:ssh|scp|sftp|rsync|plink|pscp)(?:\.exe)?(?![\w.-])")
@@ -71,7 +86,7 @@ def check(payload: dict) -> str | None:
 
 
 def main() -> int:
-    raw = read_stdin()
+    raw = read_stdin(float(os.environ.get("LF_HOOK_STDIN_TIMEOUT") or STDIN_TIMEOUT_S))
     if raw is None:
         # Fail closed (O21, #230): a live parent sends the payload at once, so input that never
         # arrives means a dead or broken parent, and denying costs nothing.
@@ -89,5 +104,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    start_watchdog(2)  # never outlive the caller; a guard killed this way denies (#230)
+    # Never outlive the caller (#230). Exit 2 here is a backstop: the hook timeout has long passed.
+    watchdog = threading.Timer(WATCHDOG_S, os._exit, (2,))
+    watchdog.daemon = True  # a normal exit must not wait for it
+    watchdog.start()
     sys.exit(main())

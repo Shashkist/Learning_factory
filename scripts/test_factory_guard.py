@@ -122,18 +122,31 @@ def test_hooks_file_runs_the_guard_from_the_main_checkout():
     assert guard and all("CLAUDE_PROJECT_DIR" not in c and "Learning_factory/scripts" in c for c in guard)
 
 
-def test_cli_fails_closed_when_stdin_never_closes(tmp_path):
+def test_cli_fails_closed_when_stdin_never_closes():
     # O21, #230: a guard that cannot read its input denies instead of hanging forever.
     import os
-    import time
     env = {**os.environ, "LF_HOOK_STDIN_TIMEOUT": "1"}
     p = subprocess.Popen([sys.executable, str(Path(__file__).parent / "factory_guard.py")],
                          stdin=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
-    t0 = time.time()
     try:
         assert p.wait(timeout=5) == 2
     finally:
         p.kill()
         p.stdin.close()
-    assert time.time() - t0 < 5
     assert b"could not be read" in p.stderr.read()
+
+
+def test_guard_read_bound_is_below_its_hook_timeout():
+    # A deny after the hook timeout is never seen: Claude Code has already killed the hook.
+    hooks = json.loads((Path(__file__).parent / "laptop" / "factory-hooks.json").read_text(encoding="utf-8"))
+    guard = [h for e in hooks["hooks"]["PreToolUse"] for h in e["hooks"] if "factory_guard.py" in h["command"]]
+    assert guard and all(g.STDIN_TIMEOUT_S < h["timeout"] for h in guard)
+
+
+def test_guard_imports_only_the_standard_library():
+    # D35: a pass cannot change its own guard, so the guard must not import a file a pass may edit.
+    import ast
+    tree = ast.parse((Path(__file__).parent / "factory_guard.py").read_text(encoding="utf-8"))
+    mods = {a.name.split(".")[0] for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
+    mods |= {n.module.split(".")[0] for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) and n.module}
+    assert mods <= set(sys.stdlib_module_names)
