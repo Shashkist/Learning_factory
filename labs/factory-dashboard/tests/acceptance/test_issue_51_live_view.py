@@ -90,6 +90,15 @@ def ago(minutes: float = 0, seconds: float = 0) -> str:
     return iso(NOW - timedelta(minutes=minutes, seconds=seconds))
 
 
+@pytest.fixture(scope="module", autouse=True)
+def _no_crew_dir():
+    """The laptop's runner sets LF_CREW_DIR (crew view from local transcripts); the exam must not read it."""
+    mp = pytest.MonkeyPatch()
+    mp.delenv("LF_CREW_DIR", raising=False)
+    yield
+    mp.undo()
+
+
 # ---- fixtures from the real renderer -----------------------------------------------------------
 
 def _load_progress():
