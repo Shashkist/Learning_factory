@@ -8,7 +8,7 @@
 - **Incident #541 (p0) first:** main CI 45154808144 on af1def6 red twice, only the `docker` job (`lf-lab-term:exam` build timed out after 900 s on a slow archive.ubuntu.com, D143). Attempt 3 (re-run ~11:20 UTC) was red too, so **work #545 first (raised to p0)**: the exam image build must not depend on archive.ubuntu.com alone. Close #541 with the first green main CI after it.
 - **#530** merged: PR #538 (review round 2 approved, nits only) squashed as **c494eb4** at ~11:50 UTC. Its main CI and Deploy follow (the docker job may hit the mirror again, see #541). Once a Deploy has deployed c494eb4 and the smoke passed, close #530 with that evidence (deploy log line `trusted proxy ... -> <addresses>`), label `status:done`, release the claim, and remove the worktree `C:\projects\lf-530-2` (branch `f/530-proxy-deploy-line-2` is merged).
 - **#542** (slice 1 of #536, worktree `C:\projects\lf-542`): exam bec0e2b (assumes `LF_REPOS_FILE`), implementer dispatched ~11:35 UTC. Check the branch for its commit; then PR, CI, review.
-- **#543** (slice 2, worktree `C:\projects\lf-543`): exam a436a56, implementer dispatched ~11:45 UTC. Same next steps. Do not touch `issue_lock.py` here (#542 owns it).
+- **#543** (slice 2, worktree `C:\projects\lf-543`): exam a436a56, code a276921, **PR #547** opened ~12:08 UTC; next: CI, then reviewer round 1. Do not touch `issue_lock.py` here (#542 owns it).
 - Tools are very slow this pass (exam-writers ~25 min each, hook timeouts on Edit/Write: retry).
 
 **Pass lf-b4t8 (08:26-10:18 UTC, stopped by its time limit).** Merged #537 (#534) and #539 (#532); opened #538 (#530).
