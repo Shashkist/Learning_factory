@@ -279,6 +279,30 @@ def _worker(at, wid="w1"):
     return {"kind": "worker", "at": at, "worker": wid, "role": "manager", "event": "idle"}
 
 
+def _issues_of(events, agent, substep):
+    live = fp.render([{"kind": "pass-start", "at": "2999-01-01T00:00:00Z", "pass_no": 1, "budget": 1}, *events])
+    return {s["issue"]: s["status"] for a in live["agents"] if a["id"] == agent for s in a["substeps"] if s["substep"] == substep}
+
+
+def test_unscoped_done_closes_the_latest_open_step_of_the_same_agent_and_substep():
+    ev = [_step("2999-01-01T00:00:01Z", 3, "m", "ci wait"), _step("2999-01-01T00:00:02Z", 5, "m", "ci wait"),
+          _step("2999-01-01T00:00:03Z", 86, "m", "merge"), _step("2999-01-01T00:00:04Z", None, "m", "ci wait", "done")]
+    assert _issues_of(ev, "m", "ci wait") == {3: "start", 5: "done"}
+
+
+def test_unscoped_done_with_no_open_step_falls_back_to_the_previous_substep_issue():
+    ev = [_step("2999-01-01T00:00:01Z", 3, "m", "ci wait", "done"), _step("2999-01-01T00:00:02Z", 86, "m", "merge"),
+          _step("2999-01-01T00:00:03Z", None, "m", "ci wait", "done")]
+    assert _issues_of(ev, "m", "ci wait") == {3: "done", 86: "done"}
+
+
+def test_unscoped_done_never_closes_another_agents_step():
+    ev = [_step("2999-01-01T00:00:01Z", 3, "other", "ci wait"), _step("2999-01-01T00:00:02Z", 86, "m", "merge"),
+          _step("2999-01-01T00:00:03Z", None, "m", "ci wait", "fail")]
+    assert _issues_of(ev, "other", "ci wait") == {3: "start"}
+    assert _issues_of(ev, "m", "ci wait") == {86: "fail"}
+
+
 def test_workers_come_from_events_after_pass_start_not_whole_workers():
     evs = [{"kind": "pass-start", "at": "2026-01-01T10:00:00+00:00"},
            _worker("2026-01-01T09:59:59+00:00"), _worker("2026-01-01T10:00:05+00:00")]

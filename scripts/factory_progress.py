@@ -249,6 +249,13 @@ def render(events: list[dict]) -> dict:
             a["last"], a["station"] = e["at"], e["station"]
             own = issue_no(e.get("issue"))
             step = (e.get("repo") or "", own) if own else (prev_issue.get(aid) or ((a["repo"], a["issue"]) if a["issue"] else None))   # unscoped: the previous sub-step's issue
+            if not own and e["status"] in ("done", "fail"):
+                # #527: an unscoped done/fail closes the agent's latest open step of the same station + sub-step, in any issue
+                open_ = [s for s in a["substeps"] if s["substep"] == e["substep"] and s["station"] == e["station"]
+                         and s["status"] in ("start", "wait") and s.get("issue")]
+                if open_:
+                    m = max(open_, key=lambda s: s["at"])
+                    step = (m["repo"], m["issue"])
             prev_issue[aid] = step
             step_repo, step_issue = step or ("", None)
             sub = next((s for s in a["substeps"] if s["substep"] == e["substep"] and s["station"] == e["station"]
