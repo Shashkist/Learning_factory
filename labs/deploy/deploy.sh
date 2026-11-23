@@ -98,8 +98,9 @@ if ! grep -q '^LF_DATABASE_URL=.' "$envf"; then
   exit 0
 fi
 chmod 600 "$envf"
-# A bare key (no value) counts too: compose hands it on from the shell. A leading UTF-8 BOM is stripped first.
-if sed '1s/^\xEF\xBB\xBF//' "$envf" | grep -Eq '^[[:space:]]*(export[[:space:]]+)?LF_TERM_UPSTREAM[[:space:]]*([=:]|$)'; then
+# A bare key (no value) counts too: compose hands it on from the shell. An optional UTF-8 BOM may precede it.
+# grep reads the file itself (no pipe), so a large .env cannot lose the match to SIGPIPE under pipefail.
+if grep -Eq $'^(\xEF\xBB\xBF)?[[:space:]]*(export[[:space:]]+)?LF_TERM_UPSTREAM[[:space:]]*([=:]|$)' "$envf"; then
   die "LF_TERM_UPSTREAM is set in .env (a test seam); remove that line, it must never run in production"
 fi
 
