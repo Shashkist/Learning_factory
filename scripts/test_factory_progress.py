@@ -338,11 +338,13 @@ def test_dot_segments_and_lookalike_urls_are_redacted():
     "github.com/Shashkist/factory/../../someone/else",
     "github.com/Shashkist/Learning_factory/x/../../../someone/else",
     "github.com/Shashkist/factory/%2e%2e/someone",
-    "github.com/Shashkist/factory/a\someone",
+    r"github.com/Shashkist/factory/a\someone",
     "https://github.com/Shashkist/factory/pull%2f..%2f..%2fsomeone",
     "github.com/Shashkist/factory/pull%2Fsomeone",
     "https://evil.shashkist.com.someone.net/x",
     "https://attackershashkist.com/x",
+    "https://shashkist.com:!@someone.net/x",
+    "https://labs.shashkist.com:%@someone.net/x",
 ])
 def test_scrub_redacts_traversal_and_lookalike_hosts(text):
     assert fp.scrub("see " + text) == "see <url>"
@@ -354,6 +356,7 @@ def test_scrub_redacts_traversal_and_lookalike_hosts(text):
     "(https://github.com/Shashkist/factory/pull/1)",
     "https://lab.shashkist.com/x",
     "https://labs.shashkist.com",
+    "https://labs.shashkist.com:443/x",
 ])
 def test_scrub_keeps_plain_allowed_urls(text):
     assert fp.scrub(text) == text
