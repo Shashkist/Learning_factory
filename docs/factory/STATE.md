@@ -4,7 +4,9 @@
 
 ## Now
 
-**Pass lf-b4t8 running (laptop, from 08:30 UTC 2026-11-23).** In flight: **#530** rebuild on `f/530-proxy-deploy-line-2` (worktree `C:\projects\lf-530-2`; exam ba18956 + new exam-only case 703a1d9; implementer working; #535 to be closed for the new PR). **#534** PR #537 (`f/534-dashboard-dead-ago`, worktree `C:\projects\lf-534`). **#532** exam-only on `f/532-dashboard-exams-crew-dir` (worktree `C:\projects\lf-532`). The laptop is slow this pass (Python start ~7 s, `uv run pytest` sometimes "Access is denied": use `uv run python -m pytest`).
+**Pass lf-c7m4 running (laptop, from 10:26 UTC 2026-11-23).** In flight: **#530** PR #538 (`f/530-proxy-deploy-line-2`, worktree `C:\projects\lf-530-2`; CI green, review round 2 running; claim taken over from lf-b4t8). **#542** and **#543** (slices 1 and 2 of #536, D143; worktrees `C:\projects\lf-542`, `C:\projects\lf-543`; exam-writers running). Incident **#541**: main CI 45154808144 on af1def6 red from a slow Ubuntu mirror, failed jobs re-run.
+
+**Pass lf-b4t8 (08:26-10:18 UTC, stopped by its time limit).** Merged #537 (#534) and #539 (#532); opened #538 (#530).
 
 **Pass lf-f5r1 finished (laptop, 06:27-08:00 UTC 2026-11-23).** Shipped #524 (#531; main CI 45127726835) and #481 (#533, rebuild of #529; Factory dashboard 45132438673, live `app.js` byte-equal to 4891f15). Closed #521 for lf-h2v9 (#528, Deploy 45123754939 deployed 140b270, smoke ok). Follow-ups #532, #534.
 
@@ -20,7 +22,7 @@ Older pass notes are in `history.md` and git history (`git log -p docs/factory/S
 
 ## Next (in order)
 
-1. **#530** rebuild (see Now). Small p3 follow-ups: **#527** and **#534** (both `app.js`, one at a time), **#532** (exam-only), **#523** (exam-only).
+1. **#530** (see Now). **#536 slices (p1, D143):** #542, #543, then #544 (needs #542); #536 closes after a pass builds and merges Shashkist/factory#1 (criterion 5). Small p3 follow-ups: **#527** (`app.js`; after #543), **#523** (exam-only).
 2. **#468** (bootstrap exam nits, p3; now on top of #56's exam), **#423** (validator misses, p3; time real shells first; an old worktree `C:\projects\lf-423` exists, check it before starting).
 3. **#436**, **#431** (lab screen follow-ups, p3). **#85** deploy follow-ups; p2 list: #81, #84, #64, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
