@@ -13,28 +13,36 @@ import json
 import re
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 
 # Loaded by path from other folders too (the dashboard exam): find the sibling module.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import issue_lock
 
-_DEPENDS = re.compile(r"\bdepends on\b[\s*:]*([^\n]*)", re.IGNORECASE)
+# "Depends on" counts at the start of a line, list item or bold text, or of a sentence;
+# prose such as "no longer depends on #12" does not.
+_DEPENDS = re.compile(
+    r"(?:^[ \t]*(?:[-*+][ \t]+(?:\[[ xX]\][ \t]+)?)?\**[ \t]*|[.!?;][ \t]+)depends on\b[\s*:]*([^\n]*)",
+    re.IGNORECASE | re.MULTILINE,
+)
 _SENTENCE_END = re.compile(r"[.;](?:\s|$)|;")
-_REF = re.compile(r"(?:([\w.-]+/[\w.-]+))?#(\d+)")
+_URL = r"https?://(?:www\.)?github\.com/([\w.-]+/[\w.-]+)/(?:issues|pull)/(\d+)"
+_LINK = re.compile(r"\[[^\]]*\]\(([^)]*)\)")  # [text](url): only the URL counts
+# An issue URL (repository from the URL), else `[owner/name]#n`.
+_REF = re.compile(rf"{_URL}|(?:([\w.-]+/[\w.-]+))?#(\d+)")
 
 
 def parse_depends(body: str, repo: str) -> list[tuple[str, int]]:
     """References after `Depends on` (anywhere in a line, up to the end of that
     sentence; `none` means no dependency), in order, without duplicates. A bare
-    `#n` is an issue of `repo`."""
+    `#n` is an issue of `repo`; a link or URL names its own repository."""
     out: list[tuple[str, int]] = []
     for line in _DEPENDS.findall(body or ""):
+        line = _LINK.sub(r"\1", line)
         line = _SENTENCE_END.split(line, maxsplit=1)[0]
         if line.strip().lower().startswith("none"):
             continue
-        for other, number in _REF.findall(line):
-            ref = (other or repo, int(number))
+        for u_repo, u_n, other, number in _REF.findall(line):
+            ref = (u_repo or other or repo, int(u_n or number))
             if ref not in out:
                 out.append(ref)
     return out
@@ -47,7 +55,7 @@ def _priority(issue: dict) -> int:
     for rank in (1, 2, 3):
         if f"priority:p{rank}" in labels:
             return rank + 1
-    return 5
+    return 5  # no priority label: after p3
 
 
 def pick(issues: list[dict], in_flight) -> list[dict]:
@@ -73,7 +81,7 @@ def _list_issues(repo: str, run, states: dict, known: list[str] | None = None) -
             dep_repo = next((k for k in known or [] if k.lower() == dep_repo.lower()), dep_repo)
             if (dep_repo, dep_n) not in states:
                 try:
-                    view = json.loads(run(["issue", "view", "-R", dep_repo, str(dep_n),
+                    view = json.loads(run(["issue", "view", str(dep_n), "-R", dep_repo,
                                            "--json", "state"]))
                     states[(dep_repo, dep_n)] = view["state"].lower()
                 except (RuntimeError, ValueError, KeyError):
@@ -101,13 +109,12 @@ def main(argv: list[str] | None = None, run=issue_lock._run) -> int:
     ap.add_argument("--in-flight", action="append", default=[], metavar="REPO#N",
                     help="also treat this issue as in flight (repeatable)")
     args = ap.parse_args(argv)
-    repos, default, clones = issue_lock.read_repos()
+    repos, _default, _clones = issue_lock.read_repos()
     chosen = args.repo or repos
     busy = _parse_in_flight(args.in_flight)
-    lock_args = SimpleNamespace(repos=chosen, default_repo=default, clones=clones, repo=None)
     failed: list = []
     busy_failed: list = []
-    busy |= {(r["repo"], r["number"]) for r in issue_lock._claimed_issues(run, lock_args, busy_failed)}
+    busy |= {(r["repo"], r["number"]) for r in issue_lock.claimed(chosen, run, busy_failed)}
     failed += busy_failed
     issues, states = [], {}
     for repo in chosen:
@@ -119,7 +126,8 @@ def main(argv: list[str] | None = None, run=issue_lock._run) -> int:
     # A repository whose claims could not be read is not treated as "none claimed".
     issues = [i for i in issues if i["repo"] not in busy_failed]
     for i in pick(issues, busy):
-        prio = "p0" if _priority(i) <= 1 else f"p{_priority(i) - 1}"
+        rank = _priority(i)
+        prio = "-" if rank == 5 else "p0" if rank <= 1 else f"p{rank - 1}"
         print(f"{i['repo']}#{i['number']}\t{prio}\t{i['title']}")
     return 1 if failed else 0
 
