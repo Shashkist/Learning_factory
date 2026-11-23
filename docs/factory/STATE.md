@@ -4,6 +4,8 @@
 
 ## Now
 
+**Pass lf-w2k6 running (laptop, from 13:57 UTC 2026-11-23).** In flight: **#545** PR #552 (claim taken over from lf-r9d2; CI docker job, then review, merge, close); **#544** (branch `f/544-pick-across-repos`, worktree `C:\projects\lf-544`, claim lf-w2k6): exam first.
+
 **Pass lf-r9d2 finished (laptop, 12:28-14:00 UTC 2026-11-23, stopped at 3 merges).** Resume here:
 - **#545 (p0) PR #552** (exam-only, branch `f/545-mirror-list-exam`, worktree `C:\projects\lf-545b`, claim lf-r9d2: take over with `--steal --reason`). The code shipped in #550 (ae1057b): its `image-term` job built through `azure.archive.ubuntu.com` and passed the restored-sources check. Next: wait for #552's CI (its `docker` job is the first exam image build through the mirror list; expect it well under the old 18 min), dispatch a reviewer (round 1 of the exam PR; the exam was reviewed twice inside #548/#550), squash-merge, close #545 with: #550 + #552 merges, main CI green after both, and a main `docker` job log showing `azure.archive.ubuntu.com` in the exam build.
 - Main CI on ae1057b/1b6261a was running when the pass stopped: check it is green (the `image-term` push on main publishes `lf-lab-term:latest` built through the mirror list; the next Deploy pulls it, so watch that Deploy's smoke too).
