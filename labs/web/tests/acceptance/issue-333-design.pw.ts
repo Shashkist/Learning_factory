@@ -29,9 +29,12 @@ type Fs = {
 };
 // No Node types in the app's tsconfig: a computed specifier keeps tsc quiet.
 const fs = (await import(/* @vite-ignore */ "node:" + "fs")) as unknown as Fs;
+const nodeUrl = (await import(/* @vite-ignore */ "node:" + "url")) as unknown as { fileURLToPath: (u: string) => string };
+// Resolved from this file, not from the process folder, so any cwd works.
+const i18nFile = (lang: string) => nodeUrl.fileURLToPath(new URL(`../../src/i18n/${lang}.json`, import.meta.url).href);
 
 const copy = (lang: "en" | "he") =>
-  JSON.parse(fs.readFileSync(`src/i18n/${lang}.json`, "utf8")) as Record<string, string>;
+  JSON.parse(fs.readFileSync(i18nFile(lang), "utf8")) as Record<string, string>;
 const COPY = { en: copy("en"), he: copy("he") };
 const SHOTS = "test-results/design-screenshots";
 type Lang = "en" | "he";
