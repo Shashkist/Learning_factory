@@ -4,11 +4,11 @@
 
 ## Now
 
-**Pass lf-h6q3 running (laptop, from 15:58 UTC 2026-11-23).** Claims held by lf-h6q3:
-- **Shashkist/factory#1 shipped**: PR factory#9 squash-merged e3fc8b2 after 2 review rounds, main CI 45219016530 green, issue closed with evidence. Follow-ups factory#10, factory#11 (p2). Factory D3 + amendment 1.
-- **#536** stays open only for the live `factory#1` lane: the page stopped publishing at 16:00:49 UTC in this pass (**#558**, p1, needs:laptop).
-- **#527**: PR #557, worktree `C:\projects\lf-527`, CI green, review round 1 running.
-- **#556**: worktree `C:\projects\lf-556`, exam d2a93d8, implementer running.
+**Pass lf-h6q3 finished (laptop, 15:58-17:40 UTC 2026-11-23, stopped at 3 merges).** No claim held after #556 closes. Resume here:
+- **#558 (p1, needs:laptop)**: the live page stopped publishing at 16:00:49 UTC, five minutes into this pass, while local events kept coming. The laptop runner is guarded (D35), so a laptop session that may read it takes this first. Then **#536** closes: its criterion 5 needs the `factory#1` lane on the page (factory#1 itself is shipped). Log every step of another repository with `--repo` from the first step on.
+- **Next pick** (`python scripts/factory_pick.py`): **Shashkist/factory#2** (project profile) and **factory#3** (tools package), both p1, both now unblocked. Work them in worktrees of `C:\projectsactory` (`C:\projectsactory-<n>`), with `gh -R Shashkist/factory` and `issue_lock.py --repo Shashkist/factory`. That repository's CI now runs: `uv run ruff check .`, `uv run mypy src`, `uv run pytest -q` (on this laptop `uv run python -m pytest` / `-m mypy`, because the `.exe` launchers are blocked). Follow-ups **factory#10**, **factory#11** (p2, exam-integrity hardening).
+- Merged this pass: **factory#9** (factory#1, e3fc8b2; factory main CI 45219016530), **#557** (#527, 08e8e7e; main CI 45224934361), **#559** (#556, ff33c2b; main CI 45227371238, its `docker` job was still running at the stop, see #556). Decisions: factory D3 + amendment 1, LF D146.
+- Worktree `C:\projectsactory-1` (merged branch) holds untracked `archive/`, `output.json` and `pytest_html_report.html`. This pass did not create them. Check them before removing the worktree.
 
 **Pass lf-w2k6 finished (laptop, 13:57-15:27 UTC 2026-11-23, stopped at 3 merges).** No issue in flight, no claim held. Resume here:
 - **#536 criterion 5**: all three slices are merged (#542, #543, #544), so the factory can now pick from Shashkist/factory. `python scripts/factory_pick.py` (on main) lists Shashkist/factory#1 (p1) first; that is the next pick (work it in a worktree of its clone, `C:\projectsactory-<n>`, `gh -R Shashkist/factory`, `issue_lock.py --repo`, that repository's own CLAUDE.md). #536 itself closes when a pass builds and merges factory#1.
@@ -35,7 +35,7 @@ Older pass notes are in `history.md` and git history (`git log -p docs/factory/S
 
 ## Next (in order)
 
-1. **Shashkist/factory#1** (#536 criterion 5, see Now); then the order `factory_pick.py` prints. **#527** (`app.js`, p3), **#523** (exam-only), **#555**, **#556** (p3 follow-ups).
+1. **#558** (needs:laptop), then **Shashkist/factory#2**, **factory#3** (see Now); then the order `factory_pick.py` prints. **#523** (exam-only), **#555** (p3 follow-ups).
 2. **#468** (bootstrap exam nits, p3; now on top of #56's exam), **#423** (validator misses, p3; time real shells first; an old worktree `C:\projects\lf-423` exists, check it before starting).
 3. **#436**, **#431** (lab screen follow-ups, p3). **#85** deploy follow-ups; p2 list: #81, #84, #64, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
@@ -52,6 +52,7 @@ Older pass notes are in `history.md` and git history (`git log -p docs/factory/S
 
 ## Recently done
 
+- 2026-11-23 pass lf-h6q3: Shashkist/factory#1 (factory#9; factory main CI 45219016530, first issue built in the second repository), #527 (#557; main CI 45224934361, scenario rendered on main), #556 (#559; `factory_pick.py` run on main). Opened #558, factory#10, factory#11.
 - 2026-11-23 pass lf-w2k6: #545 (#550 + #552; main CI 45199100557, Deploy 45191319753 deployed 1b6261a), #551 (#554; Factory dashboard 45203270186, live app.js byte-equal to c728db0), #544 (#553; `factory_pick.py` run on main). Follow-ups #555, #556.
 - 2026-11-23 pass lf-c7m4: #538 (#530, c494eb4; deploy evidence pending); closed #532 (#539) with Dashboard CI 45154808016; sliced #536 into #542-#544 (D143); incident #541 and hardening #545 opened.
 
