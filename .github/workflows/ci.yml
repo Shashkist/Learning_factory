@@ -212,6 +212,9 @@ jobs:
           echo "$out"
           echo "$out" | head -n1 | grep -qx student
           echo "$out" | tail -n1 | grep -q '/usr/share/man/.*ls'
+      - name: Check the built image has the stock apt sources back (#545)
+        run: |
+          docker run --rm --entrypoint sh ghcr.io/shashkist/lf-lab-term:${{ github.sha }} -c "grep -q '^URIs: http://archive.ubuntu.com/ubuntu/' /etc/apt/sources.list.d/ubuntu.sources && ! test -e /etc/apt/lf-mirrors.txt && ! test -e /etc/apt/ubuntu.sources.lf-orig"
       - name: Log in to ghcr.io
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
