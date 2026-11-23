@@ -4,10 +4,11 @@
 
 ## Now
 
-**Pass lf-7c20 (laptop, from 00:56 UTC 2026-11-23), wrapping up.** Pass lf-n3r6 ended by timeout at 00:48 UTC after merging #512 (#508) and #514 (#510); lf-7c20 closed both with evidence (Deploy 45091479162 deployed 8a5a4eb, smoke ok). Lanes (each its own worktree `C:\projects\lf-<n>`, claims held by lf-7c20):
-- **#513** merged as #517 (8c13bec, exam-only). Close with main CI 45098711352 once green. Follow-up #519 (Playwright exams).
-- **#515**, PR #518 (`f/515-proxy-backoff-fresh`, worktree `lf-515`): CI and review round 1 running in parallel. Merge on green + APPROVE, then Deploy + smoke, close.
-- **#505**, rebuilt as `f/505-seam-check-bom-2` (worktree `lf-505b`) after review round 1 of #516 (CHANGES: `sed | grep -q` under pipefail misses the seam on a large `.env`; #516 closed). Exam commits 8b816a9 + c4c4901 (large `.env` cases) first; implementer cherry-picks 453c958, 3914cf1 and drops the pipe. Next: push, PR, CI, review round 2.
+**Pass lf-7c20 finished (laptop, 00:56-02:40 UTC 2026-11-23); two PRs left open for the next pass.** Claims stay with lf-7c20; steal them with a reason (`issue_lock.py claim <n> --steal`).
+- **#515**, PR #518 (`f/515-proxy-backoff-fresh`, worktree `C:\projects\lf-515`): review round 1 was dispatched at 02:08 in parallel with CI. Check the PR for a `Verdict:` comment. On APPROVE + green CI: merge, Deploy, smoke, close. On CHANGES: implementer; if a new exam case is needed, use a `-2` branch with exam commits first (D103).
+- **#505**, PR #520 (`f/505-seam-check-bom-2`, worktree `C:\projects\lf-505b`), rebuilt after #516's review round 1 (CHANGES: `sed | grep -q` under pipefail missed the seam on a large `.env`; #516 closed). CI started 02:36. Next: dispatch the reviewer (round 2 of #505), merge on green + APPROVE, Deploy, smoke, close. The pass-through deploy cases time out locally on Windows (as on #516); CI decides.
+
+Pass lf-7c20 also closed #510 (#514) and #508 (#512) for the timed-out pass lf-n3r6 (Deploy 45091479162 deployed 8a5a4eb, smoke ok), and shipped #513 (#517, exam-only; main CI 45098711352, Deploy 45100497842 deployed 8c13bec, smoke ok). New follow-up: #519.
 
 Pass lf-k7w3 finished: #332 (#507) and #488 (#509) shipped, Deploy 45079262786 deployed 756c3be, smoke ok, both closed with evidence; follow-ups #508, #510.
 
@@ -15,7 +16,7 @@ Older pass notes are in `history.md` and git history (`git log -p docs/factory/S
 
 ## Next (in order)
 
-1. See Now. p3 follow-ups: **#481** and **#504** (live view, one dashboard issue at a time: both touch `app.js`).
+1. See Now (#518, #520). Then **#519** (exam-only, small). p3 follow-ups: **#481** and **#504** (live view, one dashboard issue at a time: both touch `app.js`).
 2. **#468** (bootstrap exam nits, p3; now on top of #56's exam), **#423** (validator misses, p3; time real shells first; an old worktree `C:\projects\lf-423` exists, check it before starting).
 3. **#436**, **#431** (lab screen follow-ups, p3). **#85** deploy follow-ups; p2 list: #81, #84, #64, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
@@ -32,6 +33,7 @@ Older pass notes are in `history.md` and git history (`git log -p docs/factory/S
 
 ## Recently done
 
+- 2026-11-23 pass lf-7c20: #513 (#517; Deploy 45100497842 deployed 8c13bec, smoke ok); closed #510 (#514) and #508 (#512) for lf-n3r6 (Deploy 45091479162). Open: #518 (#515), #520 (#505).
 - 2026-11-22 pass lf-k7w3: #490 (#503; Deploy 45073550030, smoke ok), #488 (#509), #332 (#507, D139; Deploy 45079262786 deployed 756c3be, smoke ok). Dependabot #494, #496, #497, #501.
 - 2026-11-22 pass lf-d9q2: Dependabot #495 (checkout v7.0.1; Deploy 45060978121, smoke ok), #498 (setup-node v7.1.0; main CI 45061457138, Deploy 45063469070, smoke ok), #487 (#502, re-sequenced #499; Factory dashboard 45065366470, live app.js byte-equal to f8a7014). #490 in PR #503 (approved). Closed by lf-c4z8: #76, #485.
 - 2026-11-22 pass lf-m5t9: #68 (#484; Factory dashboard run 45025165110, live app.js equals b982775), #480 (#486; Deploy 45028016533 deployed e393877, smoke ok). #76 in PR #492.
