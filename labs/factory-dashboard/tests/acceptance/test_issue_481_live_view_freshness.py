@@ -247,3 +247,65 @@ def test_idle_last_check_age_follows_the_heartbeat_not_the_updated_field(tmp_pat
     live["updated"] = iso(NOW - timedelta(minutes=30))
     t = vtext(run_full(tmp_path, live)["live"]).lower()
     assert "idle, last check 5 min ago" in t, t
+
+
+# ---- 4. the clock moves while live.json stays byte-identical -------------------------------------------
+
+def run_clock(tmp_path: Path, live: dict, *minutes_later: float, snap: dict | None = None) -> list[dict]:
+    """Step 0 at NOW, then one step per entry at NOW + that many minutes. Every step answers with the same
+    live.json body, and no timer slower than 10 s fires, so snapshot.json is not reloaded in between."""
+    node = shutil.which("node")
+    assert node, "node is required for the live-view exam"
+    steps = [{"now": iso(NOW), "live": live, "snapshot": snap}]
+    steps += [{"now": iso(NOW + timedelta(minutes=mm)), "live": live} for mm in minutes_later]
+    scenario = tmp_path / "scenario481_clock.json"
+    scenario.write_text(json.dumps({"now": iso(NOW), "steps": steps}), encoding="utf-8")
+    p = subprocess.run([node, str(HARNESS481), str(base.INDEX), str(base.APP), str(scenario)],
+                       capture_output=True, text=True, encoding="utf-8", timeout=120, cwd=tmp_path)
+    assert p.returncode == 0, p.stdout + p.stderr
+    outs = json.loads(p.stdout.strip().splitlines()[-1])["steps"]
+    for o in outs:
+        assert not o["errors"], o["errors"]
+        assert o["live"] is not None, "no element with id=live in index.html"
+    return outs
+
+
+@pytest.mark.parametrize("state", ["idle", "paused", "budget"])
+def test_idle_last_check_age_moves_with_the_clock_when_live_json_is_unchanged(tmp_path, state):
+    live = aged(running_live(), 10, **not_running(state))
+    first, second = (vtext(o["live"]).lower() for o in run_clock(tmp_path, live, 4))
+    assert re.search(r"idle, last check 10 s ago", first), first
+    assert re.search(r"idle, last check 4 min ago", second), second
+    assert "10 s ago" not in second, second
+
+
+def test_running_live_block_age_moves_with_the_clock_when_live_json_is_unchanged(tmp_path):
+    live = aged(running_live(), 10)
+    first, second = (vtext(o["live"]).lower() for o in run_clock(tmp_path, live, 1.5))
+    assert re.search(r"\b10 s ago", first), first
+    assert re.search(r"\b(100 s|1 min) ago", second), second
+    assert "10 s ago" not in second.replace("100 s ago", ""), second
+
+
+def test_live_block_age_keeps_moving_over_several_ticks_with_one_live_json(tmp_path):
+    live = aged(running_live(), 10, **not_running("idle"))
+    outs = run_clock(tmp_path, live, 2, 10, 20)
+    texts = [vtext(o["live"]).lower() for o in outs]
+    for t, want in zip(texts, ["10 s ago", "2 min ago", "10 min ago", "20 min ago"], strict=True):
+        assert f"idle, last check {want}" in t, texts
+
+
+def test_offline_running_pass_does_not_keep_the_first_paint_age_next_to_the_banner(tmp_path):
+    live = aged(running_live(), 10)
+    first, last = (vtext(o["live"]).lower() for o in run_clock(tmp_path, live, 3))
+    assert OFFLINE not in first, first
+    assert OFFLINE in last, last
+    assert "10 s ago" not in last, last
+
+
+def test_offline_idle_runner_does_not_keep_the_first_paint_age_next_to_the_banner(tmp_path):
+    live = aged(running_live(), 10, **not_running("idle"))
+    first, last = (vtext(o["live"]).lower() for o in run_clock(tmp_path, live, 36))
+    assert OFFLINE not in first, first
+    assert OFFLINE in last, last
+    assert "10 s ago" not in last, last
