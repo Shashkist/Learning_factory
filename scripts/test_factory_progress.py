@@ -154,7 +154,7 @@ def test_live_json_has_schema_and_no_unknown_fields(monkeypatch):
 
 def test_publish_skips_unchanged_content_and_respects_the_ssh_rate_limit(monkeypatch, tmp_path):
     calls, clock = [], [1000.0]
-    monkeypatch.setattr(fp.subprocess, "run", lambda *a, **k: calls.append(1))
+    monkeypatch.setattr(fp, "_push", lambda *a, **k: calls.append(1))
     monkeypatch.setattr(fp.time, "time", lambda: clock[0])
     ns = type("A", (), {"key": str(tmp_path / "k"), "host": "h"})
     fp.main(["pass-start"])
@@ -176,7 +176,7 @@ def test_publish_backs_off_after_a_failed_push(monkeypatch, tmp_path):
     def boom(*a, **k):
         calls.append(1)
         raise fp.subprocess.TimeoutExpired("ssh", 30)
-    monkeypatch.setattr(fp.subprocess, "run", boom)
+    monkeypatch.setattr(fp, "_push", boom)
     monkeypatch.setattr(fp.time, "time", lambda: clock[0])
     ns = type("A", (), {"key": str(tmp_path / "k"), "host": "h"})
     fp.main(["pass-start"])
@@ -192,7 +192,7 @@ def test_publish_backs_off_after_a_failed_push(monkeypatch, tmp_path):
 
 def test_publish_force_pushes_the_final_state_inside_the_gap(monkeypatch, tmp_path):
     calls, clock = [], [1000.0]
-    monkeypatch.setattr(fp.subprocess, "run", lambda *a, **k: calls.append(1))
+    monkeypatch.setattr(fp, "_push", lambda *a, **k: calls.append(1))
     monkeypatch.setattr(fp.time, "time", lambda: clock[0])
     ns = type("A", (), {"key": str(tmp_path / "k"), "host": "h", "force": False, "min_age": None})
     fp.main(["pass-start"])
@@ -207,7 +207,7 @@ def test_publish_force_pushes_the_final_state_inside_the_gap(monkeypatch, tmp_pa
 
 def test_publish_min_age_is_a_heartbeat_between_passes(monkeypatch, tmp_path):
     calls, clock = [], [1000.0]
-    monkeypatch.setattr(fp.subprocess, "run", lambda *a, **k: calls.append(1))
+    monkeypatch.setattr(fp, "_push", lambda *a, **k: calls.append(1))
     monkeypatch.setattr(fp.time, "time", lambda: clock[0])
     ns = type("A", (), {"key": str(tmp_path / "k"), "host": "h", "force": False, "min_age": 50.0})
     fp.main(["pass-end"])
@@ -437,3 +437,82 @@ def test_scrub_redacts_traversal_and_lookalike_hosts(text):
 ])
 def test_scrub_keeps_plain_allowed_urls(text):
     assert fp.scrub(text) == text
+
+
+def test_publish_timeout_env_is_read_and_bad_values_fall_back(monkeypatch):
+    monkeypatch.delenv("LF_PUBLISH_TIMEOUT_S", raising=False)
+    assert fp._publish_timeout() == 30
+    monkeypatch.setenv("LF_PUBLISH_TIMEOUT_S", "2.5")
+    assert fp._publish_timeout() == 2.5
+    for bad in ("x", "0", "-1"):
+        monkeypatch.setenv("LF_PUBLISH_TIMEOUT_S", bad)
+        assert fp._publish_timeout() == 30
+
+
+def test_publish_ssh_argv_has_keepalive_options(monkeypatch, tmp_path):
+    seen = []
+    monkeypatch.setattr(fp, "_push", lambda argv, data, t: seen.append((argv, t)))
+    monkeypatch.setenv("LF_PUBLISH_TIMEOUT_S", "7")
+    fp.main(["pass-start"])
+    fp.cmd_publish(type("A", (), {"key": str(tmp_path / "k"), "host": "h"}))
+    argv, t = seen[0]
+    joined = " ".join(argv)
+    assert t == 7
+    for opt in ("BatchMode=yes", "StrictHostKeyChecking=yes", "ConnectTimeout=10",
+                "ServerAliveInterval=5", "ServerAliveCountMax=3"):
+        assert opt in joined
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="needs POSIX commands")
+def test_push_times_out_kills_ssh_and_fails_on_nonzero_exit():
+    with pytest.raises(subprocess.TimeoutExpired):
+        fp._push(["sleep", "30"], b"x", 0.5)
+    assert fp._ssh_proc == []
+    with pytest.raises(subprocess.CalledProcessError):
+        fp._push(["false"], b"x", 5)
+    fp._push(["cat"], b"x", 5)
+
+
+def _pid_gone(pid):
+    end = time.time() + 5
+    while time.time() < end:
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            return True
+        time.sleep(0.1)
+    return False
+
+
+def test_push_is_bounded_when_the_child_never_reads_a_large_stdin():
+    t0 = time.time()
+    with pytest.raises(subprocess.TimeoutExpired):
+        fp._push([sys.executable, "-c", "import time; time.sleep(60)"], b"x" * 200_000, 2)
+    took = time.time() - t0
+    print(f"bounded push took {took:.1f}s")
+    assert took < 7
+    assert fp._ssh_proc == []
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="needs POSIX process groups")
+def test_push_timeout_kills_the_grandchild_too(tmp_path):
+    pidfile = tmp_path / "gc"
+    code = ("import subprocess, sys, time; "
+            f"g = subprocess.Popen(['sleep', '300']); open({str(pidfile)!r}, 'w').write(str(g.pid)); "
+            "time.sleep(300)")
+    with pytest.raises(subprocess.TimeoutExpired):
+        fp._push([sys.executable, "-c", code], b"x", 1.5)
+    assert _pid_gone(int(pidfile.read_text()))
+
+
+def test_expired_watchdog_does_not_overwrite_a_finished_push(monkeypatch, tmp_path):
+    state = tmp_path / "k.last"
+    monkeypatch.setattr(fp.os, "_exit", lambda c: None)
+    monkeypatch.setattr(fp, "_pushed", threading.Event())
+    fp._pushed.set()
+    state.write_text("abc 1.0")
+    fp._publish_expired(state)
+    assert state.read_text() == "abc 1.0"
+    fp._pushed.clear()
+    fp._publish_expired(state)
+    assert state.read_text().startswith("fail ")
