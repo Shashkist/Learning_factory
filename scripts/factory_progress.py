@@ -246,17 +246,23 @@ def render(events: list[dict]) -> dict:
             a = agents.setdefault(aid, {"id": aid, "role": e["role"], "issue": issue_no(e.get("issue")) or None, "station": e["station"],
                                         "state": "running", "started": e["at"], "last": e["at"], "substeps": [],
                                         "repo": e.get("repo") or ""})
+            prev_station = a["station"]
             a["last"], a["station"] = e["at"], e["station"]
             own = issue_no(e.get("issue"))
             step = (e.get("repo") or "", own) if own else (prev_issue.get(aid) or ((a["repo"], a["issue"]) if a["issue"] else None))   # unscoped: the previous sub-step's issue
+            closed = None
             if not own and e["status"] in ("done", "fail"):
                 # #527: an unscoped done/fail closes the agent's latest open step of the same station + sub-step, in any issue
                 open_ = [s for s in a["substeps"] if s["substep"] == e["substep"] and s["station"] == e["station"]
-                         and s["status"] in ("start", "wait") and s.get("issue")]
+                         and s["status"] in ("start", "wait") and s.get("issue")
+                         and (not e.get("repo") or s["repo"] == e["repo"])]
                 if open_:
-                    m = max(open_, key=lambda s: s["at"])
-                    step = (m["repo"], m["issue"])
-            prev_issue[aid] = step
+                    closed = max(reversed(open_), key=lambda s: s["at"])   # a tie on `at`: the step logged last
+                    step = (closed["repo"], closed["issue"])
+            if closed:
+                a["station"] = prev_station   # #527: a close found by the open-step match does not move the agent's lane or station
+            else:
+                prev_issue[aid] = step
             step_repo, step_issue = step or ("", None)
             sub = next((s for s in a["substeps"] if s["substep"] == e["substep"] and s["station"] == e["station"]
                         and s.get("issue") == step_issue and s.get("repo") == step_repo), None)
