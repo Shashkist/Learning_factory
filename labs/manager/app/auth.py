@@ -277,12 +277,17 @@ def _resolve_proxy(trusted: str, generation: int) -> frozenset[str]:
         if generation != _proxy_generation:
             return found
         _proxy_cache = (trusted, time.monotonic() + _proxy_ttl(), found)
-        if _proxy_logged != (trusted, found):
+        changed = _proxy_logged != (trusted, found)
+        if changed:
             _proxy_logged = (trusted, found)
+        run = _proxy_warned.pop(trusted, None)  # a completed lookup ends the run of failures
+        # Both lines are logged under the lock so the log order matches the cache. The settled line
+        # goes first: the addresses line must be the last "trusted proxy" line, because deploy.sh
+        # prints that one (so also after a run of failures, even when the addresses are unchanged).
+        if run:
+            _log_settled_run(trusted, run[1])
+        if changed or run:
             _proxy_log.info("trusted proxy %s -> %s", trusted, ", ".join(sorted(found)) or "(none)")
-        run = _proxy_warned.pop(trusted, None)  # a lookup ran: the run of failures is over
-    if run:
-        _log_settled_run(trusted, run[1])
     return found
 
 
@@ -336,8 +341,10 @@ def _log_settled_run(trusted: str, suppressed: int) -> None:
 def _warn_start_failed(trusted: str, exc: Exception) -> None:
     """One warning per minute per run of failures; the next window's first carries the count.
 
-    A run ends with a completed lookup or a quiet gap longer than the window; its pending count is
-    then settled on its own line and the next failure starts a fresh run."""
+    A run ends with any completed lookup (also one where getaddrinfo failed) or a quiet gap longer
+    than the window. A run ended by a lookup is settled at once; one ended by a gap without a
+    completed lookup is settled only at the next failure, possibly much later, and that line
+    carries that later timestamp. The next failure then starts a fresh run."""
     now = time.monotonic()
     settled = 0
     with _proxy_lock:
