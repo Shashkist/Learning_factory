@@ -210,6 +210,7 @@ def render(events: list[dict]) -> dict:
     runner = {"state": "idle", "pass_no": None, "budget": None, "pass_started": None, "pass_ended": None,
               "result": None, "note": ""}
     agents: dict[str, dict] = {}
+    prev_issue: dict[str, int | None] = {}   # per agent: the issue of its previous sub-step
     issues: dict[int, dict] = {}
     for e in evs:
         kind = e.get("kind")
@@ -228,11 +229,12 @@ def render(events: list[dict]) -> dict:
             a = agents.setdefault(aid, {"id": aid, "role": e["role"], "issue": issue_no(e.get("issue")) or None, "station": e["station"],
                                         "state": "running", "started": e["at"], "last": e["at"], "substeps": []})
             a["last"], a["station"] = e["at"], e["station"]
-            step_issue = issue_no(e.get("issue")) or a["issue"]
+            step_issue = issue_no(e.get("issue")) or prev_issue.get(aid) or a["issue"]   # unscoped: the previous sub-step's issue
+            prev_issue[aid] = step_issue
             sub = next((s for s in a["substeps"] if s["substep"] == e["substep"] and s["station"] == e["station"]
                         and s.get("issue") == step_issue), None)
             if sub:
-                sub.update(status=e["status"], at=e["at"], detail=e.get("detail", ""), issue=step_issue)
+                sub.update(status=e["status"], at=e["at"], detail=e.get("detail", ""))
             else:
                 a["substeps"].append({"station": e["station"], "substep": e["substep"], "status": e["status"], "issue": step_issue,
                                       "started": e["at"], "at": e["at"], "detail": e.get("detail", "")})

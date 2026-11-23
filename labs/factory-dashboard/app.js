@@ -302,15 +302,16 @@ function agentCard(a, titles, workers, generated) {
   var card = lel("div", null, "live-agent", { "data-agent-id": S(a.id), "data-state": S(a.state) });
   var head = el("div", null, "live-head");
   head.appendChild(el("b", (LIVE_ROLE_ICONS[a.role] || "") + " " + S(a.role)));
-  var issue = !(Number(a.issue) > 0) ? "" : " #" + a.issue + " " + S(titles[a.issue]) + " ";
+  var latest = latestIssues(a).pop();
+  var issue = !(latest > 0) ? "" : " #" + latest + " " + S(titles[latest]) + " ";
   if (issue) head.appendChild(el("span", issue));
   card.appendChild(head);
   var done = subs.filter(function (s) { return s.status === "done"; }).length;
   card.appendChild(el("div", joined([elapsed(a.started, LIVE_ENDED[a.state] ? a.last : null), subs.length ? done + "/" + subs.length : ""]), "muted"));
   var cur = null;
   subs.forEach(function (s) { if (stepOpen(a, s, subs, generated)) cur = s; });
-  var latest = subs[subs.length - 1];
-  cur = cur || (latest && latest.status !== "start" ? latest : null);   // never name a stale start as "now"
+  var lastSub = subs[subs.length - 1];
+  cur = cur || (lastSub && lastSub.status !== "start" ? lastSub : null);   // never name a stale start as "now"
   if (cur) {
     var now = el("div", "now: ", "live-now");
     now.appendChild(lel("b", S(cur.substep), "", { "data-current-substep": "" }));
@@ -319,7 +320,8 @@ function agentCard(a, titles, workers, generated) {
   var ul = el("ul", null, "live-steps");
   subs.forEach(function (s) {
     var icon = s.status === "start" ? (liveSubstep(a, s, subs, generated) ? LIVE_ICONS.start : "–") : (LIVE_ICONS[s.status] || "");
-    ul.appendChild(lel("li", icon + " " + S(s.substep), "",
+    var n = stepIssue(a, s);
+    ul.appendChild(lel("li", icon + " " + S(s.substep) + (n > 0 ? " #" + n : ""), "",
       { "data-substep": S(s.substep), "data-status": S(s.status) }));
   });
   card.appendChild(ul);
@@ -380,10 +382,20 @@ function dur(a, b) {
   return s < 90 ? s + " s" : s < 5400 ? Math.round(s / 60) + " min" : (s / 3600).toFixed(1) + " h";
 }
 
-function latestIssue(a) {   // the lane of the agent's latest sub-step; old data falls back to the agent's issue
-  var last = null;
-  arr(a.substeps).forEach(function (s) { if (!last || Date.parse(s.at) >= Date.parse(last.at)) last = s; });
-  return Number(last && last.issue) > 0 ? Number(last.issue) : Number(a.issue);
+function stepIssue(a, s) {   // the issue a step belongs to: its own, else its predecessor's, else the agent's first
+  var subs = arr(a.substeps);
+  for (var j = subs.indexOf(s); j >= 0; j--) if (Number(subs[j].issue) > 0) return Number(subs[j].issue);
+  return Number(a.issue);
+}
+
+function latestIssues(a) {   // the lanes holding the agent's latest sub-steps (same-second steps tie), in step order
+  var subs = arr(a.substeps), max = 0, out = [];
+  subs.forEach(function (s) { max = Math.max(max, Date.parse(s.at) || 0); });
+  subs.forEach(function (s) {
+    var i = stepIssue(a, s);
+    if ((Date.parse(s.at) || 0) === max && i > 0 && out.indexOf(i) < 0) out.push(i);
+  });
+  return out.length ? out : [Number(a.issue)];
 }
 
 function laneData(d) {
@@ -393,12 +405,11 @@ function laneData(d) {
   });
   arr(d.agents).forEach(function (a) {
     arr(a.substeps).forEach(function (s) {
-      var l = lanes[Number(s.issue) > 0 ? s.issue : a.issue];   // a step belongs to the issue it was logged for
+      var l = lanes[stepIssue(a, s)];
       if (!l) return;
       if (l.agents.indexOf(a) < 0) l.agents.push(a);
       l.steps.push({ s: s, a: a, open: stepOpen(a, s, arr(a.substeps), d.generated_at) });
     });
-    if (lanes[a.issue] && lanes[a.issue].agents.indexOf(a) < 0) lanes[a.issue].agents.push(a);
   });
   crewNodes(arr(d.crew).slice(0, 1)).forEach(function (n) {   // the current pass only: older passes' agents confuse the lane
     var i = issueOf(n.title);
@@ -414,7 +425,7 @@ function laneData(d) {
     l.first = l.steps.reduce(function (m, x) { return !m || S(x.s.started) < m ? S(x.s.started) : m; }, "");
     var busy = l.crew.filter(function (n) { return n.state === "busy" || n.state === "thinking"; });
     var openSteps = l.steps.filter(function (x) { return x.open; });
-    l.running = busy.length > 0 || l.agents.some(function (a) { return agentLive(a, d.generated_at) && latestIssue(a) === l.issue; });
+    l.running = busy.length > 0 || l.agents.some(function (a) { return agentLive(a, d.generated_at) && latestIssues(a).indexOf(l.issue) >= 0; });
     var cur = LIVE_STATIONS.indexOf(l.station);
     busy.forEach(function (n) {   // an agent at work is the strongest evidence of where the task is
       var at = LIVE_STATIONS.indexOf(ROLE_STATION[S(n.type)] || "");
