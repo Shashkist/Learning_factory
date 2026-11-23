@@ -4,9 +4,11 @@
 
 ## Now
 
-**Pass lf-h2v9 running (laptop, from 04:28 UTC 2026-11-23).** Merged #526 (#504 closed: live `app.js` byte-equal to cd25671). In flight:
-- **#481** on `f/481-live-view-freshness` (worktree `C:\projects\lf-481`): exam then build.
-- **#521** on `f/521-proxy-warn-run` (worktree `C:\projects\lf-521`): exam then build.
+**Pass lf-f5r1 running (laptop, from 06:27 UTC 2026-11-23).** Closed #521 for lf-h2v9 (#528, Deploy 45123754939 deployed 140b270, smoke ok). In flight:
+- **#481** rebuild on `f/481-live-view-freshness-2` (worktree `C:\projects\lf-481`, D142 amendment): exam commits cherry-picked, two-step exam case next, then code. PR #529 (old branch) to be closed when the new PR opens.
+- **#530**, **#524** next in parallel.
+
+Pass lf-h2v9 merged #526 (#504) and #528 (#521); #481 review round 1 asked for changes (live age froze).
 
 Pass lf-q8m2 shipped #515 (#518) and #505 (#520): Deploy 45106491102 deployed e496bf8, smoke ok; #519 (#522, exam-only): Deploy 45108693143 deployed ca06aef, smoke ok. Follow-ups: #521 (from #518), #523 (from #522), #524 (scripts test leaks `LF_CREW_DIR` on the laptop: unset it when running `uvx pytest scripts` locally). Old worktrees `C:\projects\lf-505`, `lf-510`, `lf-68b`, `lf-76`, `lf-76e`, `lf-331`, `lf-331e` and an empty `lf-515` folder can likely go; check each is clean and its PR closed first (`git worktree list`). A qa plugin guard hook blocks shell loops over git worktrees; use one literal path per command.
 
