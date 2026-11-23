@@ -4,10 +4,10 @@
 
 ## Now
 
-**Pass lf-h6q3 finished (laptop, 15:58-17:40 UTC 2026-11-23, stopped at 3 merges).** No claim held after #556 closes. Resume here:
+**Pass lf-h6q3 finished (laptop, 15:58-17:40 UTC 2026-11-23, stopped at 3 merges).** No claim held. Resume here:
 - **#558 (p1, needs:laptop)**: the live page stopped publishing at 16:00:49 UTC, five minutes into this pass, while local events kept coming. The laptop runner is guarded (D35), so a laptop session that may read it takes this first. Then **#536** closes: its criterion 5 needs the `factory#1` lane on the page (factory#1 itself is shipped). Log every step of another repository with `--repo` from the first step on.
 - **Next pick** (`python scripts/factory_pick.py`): **Shashkist/factory#2** (project profile) and **factory#3** (tools package), both p1, both now unblocked. Work them in worktrees of `C:\projectsactory` (`C:\projectsactory-<n>`), with `gh -R Shashkist/factory` and `issue_lock.py --repo Shashkist/factory`. That repository's CI now runs: `uv run ruff check .`, `uv run mypy src`, `uv run pytest -q` (on this laptop `uv run python -m pytest` / `-m mypy`, because the `.exe` launchers are blocked). Follow-ups **factory#10**, **factory#11** (p2, exam-integrity hardening).
-- Merged this pass: **factory#9** (factory#1, e3fc8b2; factory main CI 45219016530), **#557** (#527, 08e8e7e; main CI 45224934361), **#559** (#556, ff33c2b; main CI 45227371238, its `docker` job was still running at the stop, see #556). Decisions: factory D3 + amendment 1, LF D146.
+- Merged this pass: **factory#9** (factory#1, e3fc8b2; factory main CI 45219016530), **#557** (#527, 08e8e7e; main CI 45224934361), **#559** (#556, ff33c2b; main CI 45227371238 green; #556 closed). Decisions: factory D3 + amendment 1, LF D146.
 - Worktree `C:\projectsactory-1` (merged branch) holds untracked `archive/`, `output.json` and `pytest_html_report.html`. This pass did not create them. Check them before removing the worktree.
 
 **Pass lf-w2k6 finished (laptop, 13:57-15:27 UTC 2026-11-23, stopped at 3 merges).** No issue in flight, no claim held. Resume here:
