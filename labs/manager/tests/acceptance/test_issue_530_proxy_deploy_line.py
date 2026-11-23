@@ -131,3 +131,27 @@ def test_a_completed_lookup_that_failed_still_ends_the_run(monkeypatch, caplog, 
     assert len(later) == 1, f"one failed start, one warning expected: {later}"
     assert _counts(later[0]) == [], f"count from the earlier run leaked: {later[0]}"
 
+
+
+def test_unchanged_addresses_after_a_run_of_start_failures_the_deploy_line_still_names_them(
+    monkeypatch, caplog, clock  # noqa: F811
+):
+    # Production: the warm-up lookup completes at startup and logs the info line first.
+    monkeypatch.setattr(socket, "getaddrinfo", Resolver((A,)))
+    caplog.set_level(logging.INFO, logger="app.auth")
+    _successful_lookup(monkeypatch, clock)
+    assert any(f"-> {A}" in m for m in _manager_lines(caplog)), "the warm-up logged no info line"
+
+    clock[0] += HOURS  # past the TTL: the next request wants a fresh lookup
+    attempts = _failing_run(monkeypatch, clock, 30)
+    assert attempts >= 25, f"the run of failures did not happen: {attempts}"
+    assert _warnings(caplog), "the run logged no warning at all"
+
+    _successful_lookup(monkeypatch, clock)  # same addresses as the warm-up
+
+    lines = _manager_lines(caplog)
+    picked = deploy_line(lines)
+    assert picked is not None, f"deploy.sh would print nothing: {lines}"
+    assert "-> " in picked and A in picked, (
+        f"the deploy line does not name the resolved address: {picked!r} of {lines}"
+    )
