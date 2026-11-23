@@ -1,0 +1,9 @@
+# Repositories the factory works on. Read by scripts/issue_lock.py (LF_REPOS_FILE overrides the path).
+- repo: Shashkist/Learning_factory
+  default: true
+  clone: C:\projects\Learning_factory
+  ship: deploy-smoke
+- repo: Shashkist/factory
+  default: false
+  clone: C:\projects\factory
+  ship: main-ci

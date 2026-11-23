@@ -34,10 +34,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 NL = chr(10)
 
@@ -64,6 +66,95 @@ def _run(args: list[str]) -> str:
     if proc.returncode != 0:
         raise RuntimeError("gh " + " ".join(args) + " failed: " + proc.stderr.strip())
     return proc.stdout
+
+
+#: The repository a bare `gh` call reaches from this checkout. It never gets `-R`.
+HERE_REPO = "Shashkist/Learning_factory"
+
+#: Which repositories the factory works on; override with LF_REPOS_FILE.
+REPOS_FILE = Path(__file__).resolve().parent.parent / "docs" / "factory" / "repos.yaml"
+
+
+def _unquote(value: str) -> str:
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
+        return value[1:-1]
+    return value
+
+
+def read_repos(path: Path | None = None) -> tuple[list[str], str, dict[str, str]]:
+    """(repositories, default, clone path per repository) from repos.yaml.
+
+    This repository alone, with one warning line on stderr, when the file is
+    missing, empty or not readable. The default is always this repository
+    (HERE_REPO): a bare `gh` call reaches whatever the checkout points at, so
+    no file can move the default elsewhere. If the file marks another entry
+    default, or lists no entry for this repository, one warning says so and
+    this repository is used as the default (and read).
+
+    A tiny parser for the flat list format (`- repo: x` then `  key: value`):
+    the tooling job runs with no dependencies, so no PyYAML here.
+    """
+    path = path or Path(os.environ.get("LF_REPOS_FILE") or REPOS_FILE)
+    entries: list[dict] = []
+    try:
+        for raw in path.read_text(encoding="utf-8-sig").splitlines():
+            line = raw.split(" #", 1)[0].rstrip()
+            if not line.strip() or line.lstrip().startswith("#"):
+                continue
+            if line.startswith("- "):
+                entries.append({})
+                line = "  " + line[2:]
+            key, sep, value = line.strip().partition(":")
+            if not entries or not sep or not key.isidentifier():
+                raise ValueError(line)
+            entries[-1][key] = _unquote(value)
+        unique: dict[str, dict] = {}
+        for e in entries:
+            unique.setdefault(e["repo"].lower(), e)
+        entries = list(unique.values())
+        if not entries or any(e["repo"].count("/") != 1 for e in entries):
+            raise ValueError("no repositories")
+    except (OSError, ValueError, KeyError):
+        print(
+            "warning: " + str(path) + " (repos.yaml) is missing or unreadable;"
+            " using " + HERE_REPO + " only",
+            file=sys.stderr,
+        )
+        return [HERE_REPO], HERE_REPO, {}
+    repos = [HERE_REPO if e["repo"].lower() == HERE_REPO.lower() else e["repo"] for e in entries]
+    clones = {r: e["clone"] for r, e in zip(repos, entries) if e.get("clone")}
+    marked = [r for r, e in zip(repos, entries) if e.get("default", "").lower() in ("true", "yes")]
+    listed = HERE_REPO in repos
+    if not listed:
+        repos.insert(0, HERE_REPO)
+    if not listed or (marked and HERE_REPO not in marked):
+        print(
+            "warning: " + str(path) + " (repos.yaml) does not mark " + HERE_REPO
+            + " as the default repository; using it as the default",
+            file=sys.stderr,
+        )
+    return repos, HERE_REPO, clones
+
+
+def scoped(run, repo: str | None):
+    """`run` aimed at a named repository: `-R repo`, or the repo in an api path.
+
+    Only the api path argument (`repos/{owner}/{repo}/...`) is rewritten; body
+    text is never touched.
+    """
+    if not repo:
+        return run
+
+    def run_in(args: list[str]) -> str:
+        if args[0] == "api":
+            return run(
+                [a.replace("{owner}/{repo}", repo) if a.startswith("repos/") else a
+                 for a in args]
+            )
+        return run([*args, "-R", repo])
+
+    return run_in
 
 
 def now() -> str:
@@ -219,6 +310,7 @@ def live_rivals(number: int, session: str, stale_after: float, run=_run):
 
 
 def cmd_claim(args, run=_run) -> int:
+    run = scoped(run, getattr(args, "repo", None))
     existing, comment_id = find_claim(args.number, run)
 
     if existing and existing.get("session") != args.session:
@@ -319,6 +411,7 @@ def cmd_claim(args, run=_run) -> int:
 
 
 def cmd_heartbeat(args, run=_run) -> int:
+    run = scoped(run, getattr(args, "repo", None))
     existing, comment_id = find_claim(args.number, run)
     if not existing:
         print(
@@ -355,6 +448,7 @@ def cmd_heartbeat(args, run=_run) -> int:
 
 
 def cmd_release(args, run=_run) -> int:
+    run = scoped(run, getattr(args, "repo", None))
     existing, comment_id = find_claim(args.number, run)
     if not existing:
         print("#" + str(args.number) + " has no claim.", file=sys.stderr)
@@ -410,30 +504,57 @@ def _candidates(run=_run) -> list[dict]:
     return list(by_number.values())
 
 
-def _claimed_issues(run=_run) -> list[dict]:
+def _claimed_issues(run=_run, args=None, failed: list | None = None) -> list[dict]:
+    """Claim rows of every repository read. `failed` collects the repositories
+    that could not be read (each also printed once, as skipped)."""
     out = []
-    for issue in _candidates(run):
-        claim, _ = find_claim(issue["number"], run)
-        if claim and "released" not in claim:
-            out.append(
-                {**issue, "claim": claim, "age": age_minutes(claim.get("heartbeat", ""))}
-            )
+    default = getattr(args, "default_repo", HERE_REPO)
+    only = getattr(args, "repo", None)
+    for repo in [only] if only else getattr(args, "repos", None) or [default]:
+        # The default repository is reached with bare calls, as always.
+        scope = scoped(run, None if repo == default else repo)
+        rows = []
+        try:
+            for issue in _candidates(scope):
+                claim, _ = find_claim(issue["number"], scope)
+                if claim and "released" not in claim:
+                    rows.append(
+                        {**issue, "repo": repo, "claim": claim,
+                         "age": age_minutes(claim.get("heartbeat", ""))}
+                    )
+        except (RuntimeError, ValueError):
+            print("cannot read " + repo + " - skipped", file=sys.stderr)
+            if failed is not None:
+                failed.append(repo)
+            continue
+        out.extend(rows)
     return out
 
 
+def _default_unreadable(args, failed: list) -> bool:
+    """The repository the caller depends on could not be read: this repository,
+    or the one named with --repo."""
+    return (getattr(args, "repo", None) or getattr(args, "default_repo", HERE_REPO)) in failed
+
+
 def cmd_status(args, run=_run) -> int:
-    rows = _claimed_issues(run)
+    failed: list = []
+    rows = _claimed_issues(run, args, failed)
+    if _default_unreadable(args, failed):
+        # Silence here would read as "nothing is claimed" and invite a double claim.
+        return 1
     if args.json:
         print(json.dumps(rows, indent=2, default=str))
         return 0
     if not rows:
         print("No issues are claimed.")
         return 0
-    print("    #  session          age  branch                                 step")
+    print("    #  repo                         session          age  branch                                 step")
     for r in sorted(rows, key=lambda r: -r["age"]):
         c = r["claim"]
         print(
             format(r["number"], ">5") + "  "
+            + format(r["repo"], "<28") + " "
             + format(c.get("session", ""), "<14") + " "
             + format(r["age"], ">5.0f") + "m  "
             + format(c.get("branch", ""), "<38") + " "
@@ -473,20 +594,28 @@ def cmd_stale(args, run=_run) -> int:
     owner's decision on a push. Both claims read as stale and stealable, and
     both were holding finished work.
     """
-    rows = [r for r in _claimed_issues(run) if r["age"] >= args.older_than]
+    failed: list = []
+    claimed = _claimed_issues(run, args, failed)
+    if _default_unreadable(args, failed):
+        return 1
+    rows = [r for r in claimed if r["age"] >= args.older_than]
     if not rows:
         print("No claim is older than " + format(args.older_than, ".0f") + "m.")
         return 0
     for r in rows:
         c = r["claim"]
+        other = r["repo"] != getattr(args, "default_repo", HERE_REPO)
+        clone = getattr(args, "clones", {}).get(r["repo"])
+        git = "git -C '" + clone.replace("\\", "/") + "' " if other and clone else "git "
         common = (
             "#" + str(r["number"]) + " " + r["title"] + NL
+            + "    repo       " + r["repo"] + NL
             + "    claimed by " + str(c.get("session"))
             + " - silent " + format(r["age"], ".0f") + "m" + NL
             + "    branch     " + str(c.get("branch")) + NL
             + "    worktree   " + (str(c.get("worktree")) or "(not recorded)") + NL
             + "    last step  " + str(c.get("step")) + NL
-            + "    continue   git fetch origin && git log --oneline origin/main.."
+            + "    continue   " + git + "fetch origin && " + git + "log --oneline origin/main.."
             + str(c.get("branch")) + NL
         )
         if c.get("blocked"):
@@ -505,6 +634,7 @@ def cmd_stale(args, run=_run) -> int:
             common
             + "    take over  python scripts/issue_lock.py claim " + str(r["number"])
             + " --session <you> --branch " + str(c.get("branch"))
+            + (" --repo " + r["repo"] if other else "")
             + " --steal --reason 'session gone'" + NL
         )
     return 0
@@ -521,6 +651,7 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument(
             "--session", required=True, help="this session's name, from ListAgents"
         )
+        sp.add_argument("--repo", help="owner/name, when not this repository")
 
     c = sub.add_parser("claim", help="take an issue, or fail if someone live holds it")
     common(c)
@@ -557,6 +688,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("status", help="who holds what")
     s.add_argument("--json", action="store_true")
+    s.add_argument("--repo", help="owner/name: show only this repository")
     s.set_defaults(func=cmd_status)
 
     t = sub.add_parser(
@@ -565,6 +697,7 @@ def build_parser() -> argparse.ArgumentParser:
     t.add_argument(
         "--older-than", type=float, default=DEFAULT_STALE_AFTER.total_seconds() / 60
     )
+    t.add_argument("--repo", help="owner/name: show only this repository")
     t.set_defaults(func=cmd_stale)
 
     return p
@@ -572,6 +705,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    args.repos, args.default_repo, args.clones = read_repos()
     return args.func(args)
 
 
