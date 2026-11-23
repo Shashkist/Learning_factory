@@ -17,13 +17,23 @@ RUN printf 'Acquire::Retries "3";\nAcquire::http::Timeout "30";\n' > /etc/apt/ap
  && if dpkg-divert --list /usr/bin/man | grep -q .; then \
       dpkg-divert --quiet --remove --rename /usr/bin/man; \
     fi \
- && if [ -n "$APT_MIRRORS" ]; then       cp /etc/apt/sources.list.d/ubuntu.sources /etc/apt/ubuntu.sources.lf-orig;       for m in $APT_MIRRORS; do echo "$m"; done > /etc/apt/lf-mirrors.txt;       echo http://archive.ubuntu.com/ubuntu/ >> /etc/apt/lf-mirrors.txt;       sed -i 's|^URIs:.*|URIs: mirror+file:/etc/apt/lf-mirrors.txt|' /etc/apt/sources.list.d/ubuntu.sources;     fi  && apt-get update \
+ && if [ -n "$APT_MIRRORS" ]; then \
+      cp /etc/apt/sources.list.d/ubuntu.sources /etc/apt/ubuntu.sources.lf-orig; \
+      for m in $APT_MIRRORS; do echo "$m"; done > /etc/apt/lf-mirrors.txt; \
+      echo http://archive.ubuntu.com/ubuntu/ >> /etc/apt/lf-mirrors.txt; \
+      sed -i 's|^URIs:.*|URIs: mirror+file:/etc/apt/lf-mirrors.txt|' /etc/apt/sources.list.d/ubuntu.sources; \
+    fi \
+ && apt-get update \
  && apt-get install -y --no-install-recommends \
       ca-certificates tini sudo nano vim less tree curl dnsutils iputils-ping traceroute \
       iproute2 net-tools procps file man-db \
  && apt-get install -y --no-install-recommends --reinstall \
       coreutils findutils grep sed tar gzip bash util-linux passwd procps \
- && if [ -f /etc/apt/ubuntu.sources.lf-orig ]; then       mv /etc/apt/ubuntu.sources.lf-orig /etc/apt/sources.list.d/ubuntu.sources;     fi  && rm -f /etc/apt/lf-mirrors.txt  && rm -rf /var/lib/apt/lists/* \
+ && if [ -f /etc/apt/ubuntu.sources.lf-orig ]; then \
+      mv /etc/apt/ubuntu.sources.lf-orig /etc/apt/sources.list.d/ubuntu.sources; \
+    fi \
+ && rm -f /etc/apt/lf-mirrors.txt \
+ && rm -rf /var/lib/apt/lists/* \
  && curl -fsSL --retry 3 --max-time 120 -o /usr/local/bin/ttyd \
       "https://github.com/tsl0922/ttyd/releases/download/${TTYD_VERSION}/ttyd.x86_64" \
  && echo "${TTYD_SHA256}  /usr/local/bin/ttyd" | sha256sum -c - \
