@@ -120,3 +120,20 @@ def test_hooks_file_runs_the_guard_from_the_main_checkout():
     cmds = [h["command"] for e in hooks["hooks"]["PreToolUse"] for h in e["hooks"]]
     guard = [c for c in cmds if "factory_guard.py" in c]
     assert guard and all("CLAUDE_PROJECT_DIR" not in c and "Learning_factory/scripts" in c for c in guard)
+
+
+def test_cli_fails_closed_when_stdin_never_closes(tmp_path):
+    # O21, #230: a guard that cannot read its input denies instead of hanging forever.
+    import os
+    import time
+    env = {**os.environ, "LF_HOOK_STDIN_TIMEOUT": "1"}
+    p = subprocess.Popen([sys.executable, str(Path(__file__).parent / "factory_guard.py")],
+                         stdin=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+    t0 = time.time()
+    try:
+        assert p.wait(timeout=5) == 2
+    finally:
+        p.kill()
+        p.stdin.close()
+    assert time.time() - t0 < 5
+    assert b"could not be read" in p.stderr.read()

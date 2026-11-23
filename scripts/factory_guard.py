@@ -23,6 +23,8 @@ import json
 import re
 import sys
 
+from _hook_io import read_stdin, start_watchdog  # same folder; bounded input (#230)
+
 SERVER = re.compile(r"207\.154\.193\.238|(?<![\w.-])(?:[\w-]+\.)*shashkist\.com\b")
 REMOTE_TOOLS = re.compile(r"(?<![\w.-])(?:ssh|scp|sftp|rsync|plink|pscp)(?:\.exe)?(?![\w.-])")
 SECRETS = re.compile(r"\bgh\s+(?:secret|variable)\s+(?:set|delete|remove|rm)\b")
@@ -69,10 +71,16 @@ def check(payload: dict) -> str | None:
 
 
 def main() -> int:
+    raw = read_stdin()
+    if raw is None:
+        # Fail closed (O21, #230): a live parent sends the payload at once, so input that never
+        # arrives means a dead or broken parent, and denying costs nothing.
+        print("Blocked by the factory guard: the hook input could not be read.", file=sys.stderr)
+        return 2
     try:
-        payload = json.loads(sys.stdin.read() or "{}")
+        payload = json.loads(raw or "{}")
     except ValueError:
-        return 0  # not a tool call we understand: never break the run
+        return 0  # complete input we do not understand: never break the run
     reason = check(payload)
     if reason:
         print(f"Blocked by the factory guard: {reason}.", file=sys.stderr)
@@ -81,4 +89,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    start_watchdog(2)  # never outlive the caller; a guard killed this way denies (#230)
     sys.exit(main())
