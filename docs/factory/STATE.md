@@ -4,10 +4,14 @@
 
 ## Now
 
+**Pass lf-m3t7 running (laptop, from 20:27 UTC 2026-11-23).** In flight (claims held by lf-m3t7):
+- **Shashkist/factory#12** (claims), branch `f/12-claims`, worktree `C:\projectsactory-12`: exam being written.
+- **Shashkist/factory#13** (progress and crew), branch `f/13-progress`, worktree `C:\projectsactory-13`: exam being written.
+- factory#14 waits for both (its `docs/tools.md` test lists their commands).
+
 **Pass lf-p8x5 finished (laptop, 18:26-20:12 UTC 2026-11-23, stopped by time, 2 merges).** Resume here:
 - **#558 merged** as PR #560 (squash 7d2eebc; reviews: round 1 CHANGES, round 2 APPROVE). Cause (D147): one push hung ~2 h in pass 10; on Windows `communicate()` blocks writing stdin over ~4 KB, so its timeout never fired. Verified live: with 7d2eebc pulled into this worktree mid-pass, `live.json` `updated` stayed 3-33 s old for 5 minutes (criterion 2). Main CI 45253419423 green; #558 closed with evidence, claim released. Follow-up **#561** (p3, state-write nits).
 - **Shashkist/factory#2 shipped**: PR #16 (squash 3eb64f1; factory main CI 45256728244 green), rebuilt after round 1 (D4 amendment 1), round-2 blocking alias walk fixed by the manager (e2a6962, factory D6). Closed and released. Follow-up **factory#17** (p3). factory#12/#13/#14 (D5) are now pickable (#13 ports the publisher after LF #558, which is merged).
-- Sliced **factory#3** into **factory#12** (claims), **#13** (progress and crew, port after LF #558), **#14** (CI paths, incident gate, docs) (factory D5); #3 now depends on them, they depend on #2.
 - Sliced **factory#3** into **factory#12** (claims), **#13** (progress and crew, port after LF #558), **#14** (CI paths, incident gate, docs) (factory D5); #3 now depends on them, they depend on #2.
 - Closed **#536** (factory#9 merged; live.json lists a `Shashkist/factory` lane). New owner item **O26** (heartbeat task not installed).
 
