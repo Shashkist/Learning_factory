@@ -4,7 +4,7 @@ LABEL org.opencontainers.image.source="https://github.com/Shashkist/Learning_fac
       org.opencontainers.image.description="Learning Factory terminal lab image (Ubuntu + ttyd)" \
       lf="1"
 
-# Space-separated Ubuntu mirrors, written with priority:1 so apt tries them before archive.ubuntu.com (a mirror without priority is tried last, else the order is random); empty keeps the stock apt sources (#545).
+# Space-separated Ubuntu mirrors, written with priority:1 so apt tries them before archive.ubuntu.com (the given mirrors are tried in random order among themselves, then archive.ubuntu.com); empty keeps the stock apt sources (#545).
 ARG APT_MIRRORS=""
 ARG TTYD_VERSION=1.7.7
 ARG TTYD_SHA256=8a217c968aba172e0dbf3f34447218dc015bc4d5e59bf51db2f2cd12b7be4f55
@@ -19,10 +19,12 @@ RUN printf 'Acquire::Retries "3";\nAcquire::http::Timeout "30";\n' > /etc/apt/ap
     fi \
  && if [ -n "$APT_MIRRORS" ]; then \
       cp /etc/apt/sources.list.d/ubuntu.sources /etc/apt/ubuntu.sources.lf-orig \
-      && set -f \
-      && for m in $APT_MIRRORS; do \
-        printf '%s\tpriority:1\n' "$m"; \
-      done > /etc/apt/lf-mirrors.txt \
+      && ( \
+        set -f; \
+        for m in $APT_MIRRORS; do \
+          printf '%s\tpriority:1\n' "$m"; \
+        done \
+      ) > /etc/apt/lf-mirrors.txt \
       && echo http://archive.ubuntu.com/ubuntu/ >> /etc/apt/lf-mirrors.txt \
       && sed -i 's|^URIs:.*|URIs: mirror+file:/etc/apt/lf-mirrors.txt|' /etc/apt/sources.list.d/ubuntu.sources; \
     fi \
