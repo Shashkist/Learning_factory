@@ -36,7 +36,8 @@ const i18nFile = (lang: string) => nodeUrl.fileURLToPath(new URL(`../../src/i18n
 const copy = (lang: "en" | "he") =>
   JSON.parse(fs.readFileSync(i18nFile(lang), "utf8")) as Record<string, string>;
 const COPY = { en: copy("en"), he: copy("he") };
-const SHOTS = "test-results/design-screenshots";
+// Also resolved from this file: always labs/web/test-results/design-screenshots/, whatever the cwd.
+const SHOTS = nodeUrl.fileURLToPath(new URL("../../test-results/design-screenshots", import.meta.url).href);
 type Lang = "en" | "he";
 
 const HINT = "demo is still missing";

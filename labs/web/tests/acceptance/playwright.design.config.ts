@@ -4,8 +4,8 @@ import { defineConfig } from "@playwright/test";
 // labs/web/playwright.config.ts: it builds the app and serves it with vite preview, the backend
 // is faked per test with the e2e/ fake backends. Run it from labs/web:
 //   npx playwright test -c tests/acceptance/playwright.design.config.ts
-// Screenshots (criterion 9) are written to labs/web/test-results/design-screenshots/ (relative to
-// the working directory, labs/web); CI uploads that folder as an artifact. outputDir is a sibling
+// Screenshots (criterion 9) are written to labs/web/test-results/design-screenshots/ (resolved from
+// each spec file, so any working directory gives the same folder); CI uploads that folder as an artifact. outputDir is a sibling
 // folder so Playwright's own clean-up of its output never deletes the screenshots.
 // Node runs this file; the app's tsconfig has no Node types, so declare just what is used.
 declare const process: { env: Record<string, string | undefined> };
