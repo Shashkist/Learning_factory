@@ -1434,6 +1434,7 @@ in force · factory · 2026-11-23 · revertible
 **Incident #541.** Main CI 45154808144 on af1def6 failed only in the `docker` job: the `lf-lab-term:exam` build hit its 900 s limit on a slow archive.ubuntu.com (same as #227, #235, #240). Re-run of the failed jobs; no code change.
 **Alternatives.** One PR for #536 (too large to review in one round); slicing by criterion order (1 to 4 in sequence; slower, no parallel lanes).
 **Revert.** Close #542 to #544 and work #536 as one issue.
+**Amendment 1 (review of #549, #542).** The default repository of `issue_lock.py` is always this checkout's repository (`Shashkist/Learning_factory`), not the `default:` entry of `repos.yaml`: a call without `-R` reaches whatever repository the working directory points at, so letting the file move the default could claim in the wrong place. `default:` is only checked (a mismatch prints one warning). Any explicit `--repo` sends `-R` on `claim`/`heartbeat`/`release`, even for this repository; calls without `--repo` stay exactly as before. A repository that `status`/`stale` cannot read is never reported as "nothing claimed": a failed read of the default repository, or of the one named with `--repo`, exits non-zero. Note for #544: a full `status --json` with a non-default repository unreadable still exits 0 with that repository's rows missing (stderr says why); the pick must not treat that as "none claimed".
 
 ## D144 · CI builds the term image through an apt mirror list (#545)
 
