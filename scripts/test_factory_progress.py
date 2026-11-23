@@ -18,6 +18,7 @@ import factory_progress as fp  # noqa: E402
 def events_file(tmp_path, monkeypatch):
     f = tmp_path / "progress.jsonl"
     monkeypatch.setenv("LF_PROGRESS_FILE", str(f))
+    monkeypatch.delenv("LF_CREW_DIR", raising=False)   # the laptop sets it; the crew view is opt-in per case
     return f
 
 
