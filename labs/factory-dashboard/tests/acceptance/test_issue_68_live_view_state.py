@@ -35,6 +35,8 @@ import subprocess
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import pytest
+
 HERE = Path(__file__).resolve().parent
 COMPONENT = HERE.parents[1]
 REPO = COMPONENT.parents[1]
@@ -71,6 +73,15 @@ def step(agent, issue, station, sub, status, at, role="manager", title="Some tas
 
 def start_pass(minutes_ago: float = 60) -> dict:
     return {"kind": "pass-start", "at": ago(minutes_ago), "pass_no": 5, "budget": 8}
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _no_crew_dir():
+    """The laptop's runner sets LF_CREW_DIR (crew view from local transcripts); the exam must not read it."""
+    mp = pytest.MonkeyPatch()
+    mp.delenv("LF_CREW_DIR", raising=False)
+    yield
+    mp.undo()
 
 
 def render(events: list[dict]) -> dict:
