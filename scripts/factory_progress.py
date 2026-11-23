@@ -244,8 +244,8 @@ def render(events: list[dict]) -> dict:
                 a["state"] = "done"
             elif a["state"] != "stopped":
                 a["state"] = "running"   # a later start/done recovers from a failure
-            if issue_no(e.get("issue")):
-                n = issue_no(e["issue"])
+            if step_issue:
+                n = step_issue
                 i = issues.setdefault(n, {"issue": n, "title": "", "station": e["station"]})
                 i["station"] = e["station"]
                 if e.get("title"):
