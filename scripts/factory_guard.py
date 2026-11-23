@@ -86,7 +86,7 @@ def check(payload: dict) -> str | None:
 
 
 def main() -> int:
-    raw = read_stdin(float(os.environ.get("LF_HOOK_STDIN_TIMEOUT") or STDIN_TIMEOUT_S))
+    raw = read_stdin(float(os.environ.get("LF_GUARD_STDIN_TIMEOUT") or STDIN_TIMEOUT_S))
     if raw is None:
         # Fail closed (O21, #230): a live parent sends the payload at once, so input that never
         # arrives means a dead or broken parent, and denying costs nothing.

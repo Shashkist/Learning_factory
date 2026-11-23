@@ -125,7 +125,7 @@ def test_hooks_file_runs_the_guard_from_the_main_checkout():
 def test_cli_fails_closed_when_stdin_never_closes():
     # O21, #230: a guard that cannot read its input denies instead of hanging forever.
     import os
-    env = {**os.environ, "LF_HOOK_STDIN_TIMEOUT": "1"}
+    env = {**os.environ, "LF_GUARD_STDIN_TIMEOUT": "1"}
     p = subprocess.Popen([sys.executable, str(Path(__file__).parent / "factory_guard.py")],
                          stdin=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
     try:
