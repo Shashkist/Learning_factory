@@ -82,12 +82,6 @@ def _unquote(value: str) -> str:
     return value
 
 
-def load_repos(path: Path | None = None) -> tuple[list[str], str]:
-    """(repositories, default); see read_repos."""
-    repos, default, _ = read_repos(path)
-    return repos, default
-
-
 def read_repos(path: Path | None = None) -> tuple[list[str], str, dict[str, str]]:
     """(repositories, default, clone path per repository) from repos.yaml.
 
@@ -538,7 +532,9 @@ def _claimed_issues(run=_run, args=None, failed: list | None = None) -> list[dic
 
 
 def _default_unreadable(args, failed: list) -> bool:
-    return getattr(args, "default_repo", HERE_REPO) in failed
+    """The repository the caller depends on could not be read: this repository,
+    or the one named with --repo."""
+    return (getattr(args, "repo", None) or getattr(args, "default_repo", HERE_REPO)) in failed
 
 
 def cmd_status(args, run=_run) -> int:
@@ -610,7 +606,7 @@ def cmd_stale(args, run=_run) -> int:
         c = r["claim"]
         other = r["repo"] != getattr(args, "default_repo", HERE_REPO)
         clone = getattr(args, "clones", {}).get(r["repo"])
-        cd = "cd " + clone + " && " if other and clone else ""
+        git = "git -C '" + clone.replace("\\", "/") + "' " if other and clone else "git "
         common = (
             "#" + str(r["number"]) + " " + r["title"] + NL
             + "    repo       " + r["repo"] + NL
@@ -619,7 +615,7 @@ def cmd_stale(args, run=_run) -> int:
             + "    branch     " + str(c.get("branch")) + NL
             + "    worktree   " + (str(c.get("worktree")) or "(not recorded)") + NL
             + "    last step  " + str(c.get("step")) + NL
-            + "    continue   " + cd + "git fetch origin && git log --oneline origin/main.."
+            + "    continue   " + git + "fetch origin && " + git + "log --oneline origin/main.."
             + str(c.get("branch")) + NL
         )
         if c.get("blocked"):

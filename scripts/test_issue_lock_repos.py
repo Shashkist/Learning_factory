@@ -57,9 +57,9 @@ def test_take_over_line_names_the_other_repository_and_clone(capsys):
     fac = next(b for b in out.split("\n#") if "Five " + OTHER in b)
     here = next(b for b in out.split("\n#") if "Five " + HERE in b)
     assert "--repo Shashkist/factory --steal" in fac
-    assert "cd C:\\projects\\factory && git fetch origin" in fac
+    assert "git -C 'C:/projects/factory' fetch origin && git -C 'C:/projects/factory' log" in fac
     assert "--repo" not in here.split("take over")[1]
-    assert "cd " not in here
+    assert "git -C" not in here and "continue   git fetch origin" in here
 
 
 def test_failed_default_repository_exits_nonzero_without_reassurance(capsys):
@@ -67,6 +67,15 @@ def test_failed_default_repository_exits_nonzero_without_reassurance(capsys):
     assert issue_lock.cmd_status(ns(), gh) == 1
     assert issue_lock.cmd_stale(ns(), gh) == 1
     assert issue_lock.cmd_status(ns(json=True), gh) == 1
+    cap = capsys.readouterr()
+    assert "No issues" not in cap.out and "No claim" not in cap.out and "[]" not in cap.out
+
+
+def test_failed_repo_filter_exits_nonzero_without_reassurance(capsys):
+    gh = Gh(broken=[OTHER])
+    assert issue_lock.cmd_status(ns(repo=OTHER), gh) == 1
+    assert issue_lock.cmd_status(ns(repo=OTHER, json=True), gh) == 1
+    assert issue_lock.cmd_stale(ns(repo=OTHER), gh) == 1
     cap = capsys.readouterr()
     assert "No issues" not in cap.out and "No claim" not in cap.out and "[]" not in cap.out
 
