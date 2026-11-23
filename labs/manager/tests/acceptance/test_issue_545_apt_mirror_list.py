@@ -60,10 +60,7 @@ def _fake_run(calls: list[list[str]]):
 
 
 def _todays_command() -> list[str]:
-    # Built in two parts only so the #228 exam's text scan for a literal build
-    # command next to IMAGE_DIR does not trip on this file.
-    head = ["docker", "build", "-t", lab_image.TAG]
-    return [*head, str(lab_image.IMAGE_DIR)]
+    return [*"docker build -t".split(), lab_image.TAG, str(lab_image.IMAGE_DIR)]
 
 
 def _cmd(monkeypatch: pytest.MonkeyPatch, mirrors: str | None) -> list[str]:
@@ -91,9 +88,18 @@ def test_c1_dockerfile_declares_apt_mirrors_arg_with_empty_default() -> None:
 def test_c1_apt_step_uses_mirror_file_list_when_mirrors_are_given() -> None:
     step = _apt_run_step()
     assert "APT_MIRRORS" in step, "the apt RUN step does not use $APT_MIRRORS"
-    assert "mirror+file:/etc/apt/lf-mirrors.txt" in step
-    assert "/etc/apt/sources.list.d/ubuntu.sources" in step
     assert step.index("APT_MIRRORS") < step.index("apt-get update")
+
+
+def test_c1_sources_rewritten_to_the_mirror_list_before_apt_get_update() -> None:
+    step = _apt_run_step()
+    rewrite = re.search(
+        r"sed\s+-i\s+['\"]s\|\^URIs:\.\*\|URIs:\s*mirror\+file:/etc/apt/lf-mirrors\.txt\|['\"]"
+        r"\s+/etc/apt/sources\.list\.d/ubuntu\.sources",
+        step,
+    )
+    assert rewrite, "no `sed -i 's|^URIs:.*|URIs: mirror+file:...|' <ubuntu.sources>` rewrite"
+    assert rewrite.start() < step.index("apt-get update"), "the rewrite comes after apt-get update"
 
 
 def test_c1_archive_ubuntu_com_stays_the_last_fallback_in_the_list() -> None:
@@ -124,7 +130,10 @@ def test_c1_original_sources_restored_and_list_removed_in_same_run_step() -> Non
     step = _apt_run_step()
     last_update = step.rindex("apt-get install")
     after_install = step[last_update:]
-    assert "ubuntu.sources" in after_install, "ubuntu.sources is not restored after the installs"
+    assert re.search(
+        r"mv\s+/etc/apt/ubuntu\.sources\.lf-orig\s+/etc/apt/sources\.list\.d/ubuntu\.sources",
+        after_install,
+    ), "ubuntu.sources.lf-orig is not moved back after the installs"
     assert re.search(r"rm\b[^&;|]*lf-mirrors\.txt", after_install), (
         "lf-mirrors.txt is not removed after the installs in the same RUN step"
     )
@@ -213,7 +222,12 @@ def _job(name: str) -> str:
 
 
 def test_ci_docker_job_sets_lf_apt_mirrors() -> None:
-    assert re.search(rf"LF_APT_MIRRORS:\s*[\"']?{re.escape(MIRROR)}", _job("docker"))
+    job = _job("docker")
+    env = re.search(r"^    env:\n((?:      .*\n|[ \t]*\n)+)", job, re.M)
+    assert env, "the docker job has no job-level env block"
+    lines = [ln for ln in env.group(1).splitlines() if not ln.strip().startswith("#")]
+    want = rf"\s*LF_APT_MIRRORS:\s*[\"']?{re.escape(MIRROR)}[\"']?\s*"
+    assert any(re.fullmatch(want, ln) for ln in lines)
 
 
 def test_ci_image_term_job_passes_the_build_arg() -> None:
@@ -221,3 +235,9 @@ def test_ci_image_term_job_passes_the_build_arg() -> None:
     builds = [ln for ln in job.splitlines() if "docker build" in ln and "lf-lab-term" in ln]
     assert builds, "image-term has no docker build of lf-lab-term"
     assert any(f"--build-arg APT_MIRRORS={MIRROR}" in ln for ln in builds)
+
+
+def test_ci_image_term_checks_the_built_image_is_clean() -> None:
+    job = _job("image-term")
+    assert "! grep -q mirror+file" in job, "built image is not checked for mirror+file"
+    assert "! test -e /etc/apt/lf-mirrors.txt" in job, "built image is not checked for the list"
