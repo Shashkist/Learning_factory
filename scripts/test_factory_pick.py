@@ -137,8 +137,10 @@ REPOS_YAML = f"- repo: {HERE}\n  default: true\n- repo: {OTHER}\n  default: fals
 class GhDeps:
     def __init__(self, body, fail_view=True):
         self.body, self.fail_view = body, fail_view
+        self.calls = []
 
     def __call__(self, argv):
+        self.calls.append(argv)
         repo = argv[argv.index("-R") + 1] if "-R" in argv else HERE
         if argv[:2] == ["issue", "list"]:
             if repo != HERE:
@@ -171,6 +173,24 @@ def test_dependency_repository_matches_repos_yaml_ignoring_case(monkeypatch, cap
     gh = GhDeps("Depends on shashkist/FACTORY#2", fail_view=False)
     factory_pick.main([], run=gh)
     assert capsys.readouterr().out.startswith(f"{HERE}#1")
+    views = [c for c in gh.calls if c[:2] == ["issue", "view"]]
+    assert len(views) == 1 and views[0][views[0].index("-R") + 1] == OTHER
+
+
+def test_parse_depends_url_forms():
+    for dep in (
+        "https://www.github.com/Shashkist/factory/issues/3",
+        "http://github.com/Shashkist/factory/issues/3",
+        "[#3](https://www.github.com/Shashkist/factory/issues/3)",
+        "[#3](https://github.com/Shashkist/factory/issues/3/)",
+        "[#3](https://github.com/Shashkist/factory/issues/3#issuecomment-99)",
+    ):
+        assert factory_pick.parse_depends("Depends on " + dep, HERE) == [(OTHER, 3)], dep
+
+
+def test_parse_depends_task_list_item():
+    for body in ("- [ ] Depends on #12", "- [x] Depends on #12", "* [X] Depends on #12"):
+        assert factory_pick.parse_depends(body, HERE) == [(HERE, 12)], body
 
 
 def test_repository_with_unreadable_claims_is_left_out(monkeypatch, capsys, tmp_path):

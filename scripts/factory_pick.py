@@ -21,13 +21,14 @@ import issue_lock
 # "Depends on" counts at the start of a line, list item or bold text, or of a sentence;
 # prose such as "no longer depends on #12" does not.
 _DEPENDS = re.compile(
-    r"(?:^[ \t]*(?:[-*+][ \t]+)?\**[ \t]*|[.!?;][ \t]+)depends on\b[\s*:]*([^\n]*)",
+    r"(?:^[ \t]*(?:[-*+][ \t]+(?:\[[ xX]\][ \t]+)?)?\**[ \t]*|[.!?;][ \t]+)depends on\b[\s*:]*([^\n]*)",
     re.IGNORECASE | re.MULTILINE,
 )
 _SENTENCE_END = re.compile(r"[.;](?:\s|$)|;")
-_URL = r"https://github\.com/([\w.-]+/[\w.-]+)/(?:issues|pull)/(\d+)"
-# A markdown link or a plain issue URL (repository from the URL), else `[owner/name]#n`.
-_REF = re.compile(rf"\[[^\]]*\]\({_URL}\)|{_URL}|(?:([\w.-]+/[\w.-]+))?#(\d+)")
+_URL = r"https?://(?:www\.)?github\.com/([\w.-]+/[\w.-]+)/(?:issues|pull)/(\d+)"
+_LINK = re.compile(r"\[[^\]]*\]\(([^)]*)\)")  # [text](url): only the URL counts
+# An issue URL (repository from the URL), else `[owner/name]#n`.
+_REF = re.compile(rf"{_URL}|(?:([\w.-]+/[\w.-]+))?#(\d+)")
 
 
 def parse_depends(body: str, repo: str) -> list[tuple[str, int]]:
@@ -36,11 +37,12 @@ def parse_depends(body: str, repo: str) -> list[tuple[str, int]]:
     `#n` is an issue of `repo`; a link or URL names its own repository."""
     out: list[tuple[str, int]] = []
     for line in _DEPENDS.findall(body or ""):
+        line = _LINK.sub(r"\1", line)
         line = _SENTENCE_END.split(line, maxsplit=1)[0]
         if line.strip().lower().startswith("none"):
             continue
-        for l_repo, l_n, u_repo, u_n, other, number in _REF.findall(line):
-            ref = (l_repo or u_repo or other or repo, int(l_n or u_n or number))
+        for u_repo, u_n, other, number in _REF.findall(line):
+            ref = (u_repo or other or repo, int(u_n or number))
             if ref not in out:
                 out.append(ref)
     return out
