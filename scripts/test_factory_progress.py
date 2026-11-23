@@ -471,3 +471,48 @@ def test_push_times_out_kills_ssh_and_fails_on_nonzero_exit():
     with pytest.raises(subprocess.CalledProcessError):
         fp._push(["false"], b"x", 5)
     fp._push(["cat"], b"x", 5)
+
+
+def _pid_gone(pid):
+    end = time.time() + 5
+    while time.time() < end:
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            return True
+        time.sleep(0.1)
+    return False
+
+
+def test_push_is_bounded_when_the_child_never_reads_a_large_stdin():
+    t0 = time.time()
+    with pytest.raises(subprocess.TimeoutExpired):
+        fp._push([sys.executable, "-c", "import time; time.sleep(60)"], b"x" * 200_000, 2)
+    took = time.time() - t0
+    print(f"bounded push took {took:.1f}s")
+    assert took < 7
+    assert fp._ssh_proc == []
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="needs POSIX process groups")
+def test_push_timeout_kills_the_grandchild_too(tmp_path):
+    pidfile = tmp_path / "gc"
+    code = ("import subprocess, sys, time; "
+            f"g = subprocess.Popen(['sleep', '300']); open({str(pidfile)!r}, 'w').write(str(g.pid)); "
+            "time.sleep(300)")
+    with pytest.raises(subprocess.TimeoutExpired):
+        fp._push([sys.executable, "-c", code], b"x", 1.5)
+    assert _pid_gone(int(pidfile.read_text()))
+
+
+def test_expired_watchdog_does_not_overwrite_a_finished_push(monkeypatch, tmp_path):
+    state = tmp_path / "k.last"
+    monkeypatch.setattr(fp.os, "_exit", lambda c: None)
+    monkeypatch.setattr(fp, "_pushed", threading.Event())
+    fp._pushed.set()
+    state.write_text("abc 1.0")
+    fp._publish_expired(state)
+    assert state.read_text() == "abc 1.0"
+    fp._pushed.clear()
+    fp._publish_expired(state)
+    assert state.read_text().startswith("fail ")

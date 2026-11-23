@@ -388,8 +388,18 @@ def _push(argv: list[str], data: bytes, timeout: float) -> None:
     proc = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                             start_new_session=os.name != "nt")
     _ssh_proc.append(proc)
+
+    def feed() -> None:  # a blocking write must not hold the caller: the child may never read stdin
+        try:
+            assert proc.stdin is not None
+            proc.stdin.write(data)
+            proc.stdin.close()
+        except (OSError, ValueError):
+            pass
+
+    threading.Thread(target=feed, daemon=True).start()
     try:
-        proc.communicate(input=data, timeout=timeout)
+        proc.wait(timeout=timeout)
         if proc.returncode:
             raise subprocess.CalledProcessError(proc.returncode, argv[0])
     except BaseException:
@@ -403,14 +413,34 @@ def _push(argv: list[str], data: bytes, timeout: float) -> None:
         _ssh_proc.clear()
 
 
+_pushed = threading.Event()   # set right before the success write: the watchdog must not overwrite it
+
+
+def _write_state(state: Path, text: str) -> None:
+    tmp = state.with_name(state.name + f".{os.getpid()}.tmp")
+    tmp.write_text(text)
+    os.replace(tmp, state)
+
+
 def _publish_expired(state: Path) -> None:
     for proc in _ssh_proc:
         _kill_tree(proc)
-    try:
-        state.write_text(f"fail {time.time()}")
-    except OSError:
-        pass
+    if not _pushed.is_set():
+        try:
+            _write_state(state, f"fail {time.time()}")
+        except OSError:
+            pass
     os._exit(0)
+
+
+def _start_publish_watchdog(argv: list[str]) -> threading.Timer | None:
+    """CLI only: the publish process ends at T + 15 s whatever hangs (read_events, render, ssh)."""
+    if "--key" not in argv or argv.index("--key") + 1 >= len(argv):
+        return None
+    timer = threading.Timer(_publish_timeout() + 15, _publish_expired, (Path(argv[argv.index("--key") + 1] + ".last"),))
+    timer.daemon = True
+    timer.start()
+    return timer
 
 
 def cmd_publish(a: argparse.Namespace) -> bool:
@@ -418,15 +448,7 @@ def cmd_publish(a: argparse.Namespace) -> bool:
     liveness signal; after a failure wait BACKOFF_S. State file: '<hash> <time>' or 'fail <time>'.
     --force pushes now (the final state of a pass must not be dropped by the gap); --min-age N is the
     between-passes heartbeat: push iff the last push is at least N s old, whatever the content."""
-    state = Path(a.key + ".last")
-    # Started before anything can block (read_events, render, ssh): the process ends at T + 15 s whatever hangs.
-    watchdog = threading.Timer(_publish_timeout() + 15, _publish_expired, (state,))
-    watchdog.daemon = True
-    watchdog.start()
-    try:
-        return _publish(a, state)
-    finally:
-        watchdog.cancel()
+    return _publish(a, Path(a.key + ".last"))
 
 
 def _publish(a: argparse.Namespace, state: Path) -> bool:
@@ -454,9 +476,10 @@ def _publish(a: argparse.Namespace, state: Path) -> bool:
     try:
         _push(argv, data, _publish_timeout())
     except (OSError, subprocess.SubprocessError):
-        state.write_text(f"fail {now}")
+        _write_state(state, f"fail {now}")
         raise
-    state.write_text(f"{h} {now}")
+    _pushed.set()
+    _write_state(state, f"{h} {now}")
     return True
 
 
@@ -512,4 +535,6 @@ def main(argv: list[str] | None = None) -> int:
 if __name__ == "__main__":
     if sys.argv[1:2] == ["hook"]:
         _hook_io().start_watchdog(0)  # a hook must never outlive its caller; exiting 0 never blocks it
+    elif sys.argv[1:2] == ["publish"]:
+        _start_publish_watchdog(sys.argv[1:])
     sys.exit(main())
