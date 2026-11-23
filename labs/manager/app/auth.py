@@ -232,6 +232,7 @@ _proxy_log = logging.getLogger("app.auth")
 _PROXY_TTL_DEFAULT = 30.0
 _PROXY_TTL_MIN = 1.0
 _PROXY_TTL_MAX = 3600.0
+_PROXY_BACKOFF = 1.0
 _proxy_lock = threading.Lock()
 # (name, expires at monotonic, trusted addresses)
 _proxy_cache: tuple[str, float, frozenset[str]] | None = None
@@ -298,19 +299,27 @@ def _release_lookup(generation: int) -> None:
             _proxy_refreshing = False
 
 
-def _trusted_proxy_name() -> str | None:
-    """The host name in LF_TRUSTED_PROXY; None when unset, blank or an IP literal."""
+def _trusted_proxy_setting() -> tuple[str, bool]:
+    """LF_TRUSTED_PROXY read once: the stripped value and whether it is an IP literal."""
     trusted = (os.environ.get("LF_TRUSTED_PROXY") or "").strip()
     if not trusted:
-        return None
+        return "", False
     try:
         ipaddress.ip_address(trusted)
     except ValueError:
-        return trusted
-    return None
+        return trusted, False
+    return trusted, True
 
 
-def _refresh_proxy_in_background(trusted: str) -> None:
+def _back_off_proxy(trusted: str, known: frozenset[str], generation: int) -> None:
+    """Keep the known answer for a short backoff so one exhausted window logs one warning."""
+    global _proxy_cache
+    with _proxy_lock:
+        if generation == _proxy_generation:
+            _proxy_cache = (trusted, time.monotonic() + min(_proxy_ttl(), _PROXY_BACKOFF), known)
+
+
+def _refresh_proxy_in_background(trusted: str, known: frozenset[str] = frozenset()) -> None:
     generation = _claim_lookup()
     if generation is None:
         return
@@ -325,13 +334,14 @@ def _refresh_proxy_in_background(trusted: str) -> None:
         threading.Thread(target=run, name="lf-proxy-lookup", daemon=True).start()
     except Exception as exc:  # not BaseException: an interrupt may leave a running worker
         _release_lookup(generation)  # no worker will ever clear the flag
+        _back_off_proxy(trusted, known, generation)
         _proxy_log.warning("trusted proxy %s: cannot start the lookup thread (%s)", trusted, exc)
 
 
 def warm_trusted_proxy() -> None:
     """Blocking startup lookup, counted as in flight so a request meanwhile starts no second one."""
-    trusted = _trusted_proxy_name()
-    if trusted is None:
+    trusted, is_ip = _trusted_proxy_setting()
+    if not trusted or is_ip:
         return
     generation = _claim_lookup()
     if generation is None:
@@ -355,10 +365,11 @@ def trusted_proxy_addresses() -> frozenset[str]:
 
     Inside a running event loop this only reads the cache: a missing or expired entry is refreshed
     in a worker thread (nobody trusted until the first answer, the last answer meanwhile)."""
-    trusted = _trusted_proxy_name()
-    if trusted is None:
-        literal = (os.environ.get("LF_TRUSTED_PROXY") or "").strip()
-        return frozenset({literal}) if literal else frozenset()
+    trusted, is_ip = _trusted_proxy_setting()
+    if not trusted:
+        return frozenset()
+    if is_ip:
+        return frozenset({trusted})
     with _proxy_lock:
         cached = _proxy_cache
     if cached and cached[0] == trusted:
@@ -368,7 +379,7 @@ def trusted_proxy_addresses() -> frozenset[str]:
     else:
         known = frozenset()
     if _in_event_loop():
-        _refresh_proxy_in_background(trusted)
+        _refresh_proxy_in_background(trusted, known)
         return known
     with _proxy_lock:
         generation = _proxy_generation
