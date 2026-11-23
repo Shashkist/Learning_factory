@@ -332,3 +332,28 @@ def test_dot_segments_and_lookalike_urls_are_redacted():
         assert fp.scrub("see " + url) == "see <url>"
     ok = "https://github.com/Shashkist/Learning_factory/pull/9"
     assert fp.scrub(ok) == ok
+
+
+@pytest.mark.parametrize("text", [
+    "github.com/Shashkist/factory/../../someone/else",
+    "github.com/Shashkist/Learning_factory/x/../../../someone/else",
+    "github.com/Shashkist/factory/%2e%2e/someone",
+    "github.com/Shashkist/factory/a\someone",
+    "https://github.com/Shashkist/factory/pull%2f..%2f..%2fsomeone",
+    "github.com/Shashkist/factory/pull%2Fsomeone",
+    "https://evil.shashkist.com.someone.net/x",
+    "https://attackershashkist.com/x",
+])
+def test_scrub_redacts_traversal_and_lookalike_hosts(text):
+    assert fp.scrub("see " + text) == "see <url>"
+
+
+@pytest.mark.parametrize("text", [
+    "https://github.com/Shashkist/Learning_factory/pull/552",
+    "https://github.com/Shashkist/factory/pull/1.",
+    "(https://github.com/Shashkist/factory/pull/1)",
+    "https://lab.shashkist.com/x",
+    "https://labs.shashkist.com",
+])
+def test_scrub_keeps_plain_allowed_urls(text):
+    assert fp.scrub(text) == text

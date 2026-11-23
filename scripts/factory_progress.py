@@ -70,8 +70,8 @@ _SLUG = re.compile(r"^[\w .:/#()+\-]{1,60}$", re.UNICODE)
 _SCRUB = [
     (re.compile(r"\b\d{1,3}(?:\.\d{1,3}){3}\b"), "<ip>"),
     (re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+"), "<email>"),
-    (re.compile(r"https?://(?!github\.com/Shashkist/Learning_factory(?:[/?#\s]|$))(?!github\.com/Shashkist/factory/)(?![\w.-]*shashkist\.com)\S+", re.IGNORECASE), "<url>"),
-    (re.compile(r"https?://\S*(?:/\.\.|%2e|%5c|\\)\S*", re.IGNORECASE), "<url>"),
+    (re.compile(r"https?://(?!github\.com/Shashkist/Learning_factory(?:[/?#\s]|$))(?!github\.com/Shashkist/factory/)(?!(?:[\w-]+\.)*shashkist\.com(?:[:/?#\s]|$))\S+", re.IGNORECASE), "<url>"),
+    (re.compile(r"(?:https?://|\bgithub\.com/)\S*(?:/\.\.|%2e|%5c|%2f|\\)\S*", re.IGNORECASE), "<url>"),
     (re.compile(r"\bgithub\.com/(?!Shashkist/Learning_factory(?:[/?#\s]|$))(?!Shashkist/factory/)\S+", re.IGNORECASE), "<url>"),
     (re.compile(r"(?:[A-Za-z]:\\|/(?:root|home|Users|etc|var|tmp|c)/)\S*"), "<path>"),
     (re.compile(r"\b[A-Za-z0-9_\-]{32,}\b"), "<redacted>"),
