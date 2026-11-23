@@ -200,8 +200,9 @@ for (const state of SHOT_STATES)
   for (const lang of ["en", "he"] as const)
     for (const scheme of ["light", "dark"] as const)
       for (const width of [1280, 390]) {
-        const file = `${SHOTS}/333-lab-${state}-${lang}-${scheme}-${width}.png`;
-        test(`AC7: screenshot of the lab screen (${state}), ${lang}, ${scheme}, ${width} px is saved to ${file}`, async ({ page }) => {
+        const shot = `333-lab-${state}-${lang}-${scheme}-${width}.png`;
+        const file = `${SHOTS}/${shot}`;
+        test(`AC7: screenshot of the lab screen (${state}), ${lang}, ${scheme}, ${width} px is saved to test-results/design-screenshots/${shot}`, async ({ page }) => {
           fs.mkdirSync(SHOTS, { recursive: true });
           await page.emulateMedia({ colorScheme: scheme });
           const { state: mode } = await openLab(page, lang, width, width === 1280 ? 800 : 844);

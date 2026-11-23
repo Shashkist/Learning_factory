@@ -144,8 +144,9 @@ const MATRIX = (["login", "labs-zero", "labs-one", "labs-several"] as const).fla
 );
 
 for (const s of MATRIX) {
-  const file = `${SHOTS}/332-${s.pg}-${s.lang}-${s.scheme}-${s.width}.png`;
-  test(`AC7: screenshot of ${s.pg}, ${s.lang}, ${s.scheme}, ${s.width} px is saved to ${file}`, async ({ page }) => {
+  const shot = `332-${s.pg}-${s.lang}-${s.scheme}-${s.width}.png`;
+  const file = `${SHOTS}/${shot}`;
+  test(`AC7: screenshot of ${s.pg}, ${s.lang}, ${s.scheme}, ${s.width} px is saved to test-results/design-screenshots/${shot}`, async ({ page }) => {
     fs.mkdirSync(SHOTS, { recursive: true });
     await setLang(page, s.lang);
     await page.emulateMedia({ colorScheme: s.scheme });

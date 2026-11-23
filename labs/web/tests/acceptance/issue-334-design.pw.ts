@@ -179,8 +179,9 @@ for (const pg of Object.keys(PAGES) as PageName[]) {
   for (const lang of ["en", "he"] as const) {
     for (const scheme of ["light", "dark"] as const) {
       for (const width of [1280, 390]) {
-        const file = `${SHOTS}/334-${pg}-${lang}-${scheme}-${width}.png`;
-        test(`AC6: screenshot of ${pg}, ${lang}, ${scheme}, ${width} px is saved to ${file}`, async ({ page }) => {
+        const shot = `334-${pg}-${lang}-${scheme}-${width}.png`;
+        const file = `${SHOTS}/${shot}`;
+        test(`AC6: screenshot of ${pg}, ${lang}, ${scheme}, ${width} px is saved to test-results/design-screenshots/${shot}`, async ({ page }) => {
           fs.mkdirSync(SHOTS, { recursive: true });
           await setLang(page, lang);
           await page.emulateMedia({ colorScheme: scheme });

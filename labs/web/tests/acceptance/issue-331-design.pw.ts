@@ -159,8 +159,9 @@ const SHOTS_MATRIX = [
 ];
 
 for (const s of SHOTS_MATRIX) {
-  const file = `${SHOTS}/${s.pg}-${s.lang}-${s.scheme}-${s.width}.png`;
-  test(`AC9: screenshot of the ${s.pg} page, ${s.lang}, ${s.scheme}, ${s.width} px is saved to ${file}`, async ({ page }) => {
+  const shot = `${s.pg}-${s.lang}-${s.scheme}-${s.width}.png`;
+  const file = `${SHOTS}/${shot}`;
+  test(`AC9: screenshot of the ${s.pg} page, ${s.lang}, ${s.scheme}, ${s.width} px is saved to test-results/design-screenshots/${shot}`, async ({ page }) => {
     fs.mkdirSync(SHOTS, { recursive: true });
     await setLang(page, s.lang);
     await page.emulateMedia({ colorScheme: s.scheme });
