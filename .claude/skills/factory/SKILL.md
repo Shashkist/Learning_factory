@@ -66,7 +66,7 @@ git checkout -b f/<n>-<slug>
 Update `STATE.md` → **Now** (it names the repository of each in-flight issue) and commit it straight to `main` (`chore(factory): state`).
 
 **Work in parallel (owner, D44): up to 3 issues in flight.** Whenever one issue is waiting (CI, a reviewer, an agent running in the background), claim the next independent one instead of idling.
-- **Independent** means no `Depends on` between them and no overlap in the code they will change. Issues in different repositories are always independent. For example, content under `labs/content/**`, the manager under `labs/manager/**` and CI under `.github/**` can run side by side; two issues in `labs/manager/app/auth.py` cannot.
+- **Independent** means no `Depends on` between them and no overlap in the code they will change. Issues in different repositories never overlap in code, but a cross-repository `Depends on` still orders them. For example, content under `labs/content/**`, the manager under `labs/manager/**` and CI under `.github/**` can run side by side; two issues in `labs/manager/app/auth.py` cannot.
 - Each issue gets its own claim, branch and worktree (`C:\projects\lf-<n>`). The limit of 3 counts both repositories.
 - An issue of another repository (`Shashkist/factory`) is built in a worktree of that repository's clone (`C:\projects\factory-<n>`). Its `gh` calls pass `-R <repo>`, its `issue_lock.py` calls pass `--repo <repo>`, and that repository's own `CLAUDE.md`, `DECISIONS.md` and `OWNER.md` apply.
 - Pass `--issue <n>` on every progress step, so each task shows as its own lane on the live page.
@@ -81,7 +81,7 @@ For every open question: the spec says → `DECISIONS.md` says → research (dis
 
 ## 5 · Exam → build → check (make · check · fix)
 
-1. Dispatch the `exam-writer` agent with the issue and the spec sections. It commits acceptance tests under `labs/**/tests/acceptance/`.
+1. Dispatch the `exam-writer` agent with the issue and the spec sections. It commits acceptance tests under `labs/**/tests/acceptance/` in this repository, and under the repository's own `tests/acceptance/` in another one.
 2. Dispatch the `implementer` agent (worktree) with the issue, the exam and the relevant rules. It makes everything pass locally.
 3. Push and open a PR: title `feat(area): ... (#n)`, body = what / why / how verified / `Closes #n`. Label the issue `status:in-review`.
 4. Wait for CI: `gh pr checks <pr> --watch`. Red → back to the implementer with the exact failure. Max 5 rounds.
@@ -97,15 +97,15 @@ gh pr merge <pr> --squash --delete-branch
 gh run watch $(gh run list --workflow deploy.yml --limit 1 --json databaseId --jq '.[0].databaseId')
 ```
 
-For another repository, shipped means what its `ship:` field in `repos.yaml` says (`main-ci`: green CI on its `main` after the merge, `gh run list -R <repo> --branch main`; no deploy).
+For this repository, ship is the Deploy run and the smoke check below. For another repository, shipped means what its `ship:` field in `repos.yaml` says (`main-ci`: green CI on its `main` after the merge, `gh run list -R <repo> --branch main`; no deploy).
 
-Then the smoke check for what this issue changed (the `smoke.yml` workflow, or curl / Playwright against `https://labs.shashkist.com`, or the server IP with a `Host:` header until DNS exists). Name what you expect to see, then look for it.
+Then, for this repository, the smoke check for what this issue changed (the `smoke.yml` workflow, or curl / Playwright against `https://labs.shashkist.com`, or the server IP with a `Host:` header until DNS exists). Name what you expect to see, then look for it.
 
 ## 7 · Close with evidence
 
 ```bash
 # A `Closes #n` PR already closed the issue at merge; `gh issue close --comment` then posts nothing. Comment first.
-gh issue comment <n> --body "Shipped in #<pr>. Deploy: <run url>. Verified: <what the smoke check showed>."
+gh issue comment <n> --body "Shipped in #<pr>. Deploy: <run url>. Verified: <what the smoke check showed>."   # this repository; for another repository cite its main CI run instead of Deploy
 gh issue close <n> --reason completed   # no-op if the merge closed it
 gh issue edit <n> --add-label status:done --remove-label status:in-review
 python scripts/issue_lock.py release <n> --session <you> --reason shipped

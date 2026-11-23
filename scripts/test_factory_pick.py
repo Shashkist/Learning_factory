@@ -20,6 +20,27 @@ def test_parse_depends_ignores_non_dependency_lines():
     assert factory_pick.parse_depends("See Shashkist/factory#9\nDepends on #2", HERE) == [(HERE, 2)]
 
 
+def test_parse_depends_link_and_url_name_their_repository():
+    link = "Depends on [#3](https://github.com/Shashkist/factory/issues/3), #4"
+    assert factory_pick.parse_depends(link, HERE) == [(OTHER, 3), (HERE, 4)]
+    assert factory_pick.parse_depends("Depends on https://github.com/a/b/pull/5", HERE) == [("a/b", 5)]
+
+
+def test_parse_depends_negated_prose_is_not_a_dependency():
+    assert factory_pick.parse_depends("It no longer depends on #12.", HERE) == []
+    assert factory_pick.parse_depends("- Depends on #12", HERE) == [(HERE, 12)]
+    assert factory_pick.parse_depends("Goal. Depends on #12.", HERE) == [(HERE, 12)]
+
+
+def test_cli_prints_dash_without_priority_label(monkeypatch, capsys):
+    monkeypatch.setattr(issue_lock, "read_repos", lambda: ([HERE], HERE, {}))
+    monkeypatch.setattr(issue_lock, "claimed", lambda repos, run, failed: [])
+    run = lambda argv: json.dumps([{"number": 1, "title": "T", "createdAt": "2026-11-01T00:00:00Z",
+                                    "labels": [{"name": "status:ready"}], "body": ""}])
+    assert factory_pick.main([], run=run) == 0
+    assert capsys.readouterr().out == f"{HERE}#1\t-\tT\n"
+
+
 class Gh:
     def __init__(self):
         self.calls = []
@@ -52,7 +73,7 @@ def test_cli_prints_order_and_caches_dependency_lookups(monkeypatch, capsys, tmp
         f"- repo: {HERE}\n  default: true\n- repo: {OTHER}\n  default: false\n", encoding="utf-8"
     )
     monkeypatch.setenv("LF_REPOS_FILE", str(repos))
-    monkeypatch.setattr(issue_lock, "_claimed_issues", lambda run, args, failed: [])
+    monkeypatch.setattr(issue_lock, "claimed", lambda repos, run, failed: [])
     gh = Gh()
     assert factory_pick.main(["--in-flight", f"{HERE}#2"], run=gh) == 0
     # #1 depends on factory#7 (closed), so it is free; #2 is in flight; #3 depends on #7 of factory.
@@ -61,7 +82,7 @@ def test_cli_prints_order_and_caches_dependency_lookups(monkeypatch, capsys, tmp
         f"{OTHER}#3\tp2\tFree",
     ]
     views = [c for c in gh.calls if c[:2] == ["issue", "view"]]
-    assert len(views) == 1 and "-R" in views[0]
+    assert len(views) == 1 and views[0][views[0].index("-R") + 1] == OTHER
 
 
 def test_cli_excludes_claimed_issues_and_reports_unreadable_repo(monkeypatch, capsys, tmp_path):

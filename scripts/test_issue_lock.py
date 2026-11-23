@@ -233,6 +233,12 @@ class TestStatus:
         parsed = json.loads(capsys.readouterr().out)
         assert parsed[0]["claim"]["session"] == "e-sign-e4"
 
+    def test_public_claimed_helper_returns_the_claim_rows(self):
+        gh = FakeGh(comments=[claim_comment()], issues=[{"number": 42, "title": "Theirs"}])
+        rows = issue_lock.claimed([issue_lock.HERE_REPO], gh)
+        assert [(r["repo"], r["number"]) for r in rows] == [(issue_lock.HERE_REPO, 42)]
+        assert issue_lock.claimed([issue_lock.HERE_REPO], FakeGh()) == []
+
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))

@@ -531,6 +531,13 @@ def _claimed_issues(run=_run, args=None, failed: list | None = None) -> list[dic
     return out
 
 
+def claimed(repos: list[str], run=_run, failed: list | None = None) -> list[dict]:
+    """Claim rows (with `repo` and `number`) of the given repositories; `failed`
+    collects the ones that could not be read."""
+    args = argparse.Namespace(repos=repos, default_repo=HERE_REPO, repo=None)
+    return _claimed_issues(run, args, failed)
+
+
 def _default_unreadable(args, failed: list) -> bool:
     """The repository the caller depends on could not be read: this repository,
     or the one named with --repo."""
