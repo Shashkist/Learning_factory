@@ -280,6 +280,9 @@ def _resolve_proxy(trusted: str, generation: int) -> frozenset[str]:
         if _proxy_logged != (trusted, found):
             _proxy_logged = (trusted, found)
             _proxy_log.info("trusted proxy %s -> %s", trusted, ", ".join(sorted(found)) or "(none)")
+        run = _proxy_warned.pop(trusted, None)  # a lookup ran: the run of failures is over
+    if run:
+        _log_settled_run(trusted, run[1])
     return found
 
 
@@ -313,18 +316,39 @@ def _trusted_proxy_setting() -> tuple[str, bool]:
 
 
 _PROXY_WARN_EVERY = 60.0
-_proxy_warned: dict[str, tuple[float, int]] = {}  # name -> (last warning, suppressed since)
+# name -> (last warning, suppressed since, last failed start)
+_proxy_warned: dict[str, tuple[float, int, float]] = {}
+
+
+def _log_settled_run(trusted: str, suppressed: int) -> None:
+    """Settle a finished run of failures by logging its pending count as its own line.
+
+    Logged, not dropped: it keeps the information (how many warnings the run swallowed), and as a
+    separate line it can never be read as part of a later, unrelated warning."""
+    if suppressed:
+        _proxy_log.warning(
+            "trusted proxy %s: lookup thread start failures ended (%d similar warnings suppressed)",
+            trusted,
+            suppressed,
+        )
 
 
 def _warn_start_failed(trusted: str, exc: Exception) -> None:
-    """At most one warning per minute per name; the next one reports how many were suppressed."""
+    """One warning per minute per run of failures; the next window's first carries the count.
+
+    A run ends with a completed lookup or a quiet gap longer than the window; its pending count is
+    then settled on its own line and the next failure starts a fresh run."""
     now = time.monotonic()
+    settled = 0
     with _proxy_lock:
-        last, suppressed = _proxy_warned.get(trusted, (None, 0))
+        last, suppressed, last_failure = _proxy_warned.get(trusted, (None, 0, now))
+        if last is not None and now - last_failure > _PROXY_WARN_EVERY:
+            settled, suppressed, last = suppressed, 0, None
         if last is not None and now - last < _PROXY_WARN_EVERY:
-            _proxy_warned[trusted] = (last, suppressed + 1)
+            _proxy_warned[trusted] = (last, suppressed + 1, now)
             return
-        _proxy_warned[trusted] = (now, 0)
+        _proxy_warned[trusted] = (now, 0, now)
+    _log_settled_run(trusted, settled)
     note = f" ({suppressed} similar warnings suppressed)" if suppressed else ""
     _proxy_log.warning(
         "trusted proxy %s: cannot start the lookup thread (%s)%s", trusted, exc, note
