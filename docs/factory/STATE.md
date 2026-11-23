@@ -5,7 +5,7 @@
 ## Now
 
 **Pass lf-c7m4 (laptop, 10:26 UTC 2026-11-23, stopping ~12:10).** Resume here, all claims held by lf-c7m4 (take them over with `--steal`):
-- **Incident #541 (p0) first:** main CI 45154808144 on af1def6 red twice, only the `docker` job (`lf-lab-term:exam` build timed out after 900 s on a slow archive.ubuntu.com, D143). Attempt 3 was re-run at ~11:20 UTC; if it is green, close #541 with that run; if red again, work **#545** (hardening, p2 → treat as p0 while main is red).
+- **Incident #541 (p0) first:** main CI 45154808144 on af1def6 red twice, only the `docker` job (`lf-lab-term:exam` build timed out after 900 s on a slow archive.ubuntu.com, D143). Attempt 3 (re-run ~11:20 UTC) was red too, so **work #545 first (raised to p0)**: the exam image build must not depend on archive.ubuntu.com alone. Close #541 with the first green main CI after it.
 - **#530** merged: PR #538 (review round 2 approved, nits only) squashed as **c494eb4** at ~11:50 UTC. Its main CI and Deploy follow (the docker job may hit the mirror again, see #541). Once a Deploy has deployed c494eb4 and the smoke passed, close #530 with that evidence (deploy log line `trusted proxy ... -> <addresses>`), label `status:done`, release the claim, and remove the worktree `C:\projects\lf-530-2` (branch `f/530-proxy-deploy-line-2` is merged).
 - **#542** (slice 1 of #536, worktree `C:\projects\lf-542`): exam bec0e2b (assumes `LF_REPOS_FILE`), implementer dispatched ~11:35 UTC. Check the branch for its commit; then PR, CI, review.
 - **#543** (slice 2, worktree `C:\projects\lf-543`): exam a436a56, implementer dispatched ~11:45 UTC. Same next steps. Do not touch `issue_lock.py` here (#542 owns it).
