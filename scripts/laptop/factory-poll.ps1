@@ -35,6 +35,45 @@ function Publish-Live([string]$state = '', [string]$note = '', [switch]$Force) {
 New-Item -ItemType Directory -Force $StateDir, $RunsDir | Out-Null
 function Log($m) { "$(Get-Date -Format s)  $m" | Add-Content -Encoding utf8 $Log }
 
+# Hook processes left behind (#230). On Windows, Claude Code runs a hook through Git Bash, which starts python
+# suspended and resumes it a moment later; a shell killed in between (the hook timeout, taskkill at the end
+# of a pass) leaves python suspended forever: one thread, no CPU, never runs a line. Nothing inside python
+# can fix that, so the runner does it in two ways:
+#  1. Enter-PassJob puts the pass in a job object that Windows kills when this runner exits, with
+#     everything still in it, suspended or not.
+#  2. Stop-OrphanHooks, every tick, stops the hook processes older than 2 minutes, which also catches
+#     those from runs before the job existed. A live hook is bounded by its 5 s timeout and 30 s watchdog.
+function Stop-OrphanHooks {
+    try {
+        $cutoff = (Get-Date).AddMinutes(-2)
+        $old = @(Get-CimInstance Win32_Process -Filter "Name='python.exe'" | Where-Object {
+            $_.CommandLine -match '[\/]factory_progress\.py"?\s+hook\b|[\/]factory_guard\.py' -and $_.CreationDate -lt $cutoff })
+        foreach ($p in $old) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue }
+        if ($old.Count -gt 0) { Log "stopped $($old.Count) orphaned hook process(es) (#230)" }
+    } catch {}
+}
+
+function Enter-PassJob {
+    # Best effort: on failure the pass still runs, and Stop-OrphanHooks cleans up on the next tick.
+    try {
+        Add-Type -Namespace LF -Name Job -MemberDefinition @'
+[DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] public static extern IntPtr CreateJobObject(IntPtr attributes, string name);
+[DllImport("kernel32.dll", SetLastError = true)] public static extern bool SetInformationJobObject(IntPtr job, int infoClass, byte[] info, uint length);
+[DllImport("kernel32.dll", SetLastError = true)] public static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
+[DllImport("kernel32.dll")] public static extern IntPtr GetCurrentProcess();
+'@
+        $script:PassJob = [LF.Job]::CreateJobObject([IntPtr]::Zero, $null)   # never closed: it closes when this runner exits
+        if ($script:PassJob -eq [IntPtr]::Zero) { return $false }
+        # JOBOBJECT_EXTENDED_LIMIT_INFORMATION (class 9); LimitFlags sits at byte 16 on x86 and x64.
+        $info = New-Object byte[] $(if ([IntPtr]::Size -eq 8) { 144 } else { 112 })
+        [BitConverter]::GetBytes([uint32]0x2000).CopyTo($info, 16)   # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        if (-not [LF.Job]::SetInformationJobObject($script:PassJob, 9, $info, [uint32]$info.Length)) { return $false }
+        return [LF.Job]::AssignProcessToJobObject($script:PassJob, [LF.Job]::GetCurrentProcess())
+    } catch { return $false }
+}
+
+Stop-OrphanHooks
+
 function Notify($title, $text, $key) {
     # Rate-limited Windows notification: the same $key alerts at most once every 3 hours.
     $f = Join-Path $StateDir "alert-$key"
@@ -178,6 +217,9 @@ Stop after about $PassMinutes minutes of work or 3 merged PRs, and update docs/f
     & python $Progress pass-start --pass-no ($passes + 1) @budgetArg 2>$null | Out-Null
     Publish-Live
     $runLog = Join-Path $RunsDir ("{0}.log" -f (Get-Date -Format 'yyyyMMdd-HHmm'))
+    # From here on, everything this runner starts dies with it (#230). Joined this late on purpose: the
+    # browser that the one-time dashboard notice may open must outlive the runner.
+    if (-not (Enter-PassJob)) { Log 'job object unavailable: hook orphans are cleaned on the next tick instead' }
     $job = Start-Job -ScriptBlock {
         param($wt, $claude, $model, $p, $out, $progressFile, $hooks)
         Set-Location $wt
