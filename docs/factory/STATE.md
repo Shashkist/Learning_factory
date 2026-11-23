@@ -4,6 +4,8 @@
 
 ## Now
 
+**Pass lf-b4t8 running (laptop, from 08:30 UTC 2026-11-23).** In flight: **#530** rebuild on `f/530-proxy-deploy-line-2` (worktree `C:\projects\lf-530-2`; exam ba18956 + new exam-only case 703a1d9; implementer working; #535 to be closed for the new PR). **#534** PR #537 (`f/534-dashboard-dead-ago`, worktree `C:\projects\lf-534`). **#532** exam-only on `f/532-dashboard-exams-crew-dir` (worktree `C:\projects\lf-532`). The laptop is slow this pass (Python start ~7 s, `uv run pytest` sometimes "Access is denied": use `uv run python -m pytest`).
+
 **Pass lf-f5r1 finished (laptop, 06:27-08:00 UTC 2026-11-23).** Shipped #524 (#531; main CI 45127726835) and #481 (#533, rebuild of #529; Factory dashboard 45132438673, live `app.js` byte-equal to 4891f15). Closed #521 for lf-h2v9 (#528, Deploy 45123754939 deployed 140b270, smoke ok). Follow-ups #532, #534.
 
 **Resume here: #530** (claim held by lf-f5r1 with the plan). PR #535 (`f/530-proxy-deploy-line`, worktree `C:\projects\lf-530`) has green CI but review round 1 CHANGES (D142 amendment 2, point 3). Rebuild as `f/530-proxy-deploy-line-2` from `origin/main`: cherry-pick exam 61f0832; exam-writer adds an exam-only case (warm lookup, clock past TTL, run of start failures, lookup with unchanged addresses: the line `deploy.sh` picks names the addresses); implementer starts from 195b18b and logs the settled line then the info line again (even unchanged) inside `_proxy_lock`. Then close #535, open the new PR, review round 2.
