@@ -218,6 +218,7 @@ async def _bridge(websocket: WebSocket, sid: uuid.UUID) -> None:
             proxy=None,
             open_timeout=5,
         )
+        # test stubs for connect must return an awaitable object, not a coroutine (else a quiet 502)
         pending.process_redirect = _refuse_redirect  # type: ignore[method-assign]
         upstream = await pending
     except Exception as exc:
