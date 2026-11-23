@@ -46,15 +46,6 @@ function fill(id, rows, build, emptyText) {
   });
 }
 
-function ago(iso) {
-  var t = Date.parse(iso);
-  if (isNaN(t)) return "at an unknown time";
-  var min = Math.max(0, Math.round((Date.now() - t) / 60000));
-  if (min < 1) return "just now";
-  if (min < 90) return min + " min ago";
-  return Math.round(min / 60) + " h ago";
-}
-
 function sparkline(days, label) {
   var ns = "http://www.w3.org/2000/svg";
   var svg = document.createElementNS(ns, "svg");
@@ -572,6 +563,7 @@ function fold(key, summary, content, startOpen) {
 // ---- Crew: every agent and subagent from the transcripts (scripts/factory_crew.py), nested by parent.
 var CREW_STATES = { busy: "working", thinking: "thinking", waiting: "waiting on its agents", idle: "idle", finished: "finished" };
 
+// Every age on the page: seconds below 120 s, then minutes below 90 min, then hours ("" for a broken value).
 function ago(iso) {
   var t = Date.parse(iso);
   if (isNaN(t)) return "";
