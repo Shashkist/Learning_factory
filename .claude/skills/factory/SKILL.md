@@ -99,7 +99,9 @@ Then the smoke check for what this issue changed (the `smoke.yml` workflow, or c
 ## 7 · Close with evidence
 
 ```bash
-gh issue close <n> --reason completed --comment "Shipped in #<pr>. Deploy: <run url>. Verified: <what the smoke check showed>."
+# A `Closes #n` PR already closed the issue at merge; `gh issue close --comment` then posts nothing. Comment first.
+gh issue comment <n> --body "Shipped in #<pr>. Deploy: <run url>. Verified: <what the smoke check showed>."
+gh issue close <n> --reason completed   # no-op if the merge closed it
 gh issue edit <n> --add-label status:done --remove-label status:in-review
 python scripts/issue_lock.py release <n> --session <you> --reason shipped
 ```

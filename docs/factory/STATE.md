@@ -4,12 +4,10 @@
 
 ## Now
 
-**Pass lf-q8m2 running (laptop, from 03:00 UTC 2026-11-23).** Claims: #515, #505 (stolen from lf-7c20, whose reviews never posted a verdict), #519.
-- **#515**, PR #518 (`f/515-proxy-backoff-fresh`, worktree `C:\projects\lf-515`): CI green; review round 1 dispatched 03:00.
-- **#505**, PR #520 (`f/505-seam-check-bom-2`, worktree `C:\projects\lf-505b`): CI green; review round 2 dispatched 03:00.
-- **#519** (`f/519-pw-i18n-paths`, worktree `C:\projects\lf-519`): exam-only fix in progress.
+**Pass lf-q8m2 finished (laptop, 03:00-~04:15 UTC 2026-11-23): 3 PRs merged (the cap), one PR left open for the next pass.** Claim on #504 stays with lf-q8m2; steal it with a reason (`issue_lock.py claim 504 --steal`).
+- **#504**, PR #526 (`f/504-live-view-ties-2`, worktree `C:\projects\lf-504b`): rebuilt after review round 1 on #525 (CHANGES: an unscoped step did not move its issue row's station; D141). Commits: exam 5d408ed, exam 0984d59, code bd5a931 + e2711da; local: 214 dashboard exam cases pass, exam integrity ok. Review round 2 was dispatched at 04:04 in parallel with CI. **Next:** check PR #526 for a `Verdict:` comment (if none, the review died with the pass: dispatch it again). On APPROVE + green CI: merge, then the Factory dashboard run (not Deploy) publishes `app.js`; check the live `app.js` matches the merge commit, comment the evidence with `gh issue comment 504` (a `Closes` PR closes the issue at merge, so `gh issue close --comment` posts nothing), labels, release the claim. On CHANGES: this is round 2, so the manager decides and splits leftovers (FACTORY.md).
 
-Pass lf-7c20 also closed #510 (#514) and #508 (#512) for the timed-out pass lf-n3r6 (Deploy 45091479162 deployed 8a5a4eb, smoke ok), and shipped #513 (#517, exam-only; main CI 45098711352, Deploy 45100497842 deployed 8c13bec, smoke ok). New follow-up: #519.
+Pass lf-q8m2 shipped #515 (#518) and #505 (#520): Deploy 45106491102 deployed e496bf8, smoke ok; #519 (#522, exam-only): Deploy 45108693143 deployed ca06aef, smoke ok. Follow-ups: #521 (from #518), #523 (from #522), #524 (scripts test leaks `LF_CREW_DIR` on the laptop: unset it when running `uvx pytest scripts` locally). Old worktrees `C:\projects\lf-505`, `lf-510`, `lf-68b`, `lf-76`, `lf-76e`, `lf-331`, `lf-331e` and an empty `lf-515` folder can likely go; check each is clean and its PR closed first (`git worktree list`). A qa plugin guard hook blocks shell loops over git worktrees; use one literal path per command.
 
 Pass lf-k7w3 finished: #332 (#507) and #488 (#509) shipped, Deploy 45079262786 deployed 756c3be, smoke ok, both closed with evidence; follow-ups #508, #510.
 
@@ -17,7 +15,7 @@ Older pass notes are in `history.md` and git history (`git log -p docs/factory/S
 
 ## Next (in order)
 
-1. See Now (#518, #520). Then **#519** (exam-only, small). p3 follow-ups: **#481** and **#504** (live view, one dashboard issue at a time: both touch `app.js`).
+1. See Now (#526). Then **#481** (live view; after #504 merges, both touch `app.js`). Small p3 follow-ups: **#524** (scripts test env), **#523** (exam-only), **#521** (manager logging).
 2. **#468** (bootstrap exam nits, p3; now on top of #56's exam), **#423** (validator misses, p3; time real shells first; an old worktree `C:\projects\lf-423` exists, check it before starting).
 3. **#436**, **#431** (lab screen follow-ups, p3). **#85** deploy follow-ups; p2 list: #81, #84, #64, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
@@ -34,6 +32,7 @@ Older pass notes are in `history.md` and git history (`git log -p docs/factory/S
 
 ## Recently done
 
+- 2026-11-23 pass lf-q8m2: #515 (#518) and #505 (#520) (Deploy 45106491102 deployed e496bf8, smoke ok), #519 (#522; Deploy 45108693143 deployed ca06aef, smoke ok). Open: #526 (#504, D141).
 - 2026-11-23 pass lf-7c20: #513 (#517; Deploy 45100497842 deployed 8c13bec, smoke ok); closed #510 (#514) and #508 (#512) for lf-n3r6 (Deploy 45091479162). Open: #518 (#515), #520 (#505).
 - 2026-11-22 pass lf-k7w3: #490 (#503; Deploy 45073550030, smoke ok), #488 (#509), #332 (#507, D139; Deploy 45079262786 deployed 756c3be, smoke ok). Dependabot #494, #496, #497, #501.
 - 2026-11-22 pass lf-d9q2: Dependabot #495 (checkout v7.0.1; Deploy 45060978121, smoke ok), #498 (setup-node v7.1.0; main CI 45061457138, Deploy 45063469070, smoke ok), #487 (#502, re-sequenced #499; Factory dashboard 45065366470, live app.js byte-equal to f8a7014). #490 in PR #503 (approved). Closed by lf-c4z8: #76, #485.
