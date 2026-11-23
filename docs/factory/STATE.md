@@ -4,9 +4,9 @@
 
 ## Now
 
-**Pass lf-f5r1 running (laptop, from 06:27 UTC 2026-11-23).** Closed #521 for lf-h2v9 (#528, Deploy 45123754939 deployed 140b270, smoke ok). In flight:
-- **#481** rebuild on `f/481-live-view-freshness-2` (worktree `C:\projects\lf-481`, D142 amendment): exam commits cherry-picked, two-step exam case next, then code. PR #529 (old branch) to be closed when the new PR opens.
-- **#530**, **#524** next in parallel.
+**Pass lf-f5r1 finished (laptop, 06:27-08:00 UTC 2026-11-23).** Shipped #524 (#531; main CI 45127726835) and #481 (#533, rebuild of #529; Factory dashboard 45132438673, live `app.js` byte-equal to 4891f15). Closed #521 for lf-h2v9 (#528, Deploy 45123754939 deployed 140b270, smoke ok). Follow-ups #532, #534.
+
+**Resume here: #530** (claim held by lf-f5r1 with the plan). PR #535 (`f/530-proxy-deploy-line`, worktree `C:\projects\lf-530`) has green CI but review round 1 CHANGES (D142 amendment 2, point 3). Rebuild as `f/530-proxy-deploy-line-2` from `origin/main`: cherry-pick exam 61f0832; exam-writer adds an exam-only case (warm lookup, clock past TTL, run of start failures, lookup with unchanged addresses: the line `deploy.sh` picks names the addresses); implementer starts from 195b18b and logs the settled line then the info line again (even unchanged) inside `_proxy_lock`. Then close #535, open the new PR, review round 2.
 
 Pass lf-h2v9 merged #526 (#504) and #528 (#521); #481 review round 1 asked for changes (live age froze).
 
@@ -18,7 +18,7 @@ Older pass notes are in `history.md` and git history (`git log -p docs/factory/S
 
 ## Next (in order)
 
-1. See Now (#526). Then **#481** (live view; after #504 merges, both touch `app.js`). Small p3 follow-ups: **#527** (after #504), **#524** (scripts test env), **#523** (exam-only), **#521** (manager logging).
+1. **#530** rebuild (see Now). Small p3 follow-ups: **#527** and **#534** (both `app.js`, one at a time), **#532** (exam-only), **#523** (exam-only).
 2. **#468** (bootstrap exam nits, p3; now on top of #56's exam), **#423** (validator misses, p3; time real shells first; an old worktree `C:\projects\lf-423` exists, check it before starting).
 3. **#436**, **#431** (lab screen follow-ups, p3). **#85** deploy follow-ups; p2 list: #81, #84, #64, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
@@ -35,6 +35,7 @@ Older pass notes are in `history.md` and git history (`git log -p docs/factory/S
 
 ## Recently done
 
+- 2026-11-23 pass lf-f5r1: #524 (#531; main CI 45127726835), #481 (#533; Factory dashboard 45132438673, live app.js byte-equal to 4891f15); closed #521 (#528) for lf-h2v9. Open: #535 (#530, changes).
 - 2026-11-23 pass lf-q8m2: #515 (#518) and #505 (#520) (Deploy 45106491102 deployed e496bf8, smoke ok), #519 (#522; Deploy 45108693143 deployed ca06aef, smoke ok). Open: #526 (#504, D141).
 - 2026-11-23 pass lf-7c20: #513 (#517; Deploy 45100497842 deployed 8c13bec, smoke ok); closed #510 (#514) and #508 (#512) for lf-n3r6 (Deploy 45091479162). Open: #518 (#515), #520 (#505).
 - 2026-11-22 pass lf-k7w3: #490 (#503; Deploy 45073550030, smoke ok), #488 (#509), #332 (#507, D139; Deploy 45079262786 deployed 756c3be, smoke ok). Dependabot #494, #496, #497, #501.
