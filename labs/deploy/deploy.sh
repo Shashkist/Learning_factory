@@ -98,7 +98,8 @@ if ! grep -q '^LF_DATABASE_URL=.' "$envf"; then
   exit 0
 fi
 chmod 600 "$envf"
-if grep -Eq '^[[:space:]]*(export[[:space:]]+)?LF_TERM_UPSTREAM[[:space:]]*[=:]' "$envf"; then
+# A bare key (no value) counts too: compose hands it on from the shell. A leading UTF-8 BOM is stripped first.
+if sed '1s/^﻿//' "$envf" | grep -Eq '^[[:space:]]*(export[[:space:]]+)?LF_TERM_UPSTREAM[[:space:]]*([=:]|$)'; then
   die "LF_TERM_UPSTREAM is set in .env (a test seam); remove that line, it must never run in production"
 fi
 
