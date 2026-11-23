@@ -12,19 +12,27 @@ import argparse
 import json
 import re
 import sys
+from pathlib import Path
 from types import SimpleNamespace
 
+# Loaded by path from other folders too (the dashboard exam): find the sibling module.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 import issue_lock
 
-_DEPENDS_LINE = re.compile(r"^\s*depends on\b(.*)$", re.IGNORECASE | re.MULTILINE)
+_DEPENDS = re.compile(r"\bdepends on\b[\s*:]*([^\n]*)", re.IGNORECASE)
+_SENTENCE_END = re.compile(r"[.;](?:\s|$)|;")
 _REF = re.compile(r"(?:([\w.-]+/[\w.-]+))?#(\d+)")
 
 
 def parse_depends(body: str, repo: str) -> list[tuple[str, int]]:
-    """References on `Depends on` lines, in order, without duplicates. A bare
+    """References after `Depends on` (anywhere in a line, up to the end of that
+    sentence; `none` means no dependency), in order, without duplicates. A bare
     `#n` is an issue of `repo`."""
     out: list[tuple[str, int]] = []
-    for line in _DEPENDS_LINE.findall(body or ""):
+    for line in _DEPENDS.findall(body or ""):
+        line = _SENTENCE_END.split(line, maxsplit=1)[0]
+        if line.strip().lower().startswith("none"):
+            continue
         for other, number in _REF.findall(line):
             ref = (other or repo, int(number))
             if ref not in out:
@@ -34,12 +42,12 @@ def parse_depends(body: str, repo: str) -> list[tuple[str, int]]:
 
 def _priority(issue: dict) -> int:
     labels = set(issue.get("labels", []))
-    if "type:incident" in labels and "priority:p0" in labels:
-        return 0
+    if "priority:p0" in labels:
+        return 0 if "type:incident" in labels else 1
     for rank in (1, 2, 3):
         if f"priority:p{rank}" in labels:
-            return rank
-    return 4
+            return rank + 1
+    return 5
 
 
 def pick(issues: list[dict], in_flight) -> list[dict]:
@@ -55,17 +63,23 @@ def pick(issues: list[dict], in_flight) -> list[dict]:
     return sorted(ready, key=lambda i: (_priority(i), i["created"]))
 
 
-def _list_issues(repo: str, run, states: dict) -> list[dict]:
+def _list_issues(repo: str, run, states: dict, known: list[str] | None = None) -> list[dict]:
     rows = json.loads(run(["issue", "list", "-R", repo, "--state", "open", "--limit", "200",
                            "--json", "number,title,labels,createdAt,body"]))
     out = []
     for r in rows:
         depends = []
         for dep_repo, dep_n in parse_depends(r.get("body") or "", repo):
+            dep_repo = next((k for k in known or [] if k.lower() == dep_repo.lower()), dep_repo)
             if (dep_repo, dep_n) not in states:
-                view = json.loads(run(["issue", "view", "-R", dep_repo, str(dep_n),
-                                       "--json", "state"]))
-                states[(dep_repo, dep_n)] = view["state"].lower()
+                try:
+                    view = json.loads(run(["issue", "view", "-R", dep_repo, str(dep_n),
+                                           "--json", "state"]))
+                    states[(dep_repo, dep_n)] = view["state"].lower()
+                except (RuntimeError, ValueError, KeyError):
+                    print(f"warning: cannot read {dep_repo}#{dep_n}; treated as open",
+                          file=sys.stderr)
+                    states[(dep_repo, dep_n)] = "open"
             depends.append({"repo": dep_repo, "number": dep_n, "state": states[(dep_repo, dep_n)]})
         out.append({"repo": repo, "number": r["number"], "title": r.get("title", ""),
                     "labels": [lab["name"] for lab in r.get("labels", [])],
@@ -92,16 +106,20 @@ def main(argv: list[str] | None = None, run=issue_lock._run) -> int:
     busy = _parse_in_flight(args.in_flight)
     lock_args = SimpleNamespace(repos=chosen, default_repo=default, clones=clones, repo=None)
     failed: list = []
-    busy |= {(r["repo"], r["number"]) for r in issue_lock._claimed_issues(run, lock_args, failed)}
+    busy_failed: list = []
+    busy |= {(r["repo"], r["number"]) for r in issue_lock._claimed_issues(run, lock_args, busy_failed)}
+    failed += busy_failed
     issues, states = [], {}
     for repo in chosen:
         try:
-            issues += _list_issues(repo, run, states)
+            issues += _list_issues(repo, run, states, repos)
         except (RuntimeError, ValueError, KeyError) as e:
             print(f"cannot read {repo}: {e}", file=sys.stderr)
             failed.append(repo)
+    # A repository whose claims could not be read is not treated as "none claimed".
+    issues = [i for i in issues if i["repo"] not in busy_failed]
     for i in pick(issues, busy):
-        prio = "p0" if _priority(i) == 0 else f"p{_priority(i)}"
+        prio = "p0" if _priority(i) <= 1 else f"p{_priority(i) - 1}"
         print(f"{i['repo']}#{i['number']}\t{prio}\t{i['title']}")
     return 1 if failed else 0
 
