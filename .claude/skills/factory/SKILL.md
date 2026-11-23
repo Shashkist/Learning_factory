@@ -39,6 +39,8 @@ python scripts/issue_lock.py status
 python scripts/issue_lock.py stale
 ```
 
+Do the same for every repository in `docs/factory/repos.yaml` (D143): `gh issue list -R <repo> ...`, `gh pr list -R <repo>`, `gh run list -R <repo>`, `python scripts/issue_lock.py status --repo <repo>`. `status` without `--repo` already shows every repository.
+
 - An open Dependabot PR (`dependabot/github_actions/...`) is handled first, without an issue: CI green, check each new SHA is the tag's commit and skim the release notes, squash-merge (FACTORY.md "Dependabot PRs", D138).
 - If `STATE.md` → **Now** names an issue and branch: that is the work to resume, unless its claim is held by a live session.
 - A stale claim's branch is continued, not restarted.
@@ -54,18 +56,19 @@ Fewer than 5 issues `status:ready`? Slice more from the spec (phase order, depen
 
 ## 3 · Pick and claim
 
-The highest priority (`p0` > `p1` > `p2`) `status:ready` issue whose dependencies are closed:
+The highest priority (`p0` > `p1` > `p2`) `status:ready` issue whose dependencies are closed, in any repository of `repos.yaml`. `python scripts/factory_pick.py` prints the order (incident p0, p0, p1, p2, p3, oldest first; `<repo>#<n>`, priority, title) and leaves out claimed issues and those with an open dependency; `--repo <owner/name>` limits it to one repository.
 
 ```bash
 python scripts/issue_lock.py claim <n> --session <you> --branch f/<n>-<slug> --step 'reading the issue'
 git checkout -b f/<n>-<slug>
 ```
 
-Update `STATE.md` → **Now** and commit it straight to `main` (`chore(factory): state`).
+Update `STATE.md` → **Now** (it names the repository of each in-flight issue) and commit it straight to `main` (`chore(factory): state`).
 
 **Work in parallel (owner, D44): up to 3 issues in flight.** Whenever one issue is waiting (CI, a reviewer, an agent running in the background), claim the next independent one instead of idling.
-- **Independent** means no `Depends on` between them and no overlap in the code they will change. For example, content under `labs/content/**`, the manager under `labs/manager/**` and CI under `.github/**` can run side by side; two issues in `labs/manager/app/auth.py` cannot.
-- Each issue gets its own claim, branch and worktree (`C:\projects\lf-<n>`).
+- **Independent** means no `Depends on` between them and no overlap in the code they will change. Issues in different repositories are always independent. For example, content under `labs/content/**`, the manager under `labs/manager/**` and CI under `.github/**` can run side by side; two issues in `labs/manager/app/auth.py` cannot.
+- Each issue gets its own claim, branch and worktree (`C:\projects\lf-<n>`). The limit of 3 counts both repositories.
+- An issue of another repository (`Shashkist/factory`) is built in a worktree of that repository's clone (`C:\projects\factory-<n>`). Its `gh` calls pass `-R <repo>`, its `issue_lock.py` calls pass `--repo <repo>`, and that repository's own `CLAUDE.md`, `DECISIONS.md` and `OWNER.md` apply.
 - Pass `--issue <n>` on every progress step, so each task shows as its own lane on the live page.
 - Merges stay one at a time: rebase onto the new `main`, then wait for green CI again.
 - Stop starting new issues once ~75 of the ~90 minutes are used; finish or park what is in flight.
@@ -93,6 +96,8 @@ git log --oneline origin/main..HEAD        # know what you ship
 gh pr merge <pr> --squash --delete-branch
 gh run watch $(gh run list --workflow deploy.yml --limit 1 --json databaseId --jq '.[0].databaseId')
 ```
+
+For another repository, shipped means what its `ship:` field in `repos.yaml` says (`main-ci`: green CI on its `main` after the merge, `gh run list -R <repo> --branch main`; no deploy).
 
 Then the smoke check for what this issue changed (the `smoke.yml` workflow, or curl / Playwright against `https://labs.shashkist.com`, or the server IP with a `Host:` header until DNS exists). Name what you expect to see, then look for it.
 
