@@ -4,7 +4,9 @@
 
 ## Now
 
-**Pass lf-w2k6 running (laptop, from 13:57 UTC 2026-11-23).** In flight: **#545** PR #552 (claim taken over from lf-r9d2; CI docker job, then review, merge, close); **#544** (branch `f/544-pick-across-repos`, worktree `C:\projects\lf-544`, claim lf-w2k6): exam first.
+**Pass lf-w2k6 finished (laptop, 13:57-15:27 UTC 2026-11-23, stopped at 3 merges).** No issue in flight, no claim held. Resume here:
+- **#536 criterion 5**: all three slices are merged (#542, #543, #544), so the factory can now pick from Shashkist/factory. `python scripts/factory_pick.py` (on main) lists Shashkist/factory#1 (p1) first; that is the next pick (work it in a worktree of its clone, `C:\projectsactory-<n>`, `gh -R Shashkist/factory`, `issue_lock.py --repo`, that repository's own CLAUDE.md). #536 itself closes when a pass builds and merges factory#1.
+- Merged this pass: **#552** (#545 exam, c1188fc; main CI 45199100557 built the exam image through azure.archive.ubuntu.com), **#554** (#551, c728db0; live `app.js` byte-equal), **#553** (#544, decb573). Closed #545, #551, #544. Follow-ups **#555** (redaction forms, p3) and **#556** (pick-order nits, p3). Decisions: D144 amendment 2, D145 (after two rounds the manager applies a one-line fix; review cases become unit tests).
 
 **Pass lf-r9d2 finished (laptop, 12:28-14:00 UTC 2026-11-23, stopped at 3 merges).** Resume here:
 - **#545 (p0) PR #552** (exam-only, branch `f/545-mirror-list-exam`, worktree `C:\projects\lf-545b`, claim lf-r9d2: take over with `--steal --reason`). The code shipped in #550 (ae1057b): its `image-term` job built through `azure.archive.ubuntu.com` and passed the restored-sources check. Next: wait for #552's CI (its `docker` job is the first exam image build through the mirror list; expect it well under the old 18 min), dispatch a reviewer (round 1 of the exam PR; the exam was reviewed twice inside #548/#550), squash-merge, close #545 with: #550 + #552 merges, main CI green after both, and a main `docker` job log showing `azure.archive.ubuntu.com` in the exam build.
@@ -27,7 +29,7 @@ Older pass notes are in `history.md` and git history (`git log -p docs/factory/S
 
 ## Next (in order)
 
-1. **#545** PR #552 (see Now). **#544** (slice 3 of #536, pick order across repositories; #542 merged, so it is unblocked; D143 amendment 1 note: a full `status --json` with a non-default repository unreadable still exits 0 with its rows missing). Then #536 criterion 5 (a pass builds and merges Shashkist/factory#1). **#551** (p2, `factory_progress.py` + `app.js`), **#527** (`app.js`, p3; #543 merged), **#523** (exam-only).
+1. **Shashkist/factory#1** (#536 criterion 5, see Now); then the order `factory_pick.py` prints. **#527** (`app.js`, p3), **#523** (exam-only), **#555**, **#556** (p3 follow-ups).
 2. **#468** (bootstrap exam nits, p3; now on top of #56's exam), **#423** (validator misses, p3; time real shells first; an old worktree `C:\projects\lf-423` exists, check it before starting).
 3. **#436**, **#431** (lab screen follow-ups, p3). **#85** deploy follow-ups; p2 list: #81, #84, #64, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
@@ -44,6 +46,7 @@ Older pass notes are in `history.md` and git history (`git log -p docs/factory/S
 
 ## Recently done
 
+- 2026-11-23 pass lf-w2k6: #545 (#550 + #552; main CI 45199100557, Deploy 45191319753 deployed 1b6261a), #551 (#554; Factory dashboard 45203270186, live app.js byte-equal to c728db0), #544 (#553; `factory_pick.py` run on main). Follow-ups #555, #556.
 - 2026-11-23 pass lf-c7m4: #538 (#530, c494eb4; deploy evidence pending); closed #532 (#539) with Dashboard CI 45154808016; sliced #536 into #542-#544 (D143); incident #541 and hardening #545 opened.
 
 - 2026-11-23 pass lf-f5r1: #524 (#531; main CI 45127726835), #481 (#533; Factory dashboard 45132438673, live app.js byte-equal to 4891f15); closed #521 (#528) for lf-h2v9. Open: #535 (#530, changes).
