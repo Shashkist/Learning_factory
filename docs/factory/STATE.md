@@ -5,8 +5,9 @@
 ## Now
 
 **Pass lf-p8x5 running (laptop, from 18:26 UTC 2026-11-23).** In flight:
-- **#558** (claim lf-p8x5, branch `f/558-bounded-publish`, worktree `C:\projects\lf-558`): cause found (D147: one push hung ~2 h in pass 10); exam being written.
-- **Shashkist/factory#2** (claim lf-p8x5, branch `f/2-project-profile`, worktree `C:\projects\factory-2`): schema decided in factory D4; exam being written.
+- **#558 PR #560** (claim lf-p8x5, branch `f/558-bounded-publish`, worktree `C:\projects\lf-558`): cause found (D147: one push hung ~2 h in pass 10; on Windows `communicate()` blocks writing stdin over ~4 KB, so its timeout never fired). Round 1 CHANGES fixed in 6f594e3 (stdin writer thread + `wait(timeout)`, watchdog on the CLI path only, atomic state writes); CI and review round 2 running. Next: merge on APPROVE, then verify on the laptop that `live.json` `updated` stays within ~2 min of the newest event for a whole pass (criterion 2), close #558.
+- **Shashkist/factory#2** (claim lf-p8x5): PR #15 (`f/2-project-profile`, worktree `C:\projects\factory-2`) got round 1 CHANGES (factory D4 amendment 1: `models` roles, area globs outside the root, `.` glob crash, duplicate keys, empty strings, and a destructive string in the exam). Rebuild in progress as `f/2-project-profile-2` (worktree `C:\projects\factory-2b`): exam-only commit first (exam-writer), then cherry-pick code 79b4404 and fix per the amendment (implementer), new PR, close #15, review round 2.
+- Sliced **factory#3** into **factory#12** (claims), **#13** (progress and crew, port after LF #558), **#14** (CI paths, incident gate, docs) (factory D5); #3 now depends on them, they depend on #2.
 - Closed **#536** (factory#9 merged; live.json lists a `Shashkist/factory` lane). New owner item **O26** (heartbeat task not installed).
 
 **Pass lf-h6q3 finished (laptop, 15:58-17:40 UTC 2026-11-23, stopped at 3 merges).** No claim held. Resume here:
