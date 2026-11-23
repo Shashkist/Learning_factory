@@ -351,6 +351,7 @@ function crewRef(title, d) {   // "#12" is this repository's issue; "factory#1" 
   if (!m) return null;
   var issue = Number(m[2]), short = (m[1] || "").toLowerCase();
   if (!short || short === "learning_factory") return { repo: "", issue: issue };
+  if (short !== "factory") return { repo: "", issue: issue };   // "PR#547": not a repository name, so this repository's issue
   var issues = arr(d.issues);
   for (var j = 0; j < issues.length; j++) {
     var repo = S(issues[j].repo);

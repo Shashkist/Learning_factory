@@ -45,7 +45,6 @@ TOOL_CATEGORIES = {"Bash": "Bash", "PowerShell": "Bash", "Read": "Read", "Edit":
                    "Agent": "Agent", "Task": "Agent", "WebSearch": "Web", "WebFetch": "Web", "Skill": "Skill",
                    "TodoWrite": "Plan"}
 THIS_REPO = "Shashkist/Learning_factory"   # events without a repository belong here
-_REPO = re.compile(r"^[\w.-]{1,40}/[\w.-]{1,60}$")
 # Repositories whose names may appear in the public live.json (compared case-insensitively). #544/repos.yaml can feed this later.
 ALLOWED_REPOS = {r.lower(): r for r in (THIS_REPO, "Shashkist/factory")}
 
@@ -71,8 +70,9 @@ _SLUG = re.compile(r"^[\w .:/#()+\-]{1,60}$", re.UNICODE)
 _SCRUB = [
     (re.compile(r"\b\d{1,3}(?:\.\d{1,3}){3}\b"), "<ip>"),
     (re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+"), "<email>"),
-    (re.compile(r"https?://(?!github\.com/Shashkist/Learning_factory(?:[/?#\s]|$))(?!github\.com/Shashkist/factory/)(?![\w.-]*shashkist\.com)\S+"), "<url>"),
-    (re.compile(r"https?://\S*(?:/\.\.|%2e)\S*", re.IGNORECASE), "<url>"),
+    (re.compile(r"https?://(?!github\.com/Shashkist/Learning_factory(?:[/?#\s]|$))(?!github\.com/Shashkist/factory/)(?![\w.-]*shashkist\.com)\S+", re.IGNORECASE), "<url>"),
+    (re.compile(r"https?://\S*(?:/\.\.|%2e|%5c|\\)\S*", re.IGNORECASE), "<url>"),
+    (re.compile(r"\bgithub\.com/(?!Shashkist/Learning_factory(?:[/?#\s]|$))(?!Shashkist/factory/)\S+", re.IGNORECASE), "<url>"),
     (re.compile(r"(?:[A-Za-z]:\\|/(?:root|home|Users|etc|var|tmp|c)/)\S*"), "<path>"),
     (re.compile(r"\b[A-Za-z0-9_\-]{32,}\b"), "<redacted>"),
 ]
@@ -242,9 +242,6 @@ def render(events: list[dict]) -> dict:
         elif kind == "runner-state":
             runner.update(state=e.get("state", "idle"), note=e.get("note", ""))
         elif kind == "step":
-            if canon_repo(e.get("repo")) is None:   # the redaction boundary: no foreign repository name gets through
-                continue
-            e = {**e, "repo": canon_repo(e.get("repo"))}
             aid = e["agent"]
             a = agents.setdefault(aid, {"id": aid, "role": e["role"], "issue": issue_no(e.get("issue")) or None, "station": e["station"],
                                         "state": "running", "started": e["at"], "last": e["at"], "substeps": [],
@@ -280,16 +277,16 @@ def render(events: list[dict]) -> dict:
         "updated": t,
         "runner": {k: runner[k] for k in ("state", "pass_no", "budget", "pass_started", "pass_ended", "result", "note")},
         "issues": [{"issue": i["issue"], "repo": i["repo"], "title": scrub(i["title"]), "station": i["station"]} for i in issues.values()],
-        "agents": [{"id": a["id"], "role": a["role"], "issue": a["issue"], "repo": a["repo"], "station": a["station"], "state": a["state"],
+        "agents": [{"id": scrub(a["id"]), "role": a["role"], "issue": a["issue"], "repo": a["repo"], "station": a["station"], "state": a["state"],
                     "started": a["started"], "last": a["last"],
-                    "substeps": [{"station": s["station"], "substep": s["substep"], "status": s["status"],
+                    "substeps": [{"station": s["station"], "substep": scrub(s["substep"]), "status": s["status"],
                                   "issue": s["issue"], "repo": s["repo"], "started": s["started"], "at": s["at"], "detail": scrub(s["detail"])}
                                  for s in a["substeps"]]} for a in agents.values()],
         "workers": render_workers(
             [e for e in evs if not runner["pass_started"] or parse(e["at"]) >= parse(runner["pass_started"])], parse(t)),
         "crew": render_crew(parse(t)),
-        "log": [{"at": e["at"], "issue": e.get("issue"), "repo": e.get("repo") or "", "agent": e["agent"], "role": e["role"],
-                 "station": e["station"], "substep": e["substep"], "status": e["status"],
+        "log": [{"at": e["at"], "issue": e.get("issue"), "repo": e.get("repo") or "", "agent": scrub(e["agent"]), "role": e["role"],
+                 "station": e["station"], "substep": scrub(e["substep"]), "status": e["status"],
                  "detail": scrub(e.get("detail", ""))} for e in log],
     }
 
@@ -302,7 +299,7 @@ def cmd_add(a: argparse.Namespace) -> None:
     if not _SLUG.match(a.substep) or not _SLUG.match(a.agent):
         raise ValueError("agent and substep: up to 60 letters, digits, space and . : / # ( ) + -")
     repo = canon_repo(a.repo)
-    if repo is None or (a.repo and not _REPO.match(a.repo)):
+    if repo is None:
         raise ValueError("repo: this repository or Shashkist/factory")
     detail = sys.stdin.read() if a.detail_file == "-" else ""
     append({"kind": "step", "at": now(), "issue": a.issue, "repo": repo, "title": clean(a.title or "", 90),
