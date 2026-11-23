@@ -4,10 +4,10 @@
 
 ## Now
 
-**Pass lf-n3r6 running (laptop, from 22:57 UTC 2026-11-22).** Lanes (each its own worktree `C:\projects\lf-<n>`):
-- **#510** (trusted proxy: one warning per exhausted window, one read of the setting, D135 notes), branch `f/510-trusted-proxy-warn-once`. Exam next.
-- **#508** (My labs: live-lab exam cases, layout tokens, loading state), branch `f/508-mylabs-live-exam`. Exam next.
-- **#505** (deploy seam check: bare key, BOM; redirect-hook comment), branch `f/505-seam-check-bom`. Exam next.
+**Pass lf-7c20 running (laptop, from 00:56 UTC 2026-11-23).** Pass lf-n3r6 ended by timeout at 00:48 UTC; it had merged #512 (#508) and #514 (#510). lf-7c20 closed both with evidence (Deploy 45091479162 deployed 8a5a4eb, smoke ok). Lanes (each its own worktree `C:\projects\lf-<n>`):
+- **#505**, PR #516 (`f/505-seam-check-bom`), taken over from lf-n3r6: CI, then review round 1.
+- **#515** (trusted proxy backoff keeps a fresher answer, warning throttled), branch `f/515-proxy-backoff-fresh`. Exam next.
+- **#513** (web exams read stylesheets relative to the test file; exam-only), branch `f/513-exam-paths-from-file`. Exam next.
 
 Pass lf-k7w3 finished: #332 (#507) and #488 (#509) shipped, Deploy 45079262786 deployed 756c3be, smoke ok, both closed with evidence; follow-ups #508, #510.
 
