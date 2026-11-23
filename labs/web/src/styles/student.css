@@ -1,6 +1,6 @@
 /* Student pages: login and My labs (D108). Tokens only; logical properties only. */
 .login-card {
-  max-inline-size: 26rem;
+  max-inline-size: var(--form-max);
   margin-inline: auto;
   margin-block-start: var(--space-6);
 }
@@ -10,7 +10,7 @@
 
 .lab-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--card-min)), 1fr));
   gap: var(--space-4);
   margin-block-end: var(--space-5);
 }
@@ -60,7 +60,7 @@
 }
 .lab-card__bar {
   flex: 1;
-  block-size: 0.5rem;
+  block-size: var(--bar-h);
   border: 1px solid var(--color-border-strong);
   border-radius: 999px;
   background: var(--color-surface);
