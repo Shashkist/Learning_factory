@@ -149,6 +149,9 @@ jobs:
     # About 8 minutes when the mirrors answer. The term image build is bounded
     # (#228), so a hung mirror fails fast instead of holding the runner 70+ min.
     timeout-minutes: 33
+    env:
+      # the runners' own mirror first, archive.ubuntu.com as fallback (#545)
+      LF_APT_MIRRORS: http://azure.archive.ubuntu.com/ubuntu/
     defaults:
       run:
         working-directory: labs/manager
@@ -202,7 +205,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build lf-lab-term
-        run: docker build -t ghcr.io/shashkist/lf-lab-term:${{ github.sha }} -t ghcr.io/shashkist/lf-lab-term:latest labs/images/term
+        run: docker build --build-arg APT_MIRRORS=http://azure.archive.ubuntu.com/ubuntu/ -t ghcr.io/shashkist/lf-lab-term:${{ github.sha }} -t ghcr.io/shashkist/lf-lab-term:latest labs/images/term
       - name: Smoke test under production run flags
         run: |
           out=$(docker run --rm --cap-drop ALL --cap-add SETUID --cap-add SETGID --security-opt no-new-privileges --entrypoint su ghcr.io/shashkist/lf-lab-term:${{ github.sha }} - student -c 'id -un; man -w ls')
