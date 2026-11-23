@@ -9,7 +9,7 @@ Static and fake-based (no Docker, no network). Pinned contract:
    `ubuntu.sources` and removes the list in that same RUN step.
 2. The package lists of the two `apt-get install` calls are unchanged, and the
    harness command without `LF_APT_MIRRORS` is exactly today's
-   `docker build -t lf-lab-term:exam <dir>`. With it set, the command adds
+   `docker build -t <exam tag> <dir>`. With it set, the command adds
    `--build-arg APT_MIRRORS=<value>`.
 3. CI: the `docker` job sets `LF_APT_MIRRORS` and the `image-term` job passes the
    build argument, both `http://azure.archive.ubuntu.com/ubuntu/`.
