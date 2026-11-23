@@ -4,6 +4,11 @@
 
 ## Now
 
+**Pass lf-r9d2 (laptop, 12:28 UTC 2026-11-23, stopping ~14:00).** Took over lf-c7m4's claims. Closed #530 (Deploy 45172324113 deployed c494eb4, `trusted proxy nginx-proxy3 -> 172.18.0.14`, smoke ok), #541 (main CI 45168565636 green) and duplicate #540. In flight:
+- **#543** PR #547: CI green, reviewer round 1.
+- **#542** worktree `C:\projects\lf-542`: the implementer left uncommitted `issue_lock.py` + `repos.yaml`; finishing it, then PR.
+- **#545** (p0, mirror resilience): deciding, then exam and build.
+
 **Pass lf-c7m4 (laptop, 10:26 UTC 2026-11-23, stopping ~12:10).** Resume here, all claims held by lf-c7m4 (take them over with `--steal`):
 - **Incident #541 (p0) first:** main CI 45154808144 on af1def6 red twice, only the `docker` job (`lf-lab-term:exam` build timed out after 900 s on a slow archive.ubuntu.com, D143). Attempt 3 (re-run ~11:20 UTC) was red too, so **work #545 first (raised to p0)**: the exam image build must not depend on archive.ubuntu.com alone. Close #541 with the first green main CI after it.
 - **#530** merged: PR #538 (review round 2 approved, nits only) squashed as **c494eb4** at ~11:50 UTC. Its main CI and Deploy follow (the docker job may hit the mirror again, see #541). Once a Deploy has deployed c494eb4 and the smoke passed, close #530 with that evidence (deploy log line `trusted proxy ... -> <addresses>`), label `status:done`, release the claim, and remove the worktree `C:\projects\lf-530-2` (branch `f/530-proxy-deploy-line-2` is merged).
