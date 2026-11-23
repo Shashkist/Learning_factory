@@ -112,10 +112,7 @@ function agoAt(iso) {
 }
 
 function showAge() {
-  var parts = [];
-  if (lastLive) parts.push("live status " + agoAt(lastLive.generated_at));
-  if (lastGenerated) parts.push("GitHub data " + agoAt(lastGenerated));
-  if (parts.length) document.getElementById("updated").textContent = "updated: " + parts.join(" · ");
+  if (lastGenerated) document.getElementById("updated").textContent = "snapshot updated " + agoAt(lastGenerated);
 }
 
 function render(s) {
@@ -227,6 +224,8 @@ function load() {
 var LIVE_STATIONS = ["plan", "exam", "build", "check", "ship"];
 var LIVE_ICONS = { start: "⏳", done: "✅", fail: "❌", wait: "⏸", skip: "⏭", stopped: "⏹" };
 var LIVE_OFFLINE_MS = 2 * 60 * 1000;
+var LIVE_IDLE_OFFLINE_MS = 35 * 60 * 1000;   // the runner polls every 30 min while it is not running
+var LIVE_QUIET = { idle: 1, paused: 1, budget: 1 };
 var LIVE_LOG_MAX = 60;
 var LIVE_ROLE_ICONS = { manager: "🧭", "exam-writer": "📝", implementer: "🔨", reviewer: "🔍",
   researcher: "🔬", scribe: "✍️", agent: "🤖" };
@@ -316,6 +315,7 @@ function agentCard(a, titles, workers, generated) {
     var now = el("div", "now: ", "live-now");
     now.appendChild(lel("b", S(cur.substep), "", { "data-current-substep": "" }));
     card.appendChild(now);
+    if (S(cur.detail)) card.appendChild(el("div", S(cur.detail), "live-detail muted"));
   }
   var ul = el("ul", null, "live-steps");
   subs.forEach(function (s) {
@@ -576,7 +576,7 @@ function ago(iso) {
   var t = Date.parse(iso);
   if (isNaN(t)) return "";
   var s = Math.max(0, Math.round((Date.now() - t) / 1000));
-  return s < 90 ? s + " s ago" : s < 5400 ? Math.round(s / 60) + " min ago" : Math.round(s / 3600) + " h ago";
+  return s < 120 ? s + " s ago" : s < 5400 ? Math.round(s / 60) + " min ago" : Math.round(s / 3600) + " h ago";
 }
 
 function crewCard(n, depth) {
@@ -618,10 +618,23 @@ function renderCrew(crew) {
   return sec;
 }
 
+function quiet(d) {
+  return !!LIVE_QUIET[S((d.runner || {}).state)];
+}
+
+function liveAgeText(d) {
+  var a = ago(d.generated_at);
+  return a ? " · " + (quiet(d) ? "idle, last check " : "") + a : "";
+}
+
 function renderLive(d) {
   var titles = Object.create(null);
   var box = el("div", null, "live-box");
-  box.appendChild(el("div", runnerText(d.runner || {}), "live-runner"));
+  var runner = el("div", runnerText(d.runner || {}), "live-runner");
+  var age = el("span", liveAgeText(d), "muted");
+  age.id = "live-age";
+  runner.appendChild(age);
+  box.appendChild(runner);
 
   box.appendChild(renderLanes(d, function () { renderLive(d); }));
 
@@ -677,12 +690,14 @@ function renderLive(d) {
 }
 
 function showOffline() {
+  var age = document.getElementById("live-age");
+  if (age && lastLive) age.textContent = liveAgeText(lastLive);
   var t = lastLive ? Date.parse(lastLive.generated_at) : NaN;
   // A fresh node every poll: the exam harness's ser() keeps attrs by reference, so a toggled node
   // would show its last state in every step.
   var banner = el("p", "Laptop offline or asleep: showing the last state received.", "live-offline");
   banner.id = "live-offline";
-  banner.hidden = isNaN(t) || Date.now() - t <= LIVE_OFFLINE_MS;
+  banner.hidden = isNaN(t) || Date.now() - t <= (quiet(lastLive) ? LIVE_IDLE_OFFLINE_MS : LIVE_OFFLINE_MS);
   var old = document.getElementById("live-offline");
   if (old) old.remove();
   var body = document.getElementById("live-body");
