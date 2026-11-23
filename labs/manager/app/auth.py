@@ -281,12 +281,13 @@ def _resolve_proxy(trusted: str, generation: int) -> frozenset[str]:
         if changed:
             _proxy_logged = (trusted, found)
         run = _proxy_warned.pop(trusted, None)  # a completed lookup ends the run of failures
-    # The settled line goes first: the resolved-address line must be the last "trusted proxy" line
-    # logged, because deploy.sh prints that one.
-    if run:
-        _log_settled_run(trusted, run[1])
-    if changed:
-        _proxy_log.info("trusted proxy %s -> %s", trusted, ", ".join(sorted(found)) or "(none)")
+        # Both lines are logged under the lock so the log order matches the cache. The settled line
+        # goes first: the addresses line must be the last "trusted proxy" line, because deploy.sh
+        # prints that one (so also after a run of failures, even when the addresses are unchanged).
+        if run:
+            _log_settled_run(trusted, run[1])
+        if changed or run:
+            _proxy_log.info("trusted proxy %s -> %s", trusted, ", ".join(sorted(found)) or "(none)")
     return found
 
 
