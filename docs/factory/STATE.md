@@ -4,6 +4,11 @@
 
 ## Now
 
+**Pass lf-p8x5 running (laptop, from 18:26 UTC 2026-11-23).** In flight:
+- **#558** (claim lf-p8x5, branch `f/558-bounded-publish`, worktree `C:\projects\lf-558`): cause found (D147: one push hung ~2 h in pass 10); exam being written.
+- **Shashkist/factory#2** (claim lf-p8x5, branch `f/2-project-profile`, worktree `C:\projects\factory-2`): schema decided in factory D4; exam being written.
+- Closed **#536** (factory#9 merged; live.json lists a `Shashkist/factory` lane). New owner item **O26** (heartbeat task not installed).
+
 **Pass lf-h6q3 finished (laptop, 15:58-17:40 UTC 2026-11-23, stopped at 3 merges).** No claim held. Resume here:
 - **#558 (p1, needs:laptop)**: the live page stopped publishing at 16:00:49 UTC, five minutes into this pass, while local events kept coming. The laptop runner is guarded (D35), so a laptop session that may read it takes this first. Then **#536** closes: its criterion 5 needs the `factory#1` lane on the page (factory#1 itself is shipped). Log every step of another repository with `--repo` from the first step on.
 - **Next pick** (`python scripts/factory_pick.py`): **Shashkist/factory#2** (project profile) and **factory#3** (tools package), both p1, both now unblocked. Work them in worktrees of `C:\projectsactory` (`C:\projectsactory-<n>`), with `gh -R Shashkist/factory` and `issue_lock.py --repo Shashkist/factory`. That repository's CI now runs: `uv run ruff check .`, `uv run mypy src`, `uv run pytest -q` (on this laptop `uv run python -m pytest` / `-m mypy`, because the `.exe` launchers are blocked). Follow-ups **factory#10**, **factory#11** (p2, exam-integrity hardening).
