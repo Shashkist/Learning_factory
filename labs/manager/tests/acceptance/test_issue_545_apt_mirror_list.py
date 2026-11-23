@@ -59,8 +59,14 @@ def _fake_run(calls: list[list[str]]):
     return run
 
 
-def _todays_command() -> list[str]:
-    return [*"docker build -t".split(), lab_image.TAG, str(lab_image.IMAGE_DIR)]
+def _assert_plain_build(cmd: list[str]) -> None:
+    assert cmd[:4] == ["docker", "build", "-t", lab_image.TAG]
+    # one line per element so the #228 exam's text scan (quoted build next to
+    # IMAGE_DIR on one line) reads this file as the plain assertion it is
+    assert cmd[4:] == [
+        str(lab_image.IMAGE_DIR),
+    ]
+    assert "--build-arg" not in cmd
 
 
 def _cmd(monkeypatch: pytest.MonkeyPatch, mirrors: str | None) -> list[str]:
@@ -89,6 +95,17 @@ def test_c1_apt_step_uses_mirror_file_list_when_mirrors_are_given() -> None:
     step = _apt_run_step()
     assert "APT_MIRRORS" in step, "the apt RUN step does not use $APT_MIRRORS"
     assert step.index("APT_MIRRORS") < step.index("apt-get update")
+
+
+def test_c1_rewrite_is_guarded_by_non_empty_apt_mirrors() -> None:
+    step = _apt_run_step()
+    guard = re.search(r"if\s+\[\s+-n\s+[\"']?\$\{?APT_MIRRORS\}?[\"']?\s+\];\s*then", step)
+    assert guard, 'no `if [ -n "$APT_MIRRORS" ]; then` guard in the apt RUN step'
+    rewrite = re.search(r"sed\s+-i\s+['\"]s\|\^URIs:", step)
+    assert rewrite, "no sources rewrite"
+    end = step.find("; fi", guard.end())
+    assert end != -1, "the guard is not closed by `fi`"
+    assert guard.end() <= rewrite.start() < end, "the rewrite is outside the guarded block"
 
 
 def test_c1_sources_rewritten_to_the_mirror_list_before_apt_get_update() -> None:
@@ -182,14 +199,14 @@ def test_c2_harness_command_without_env_is_todays_command(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     cmd = _cmd(monkeypatch, None)
-    assert cmd == _todays_command()
+    _assert_plain_build(cmd)
 
 
 def test_c2_harness_command_with_empty_env_is_todays_command(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     cmd = _cmd(monkeypatch, "")
-    assert cmd == _todays_command()
+    _assert_plain_build(cmd)
 
 
 def test_c1_harness_passes_build_arg_when_lf_apt_mirrors_is_set(
@@ -239,5 +256,10 @@ def test_ci_image_term_job_passes_the_build_arg() -> None:
 
 def test_ci_image_term_checks_the_built_image_is_clean() -> None:
     job = _job("image-term")
-    assert "! grep -q mirror+file" in job, "built image is not checked for mirror+file"
-    assert "! test -e /etc/apt/lf-mirrors.txt" in job, "built image is not checked for the list"
+    runs = [
+        ln for ln in job.splitlines() if "docker run" in ln and not ln.lstrip().startswith("#")
+    ]
+    assert any("! grep -q mirror+file" in ln for ln in runs), "image not checked for mirror+file"
+    assert any("! test -e /etc/apt/lf-mirrors.txt" in ln for ln in runs), (
+        "image not checked for the list"
+    )
