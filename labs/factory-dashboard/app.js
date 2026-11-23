@@ -379,24 +379,37 @@ function stepIssue(a, s) {   // the issue a step belongs to: its own, else its p
   return Number(a.issue);
 }
 
-function latestIssues(a) {   // the lanes holding the agent's latest sub-steps (same-second steps tie), in step order
+function stepRepo(a, s) {   // the repository of that issue ("" = this repository)
+  var subs = arr(a.substeps);
+  for (var j = subs.indexOf(s); j >= 0; j--) if (Number(subs[j].issue) > 0) return S(subs[j].repo);
+  return S(a.repo);
+}
+
+function laneKey(repo, n) { return repo ? repo + "#" + n : String(n); }   // this repository's lanes keep the bare number
+function laneLabel(repo, n) { return (repo ? repo.split("/").pop() : "") + "#" + n; }   // short name only, never the owner
+
+function latestKeys(a) {   // the lane keys holding the agent's latest sub-steps (same-second steps tie), in step order
   var subs = arr(a.substeps), max = 0, out = [];
   subs.forEach(function (s) { max = Math.max(max, Date.parse(s.at) || 0); });
   subs.forEach(function (s) {
-    var i = stepIssue(a, s);
-    if ((Date.parse(s.at) || 0) === max && i > 0 && out.indexOf(i) < 0) out.push(i);
+    var i = stepIssue(a, s), k = laneKey(stepRepo(a, s), i);
+    if ((Date.parse(s.at) || 0) === max && i > 0 && out.indexOf(k) < 0) out.push(k);
   });
-  return out.length ? out : [Number(a.issue)];
+  return out.length ? out : [laneKey(S(a.repo), Number(a.issue))];
+}
+
+function latestIssues(a) {
+  return latestKeys(a).map(function (k) { return Number(k.split("#").pop()); });
 }
 
 function laneData(d) {
   var lanes = Object.create(null);
   arr(d.issues).forEach(function (i) {
-    if (Number(i.issue) > 0) lanes[i.issue] = { issue: Number(i.issue), title: S(i.title), station: S(i.station), steps: [], agents: [], crew: [] };
+    if (Number(i.issue) > 0) lanes[laneKey(S(i.repo), i.issue)] = { issue: Number(i.issue), repo: S(i.repo), key: laneKey(S(i.repo), i.issue), title: S(i.title), station: S(i.station), steps: [], agents: [], crew: [] };
   });
   arr(d.agents).forEach(function (a) {
     arr(a.substeps).forEach(function (s) {
-      var l = lanes[stepIssue(a, s)];
+      var l = lanes[laneKey(stepRepo(a, s), stepIssue(a, s))];
       if (!l) return;
       if (l.agents.indexOf(a) < 0) l.agents.push(a);
       l.steps.push({ s: s, a: a, open: stepOpen(a, s, arr(a.substeps), d.generated_at) });
@@ -416,14 +429,14 @@ function laneData(d) {
     l.first = l.steps.reduce(function (m, x) { return !m || S(x.s.started) < m ? S(x.s.started) : m; }, "");
     var busy = l.crew.filter(function (n) { return n.state === "busy" || n.state === "thinking"; });
     var openSteps = l.steps.filter(function (x) { return x.open; });
-    l.running = busy.length > 0 || l.agents.some(function (a) { return agentLive(a, d.generated_at) && latestIssues(a).indexOf(l.issue) >= 0; });
+    l.running = busy.length > 0 || l.agents.some(function (a) { return agentLive(a, d.generated_at) && latestKeys(a).indexOf(l.key) >= 0; });
     var cur = LIVE_STATIONS.indexOf(l.station);
     busy.forEach(function (n) {   // an agent at work is the strongest evidence of where the task is
       var at = LIVE_STATIONS.indexOf(ROLE_STATION[S(n.type)] || "");
       if (at > cur) cur = at;
     });
     l.cur = cur;
-    l.pr = prFor(l.issue);
+    l.pr = l.repo ? null : prFor(l.issue);   // the PR list is this repository's
     var merged = l.pr && !l.pr.open;
     l.shipped = !busy.length && !openSteps.some(function (x) { return x.s.station !== "ship"; }) && (merged ||
       (l.station === "ship" && l.steps.some(function (x) { return x.s.station === "ship" && x.s.status === "done"; }) && !openSteps.length));
@@ -504,9 +517,9 @@ function renderLanes(d, rerender) {
     nRun + " working in parallel", nDone ? nDone + " shipped" : "", "click a station for its sub-steps"]), "muted"));
   var done = lanes.filter(function (l) { return l.shipped; });
   lanes.filter(function (l) { return !l.shipped; }).forEach(function (l) {
-    var lane = lel("div", null, "lane", { "data-lane": String(l.issue), "data-running": l.running ? "1" : "0" });
+    var lane = lel("div", null, "lane", { "data-lane": l.key, "data-running": l.running ? "1" : "0" });
     var head = el("div", null, "lane-head");
-    head.appendChild(el("b", "#" + l.issue + " " + l.title));
+    head.appendChild(el("b", laneLabel(l.repo, l.issue) + " " + l.title));
     var pr = l.pr;
     head.appendChild(el("span", " " + joined([pr ? "PR #" + S(pr.p.number) + (pr.open ? "" : " merged") : "",
       l.running ? "working" : "waiting", l.first ? "for " + dur(l.first) : "", l.updated ? "last update " + agoAt(l.updated) : ""]), "muted"));
@@ -515,13 +528,13 @@ function renderLanes(d, rerender) {
     LIVE_STATIONS.forEach(function (st, idx) {
       var mark = l.marks[idx];
       var b = lel("button", null, "lane-st", { type: "button", "data-mark": mark, "data-st": st,
-        "aria-expanded": laneOpen[l.issue] === st ? "true" : "false" });
+        "aria-expanded": laneOpen[l.key] === st ? "true" : "false" });
       b.appendChild(el("span", LANE_MARK[mark] ? LANE_MARK[mark] + " " : ""));
       b.appendChild(el("span", st.charAt(0).toUpperCase() + st.slice(1)));
       var n = l.steps.filter(function (x) { return x.s.station === st; }).length;
       if (n) b.appendChild(el("span", " " + n, "lane-count"));
       b.addEventListener("click", function () {
-        laneOpen[l.issue] = laneOpen[l.issue] === st ? null : st;
+        laneOpen[l.key] = laneOpen[l.key] === st ? null : st;
         rerender();
       });
       bar.appendChild(b);
@@ -537,14 +550,14 @@ function renderLanes(d, rerender) {
     }
     l.crew.filter(function (n) { return n.state === "busy" || n.state === "thinking"; })
       .forEach(function (n) { lane.appendChild(agentLine(n)); });
-    if (laneOpen[l.issue]) lane.appendChild(laneDetail(l, laneOpen[l.issue]));
+    if (laneOpen[l.key]) lane.appendChild(laneDetail(l, laneOpen[l.key]));
     sec.appendChild(lane);
   });
   if (done.length) {
     var row = el("div", null, "lane-done");
     row.appendChild(el("b", "✓ Shipped this pass: "));
     done.forEach(function (l, i) {
-      row.appendChild(el("span", (i ? " · " : "") + "#" + l.issue + " " + l.title + (l.pr ? " (PR #" + S(l.pr.p.number) + ")" : "")));
+      row.appendChild(el("span", (i ? " · " : "") + laneLabel(l.repo, l.issue) + " " + l.title + (l.pr ? " (PR #" + S(l.pr.p.number) + ")" : "")));
     });
     sec.appendChild(row);
   }
