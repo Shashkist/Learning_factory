@@ -24,7 +24,8 @@ MAX_REVIEW_ROUNDS = 2
 MAX_CI_ROUNDS = 5
 PASSED = {"SUCCESS", "NEUTRAL", "SKIPPED"}
 VERDICT = re.compile(r"^Review round (\d+): (APPROVE|CHANGES) at ([0-9a-fA-F]{7,40})\s*$")
-CLOSES = re.compile(r"\bcloses\s+#(\d+)", re.IGNORECASE)
+CLOSES = re.compile(r"^\s*closes\s+#(\d+)\s*$", re.IGNORECASE | re.MULTILINE)
+TOOLING_TEST = re.compile(r"^scripts/(ci/)?test_[^/]*\.py$")
 
 
 def _check_reasons(checks: list[dict]) -> list[str]:
@@ -36,7 +37,7 @@ def _check_reasons(checks: list[dict]) -> list[str]:
         state = (c.get("conclusion") or c.get("state") or "").upper()
         if c.get("status", "COMPLETED") != "COMPLETED" or state in ("", "PENDING", "EXPECTED"):
             reasons.append(f"{name} is pending")
-        elif state not in PASSED:
+        elif state not in PASSED or (name == "exam-integrity" and state != "SUCCESS"):
             reasons.append(f"{name} ended in {state.lower()}")
     if not any((c.get("name") or c.get("context")) == "exam-integrity" for c in checks):
         reasons.append("exam-integrity has not run")
@@ -64,10 +65,12 @@ def main(argv: list[str], run=issue_lock._run) -> int:
     gh = issue_lock.scoped(run, args.repo)
 
     pr = json.loads(gh(["pr", "view", args.pr, "--json",
-                        "author,body,headRefOid,commits,statusCheckRollup,comments"]))
+                        "author,body,headRefOid,isCrossRepository,commits,statusCheckRollup,comments"]))
     head = pr["headRefOid"].lower()
     author = args.author or pr["author"]["login"]
     reasons = _check_reasons(pr.get("statusCheckRollup") or [])
+    if pr.get("isCrossRepository") is True:
+        reasons.append("cross-repository pull request")
 
     verdicts = _verdicts(pr.get("comments") or [], author)
     for_head = [v for v in verdicts if head.startswith(v[2])]
@@ -81,16 +84,15 @@ def main(argv: list[str], run=issue_lock._run) -> int:
     for commit in pr.get("commits") or []:
         files = json.loads(gh(["api", f"repos/{{owner}}/{{repo}}/commits/{commit['oid']}"]))
         names = [f["filename"] for f in files.get("files", [])]
-        if not (names and all(_is_exam(n) for n in names)):
+        if not (names and all(_is_exam(n) or TOOLING_TEST.match(n) for n in names)):
             code_commits += 1
     if code_commits > MAX_CI_ROUNDS:
         reasons.append(f"ci round {code_commits} is over the limit of {MAX_CI_ROUNDS}")
 
-    m = CLOSES.search(pr.get("body") or "")
-    if not m:
+    closed = sorted({int(n) for n in CLOSES.findall(pr.get("body") or "")})
+    if not closed:
         reasons.append("PR body has no `Closes #n` for the issue it ships")
-    else:
-        n = int(m.group(1))
+    for n in closed:
         claim, _ = issue_lock.find_claim(n, gh)
         if not claim or claim.get("session") != args.session:
             reasons.append(f"claim for #{n} is not held by session {args.session}")
