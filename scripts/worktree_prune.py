@@ -329,6 +329,33 @@ def last_activity_files(path: Path) -> list[Path]:
     return [gd / "index", gd / "logs" / "HEAD"]
 
 
+def claimed_by_git(main_root: Path, d: Path) -> bool:
+    """True when git's own records point at folder d: a worktree being added right now.
+
+    `git worktree add` creates the folder, then the admin dir .git/worktrees/<name> with a
+    `gitdir` file pointing back at it, then the folder's .git file. A real leftover's .git file
+    points at an admin dir that no longer exists. An unreadable record counts as claimed.
+    """
+    try:
+        dot_git = d / ".git"
+        if dot_git.is_file():
+            text = dot_git.read_text(encoding="utf-8", errors="replace").strip()
+            if text.startswith("gitdir:") and Path(text[len("gitdir:"):].strip()).exists():
+                return True
+        target = d.resolve()
+        admin_root = main_root / ".git" / "worktrees"
+        if admin_root.is_dir():
+            for admin in admin_root.iterdir():
+                record = admin / "gitdir"
+                if record.is_file():
+                    points_at = Path(record.read_text(encoding="utf-8", errors="replace").strip())
+                    if points_at.parent.resolve() == target:
+                        return True
+    except OSError:
+        return True
+    return False
+
+
 def sweep_leftovers(main_root: Path, known: set[Path], dry_run: bool) -> None:
     """Folders under .claude/worktrees holding only a .git file that git does not know."""
     for d in sorted((main_root / ".claude" / "worktrees").glob("*")):
@@ -341,6 +368,9 @@ def sweep_leftovers(main_root: Path, known: set[Path], dry_run: bool) -> None:
             what = "leftover folder with only a .git file"
         else:
             say("KEPT", d, "unknown to git but holds files")
+            continue
+        if claimed_by_git(main_root, d):
+            say("KEPT", d, "git records point at it (a worktree being added)")
             continue
         if dry_run:
             say("REMOVED", d, "would remove (" + what + ")")

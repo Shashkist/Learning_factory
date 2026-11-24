@@ -244,6 +244,38 @@ def test_leftover_sweep_rereads_the_worktree_list(repo, monkeypatch):
     assert created["path"] in seen["known"]
 
 
+def test_leftover_being_added_is_kept(repo, capsys):
+    # Mid `git worktree add`: the admin dir points at the folder, the folder is still empty.
+    d = repo / ".claude" / "worktrees" / "agent-new"
+    d.mkdir(parents=True)
+    admin = repo / ".git" / "worktrees" / "agent-new"
+    admin.mkdir(parents=True)
+    (admin / "gitdir").write_text(str(d / ".git") + "\n")
+    wp.sweep_leftovers(repo.resolve(), set(), dry_run=False)
+    assert d.exists()
+    assert "KEPT" in capsys.readouterr().out
+
+
+def test_leftover_whose_git_file_points_at_a_live_admin_dir_is_kept(repo):
+    d = repo / ".claude" / "worktrees" / "agent-mid"
+    d.mkdir(parents=True)
+    admin = repo / ".git" / "worktrees" / "agent-mid"
+    admin.mkdir(parents=True)
+    (d / ".git").write_text(f"gitdir: {admin}\n")
+    wp.sweep_leftovers(repo.resolve(), set(), dry_run=False)
+    assert d.exists()
+
+
+def test_true_leftovers_are_still_removed(repo):
+    gone = repo / ".claude" / "worktrees" / "agent-gone"
+    gone.mkdir(parents=True)
+    (gone / ".git").write_text(f"gitdir: {repo / '.git' / 'worktrees' / 'agent-gone'}\n")
+    empty = repo / ".claude" / "worktrees" / "agent-empty"
+    empty.mkdir()
+    wp.sweep_leftovers(repo.resolve(), set(), dry_run=False)
+    assert not gone.exists() and not empty.exists()
+
+
 def test_merged_head_missing_locally_is_named(repo):
     ok, why = wp.merged_safe(repo, g(repo, "rev-parse", "HEAD"),
                              [{"headRefOid": "1" * 40, "state": "MERGED"}])
