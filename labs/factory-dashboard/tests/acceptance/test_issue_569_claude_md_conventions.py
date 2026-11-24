@@ -1,8 +1,8 @@
 """Exam for issue #569: project facts from .claude/agents/*.md also live in CLAUDE.md.
 
-Reads CLAUDE.md and the four role files only. Each fact's key phrase must appear inside the
-"Conventions for exams and reviews" section of CLAUDE.md (not just anywhere in the file), and
-must still be in the role file it came from (copied, not moved). The seven top rules stay.
+Reads CLAUDE.md only. Each fact must appear, with its meaning words, inside one sentence of
+the "Conventions for exams and reviews" section (not just anywhere in the file). Rules 1 to 7
+stay under "Rules that are never broken", and lab isolation is a numbered rule there too.
 """
 from __future__ import annotations
 
@@ -13,7 +13,6 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[4]
 CLAUDE_MD = REPO / "CLAUDE.md"
-AGENTS = REPO / ".claude" / "agents"
 HEADING = "Conventions for exams and reviews"
 
 
@@ -30,38 +29,66 @@ def _sentence_with(*parts: str):
     return lambda text: any(all(p.search(s) for p in pats) for s in _sentences(text))
 
 
-# (case id, predicate, role files that must also satisfy it)
+def _library(lib: str):
+    """The library is named inside the sentence that tells researchers to check docs."""
+    return _sentence_with(re.escape(lib), r"[Rr]esearch", r"\bdocs\b")
+
+
+# (case id, predicate). Each predicate runs on a single sentence or bullet of the section
+# and pins the meaning words, not only the keywords.
 FACTS = [
-    ("pytest_exam_file_name", _literal("test_issue_<n>_<slug>.py"), ["exam-writer.md"]),
-    ("playwright_exam_file_name", _literal("issue-<n>-<slug>.spec.ts"), ["exam-writer.md"]),
-    ("docker_marker", _literal("@pytest.mark.docker"), ["exam-writer.md"]),
+    ("pytest_exam_file_name", _literal("test_issue_<n>_<slug>.py")),
+    ("playwright_exam_file_name", _literal("issue-<n>-<slug>.spec.ts")),
     (
-        "docker_gvisor_tests_run_only_in_ci",
-        _sentence_with(r"Docker", r"gVisor", r"\bCI\b"),
-        ["exam-writer.md"],
+        "exam_acceptance_location",
+        _sentence_with(r"labs/<component>/tests/acceptance/", r"[Ee]xam files? live"),
     ),
-    ("manager_unit_test_location", _literal("labs/manager/tests/unit/"), ["implementer.md"]),
-    ("web_unit_test_location", _literal("labs/web/src/"), ["implementer.md"]),
+    ("docker_marker", _literal("@pytest.mark.docker")),
     (
-        "tests_dirs_and_conftest_count_as_exam",
-        _sentence_with(r"labs/\*/tests/", r"conftest", r"\bexam\b"),
-        ["implementer.md"],
+        "docker_gvisor_tests_run_in_ci_not_in_cloud_sessions",
+        _sentence_with(r"Docker", r"gVisor", r"run in CI, not in cloud sessions"),
+    ),
+    ("manager_unit_test_location", _literal("labs/manager/tests/unit/")),
+    (
+        "web_unit_tests_next_to_code_as_test_ts",
+        _sentence_with(r"labs/web/src/\*\*/\*\.test\.ts\(x\)", r"next to the code"),
+    ),
+    (
+        "any_other_tests_path_and_config_files_count_as_exam",
+        _sentence_with(
+            r"Any other path under\s+`?labs/\*/tests/",
+            r"conftest\.py",
+            r"pytest\.ini",
+            r"tox\.ini",
+            r"setup\.cfg",
+            r"counts as exam",
+        ),
     ),
     (
         "lab_containers_never_reach_host_containers_internet",
-        _sentence_with(r"\bhost\b", r"other containers", r"\binternet\b"),
-        ["implementer.md", "reviewer.md"],
+        _sentence_with(
+            r"[Ll]ab containers never reach", r"\bhost\b", r"other containers", r"\binternet\b"
+        ),
     ),
     (
-        "memory_and_disk_come_back_after_session",
-        _sentence_with(r"\bmemory\b", r"\bdisk\b", r"session"),
-        ["reviewer.md"],
+        "reviewer_checks_memory_and_disk_come_back_after_session_ends",
+        _sentence_with(
+            r"reviewer checks", r"\bmemory\b", r"\bdisk\b", r"come back", r"session ends"
+        ),
     ),
-    ("library_ttyd", _literal("ttyd"), ["researcher.md"]),
-    ("library_code_server", _literal("code-server"), ["researcher.md"]),
-    ("library_gvisor", _literal("gVisor"), ["researcher.md"]),
-    ("library_fastapi", _literal("FastAPI"), ["researcher.md"]),
-    ("library_xterm_js", _literal("xterm.js"), ["researcher.md"]),
+    (
+        "no_ruff_format_on_older_files_ci_does_not_check",
+        _sentence_with(r"\bCI\b", r"(not|n't|never)", r"ruff format", r"older files"),
+    ),
+    (
+        "kodekloud_observed_behaviour_is_in_spec_section_2",
+        _sentence_with(r"KodeKloud", r"observed", r"spec", r"(§|section\s*)2"),
+    ),
+    ("library_ttyd_in_research_sentence", _library("ttyd")),
+    ("library_code_server_in_research_sentence", _library("code-server")),
+    ("library_gvisor_in_research_sentence", _library("gVisor")),
+    ("library_fastapi_in_research_sentence", _library("FastAPI")),
+    ("library_xterm_js_in_research_sentence", _library("xterm.js")),
 ]
 
 
@@ -89,22 +116,49 @@ def test_section_heading_exists():
     assert _section(text).strip(), f'the "{HEADING}" section is empty'
 
 
-@pytest.mark.parametrize("name,pred,roles", FACTS, ids=[f[0] for f in FACTS])
-def test_fact_in_claude_md_section(name, pred, roles):
+@pytest.mark.parametrize("name,pred", FACTS, ids=[f[0] for f in FACTS])
+def test_fact_in_claude_md_section(name, pred):
     section = _section(CLAUDE_MD.read_text(encoding="utf-8"))
     assert pred(section), f"fact {name} not found inside the conventions section of CLAUDE.md"
 
 
-@pytest.mark.parametrize("name,pred,roles", FACTS, ids=[f[0] for f in FACTS])
-def test_fact_still_in_role_file(name, pred, roles):
-    for role in roles:
-        text = (AGENTS / role).read_text(encoding="utf-8")
-        assert pred(text), f"fact {name} is no longer in .claude/agents/{role} (copy, do not move)"
-
-
-def test_top_rules_one_to_seven_kept():
-    text = CLAUDE_MD.read_text(encoding="utf-8")
+def _rules(text: str) -> dict[int, str]:
     m = re.search(r"^##\s+Rules that are never broken\s*$(.*?)(?=^##\s)", text, re.S | re.M)
     assert m, 'CLAUDE.md lost the "Rules that are never broken" section'
-    numbers = re.findall(r"^(\d+)\.\s", m.group(1), re.M)
-    assert numbers == [str(n) for n in range(1, 8)], f"rules are {numbers}, expected 1 to 7"
+    return {int(n): body for n, body in re.findall(r"^(\d+)\.\s+(.*)$", m.group(1), re.M)}
+
+
+RULE_TITLES = {
+    1: "The owner's other services come first.",
+    2: "Secrets are installed by the owner, never by an agent.",
+    3: "No attribution.",
+    4: "Never blocked.",
+    5: "Evidence before assertions.",
+    6: "Finishing means closing the issue in the same breath:",
+    7: "Student data is minimal:",
+}
+
+
+@pytest.mark.parametrize("n,title", sorted(RULE_TITLES.items()))
+def test_top_rule_kept(n, title):
+    rules = _rules(CLAUDE_MD.read_text(encoding="utf-8"))
+    assert n in rules, f"rule {n} is gone from the rules that are never broken"
+    assert rules[n].startswith(f"**{title}"), f"rule {n} lost its title: {title}"
+
+
+def test_lab_isolation_is_a_numbered_rule():
+    rules = _rules(CLAUDE_MD.read_text(encoding="utf-8"))
+    ok = [
+        n
+        for n, body in rules.items()
+        if n >= 8
+        and re.search(r"[Ll]ab containers never reach", body)
+        and re.search(r"\bhost\b", body)
+        and "other containers" in body
+        and re.search(r"\binternet\b", body)
+        and "or a secret" in body
+    ]
+    assert ok, (
+        "no numbered rule (8 or later) under the rules that are never broken says lab "
+        "containers never reach the host, other containers, the internet or a secret"
+    )
