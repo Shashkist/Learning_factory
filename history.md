@@ -827,3 +827,12 @@ Tips:
 - **The permission check reads PR text too.** Opening a PR whose body said "Claude Code plugin" and "role agents" was refused twice (the project bans those words in PR text). "Methodology plugin" and "role definitions" went through. Lesson: write PR bodies yourself with the file tool, read any text a helper wrote before publishing it, and keep tool names out.
 - **A `cat >` with no input hangs.** A stray `cat > file` with no heredoc waited on stdin until the 2-minute timeout. Now every `gh` call gets `</dev/null` and a `timeout`.
 - **Log the repository on every progress step.** Early steps of this pass again went without `--repo` (the same slip as pass lf-h6q3). The dispatch prompts now carry `--repo Shashkist/factory`.
+
+## Pass lf-c3m9: three merges in one repository, one LF lane parked at review (2026-11-24, laptop, ~11:59-13:20 UTC)
+
+- **Two PRs carried over, both merged first.** factory#6 needed only round 2 (APPROVE). factory#22 needed one more fix round and a narrow verification. Picking up exactly where STATE.md said took about 3 minutes.
+- **Dispatching a workflow on the branch is a free pre-merge test.** `factory-dashboard.yml` has no PR trigger, but its publish job runs only on `main`. `gh workflow run --ref <branch>` therefore ran just the build, and its artifact proved both repositories land in `snapshot.json` before anything was merged.
+- **Contradicting exams, by the book.** Three older exams demanded `build_snapshot.py` in the workflow; the owner's decision demanded the factory package. D149 names each case, and the exam-writer retargeted them in an exam-only commit, each kept as strict as before.
+- **The reviewer found the attack the exam missed.** A job-level `uses: other/repo/.github/workflows/x.yml` with `secrets: inherit` would pass every new test, and is exactly the route the owner rejected. The reviewer showed it with a modified copy of the workflow: 31 tests passed. Exams pin the shape you thought of; reviewers look for the shape you didn't.
+- **Git Bash `/tmp` is not Windows `/tmp`.** A Python edit of `/tmp/lfc/pr28.md` failed because native Python can't see Git Bash's `/tmp`, and the next command quietly re-posted the unchanged PR body. Fix: `cygpath -w` for paths handed to Windows programs.
+- **Three lanes, two repositories.** While factory CI ran (about 1 min), LF CI ran (about 20 min with docker). The fast lane merged three times while the slow lane was still in review.
