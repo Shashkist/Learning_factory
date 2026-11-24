@@ -47,7 +47,7 @@ Older pass notes are in `history.md` and git history (`git log -p docs/factory/S
 
 ## Next (in order)
 
-1. **Shashkist/factory#12, #13, #14** (p1, slices of factory#3, D5; worktrees `C:\projectsactory-<n>`); then the order `factory_pick.py` prints. **#561**, **factory#17**, **#523**, **#555** (p3 follow-ups). Owner item **O26** (heartbeat task).
+1. **#563** and **factory PR #25** (see Now); then the order `factory_pick.py` prints (factory#22 p2, factory#10/#11 p2, then the LF p2 list). **#561**, **#564**, **factory#17**, **factory#24**, **#523**, **#555** (p3 follow-ups). Owner item **O26** (heartbeat task).
 2. **#468** (bootstrap exam nits, p3; now on top of #56's exam), **#423** (validator misses, p3; time real shells first; an old worktree `C:\projects\lf-423` exists, check it before starting).
 3. **#436**, **#431** (lab screen follow-ups, p3). **#85** deploy follow-ups; p2 list: #81, #84, #64, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
