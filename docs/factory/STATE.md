@@ -4,10 +4,10 @@
 
 ## Now
 
-**Pass lf-m3t7 running (laptop, from 20:27 UTC 2026-11-23).** In flight (claims held by lf-m3t7):
-- **Shashkist/factory#12** (claims), branch `f/12-claims`, worktree `C:\projectsactory-12`: exam being written.
-- **Shashkist/factory#13** (progress and crew), branch `f/13-progress`, worktree `C:\projectsactory-13`: exam being written.
-- factory#14 waits for both (its `docs/tools.md` test lists their commands).
+**Pass lf-t5j8 running (laptop, from 06:30 UTC 2026-11-24).** In flight (claims held by lf-t5j8):
+- **Shashkist/factory#13** PR #23 (`f/13-progress-2`, worktree `C:\projectsactory-13b`): CI green, review round 2 running. Claim taken over from lf-m3t7 (quiet since 21:46 UTC; it merged factory#12 as PR #20 and left #13 after the round-1 rebuild).
+- **Shashkist/factory#14** (`f/14-ci-tools`, worktree `C:\projectsactory-14`): exam being written.
+- **#84** merge gate (`f/84-merge-gate`, worktree `C:\projects\lf-84`, D148): exam being written.
 
 **Pass lf-p8x5 finished (laptop, 18:26-20:12 UTC 2026-11-23, stopped by time, 2 merges).** Resume here:
 - **#558 merged** as PR #560 (squash 7d2eebc; reviews: round 1 CHANGES, round 2 APPROVE). Cause (D147): one push hung ~2 h in pass 10; on Windows `communicate()` blocks writing stdin over ~4 KB, so its timeout never fired. Verified live: with 7d2eebc pulled into this worktree mid-pass, `live.json` `updated` stayed 3-33 s old for 5 minutes (criterion 2). Main CI 45253419423 green; #558 closed with evidence, claim released. Follow-up **#561** (p3, state-write nits).
