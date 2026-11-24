@@ -1485,3 +1485,21 @@ in force · factory · 2026-11-24 · revertible
 **Amendment 2 (review round 2 of #563, 2026-11-24).** (a) The gate also reads `closingIssuesReferences`: every issue GitHub will close on merge needs the session's claim, and one in another repository holds. (b) `tests/acceptance/**` counts as exam for CI rounds (another repository's exams). (c) After a round-2 `CHANGES`, a merge the manager decides (D145) is recorded as `Review round 2: APPROVE at <new head>` with a second line naming the D-entry; the gate needs no third round. (d) The ship step in FACTORY.md also names `--match-head-commit`. Round 2's blocking finding (a) was fixed by the manager (D145) in ce6f817 with unit cases; the check name `exam-integrity` is not yet tied to the `CI` workflow (follow-up).
 
 **Amendment 3 (2026-11-24).** Amendment 2 (c) is withdrawn: the manager never posts an `APPROVE` it did not receive from a reviewer, also not for its own fix after round 2. When the manager fixes a round-2 `CHANGES` (D145), a fresh `reviewer` verifies the fix commit, and the manager posts that reviewer's verdict as `Review round 2: APPROVE|CHANGES at <new head>`. If that verification says `CHANGES`, the PR is parked for the owner (`status:needs-owner`), not approved by the manager. Why: a self-written approval is exactly the judgement the gate exists to remove; the laptop's command guard refused it in pass lf-t5j8.
+
+## D149 · #568: the dashboard build runs the factory package at a pinned SHA; three older exam cases are retargeted, the old builder goes in a follow-up
+in force · factory · 2026-11-24 · revertible
+
+**Decision.** #568 is shipped in two steps.
+- **This PR** (criteria 1-3): the `snapshot` job of `factory-dashboard.yml` checks out `Shashkist/factory` at a full 40-character SHA (first pin: `52280d7a3126a4799273721405dffea319385534`, the merge of factory#6), installs it with pip, and runs `python -m factory_tools.dashboard build --repos docs/factory/repos.yaml --out site/`, with the job's read-only `github.token`. The `publish` job is unchanged and runs nothing from that checkout. A pin change is a PR here.
+- **A follow-up issue** removes `labs/factory-dashboard/build_snapshot.py`, the page files and their tests once `factory.shashkist.com` serves the new build (the issue's "once the new build is live").
+- **Loosened exam cases** (the owner's D12 in the factory repository and #568 require that the workflow stops running `build_snapshot.py`, so these cases are retargeted, not deleted; each keeps its strictness against the new command):
+  1. `test_issue_18_factory_dashboard.py::test_workflow_builds_the_snapshot_and_uploads_an_artifact`: `build_snapshot.py` → `factory_tools.dashboard build`.
+  2. `test_issue_19_publish.py::test_workflow_builds_the_snapshot_with_public`: `build_snapshot.py ... --public` → `factory_tools.dashboard build` (the package builds public data only, D13 of the factory repository; there is no `--public` flag).
+  3. `test_issue_25_production_environment.py::snapshot_job` (helper used by the job-split cases): "exactly one job runs `build_snapshot.py`" → "exactly one job runs `factory_tools.dashboard build`". The cases that the snapshot job has no secrets and the publish job runs no build stay as strict.
+  The exam-writer makes these edits in an exam-only commit, together with the new exam for criterion 2.
+
+**Why.** The old builder cannot stay in the workflow next to the new one (two snapshots, one publish); keeping its files until the new page is live gives a one-commit revert.
+
+**Alternatives.** Run both builders and publish one (dead step that keeps the old exam green); remove the old files in this PR (no fallback if the new build fails live).
+
+**Revert.** Restore the old `snapshot` job steps and the three exam cases from git history; drop the factory checkout.
