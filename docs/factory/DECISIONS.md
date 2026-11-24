@@ -1530,3 +1530,13 @@ Removed, with where they are checked now:
 **Why.** An exam of code that is no longer deployed proves nothing about the live page, and keeping LF's builder alive only to keep its exams green is the duplication D149 set out to end. The real gap, the live page's behaviour, is closed where the page lives.
 **Alternatives.** Keep the old files until factory#42 is merged. That keeps a second, divergent page in this repository, and its exams would still not test the served page. Another option is to port the exams inside #571. That is the wrong repository: exams run against the code they test.
 **Revert.** Restore `labs/factory-dashboard/` from 29e3bf3.
+
+## D151 · #569 review round 1: tighten the exam on the same branch; run it on CLAUDE.md edits; lab isolation becomes rule 8
+in force · Learning Factory · 2026-11-24 · revertible
+
+**Decision.** Review round 1 of PR #576 (CHANGES at 0b486c0) found two blocking gaps: the gVisor library check matched another line, and the exam runs only in Dashboard CI, which never starts on a `CLAUDE.md`-only edit. Fixes, on the same branch (exam integrity tracks only `labs/`, so an exam-only commit after a `CLAUDE.md` commit is accepted; no rebuild):
+1. An exam-only commit: each research library is checked inside the research sentence; each fact also pins its meaning words (finding 3: "never", "come back", "Any other path", "not in cloud sessions", the three ini names, `*.test.ts(x)`, the acceptance location); the "fact stays in the role file" checks are dropped (the plugin switch deletes those files, finding 4); the "exactly rules 1 to 7" check becomes "rules 1 to 7 stay, and lab isolation (with "or a secret") is a numbered rule"; the two missing facts (no `ruff format` on older files; KodeKloud's observed behaviour is in spec §2) are required in the section.
+2. A code commit: `CLAUDE.md` gets rule 8 (lab containers never reach the host, other containers, the internet or a secret; it is a guardrail in implementer.md and reviewer.md, and the plugin reviewer checks the rules that are never broken) and the two facts; `dashboard-ci.yml` adds `CLAUDE.md` and `.claude/agents/**` to both `paths:` lists so the exam runs on the edits it guards.
+The exam stays under `labs/factory-dashboard/tests/acceptance/` (where exam integrity protects it), not `scripts/`.
+**Alternatives.** Move the exam to `scripts/` (runs on every PR, but exam integrity would no longer protect it); rebuild as `-2` (not needed, the check accepts the order).
+**Revert.** Drop the rule 8 line and the two `paths:` entries; restore the exam from 841e209.
