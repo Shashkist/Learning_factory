@@ -11,6 +11,9 @@ on:
       - "scripts/ci/junit_gate.py"
       - "scripts/factory_progress.py"
       - "scripts/_hook_io.py"
+      # The #569 exam reads CLAUDE.md (D151).
+      - "CLAUDE.md"
+      - ".claude/agents/**"
   push:
     branches: [main]
     paths:
@@ -22,6 +25,9 @@ on:
       - "scripts/ci/junit_gate.py"
       - "scripts/factory_progress.py"
       - "scripts/_hook_io.py"
+      # The #569 exam reads CLAUDE.md (D151).
+      - "CLAUDE.md"
+      - ".claude/agents/**"
 
 permissions:
   contents: read
