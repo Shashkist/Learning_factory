@@ -1505,3 +1505,28 @@ in force · factory · 2026-11-24 · revertible
 **Revert.** Restore the old `snapshot` job steps and the three exam cases from git history; drop the factory checkout.
 
 **D149 amendment 1 (reviews of #570 and #572, 2026-11-24).** (1) The `snapshot` job no longer runs pip. It installs the factory's locked runtime dependencies only (`uv sync --frozen --no-dev --no-install-project --project factory-src`; setup-uv pinned like `ci.yml`, with a `version:`, and `UV_PYTHON_DOWNLOADS: never`). It runs the package from the source tree (`PYTHONPATH=factory-src/src uv run --frozen --no-sync ...`), so no unpinned build backend or interpreter is fetched. Both checkouts set `persist-credentials: false`. (2) Review round 2 of #572 (CHANGES at e81d0e4) found one blocking exam gap: `toJSON(secrets)` and an `environment: Production` in the build job passed every workflow exam. The workflow was safe, but the gate needs an APPROVE and the gap would let a later PR hand the production key to factory code. So, as D145 and D103, the manager rebuilds once more as `f/568-dashboard-pinned-build-3`: the two exam commits, a third exam-only commit (secrets in any form, environment names compared case-insensitively, a publish-step command allowlist, correct line-continuation joining, a pinned uv), then the code. A fresh reviewer verifies only the round-2 items. Its verdict is posted as `Review round 2: APPROVE|CHANGES at <head>` (D148 amendment 3). On CHANGES, #568 waits for the next pass with the leftovers listed.
+
+## D150 · #571: the old dashboard's page and builder exams go with the old code; the page exams are ported to the factory package (factory#42)
+in force · Learning Factory · 2026-11-24 · revertible
+
+**Decision.** factory.shashkist.com is built from the factory package at a pinned commit (#568, D149), so LF's `labs/factory-dashboard/` builder and page are dead code. #571 removes them. Its exam-only commit removes the acceptance cases that test only that code and keeps every case that reads a workflow or tests a script outside `labs/factory-dashboard/` (`issue_lock.py`, `factory_pick.py`, `factory_progress.py`, `labs/deploy/nginx/*`). The survivors stay at `labs/factory-dashboard/tests/acceptance/` and need only pytest, PyYAML, the stdlib and bash.
+Removed, with where they are checked now:
+- #18: the 33 builder cases (counts, claims, PRs, runs, deploy and smoke runs, STATE/DECISIONS/OWNER parsing, throughput) and the `fixtures/issue18/` tree. These are checked by factory#6 criterion 1 (`test_c1_*`) and the factory's unit tests.
+- #19: the 4 `--public` cases. They no longer apply, because the package has no `--public` flag. The privacy part is factory#6 c4 (`test_c4_no_state_text_in_any_built_file`, `test_c4_snapshot_has_only_the_keys_the_page_shows`).
+- #543: the 3 page repository-tag cases. These are checked by factory#6 c3.
+- **Page cases with no exam in the factory repository today:**
+  - #51: 36 cases;
+  - #68 state: 9 cases;
+  - #68 lanes: 14 cases;
+  - #481: the whole file, 19 cases;
+  - #487: 15 cases;
+  - #504: 10 cases;
+  - #551: 2 crew-title cases;
+  - #19: 4 page cases (CSP, third-party URLs, inline script);
+  - #18: 9 page cases;
+  - the harnesses `dom_harness_51/68/481.js`.
+
+  These tested LF's `app.js`, which is no longer served, so they already guarded nothing live. **factory#42** ports them to the package's page (source: LF commit 29e3bf3).
+**Why.** An exam of code that is no longer deployed proves nothing about the live page, and keeping LF's builder alive only to keep its exams green is the duplication D149 set out to end. The real gap, the live page's behaviour, is closed where the page lives.
+**Alternatives.** Keep the old files until factory#42 is merged. That keeps a second, divergent page in this repository, and its exams would still not test the served page. Another option is to port the exams inside #571. That is the wrong repository: exams run against the code they test.
+**Revert.** Restore `labs/factory-dashboard/` from 29e3bf3.
