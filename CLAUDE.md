@@ -33,6 +33,16 @@ docs/           spec, factory docs, decisions
 6. **Finishing means closing the issue in the same breath:** close with a comment that says how you know (PR, deploy run, smoke output), flip the label to `status:done`, update `STATE.md`.
 7. **Student data is minimal:** name + keyed ID hash. Never log a raw ID, never put real student data in tests or fixtures.
 
+## Conventions for exams and reviews
+
+- Exam files live in `labs/<component>/tests/acceptance/`, one per issue: `test_issue_<n>_<slug>.py` (pytest) or `issue-<n>-<slug>.spec.ts` (Playwright).
+- Tests that need Docker or gVisor are marked `@pytest.mark.docker`; they run in CI, not in cloud sessions.
+- Manager unit tests go in `labs/manager/tests/unit/`; web unit tests stay next to the code as `labs/web/src/**/*.test.ts(x)`.
+- Any other path under `labs/*/tests/`, and any `conftest.py`, `pytest.ini`, `tox.ini` or `setup.cfg` under `labs/` outside `tests/unit/`, counts as exam, and exam integrity refuses a commit that mixes exam and code.
+- Lab containers never reach the host, other containers or the internet.
+- The reviewer checks that memory and disk come back after a session ends.
+- Researchers check the docs of the libraries involved (ttyd, code-server, gVisor, FastAPI, xterm.js).
+
 ## Git
 
 - Commits, pushes, PR merges and branch cleanup in this repo are **pre-approved by the owner**. Do them without asking.
