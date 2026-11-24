@@ -348,7 +348,8 @@ def publish_steps() -> list[dict]:
 
 def test_workflow_builds_the_snapshot_with_public():
     runs = " ".join(str(s.get("run", "")) for s in all_steps())
-    assert re.search(r"build_snapshot\.py[^\n]*--public", runs)
+    # D149 (#568): the factory package replaces build_snapshot.py; no --public flag.
+    assert re.search(r"factory_tools\.dashboard build", runs)
 
 
 def test_workflow_keeps_the_d71_triggers():
