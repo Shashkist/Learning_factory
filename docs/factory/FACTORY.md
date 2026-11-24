@@ -11,7 +11,7 @@ The factory turns the spec into a running lab platform at `labs.shashkist.com` w
 | **Researcher** | Sonnet 5.5 | Answers design questions with evidence: how KodeKloud / Killercoda / iximiuz Labs / Instruqt do it, library docs. Returns a recommendation plus sources. |
 | **Exam writer** | Sonnet 5.5 | Writes the acceptance tests for an issue **from the spec and the issue only**, before implementation, in `tests/acceptance/`. The implementer cannot change them (the hidden exam). |
 | **Implementer** | Sonnet 5.5, own worktree | Makes the exam and its own unit tests pass. Minimum code. Reuses before writing. |
-| **Reviewer** | Opus 5.5, fresh context, read-only | Tries to refute the PR against the spec, `CLAUDE.md` rules and security. Approves or returns findings. Two rounds max, then the manager decides. |
+| **Reviewer** | Opus 5.5, fresh context, read-only | Tries to refute the PR against the spec, `CLAUDE.md` rules and security. Approves or returns findings. Two rounds max, then the manager decides (D145); a fix the manager makes after round 2 is checked by a fresh reviewer whose verdict is posted, never a self-written approval (D148 amendment 3). |
 | **Second opinion** | a model from another company (OpenRouter, GPT class) in CI | Reviews every PR diff and posts findings as a PR comment. Optional: runs only when the `OPENROUTER_API_KEY` secret exists. |
 | **Scribe** | Haiku 5.5 | After a merge: updates `STATE.md`, the spec where reality differs, and `history.md`. |
 
