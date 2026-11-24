@@ -1479,3 +1479,5 @@ in force · factory · 2026-11-24 · revertible
 6. The gate is read-only (no merge, no comment). The ship step runs it and merges only on `MERGE`.
 **Alternatives.** `Verdict:` lines without a SHA (a stale approval would survive a later push); counting CI runs from the Actions API (re-runs and dashboard runs blur the count).
 **Revert.** Revert the #84 squash commit; the ship step goes back to the manager's judgement.
+
+**Amendment 1 (review round 1 of #563, 2026-11-24).** (a) `exam-integrity` must be present and every entry of it exactly `SUCCESS`; `SKIPPED`/`NEUTRAL` count as passed for other checks only. (b) For counting CI rounds, a file is exam when D9's predicate says so or it is a `scripts/test_*.py` / `scripts/ci/test_*.py` file (tooling issues keep their exam there); the gate is not an integrity check, so this only stops exam commits being charged as rounds. (c) A cross-repository (fork) PR always holds. (d) Only line-anchored `Closes #n` lines count, and the session must hold the claim of each. (e) The ship step merges with `--match-head-commit <the head the gate checked>`. Review cases become unit tests in a separate file (D145), not exam edits.
