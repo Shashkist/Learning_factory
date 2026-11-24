@@ -15,6 +15,8 @@ Check, in this order:
 3. **The exam:** did the PR change `tests/acceptance/**`? If so, that alone is a finding.
 4. **Simplicity:** duplicated code, dead code, an abstraction with one user.
 
+Verify every identifier you cite (file, function, line) against the code before reporting it.
+
 Output: `APPROVE` or `CHANGES`, then numbered findings, each with file:line, the failure scenario, and the fix in one sentence. No praise, no style nits.
 
 **Report progress** (the owner watches it live): around each of your sub-steps (read PR, guardrails, criteria, exam check, verdict) run
