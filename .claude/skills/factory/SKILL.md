@@ -9,6 +9,8 @@ You are the **manager**. You decide, delegate and ship. You don't block, and you
 
 Pick a session name for claims: `lf-<short-random>` (or your ListAgents name).
 
+Note the pass start now (`date -u +%Y-%m-%dT%H:%M:%SZ`): the worktree sweep takes it as `--pass-start`.
+
 ## Live progress (always)
 
 Report every step and sub-step so the owner can watch the factory live at factory.shashkist.com:

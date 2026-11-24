@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -104,8 +105,11 @@ def make_gh(repo: str | None):
 
 
 def split_status(path: Path) -> tuple[list[str], list[str], list[str]] | None:
-    """(tracked changes, untracked files, ignored files) of a worktree, None when git cannot say."""
-    r = git(path, "status", "--porcelain", "-uall", "--ignored")
+    """(tracked changes, untracked, ignored) of a worktree, None when git cannot say.
+
+    Untracked and ignored entries are collapsed to their top folder (`.venv/`).
+    """
+    r = git(path, "status", "--porcelain", "--ignored=matching")
     if r.returncode != 0:
         return None
     out = r.stdout.splitlines()
@@ -115,8 +119,10 @@ def split_status(path: Path) -> tuple[list[str], list[str], list[str]] | None:
     return tracked, untracked, ignored
 
 
-def is_ancestor(cwd: Path, commit: str, of: str) -> bool:
-    return git(cwd, "merge-base", "--is-ancestor", commit, of).returncode == 0
+def is_ancestor(cwd: Path, commit: str, of: str) -> bool | None:
+    """True / False, None when git cannot tell (for example the object is not available locally)."""
+    rc = git(cwd, "merge-base", "--is-ancestor", commit, of).returncode
+    return True if rc == 0 else False if rc == 1 else None
 
 
 def merged_safe(main_root: Path, tip: str, merged: list[dict]) -> tuple[bool, str]:
@@ -124,12 +130,15 @@ def merged_safe(main_root: Path, tip: str, merged: list[dict]) -> tuple[bool, st
     heads = [p["headRefOid"] for p in merged if p.get("headRefOid")]
     if not heads:
         return False, "merged PR has no head commit to compare with the local tip"
-    if any(is_ancestor(main_root, tip, h) for h in heads):
+    answers = [is_ancestor(main_root, tip, h) for h in heads]
+    if any(a is True for a in answers):
         return True, "ok"
+    if any(a is None for a in answers):
+        return False, "merged head not available locally"
     return False, "local commits after the merge"
 
 
-def remote_safe(main_root: Path, branch: str, tip: str) -> tuple[bool, str]:
+def remote_safe(main_root: Path, branch: str, tip: str, dry_run: bool = False) -> tuple[bool, str]:
     """Ask the remote itself (not a tracking ref) and require the tip to be inside its branch."""
     r = git(main_root, "ls-remote", "origin", "refs/heads/" + branch)
     if r.returncode != 0:
@@ -139,10 +148,32 @@ def remote_safe(main_root: Path, branch: str, tip: str) -> tuple[bool, str]:
         return False, "branch is not on the remote"
     if is_ancestor(main_root, tip, head[0]):
         return True, "ok"
+    if dry_run:
+        return False, "would fetch to confirm the branch is pushed"
     git(main_root, "fetch", "-q", "origin", "refs/heads/" + branch)
     if is_ancestor(main_root, tip, head[0]):
         return True, "ok"
     return False, "local commits are not on the remote branch"
+
+
+def tip_on_remote(main_root: Path, tip: str, dry_run: bool = False) -> tuple[bool, str]:
+    """Ask the remote for its current heads; the tip must be one of them or inside one."""
+    if not tip:
+        return False, "cannot read the branch tip"
+    r = git(main_root, "ls-remote", "origin", "refs/heads/*")
+    if r.returncode != 0:
+        return False, "remote unreachable, cannot confirm the tip is pushed"
+    heads = [ln.split()[0] for ln in r.stdout.splitlines() if ln.split()]
+    if tip in heads:
+        return True, "ok"
+    missing = [h for h in heads if git(main_root, "cat-file", "-e", h + "^{commit}").returncode != 0]
+    if missing:
+        if dry_run:
+            return False, "would fetch to confirm the tip is pushed"
+        git(main_root, "fetch", "-q", "origin")
+    if any(is_ancestor(main_root, tip, h) is True for h in heads):
+        return True, "ok"
+    return False, "older than this pass but the tip is not on any remote branch"
 
 
 def parse_iso(text: str) -> float:
@@ -156,6 +187,33 @@ def say(status: str, path: Path, reason: str) -> None:
     print(f"{status} {path} {reason}", flush=True)
 
 
+MAX_NAMES = 20
+
+
+def list_names(untracked: list[str], ignored: list[str]) -> str:
+    lines = []
+    for label, items in (("untracked", untracked), ("ignored", ignored)):
+        if items:
+            more = f", ... and {len(items) - MAX_NAMES} more" if len(items) > MAX_NAMES else ""
+            lines.append(f"  {label}: " + ", ".join(items[:MAX_NAMES]) + more)
+    return "\n".join(lines)
+
+
+def folder_is_free(path: Path) -> bool:
+    """Rename the folder away and back: a folder some process holds (Windows) refuses."""
+    tmp = path.with_name(f"{path.name}.lf-free-check-{os.getpid()}")
+    try:
+        path.rename(tmp)
+    except OSError:
+        return False
+    try:
+        tmp.rename(path)
+    except OSError:
+        print(f"WARNING {tmp} could not be renamed back to {path}", flush=True)
+        return False
+    return True
+
+
 def remove(main_root: Path, path: Path, branch: str, reason: str, dry_run: bool) -> None:
     status = split_status(path)
     if status is None:
@@ -165,13 +223,16 @@ def remove(main_root: Path, path: Path, branch: str, reason: str, dry_run: bool)
     if tracked:
         say("KEPT", path, "tracked changes: " + ", ".join(tracked[:5]))
         return
-    names = "  untracked files: " + ", ".join(untracked) if untracked else ""
-    if ignored:
-        names += ("\n" if names else "") + "  ignored files: " + ", ".join(ignored)
+    names = list_names(untracked, ignored)
     if dry_run:
         say("REMOVED", path, "would remove (" + reason + ")")
         if names:
             print(names, flush=True)
+        return
+    if names:
+        print(names, flush=True)
+    if not folder_is_free(path):
+        say("SKIPPED", path, "busy")
         return
     r = git(main_root, "worktree", "remove", "--force", str(path))
     if r.returncode != 0 or path.exists():
@@ -181,8 +242,6 @@ def remove(main_root: Path, path: Path, branch: str, reason: str, dry_run: bool)
     if branch:
         git(main_root, "branch", "-D", branch)
     say("REMOVED", path, reason)
-    if names:
-        print(names, flush=True)
 
 
 def judge(wt: dict, main_root: Path, here: Path, args, pass_start, gh) -> None:
@@ -212,7 +271,7 @@ def judge(wt: dict, main_root: Path, here: Path, args, pass_start, gh) -> None:
         go, reason = decide_feature(
             prs, claim is not None,
             lambda merged: merged_safe(main_root, tip, merged),
-            lambda: remote_safe(main_root, branch, tip),
+            lambda: remote_safe(main_root, branch, tip, args.dry_run),
         )
         if go:
             remove(main_root, path, branch, reason, args.dry_run)
@@ -220,17 +279,45 @@ def judge(wt: dict, main_root: Path, here: Path, args, pass_start, gh) -> None:
             say("KEPT", path, reason)
     elif branch.startswith("worktree-agent-"):
         gitfile = path / ".git"
+        # read the git files' times first: `git status` refreshes the index itself
         stamps = [path, gitfile, *last_activity_files(path)]
         created = max(f.stat().st_mtime for f in stamps if f.exists())
-        tip = git(path, "rev-parse", "HEAD").stdout.strip()
-        pushed = bool(tip) and bool(git(main_root, "branch", "-r", "--contains", tip).stdout.strip())
-        go, reason = decide_subagent(created, pass_start, pushed)
+        status = split_status(path)
+        if status is None:
+            say("KEPT", path, "git status failed, cannot tell what is in it")
+            return
+        created = max([created] + [f.stat().st_mtime for f in changed_paths(path, status) if f.exists()])
+        go, reason = decide_subagent(created, pass_start, True)
+        if go:
+            tip = git(path, "rev-parse", "HEAD").stdout.strip()
+            go, why = tip_on_remote(main_root, tip, args.dry_run)
+            reason = reason if go else why
         if go:
             remove(main_root, path, branch, reason, args.dry_run)
         else:
             say("KEPT", path, reason)
     else:
         say("KEPT", path, "not a factory branch")
+
+
+def newest_under(p: Path, limit: int = 5000) -> list[Path]:
+    """The path itself and, for a folder, what is inside it (bounded)."""
+    found = [p]
+    if p.is_dir() and not p.is_symlink():
+        for root, dirs, files in os.walk(p):
+            found += [Path(root) / n for n in dirs + files]
+            if len(found) > limit:
+                break
+    return found
+
+
+def changed_paths(path: Path, status: tuple[list[str], list[str], list[str]]) -> list[Path]:
+    """Modified and untracked paths: a file a live session just wrote counts as activity."""
+    tracked, untracked, _ = status
+    out: list[Path] = []
+    for entry in [e.split(" -> ")[-1] for e in tracked] + untracked:
+        out += newest_under(path / entry.strip('"'))
+    return out
 
 
 def last_activity_files(path: Path) -> list[Path]:
@@ -286,7 +373,8 @@ def main(argv: list[str] | None = None) -> int:
         except (OSError, subprocess.SubprocessError, ValueError) as e:
             say("KEPT", Path(wt["worktree"]), "error, left alone: " + str(e)[:80])
     if args.issue is None:
-        known = {Path(t["worktree"]).resolve() for t in trees}
+        fresh = parse_worktrees(git(here, "worktree", "list", "--porcelain").stdout)
+        known = {Path(t["worktree"]).resolve() for t in trees + fresh}
         sweep_leftovers(main_root, known, args.dry_run)
     return 0
 
