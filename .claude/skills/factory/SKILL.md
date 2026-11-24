@@ -37,9 +37,11 @@ gh pr list --state open
 gh run list --limit 8
 python scripts/issue_lock.py status
 python scripts/issue_lock.py stale
+python scripts/worktree_prune.py --pass-start <pass start ISO>   # leftover worktrees and local branches of finished work
 ```
 
 Do the same for every repository in `docs/factory/repos.yaml` (D143): `gh issue list -R <repo> ...`, `gh pr list -R <repo>`, `gh run list -R <repo>`, `python scripts/issue_lock.py status --repo <repo>`. `status` without `--repo` already shows every repository.
+Run `worktree_prune.py` once per pass in each repository's clone (add `--repo <repo>` for a clone of another repository). It reports `REMOVED`/`KEPT`/`SKIPPED` per worktree; `--dry-run` previews.
 
 - An open Dependabot PR (`dependabot/github_actions/...`) is handled first, without an issue: CI green, check each new SHA is the tag's commit and skim the release notes, squash-merge (FACTORY.md "Dependabot PRs", D138).
 - If `STATE.md` → **Now** names an issue and branch: that is the work to resume, unless its claim is held by a live session.
@@ -113,6 +115,7 @@ gh issue comment <n> --body "Shipped in #<pr>. Deploy: <run url>. Verified: <wha
 gh issue close <n> --reason completed   # no-op if the merge closed it
 gh issue edit <n> --add-label status:done --remove-label status:in-review
 python scripts/issue_lock.py release <n> --session <you> --reason shipped
+python scripts/worktree_prune.py --issue <n>   # after the merge: removes this issue's worktree and local branch
 ```
 
 Update `STATE.md` (Now → Recently done, Next) and append a short `history.md` entry if something was learned (tips, surprises, numbers). Commit straight to `main`.
