@@ -837,7 +837,7 @@ Tips:
 - **Git Bash `/tmp` is not Windows `/tmp`.** A Python edit of `/tmp/lfc/pr28.md` failed because native Python can't see Git Bash's `/tmp`, and the next command quietly re-posted the unchanged PR body. Fix: `cygpath -w` for paths handed to Windows programs.
 - **Three lanes, two repositories.** While factory CI ran (about 1 min), LF CI ran (about 20 min with docker). The fast lane merged three times while the slow lane was still in review.
 
-## Pass lf-v6d2: three lanes, zero merges, three exam gaps caught before shipping (2026-11-24, laptop, ~13:27-15:00 UTC)
+## Pass lf-v6d2: three lanes, one merge after two exam-first rebuilds (2026-11-24, laptop, ~13:27-15:10 UTC)
 
 - **Review keeps finding the next hole in a security exam.** #568's round 1 found a reusable-workflow route; round 2 found `toJSON(secrets)` plus `environment: Production` (GitHub environment names ignore case). Each time the workflow itself was safe, but the exam would have let a later PR hand the production key to code from another repository. The third exam swapped the denylist for an allowlist of the publish job's commands, which closes a whole class of routes instead of one.
 - **Exam-first costs a rebuild per round.** Exam integrity refuses an exam commit after code, so each exam fix meant a fresh `-2`/`-3` branch: cherry-pick the exam commits, add the new exam commit, then cherry-pick the code. That takes about 2 minutes of git and a 20-minute CI. The price is low for a guarantee that the exam was never bent to fit the code.
