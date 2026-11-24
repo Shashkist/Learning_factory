@@ -6,14 +6,12 @@ Observable contract, from the issue only:
     backslash, "/..", "%2e" or "%5c" (any case), an uppercase scheme, and a scheme-less github.com/someone/else/...
     are all redacted, in the title, the detail, the sub-step and the agent.
   * Plain allowed URLs (pull requests of this repository and of Shashkist/factory) are still published unchanged.
-  * A crew node titled "PR#547" or "Build issue#1" attaches to this repository's lane #547 / #1 (the page, run
-    in node through the #68 fake browser); "factory#1" still attaches to the other repository's lane.
+  (The crew-title cases of the page moved with the page to the factory package, D149 and #571.)
 No network, no machine environment (LF_CREW_DIR is unset); events are built in memory.
 """
 # ruff: noqa: E501
 from __future__ import annotations
 
-import copy
 import importlib.util
 import json
 from pathlib import Path
@@ -78,43 +76,3 @@ def test_allowed_url_is_kept_while_a_bad_one_in_the_same_text_is_removed():
     live = live_with("detail", f"{OK_URLS[0]} HTTPS://example.com/x github.com/someone-mk/else")
     blob = json.dumps(live)
     assert OK_URLS[0] in blob and "example.com" not in blob and "someone-mk" not in blob
-
-
-# ---- crew titles ---------------------------------------------------------------------------------
-
-def _steps(issue: int, repo: str, title: str, agent: str) -> dict:
-    return {"kind": "step", "at": base.ago(1), "issue": issue, "repo": repo, "title": title, "agent": agent,
-            "role": "implementer", "station": "build", "substep": "tests", "status": "done", "detail": ""}
-
-
-def crew_page(tmp_path: Path, crew_title: str) -> dict:
-    live = base.render([base.start_pass(45), _steps(1, "", "Local one", "impl-l1"),
-                        _steps(1, FOREIGN, "Foreign one", "impl-f1"), _steps(547, "", "Local 547", "impl-l547")])
-    live = copy.deepcopy(live)
-    live["crew"] = [{"id": "root", "type": "manager", "state": "busy", "tool": "Bash", "label": "pass", "title": "pass",
-                     "last": base.ago(0.1), "children": [
-                         {"id": "kid", "type": "implementer", "state": "busy", "tool": "CrewTool", "label": "x",
-                          "title": crew_title, "last": base.ago(0.1), "children": []}]}]
-    return lanes_exam.run_page(tmp_path, live)
-
-
-def attached(root, lane_key: str) -> bool:
-    got = [n for n in lanes_exam.by_class(root, "lane") if n["a"].get("data-lane") == lane_key]
-    assert got, f"no lane {lane_key!r}"
-    return "CrewTool" in base.text(got[0])
-
-
-KEYS = ["1", "547", FOREIGN + "#1"]
-
-
-@pytest.mark.parametrize("title,lane", [("PR#547", "547"), ("Build issue#1", "1"), ("#547", "547"), ("Learning_factory#1", "1")])
-def test_crew_title_attaches_to_this_repositorys_lane(tmp_path, title, lane):
-    root = crew_page(tmp_path, title)
-    assert attached(root, lane), f"crew {title!r} did not attach to lane {lane}"
-    assert [k for k in KEYS if k != lane and attached(root, k)] == [], "attached to more than one lane"
-
-
-def test_crew_title_factory_hash_1_still_attaches_to_the_other_repositorys_lane(tmp_path):
-    root = crew_page(tmp_path, "factory#1")
-    assert attached(root, FOREIGN + "#1")
-    assert not attached(root, "1") and not attached(root, "547")
