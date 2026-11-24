@@ -118,6 +118,8 @@ python scripts/issue_lock.py release <n> --session <you> --reason shipped
 python scripts/worktree_prune.py --issue <n>   # after the merge: removes this issue's worktree and local branch
 ```
 
+For an issue of another repository (`Shashkist/factory`) run the script from that repository's clone (the `clone:` path in `docs/factory/repos.yaml`, for example `C:\projects\factory`) with the `--repo` form: `python <this repository>/scripts/worktree_prune.py --issue <n> --repo Shashkist/factory`. The script lives in this repository; the clone you run it in decides which worktrees it looks at. `--pass-start` is the ISO time this pass started (the timestamp the orient step noted when the pass began); only the orient sweep needs it.
+
 Update `STATE.md` (Now → Recently done, Next) and append a short `history.md` entry if something was learned (tips, surprises, numbers). Commit straight to `main`.
 
 ## 8 · Loop or stop

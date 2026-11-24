@@ -21,38 +21,47 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
 import issue_lock
 
 TIMEOUT = 120
+STALE_AFTER = issue_lock.DEFAULT_STALE_AFTER.total_seconds()
 FEATURE = re.compile(r"^f/(\d+)-")
 
 
-def decide_feature(prs: list[dict], claimed: bool, on_remote: bool) -> tuple[bool, str]:
-    """(remove?, reason) for an `f/<n>-...` branch from its PRs, claim and remote presence."""
+def decide_feature(prs: list[dict], claimed: bool, merged_safe, remote_safe) -> tuple[bool, str]:
+    """(remove?, reason) for an `f/<n>-...` branch.
+
+    `merged_safe(prs)` and `remote_safe()` are only called when needed and return (ok, why):
+    the local tip must be inside the merged head, or inside the branch the remote still has.
+    """
     if claimed:
         return False, "issue has a live claim"
     if not prs:
         return False, "no PR for this branch"
     if any(p.get("state") == "OPEN" for p in prs):
         return False, "PR is open"
-    if any(p.get("state") == "MERGED" or p.get("mergedAt") for p in prs):
-        return True, "PR merged"
-    if on_remote:
-        return True, "PR closed, branch on the remote"
-    return False, "PR closed but the branch is only local"
+    merged = [p for p in prs if p.get("state") == "MERGED" or p.get("mergedAt")]
+    if merged:
+        ok, why = merged_safe(merged)
+        return (True, "PR merged") if ok else (False, why)
+    ok, why = remote_safe()
+    return (True, "PR closed, branch tip is on the remote") if ok else (False, why)
 
 
 def decide_subagent(
-    created: float, pass_start: float | None, tip_on_remote: bool
+    created: float, pass_start: float | None, tip_on_remote: bool, now: float | None = None
 ) -> tuple[bool, str]:
-    """(remove?, reason) for a subagent worktree from its age and whether its tip is pushed."""
+    """(remove?, reason) for a subagent worktree from its last activity and whether its tip is pushed."""
     if pass_start is None:
         return False, "no --pass-start, age unknown"
     if created >= pass_start:
         return False, "created in this pass"
+    if (time.time() if now is None else now) - created < STALE_AFTER:
+        return False, "recent activity inside the stale-claim window"
     if tip_on_remote:
         return True, "older than this pass, tip is on the remote"
     return False, "older than this pass but the tip is not on any remote branch"
@@ -94,12 +103,46 @@ def make_gh(repo: str | None):
     return run
 
 
-def split_status(path: Path) -> tuple[list[str], list[str]]:
-    """(tracked changes, untracked files) of a worktree."""
-    out = git(path, "status", "--porcelain", "-uall").stdout.splitlines()
-    tracked = [ln[3:] for ln in out if not ln.startswith("??")]
+def split_status(path: Path) -> tuple[list[str], list[str], list[str]] | None:
+    """(tracked changes, untracked files, ignored files) of a worktree, None when git cannot say."""
+    r = git(path, "status", "--porcelain", "-uall", "--ignored")
+    if r.returncode != 0:
+        return None
+    out = r.stdout.splitlines()
+    tracked = [ln[3:] for ln in out if not ln.startswith(("??", "!!"))]
     untracked = [ln[3:] for ln in out if ln.startswith("??")]
-    return tracked, untracked
+    ignored = [ln[3:] for ln in out if ln.startswith("!!")]
+    return tracked, untracked, ignored
+
+
+def is_ancestor(cwd: Path, commit: str, of: str) -> bool:
+    return git(cwd, "merge-base", "--is-ancestor", commit, of).returncode == 0
+
+
+def merged_safe(main_root: Path, tip: str, merged: list[dict]) -> tuple[bool, str]:
+    """The local tip must be a merged head or inside one: nothing was committed after the merge."""
+    heads = [p["headRefOid"] for p in merged if p.get("headRefOid")]
+    if not heads:
+        return False, "merged PR has no head commit to compare with the local tip"
+    if any(is_ancestor(main_root, tip, h) for h in heads):
+        return True, "ok"
+    return False, "local commits after the merge"
+
+
+def remote_safe(main_root: Path, branch: str, tip: str) -> tuple[bool, str]:
+    """Ask the remote itself (not a tracking ref) and require the tip to be inside its branch."""
+    r = git(main_root, "ls-remote", "origin", "refs/heads/" + branch)
+    if r.returncode != 0:
+        return False, "remote unreachable, cannot confirm the branch is pushed"
+    head = r.stdout.split()[:1]
+    if not head:
+        return False, "branch is not on the remote"
+    if is_ancestor(main_root, tip, head[0]):
+        return True, "ok"
+    git(main_root, "fetch", "-q", "origin", "refs/heads/" + branch)
+    if is_ancestor(main_root, tip, head[0]):
+        return True, "ok"
+    return False, "local commits are not on the remote branch"
 
 
 def parse_iso(text: str) -> float:
@@ -114,11 +157,17 @@ def say(status: str, path: Path, reason: str) -> None:
 
 
 def remove(main_root: Path, path: Path, branch: str, reason: str, dry_run: bool) -> None:
-    tracked, untracked = split_status(path)
+    status = split_status(path)
+    if status is None:
+        say("KEPT", path, "git status failed, cannot tell what is in it")
+        return
+    tracked, untracked, ignored = status
     if tracked:
         say("KEPT", path, "tracked changes: " + ", ".join(tracked[:5]))
         return
     names = "  untracked files: " + ", ".join(untracked) if untracked else ""
+    if ignored:
+        names += ("\n" if names else "") + "  ignored files: " + ", ".join(ignored)
     if dry_run:
         say("REMOVED", path, "would remove (" + reason + ")")
         if names:
@@ -146,24 +195,33 @@ def judge(wt: dict, main_root: Path, here: Path, args, pass_start, gh) -> None:
         say("KEPT", path, "the worktree this command runs from")
     elif not path.exists():
         say("KEPT", path, "folder missing, left to git worktree prune")
+    elif "locked" in wt:
+        say("KEPT", path, "locked" + (": " + wt["locked"] if wt["locked"] else ""))
     elif m:
         try:
             claim, _ = issue_lock.find_claim(int(m.group(1)), gh)
             prs = json.loads(gh(["pr", "list", "--head", branch, "--state", "all",
-                                 "--json", "number,state,mergedAt"]))
+                                 "--json", "number,state,mergedAt,headRefOid"]))
         except (RuntimeError, ValueError, OSError, subprocess.SubprocessError) as e:
             say("KEPT", path, "gh unavailable: " + str(e)[:80])
             return
-        on_remote = git(main_root, "rev-parse", "--verify", "-q",
-                        "refs/remotes/origin/" + branch).returncode == 0
-        go, reason = decide_feature(prs, claim is not None, on_remote)
+        tip = git(path, "rev-parse", "HEAD").stdout.strip()
+        if not tip:
+            say("KEPT", path, "cannot read the branch tip")
+            return
+        go, reason = decide_feature(
+            prs, claim is not None,
+            lambda merged: merged_safe(main_root, tip, merged),
+            lambda: remote_safe(main_root, branch, tip),
+        )
         if go:
             remove(main_root, path, branch, reason, args.dry_run)
         else:
             say("KEPT", path, reason)
     elif branch.startswith("worktree-agent-"):
         gitfile = path / ".git"
-        created = max(path.stat().st_mtime, gitfile.stat().st_mtime if gitfile.exists() else 0)
+        stamps = [path, gitfile, *last_activity_files(path)]
+        created = max(f.stat().st_mtime for f in stamps if f.exists())
         tip = git(path, "rev-parse", "HEAD").stdout.strip()
         pushed = bool(tip) and bool(git(main_root, "branch", "-r", "--contains", tip).stdout.strip())
         go, reason = decide_subagent(created, pass_start, pushed)
@@ -175,19 +233,34 @@ def judge(wt: dict, main_root: Path, here: Path, args, pass_start, gh) -> None:
         say("KEPT", path, "not a factory branch")
 
 
+def last_activity_files(path: Path) -> list[Path]:
+    """The git files a live session keeps writing: the index and the HEAD reflog."""
+    r = git(path, "rev-parse", "--absolute-git-dir")
+    if r.returncode != 0 or not r.stdout.strip():
+        return []
+    gd = Path(r.stdout.strip())
+    return [gd / "index", gd / "logs" / "HEAD"]
+
+
 def sweep_leftovers(main_root: Path, known: set[Path], dry_run: bool) -> None:
     """Folders under .claude/worktrees holding only a .git file that git does not know."""
     for d in sorted((main_root / ".claude" / "worktrees").glob("*")):
         if not d.is_dir() or d.resolve() in known:
             continue
-        if {p.name for p in d.iterdir()} != {".git"}:
+        entries = list(d.iterdir())
+        if not entries:
+            what = "empty leftover folder"
+        elif len(entries) == 1 and entries[0].name == ".git" and entries[0].is_file():
+            what = "leftover folder with only a .git file"
+        else:
             say("KEPT", d, "unknown to git but holds files")
-        elif dry_run:
-            say("REMOVED", d, "would remove (leftover folder with only a .git file)")
+            continue
+        if dry_run:
+            say("REMOVED", d, "would remove (" + what + ")")
         else:
             try:
                 shutil.rmtree(d)
-                say("REMOVED", d, "leftover folder with only a .git file")
+                say("REMOVED", d, what)
             except OSError as e:
                 say("SKIPPED", d, "busy, not removed: " + str(e)[:80])
 
@@ -208,7 +281,10 @@ def main(argv: list[str] | None = None) -> int:
     trees = parse_worktrees(git(here, "worktree", "list", "--porcelain").stdout)
     main_root = Path(trees[0]["worktree"]).resolve()
     for wt in trees[1:]:
-        judge(wt, main_root, here, args, pass_start, gh)
+        try:
+            judge(wt, main_root, here, args, pass_start, gh)
+        except (OSError, subprocess.SubprocessError, ValueError) as e:
+            say("KEPT", Path(wt["worktree"]), "error, left alone: " + str(e)[:80])
     if args.issue is None:
         known = {Path(t["worktree"]).resolve() for t in trees}
         sweep_leftovers(main_root, known, args.dry_run)
