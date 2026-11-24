@@ -4,10 +4,10 @@
 
 ## Now
 
-**Pass lf-a0k2 running (laptop, from 10:28 UTC 2026-11-24).** Took over lf-n4v7's claim on factory#22 (that pass ended at 10:05 UTC while review round 2 ran, without a state note). In flight, all in Shashkist/factory:
-- **factory#22 PR #30** (`f/22-redaction-forms`, worktree `C:\projectsactory-22`, head 2a050b6, CI green): review round 2 running.
-- **factory#6** (`f/6-dashboard`, worktree `C:\projectsactory-6`): factory D13 (package `factory_tools.dashboard`, `python -m factory_tools.dashboard build`); exam being written. LF half opened as **#568** (depends on factory#6).
-- **factory#27** (`f/27-plugin-agents`, worktree `C:\projectsactory-27`): exam being written.
+**Pass lf-a0k2 finished (laptop, 10:28-11:55 UTC 2026-11-24, stopped by time, 1 merge).** Claims on factory#22 and factory#6 are held by lf-a0k2 with the step below: take them over with `--steal --reason`. Resume here, in this order (all in Shashkist/factory, `gh -R Shashkist/factory`, `issue_lock.py --repo Shashkist/factory`, progress calls with `--repo Shashkist/factory`):
+- **factory#22 PR #30** (`f/22-redaction-forms`, worktree `C:\projectsactory-22`, head ab981da, CI green). Round 2 CHANGES at 2a050b6 → fixed in ab981da (factory D14, D14 amendment 1: worker id kept only if `[a-z0-9]{1,12}`, to keep the older ported exam). Verification of ab981da: CHANGES (PR comment): A regression (IP followed by a full stop passes), B naive event time still crashes `render`, C nit (non-letter scheme). **Next** (D14 amendment 2): an implementer fixes A, B, C on the branch with each input as a unit test; a fresh reviewer verifies only those; post `Review round 2: APPROVE|CHANGES at <head>`; on APPROVE run `merge_gate.py 30 --repo Shashkist/factory` and merge (`main-ci`).
+- **factory#6 PR #32** (`f/6-dashboard`, worktree `C:\projectsactory-6`, exam cec66a3, code a24e4eb, CI green). Review round 1 CHANGES (2 blocking: LF lanes with `repo: ""` get no tag and take the other repository's PR; decisions card shows only the last repository's decisions, untagged; 5 nits). The implementer was fixing all 7 when the pass stopped: check the branch head and its report on the PR; then review round 2. The LF half is **#568** (depends on factory#6). Factory D13.
+- Done: **factory#27** merged as #31 (4d90996; factory main CI 45387474155; rounds: 1 CHANGES, 2 CHANGES one line fixed by the manager, fresh verification APPROVE; gate `MERGE`). Follow-up **LF #569** (LF-only facts from the role files move into CLAUDE.md before the plugin switch, p2). Decisions: factory D13, D14 (+ amendments 1, 2).
 
 **Pass lf-n4v7 finished (laptop, 08:27-10:05 UTC 2026-11-24, 2 merges).** In flight: **Shashkist/factory#22 PR #30** (`f/22-redaction-forms`, worktree `C:\projects\factory-22`, exam 7dc0d27, code 601b4e3; factory D11 title cap 120): CI and review round 1 running. Done: **#84** merged as #563 (5e201b8, round-2 verification APPROVE by a fresh reviewer, gate printed `MERGE`; main CI 45358067497), **factory#14** merged as #25 (ec40c30; factory main CI 45358153342), **factory#3** closed (all slices in), **#14** closed (HTTPS already live: external healthz ok, 80 → 301, Deploy 45273104116 terminal smoke via https). Sliced **factory#4** into **#27/#28/#29** (factory D10). Follow-ups: factory#26 (p3), #564 extended, #555 extended (port of factory#22).
 
@@ -54,7 +54,7 @@ Older pass notes are in `history.md` and git history (`git log -p docs/factory/S
 
 ## Next (in order)
 
-1. **#563** and **factory PR #25** (see Now); then the order `factory_pick.py` prints (factory#22 p2, factory#10/#11 p2, then the LF p2 list). **#561**, **#564**, **factory#17**, **factory#24**, **#523**, **#555** (p3 follow-ups). Owner item **O26** (heartbeat task).
+1. **factory PR #30** and **PR #32** (see Now); then the order `factory_pick.py` prints (factory#22 p2, factory#10/#11 p2, then the LF p2 list). **#561**, **#564**, **factory#17**, **factory#24**, **#523**, **#555** (p3 follow-ups). Owner item **O26** (heartbeat task).
 2. **#468** (bootstrap exam nits, p3; now on top of #56's exam), **#423** (validator misses, p3; time real shells first; an old worktree `C:\projects\lf-423` exists, check it before starting).
 3. **#436**, **#431** (lab screen follow-ups, p3). **#85** deploy follow-ups; p2 list: #81, #84, #64, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
