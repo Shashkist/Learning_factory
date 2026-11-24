@@ -426,5 +426,6 @@ def test_workflow_has_no_issue_or_pull_request_triggers():
 def test_workflow_builds_the_snapshot_and_uploads_an_artifact():
     wf = _workflow()
     steps = [s for job in wf["jobs"].values() for s in job["steps"]]
-    assert any("build_snapshot.py" in s.get("run", "") for s in steps)
+    # D149 (#568): the workflow runs the factory package, not build_snapshot.py.
+    assert any("factory_tools.dashboard build" in s.get("run", "") for s in steps)
     assert any(s.get("uses", "").startswith("actions/upload-artifact") for s in steps)
