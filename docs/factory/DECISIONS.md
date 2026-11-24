@@ -1542,3 +1542,11 @@ The exam stays under `labs/factory-dashboard/tests/acceptance/` (where exam inte
 **Revert.** Drop the rule 8 line and the two `paths:` entries; restore the exam from 841e209.
 
 **D150 amendment 1 (review of #575, 2026-11-24).** #18 lost 33 cases in total: 24 builder and 9 page (the list said 33 builder). Three of the builder cases have no match in the factory package at 52280d7: the in-review claim fallback, an in-progress claim winning over an in-review one, and the open-incident throughput count. They are added to factory#42's scope (comment there), to be ported or named as not carried over.
+
+## D152 · #577 review round 1: fixes on the same branch; orphan branches become #582
+in force · Learning Factory · 2026-11-24 · revertible
+
+**Decision.** Review round 1 of PR #581 (CHANGES at 76617f8) found five blocking safety gaps and six nits. The exam-writer added an exam-only commit (722c71c) on the same branch for findings 1-8 and 10 (exam integrity tracks only `labs/` code, and the code is under `scripts/`, as D151). Choices it made: the activity window for a live subagent worktree is the stale-claim window (`DEFAULT_STALE_AFTER`, 90 min, in `scripts/issue_lock.py`), measured on the worktree's git dir (index, `logs/HEAD`), not on the folder; an empty leftover folder is removed; ignored files are listed by name before removal, also under `--dry-run`; a locked worktree prints `KEPT ... locked`. The implementer fixes the code and nit 11 (SKILL.md: the `--repo` form for a Shashkist/factory issue and where the pass start comes from). Nit 9 (local `f/<n>-*` and `worktree-agent-*` branches with no worktree are never judged) is left out of #577 and is **#582** (p3): the issue's criteria and factory#47's list do not name it, and it needs its own remote checks.
+**Why.** Every blocking finding loses work if left; nit 9 only leaves clutter, which is the state before #577.
+**Alternatives.** Fold nit 9 in (a larger round 2 to review); rebuild as `-2` (not needed, the check accepts the order).
+**Revert.** Close #582 and fold its cases into a later exam of the prune script.
