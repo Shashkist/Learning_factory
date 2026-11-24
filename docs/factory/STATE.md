@@ -5,9 +5,9 @@
 ## Now
 
 **Pass lf-t5j8 running (laptop, from 06:30 UTC 2026-11-24).** In flight (claims held by lf-t5j8):
-- **Shashkist/factory#13** PR #23 (`f/13-progress-2`, worktree `C:\projectsactory-13b`): CI green, review round 2 running. Claim taken over from lf-m3t7 (quiet since 21:46 UTC; it merged factory#12 as PR #20 and left #13 after the round-1 rebuild).
-- **Shashkist/factory#14** (`f/14-ci-tools`, worktree `C:\projectsactory-14`): exam being written.
-- **#84** merge gate (`f/84-merge-gate`, worktree `C:\projects\lf-84`, D148): exam being written.
+- **#84** merge gate, PR #563 (`f/84-merge-gate`, worktree `C:\projects\lf-84`, D148): CI green, review round 1 running.
+- **Shashkist/factory#14** (`f/14-ci-tools`, worktree `C:\projects\factory-14`): exam f539b29 (skip replaced by a fixture: that CI's JUnit gate fails on skips), implementer building.
+- Done: **factory#13** merged as PR #23 (squash 5e6a7c0; review round 2 APPROVE, then rebased over #20 with the conftest conflict resolved inside the exam commit; factory main CI 45349218952 green). Follow-up **factory#24** (p3). lf-m3t7 had merged factory#12 (PR #20) and stopped without a state note.
 
 **Pass lf-p8x5 finished (laptop, 18:26-20:12 UTC 2026-11-23, stopped by time, 2 merges).** Resume here:
 - **#558 merged** as PR #560 (squash 7d2eebc; reviews: round 1 CHANGES, round 2 APPROVE). Cause (D147): one push hung ~2 h in pass 10; on Windows `communicate()` blocks writing stdin over ~4 KB, so its timeout never fired. Verified live: with 7d2eebc pulled into this worktree mid-pass, `live.json` `updated` stayed 3-33 s old for 5 minutes (criterion 2). Main CI 45253419423 green; #558 closed with evidence, claim released. Follow-up **#561** (p3, state-write nits).
