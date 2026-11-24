@@ -25,7 +25,9 @@ MAX_CI_ROUNDS = 5
 PASSED = {"SUCCESS", "NEUTRAL", "SKIPPED"}
 VERDICT = re.compile(r"^Review round (\d+): (APPROVE|CHANGES) at ([0-9a-fA-F]{7,40})\s*$")
 CLOSES = re.compile(r"^\s*closes\s+#(\d+)\s*$", re.IGNORECASE | re.MULTILINE)
-TOOLING_TEST = re.compile(r"^scripts/(ci/)?test_[^/]*\.py$")
+# Exam files for counting CI rounds only (D148 amendment 1b, 2): tooling exams and another
+# repository's tests/acceptance/ besides D9's labs/*/tests/.
+TOOLING_TEST = re.compile(r"^(scripts/(ci/)?test_[^/]*\.py|tests/acceptance/.+)$")
 
 
 def _check_reasons(checks: list[dict]) -> list[str]:
@@ -64,8 +66,9 @@ def main(argv: list[str], run=issue_lock._run) -> int:
     args = ap.parse_args(argv)
     gh = issue_lock.scoped(run, args.repo)
 
-    pr = json.loads(gh(["pr", "view", args.pr, "--json",
-                        "author,body,headRefOid,isCrossRepository,commits,statusCheckRollup,comments"]))
+    fields = ("author,body,headRefOid,isCrossRepository,commits,statusCheckRollup,comments,"
+              "url,closingIssuesReferences")
+    pr = json.loads(gh(["pr", "view", args.pr, "--json", fields]))
     head = pr["headRefOid"].lower()
     author = args.author or pr["author"]["login"]
     reasons = _check_reasons(pr.get("statusCheckRollup") or [])
@@ -89,7 +92,17 @@ def main(argv: list[str], run=issue_lock._run) -> int:
     if code_commits > MAX_CI_ROUNDS:
         reasons.append(f"ci round {code_commits} is over the limit of {MAX_CI_ROUNDS}")
 
-    closed = sorted({int(n) for n in CLOSES.findall(pr.get("body") or "")})
+    closed_set = {int(n) for n in CLOSES.findall(pr.get("body") or "")}
+    # GitHub closes on any closing keyword anywhere in the body: every issue it will close
+    # needs this session's claim, and one in another repository always holds.
+    pr_repo = (pr.get("url") or "").split("/pull/")[0]
+    for ref in pr.get("closingIssuesReferences") or []:
+        ref_repo = (ref.get("url") or "").split("/issues/")[0]
+        if pr_repo and ref_repo and ref_repo.lower() != pr_repo.lower():
+            reasons.append(f"closes #{ref.get('number')} in another repository")
+        else:
+            closed_set.add(int(ref["number"]))
+    closed = sorted(closed_set)
     if not closed:
         reasons.append("PR body has no `Closes #n` for the issue it ships")
     for n in closed:

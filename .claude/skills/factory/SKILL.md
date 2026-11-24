@@ -85,7 +85,7 @@ For every open question: the spec says → `DECISIONS.md` says → research (dis
 2. Dispatch the `implementer` agent (worktree) with the issue, the exam and the relevant rules. It makes everything pass locally.
 3. Push and open a PR: title `feat(area): ... (#n)`, body = what / why / how verified / `Closes #n`. Label the issue `status:in-review`.
 4. Wait for CI: `gh pr checks <pr> --watch`. Red → back to the implementer with the exact failure. Max 5 rounds.
-5. Dispatch the `reviewer` agent (fresh context; give it the PR number and the spec path, not your opinion). Findings → implementer. The manager posts the reviewer's verdict as a PR comment whose first line is `Review round <k>: APPROVE|CHANGES at <head sha>` (D148). Max 2 review rounds; after that, you decide, record the D-entry, and split leftovers into follow-up issues.
+5. Dispatch the `reviewer` agent (fresh context; give it the PR number and the spec path, not your opinion). Findings → implementer. The manager posts the reviewer's verdict as a PR comment whose first line is `Review round <k>: APPROVE|CHANGES at <head sha>` (D148). Max 2 review rounds; after that, you decide, record the D-entry, and split leftovers into follow-up issues. When you decide to merge after a round-2 `CHANGES` (for example on your own fix, D145), post `Review round 2: APPROVE at <new head sha>` with a second line naming the D-entry, so the gate has a verdict for the head (D148 amendment 2).
 
 Heartbeat at every step: `python scripts/issue_lock.py heartbeat <n> --session <you> --step '<what>'`.
 

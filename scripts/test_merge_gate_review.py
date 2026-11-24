@@ -57,3 +57,36 @@ def test_every_closes_line_needs_the_claim(capsys):
 def test_two_closes_lines_both_claimed_merge(capsys):
     gh = t.Gh(body="Closes #5\nCloses #7\n")
     assert run_gate(gh, capsys) == (0, ["MERGE"])
+
+
+# Review round 2 of #84 (D148 amendment 2).
+
+
+def test_closing_keyword_anywhere_needs_the_claim(capsys):
+    class OneClaim(t.Gh):
+        def __call__(self, argv):
+            if argv[:3] == ["issue", "view", "7"]:
+                self.calls.append(list(argv))
+                return '{"comments": []}'
+            return super().__call__(argv)
+
+    gh = OneClaim(body="Closes #5\nThis also fixes #7.\n",
+                  closingIssuesReferences=[{"number": 5}, {"number": 7}])
+    code, lines = run_gate(gh, capsys)
+    assert code == 1 and len(lines) == 1 and "#7" in lines[0] and "claim" in lines[0]
+
+
+def test_closing_an_issue_in_another_repository_holds(capsys):
+    gh = t.Gh(url="https://github.com/o/r/pull/9",
+              closingIssuesReferences=[{"number": 5, "url": "https://github.com/o/r/issues/5"},
+                                       {"number": 3, "url": "https://github.com/x/y/issues/3"}])
+    t.assert_single_hold(*run_gate(gh, capsys), "another repository")
+
+
+def test_tests_acceptance_commits_are_not_ci_rounds(capsys):
+    exam = "0" * 39 + "9"
+    oids, commits = t.code_commits(5)
+    gh = t.Gh(commits=[{"oid": exam}] + commits)
+    gh.files = {o: [t.CODE_FILE] for o in oids}
+    gh.files[exam] = ["tests/acceptance/test_issue_14_x.py"]
+    assert run_gate(gh, capsys) == (0, ["MERGE"])
