@@ -325,3 +325,314 @@ def test_site_execution_check_rejects_every_form_of_running_an_artifact_file():
     for cmd in allowed:
         w = mutated(publish_step=cmd)
         assert execution_violations(w["jobs"][name]) == [], cmd
+
+
+# ---- review round 2: secrets in any form, environment case, publish allowlist, uv pins ----
+
+SECRETS_ANY = re.compile(r"\bsecrets\b", re.IGNORECASE)
+ALLOWED_HEADS = {
+    "if", "then", "else", "fi", "for", "do", "done", "echo", "exit", "umask", "printf",
+    "chmod", "ssh", "scp", "sleep", "rm", "break", "[", "test",
+}
+# Words that start a clause and are followed by a real command in the same segment.
+CLAUSE_LEADERS = {"if", "then", "else", "do", "elif", "while", "until", "!"}
+SUB_PLACEHOLDER = "__SUBSTITUTION__"
+UV_CALL = re.compile(r"(^|[\s;&|=])uv\s")
+
+
+def join_continuations(text: str) -> str:
+    """A shell line continuation is a backslash directly followed by a newline."""
+    return text.replace("\\\n", " ")
+
+
+def env_name_ci(job: dict) -> str:
+    return env_name(job).strip().lower()
+
+
+def prod_job_names(workflow: dict) -> list[str]:
+    return [n for n, j in workflow["jobs"].items() if env_name_ci(j) == "production"]
+
+
+def publish_job_ci() -> tuple[str, dict]:
+    names = prod_job_names(wf())
+    assert len(names) == 1, f"expected exactly one production job (any letter case), got {names}"
+    return names[0], jobs()[names[0]]
+
+
+def secrets_scope_violations(workflow: dict) -> list[str]:
+    bad = []
+    prod = prod_job_names(workflow)
+    if len(prod) != 1:
+        bad.append(f"expected exactly one production job (any letter case), got {prod}")
+    top = {k: v for k, v in workflow.items() if k != "jobs"}
+    if SECRETS_ANY.search(yaml.safe_dump(top)):
+        bad.append("workflow-level mention of secrets (inherited by every job)")
+    for name, job in workflow["jobs"].items():
+        if name not in prod and SECRETS_ANY.search(yaml.safe_dump(job)):
+            bad.append(f"{name}: mentions secrets")
+    return bad
+
+
+def split_shell(text: str) -> tuple[list[str], list[str]]:
+    """Quote-aware split into command segments plus the bodies of $(...) and `...` substitutions."""
+    segments: list[str] = []
+    subs: list[str] = []
+    cur: list[str] = []
+
+    def flush() -> None:
+        segments.append("".join(cur))
+        cur.clear()
+
+    i, n, quote = 0, len(text), ""
+    while i < n:
+        c = text[i]
+        nxt = text[i + 1] if i + 1 < n else ""
+        if c == "\\" and quote != "'":
+            cur.append(c + nxt)
+            i += 2
+            continue
+        if quote == "'":
+            cur.append(c)
+            if c == "'":
+                quote = ""
+            i += 1
+            continue
+        if c == "$" and nxt == "(":
+            depth, j = 1, i + 2
+            while j < n and depth:
+                depth += {"(": 1, ")": -1}.get(text[j], 0)
+                j += 1
+            subs.append(text[i + 2 : j - 1])
+            cur.append(SUB_PLACEHOLDER)
+            i = j
+            continue
+        if c == "`":
+            j = text.find("`", i + 1)
+            j = n if j < 0 else j
+            subs.append(text[i + 1 : j])
+            cur.append(SUB_PLACEHOLDER)
+            i = j + 1
+            continue
+        if quote == '"':
+            cur.append(c)
+            if c == '"':
+                quote = ""
+            i += 1
+            continue
+        if c in "'\"":
+            quote = c
+            cur.append(c)
+            i += 1
+            continue
+        if c == "#" and (not cur or cur[-1] in " \t"):
+            while i < n and text[i] != "\n":
+                i += 1
+            continue
+        if c in ";\n":
+            flush()
+            i += 1
+        elif c in "&|" and nxt == c:
+            flush()
+            i += 2
+        elif c == "|":
+            flush()
+            i += 1
+        elif c == "&" and nxt != ">" and (not cur or cur[-1] not in "<>"):
+            flush()
+            i += 1
+        else:
+            cur.append(c)
+            i += 1
+    flush()
+    return segments, subs
+
+
+def command_heads(text: str) -> list[str]:
+    heads = []
+    segments, subs = split_shell(join_continuations(text))
+    for seg in segments:
+        try:
+            words = shlex.split(seg)
+        except ValueError:
+            words = seg.split()
+        while words and ENV_ASSIGN.match(words[0]):
+            words = words[1:]
+        while words and words[0] in CLAUSE_LEADERS:
+            words = words[1:]
+            while words and ENV_ASSIGN.match(words[0]):
+                words = words[1:]
+        if words:
+            heads.append(words[0])
+    for sub in subs:
+        heads.extend(command_heads(sub))
+    return heads
+
+
+def allowlist_violations(job: dict) -> list[str]:
+    bad = []
+    for step in job.get("steps", []):
+        if "shell" in step:
+            bad.append(f"custom shell: {step['shell']}")
+        for head in command_heads(str(step.get("run", ""))):
+            if head not in ALLOWED_HEADS:
+                bad.append(f"command not in the allowlist: {head}")
+    return bad
+
+
+def uv_pin_violations(job: dict) -> list[str]:
+    bad = []
+    setup = [s for s in job.get("steps", []) if "setup-uv" in str(s.get("uses", ""))]
+    if len(setup) != 1:
+        bad.append("expected exactly one setup-uv step")
+    elif not str((setup[0].get("with") or {}).get("version", "")).strip():
+        bad.append("setup-uv has no version input")
+    for step in job.get("steps", []):
+        if UV_CALL.search(str(step.get("run", ""))):
+            e = {**(job.get("env") or {}), **(step.get("env") or {})}
+            if str(e.get("UV_PYTHON_DOWNLOADS", "")).strip() != "never":
+                label = step.get("name", step.get("run"))
+                bad.append(f"step {label!r}: UV_PYTHON_DOWNLOADS is not never")
+    return bad
+
+
+def publish_job_with_step(run: str, **extra: str) -> dict:
+    name, job = publish_job_ci()
+    job = copy.deepcopy(job)
+    job["steps"].append({"name": "x", "run": run, **extra})
+    return job
+
+
+def test_no_job_other_than_publish_mentions_secrets_in_any_form():
+    assert secrets_scope_violations(wf()) == []
+    name, _ = build_job()
+    assert name not in prod_job_names(wf())
+    for other, j in jobs().items():
+        if other != publish_job_ci()[0]:
+            assert not SECRETS_ANY.search(dump(j)), other
+
+
+def test_exactly_one_job_has_the_production_environment_in_any_letter_case():
+    assert len(prod_job_names(wf())) == 1
+    name, job = publish_job_ci()
+    assert name == publish_job()[0]
+    assert env_name(job) == "production"
+    assert name != build_job()[0]
+
+
+def test_secrets_scope_check_rejects_uppercase_environment_and_toJSON_secrets():
+    sname = build_job()[0]
+    w = copy.deepcopy(wf())
+    w["jobs"][sname]["environment"] = "Production"
+    w["jobs"][sname]["env"] = {"ALL": "${{ toJSON(secrets) }}"}
+    assert secrets_scope_violations(w)
+    w = copy.deepcopy(wf())
+    w["jobs"][sname]["environment"] = {"name": "PRODUCTION"}
+    assert secrets_scope_violations(w)
+    w = copy.deepcopy(wf())
+    w["jobs"][sname]["env"] = {"ALL": "${{ toJSON(secrets) }}"}
+    assert secrets_scope_violations(w)
+    exprs = (
+        "${{ secrets.X }}", "${{ secrets['X'] }}", "${{ SECRETS.X }}", "${{ toJson(Secrets) }}",
+    )
+    for expr in exprs:
+        w = copy.deepcopy(wf())
+        w["jobs"][sname]["steps"][0].setdefault("env", {})["V"] = expr
+        assert secrets_scope_violations(w), expr
+    w = copy.deepcopy(wf())
+    w["env"] = {"V": "${{ secrets.X }}"}
+    assert secrets_scope_violations(w)
+    w = copy.deepcopy(wf())
+    w["jobs"]["relay"] = {"environment": "Production", "runs-on": "u", "steps": []}
+    assert secrets_scope_violations(w)
+
+
+def test_publish_job_runs_only_allowlisted_commands():
+    _, job = publish_job_ci()
+    assert allowlist_violations(job) == []
+    heads = set()
+    for step in job["steps"]:
+        heads.update(command_heads(str(step.get("run", ""))))
+    assert {"ssh", "scp", "rm", "printf", "chmod"} <= heads
+
+
+def test_publish_key_removal_step_passes_the_allowlist():
+    _, job = publish_job_ci()
+    step = next(s for s in job["steps"] if str(s.get("run", "")).lstrip().startswith("rm "))
+    assert command_heads(step["run"]) == ["rm"]
+    assert allowlist_violations({"steps": [step]}) == []
+
+
+def test_allowlist_rejects_every_way_of_running_an_artifact_file_or_a_wrapper():
+    forbidden = [
+        "cat site/x | sh",
+        'bash -c "$(cat site/x)"',
+        'eval "$(cat site/x)"',
+        "env bash site/x",
+        "sudo bash site/x",
+        "timeout 5 bash site/x",
+        "nohup sh site/x",
+        "cd site && sh x",
+        'bash "$PWD/site/x"',
+        "awk -f site/x",
+        "bash \\\n-e site/x",
+        "python site/x",
+        "FOO=1 sh site/x",
+        "echo `cat site/x`",
+        "echo hi & sh site/x",
+        "if true; then sh site/x; fi",
+        "./site/x",
+    ]
+    for cmd in forbidden:
+        assert allowlist_violations(publish_job_with_step(cmd)), cmd
+    allowed = [
+        'rm -f "$RUNNER_TEMP/publish_key"',
+        "echo 'a; b | sh' >&2",
+        "VAR=1\nscp -i k site/index.html host:/dest/",
+        "for i in 1 2; do ssh h true && break; sleep 1; done",
+        '[ -z "$X" ] || test -n "$Y"',
+        "# bash site/x is only a comment\necho ok",
+    ]
+    for cmd in allowed:
+        assert allowlist_violations(publish_job_with_step(cmd)) == [], cmd
+    assert allowlist_violations(publish_job_with_step("echo hi", shell="python {0}"))
+
+
+def test_line_continuations_are_joined_only_when_a_backslash_ends_the_line():
+    assert join_continuations("a \\\nb") == "a  b"
+    assert join_continuations("a \\nb") == "a \\nb"
+    assert command_heads("echo a \\\n bash x") == ["echo"]
+    assert command_heads("echo a\n bash x") == ["echo", "bash"]
+
+
+def test_build_job_pins_the_uv_version_on_setup_uv():
+    _, job = build_job()
+    setup = [s for s in job["steps"] if "setup-uv" in str(s.get("uses", ""))]
+    assert len(setup) == 1
+    assert str((setup[0].get("with") or {}).get("version", "")).strip()
+
+
+def test_every_build_job_step_running_uv_sets_uv_python_downloads_never():
+    _, job = build_job()
+    uv_steps = [s for s in job["steps"] if UV_CALL.search(str(s.get("run", "")))]
+    assert len(uv_steps) >= 2, "the install and the build steps both run uv"
+    assert uv_pin_violations(job) == []
+
+
+def test_uv_pin_check_rejects_a_missing_version_or_a_missing_never():
+    _, job = build_job()
+    j = copy.deepcopy(job)
+    for s in j["steps"]:
+        if "setup-uv" in str(s.get("uses", "")):
+            s.pop("with", None)
+    assert uv_pin_violations(j)
+    j = copy.deepcopy(job)
+    j.pop("env", None)
+    for s in j["steps"]:
+        if UV_CALL.search(str(s.get("run", ""))):
+            s["env"] = {**(s.get("env") or {}), "UV_PYTHON_DOWNLOADS": "automatic"}
+    assert uv_pin_violations(j)
+    j = copy.deepcopy(job)
+    for s in j["steps"]:
+        s.get("env", {}).pop("UV_PYTHON_DOWNLOADS", None)
+    j.pop("env", None)
+    assert uv_pin_violations(j)
