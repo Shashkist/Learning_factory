@@ -1465,3 +1465,17 @@ in force · factory · 2026-11-23 · revertible
 **Decision.** Fix it in `scripts/factory_progress.py publish` (the runner is guarded, D35): (1) ssh gets `ServerAliveInterval=5`, `ServerAliveCountMax=3` next to `ConnectTimeout=10`; (2) ssh's stdout and stderr go to the null device, so no pipe of the caller or of `publish` is held by ssh or anything it starts; (3) the push waits at most `LF_PUBLISH_TIMEOUT_S` (default 30 s), then kills ssh with its process tree and records `fail` (the 90 s backoff applies); (4) a watchdog ends the `publish` process itself after the timeout plus 15 s whatever hangs (render, file reads), after recording `fail` and killing ssh. So one `publish` call returns within about 45 s, and the page goes stale for at most about 2 minutes after a hang.
 **Alternatives.** Bound the call in `factory-poll.ps1` (`Start-Process` with a wait limit): guarded owner infrastructure, and it would leave the heartbeat path unbounded. Push over HTTPS instead of ssh: a new server endpoint and secret.
 **Revert.** Revert the #558 squash commit.
+
+## D148 · #84: the merge gate reads a verdict line that names the head commit; CI rounds are code pushes
+in force · factory · 2026-11-24 · revertible
+
+**Question.** #84 asks for `scripts/merge_gate.py <pr>` deciding `MERGE` or `HOLD` from facts only. Open points: the verdict format (the issue says `Verdict: APPROVE`; passes have posted `Review round <k>: APPROVE|CHANGES`), how a verdict is tied to the head commit, how CI rounds are counted, how exam integrity is checked.
+**Decision.**
+1. **Verdict line.** The manager posts the reviewer's verdict as a PR comment whose first line is `Review round <k>: APPROVE|CHANGES at <sha>` (`<sha>`: 7 to 40 hex characters of the reviewed head). The gate reads only first lines that match this pattern exactly, never prose. A verdict counts for the head only when `<sha>` is a prefix of the head SHA; the latest such comment wins. A comment by an author other than the gate's `--author` (default: the PR author) is ignored, so a passer-by cannot approve.
+2. **Review rounds** = the highest `<k>` among verdict lines; over 2 → HOLD.
+3. **CI rounds** = the number of commits on the PR that change files outside the exam (each code push is one CI round); over 5 → HOLD. Exam-only commits do not count.
+4. **Exam integrity** is the `exam-integrity` CI check (D9): it must be present and `SUCCESS` on the head, besides every other check being `SUCCESS` or a deliberate `SKIPPED` of a job whose `if:` excludes it (`NEUTRAL`/`SKIPPED` count as passed; pending, failure, cancelled, timed out, action required, or no checks at all → HOLD).
+5. **Claim.** The linked issue (`Closes #n` in the body) must be claimed by `--session` (read through `issue_lock.py`'s `find_claim`), not released; `--repo` works as in `issue_lock.py`.
+6. The gate is read-only (no merge, no comment). The ship step runs it and merges only on `MERGE`.
+**Alternatives.** `Verdict:` lines without a SHA (a stale approval would survive a later push); counting CI runs from the Actions API (re-runs and dashboard runs blur the count).
+**Revert.** Revert the #84 squash commit; the ship step goes back to the manager's judgement.
