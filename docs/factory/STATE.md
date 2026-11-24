@@ -4,6 +4,11 @@
 
 ## Now
 
+**Pass lf-k7q4 running (laptop, from 15:28 UTC 2026-11-24).** Holds the claims on factory#35, factory#29 and LF #571.
+- **factory#35** rebuilt as `f/35-merge-gate-2`, **PR factory#38** (exam, exam-only fake fix per factory D17, code, fallback removed). CI and review round 1 next.
+- **factory#29** rebuilt as `f/29-methodology-doc-2` (worktree `C:\projectsactory-29`): two exam commits plus the exam-only tightening 11f4d2c (role keys and CLAUDE.md inside each role's own section). Implementer is applying 9fe3e07 plus fixes 1, 3-7. Then a new PR replacing #37 and review round 2.
+- **LF #571** (`f/571-remove-old-dashboard`, worktree `C:\projects\lf-571`): exam-writer classifying which acceptance cases go with the old builder.
+
 **Pass lf-v6d2 finished (laptop, 13:27-15:10 UTC 2026-11-24, stopped by time, 1 merge).** The two factory claims are held by lf-v6d2 with the steps below: take them over with `--steal --reason`. Resume here, in this order:
 - **Shipped: LF #568** as #573 (squash c1f87c9; second rebuild after #570 and #572; round-2 verification APPROVE at 78f96b5; gate `MERGE`). Factory dashboard run 45421685336 on main: snapshot and publish green. Live: `snapshot.json` `generated_at` 15:06:55Z lists both repositories; live `app.js` byte-equal to the factory's `static/app.js` at 52280d7. Closed, claim released. Follow-up **#574** (exam nits: `BASH_ENV`, `$GITHUB_ENV`, ssh `ProxyCommand`, exact uv version; p3). **#571** (remove the old builder) is now pickable: the new build is live.
 - **factory#35** (`f/35-merge-gate`, pushed, no PR; worktree `C:\projectsactory-35`; exam 3b2d4d2, code 218d050; 908 passed, ruff and mypy clean). **Exam defect:** `tests/acceptance/fake_gh_merge_gate.py` resolves `gh api repos/{owner}/{repo}/commits/<oid>` only when the call carries `-R`, but the real `gh api` has no `-R` flag. The code calls the full path first and falls back to placeholder + `-R` only for the fake. **Next:** write a factory D-entry (the fake accepts the full `repos/<owner>/<repo>/commits/<oid>` path without `-R`; the criteria's `-R` stays on `pr view` and `issue view`). Rebuild as `f/35-merge-gate-2`: cherry-pick 3b2d4d2, then the exam-writer's exam-only fix of the fake (and any case that asserts `-R` on `api`), then 218d050 with the fallback removed. Then PR, CI, review round 1. Factory D16 covers cross-repository closes.
