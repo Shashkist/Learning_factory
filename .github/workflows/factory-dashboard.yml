@@ -28,18 +28,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
-      - name: Build snapshot.json
+      # The dashboard is built by the factory package at a pinned commit. The pin is a full SHA;
+      # changing it is a PR in this repo (D149). This job has no secrets (factory D12).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Shashkist/factory
+          ref: 52280d7a3126a4799273721405dffea319385534
+          path: factory-src
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.9"
+      # Only the factory's locked runtime dependencies (uv.lock, with hashes); the package itself
+      # is not built or installed, so no build backend is fetched. It runs from its source tree.
+      - name: Install the factory's locked dependencies
+        env:
+          # Use the runner's Python 3.12 from setup-python; never download an interpreter.
+          UV_PYTHON_DOWNLOADS: never
+        run: uv sync --frozen --no-dev --no-install-project --project factory-src
+      - name: Build the dashboard site
         env:
           GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          mkdir -p site
-          python labs/factory-dashboard/build_snapshot.py --out site/snapshot.json --repo-root . --public
-      - name: Copy the static page
-        run: cp labs/factory-dashboard/index.html labs/factory-dashboard/app.js labs/factory-dashboard/styles.css labs/factory-dashboard/theme.js site/
+          UV_PYTHON_DOWNLOADS: never
+        run: PYTHONPATH=factory-src/src uv run --frozen --no-sync --project factory-src python -m factory_tools.dashboard build --repos docs/factory/repos.yaml --out site/
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: factory-dashboard

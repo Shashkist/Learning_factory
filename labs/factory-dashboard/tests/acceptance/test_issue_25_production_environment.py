@@ -60,9 +60,10 @@ def jobs() -> dict:
 def snapshot_job() -> tuple[str, dict]:
     found = [
         (n, j) for n, j in jobs().items()
-        if any("build_snapshot.py" in str(s.get("run", "")) for s in j.get("steps", []))
+        # D149 (#568): the snapshot job runs the factory package now.
+        if any("factory_tools.dashboard build" in str(s.get("run", "")) for s in j.get("steps", []))
     ]
-    assert len(found) == 1, "expected exactly one job that runs build_snapshot.py"
+    assert len(found) == 1, "expected exactly one job that runs factory_tools.dashboard build"
     return found[0]
 
 
