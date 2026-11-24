@@ -4,6 +4,10 @@
 
 ## Now
 
+**Pass lf-r6b3 running (laptop, from 22:27 UTC 2026-11-24).** Claims held by lf-r6b3:
+- **LF #577, PR #581** (`f/577-worktree-prune`, worktree `C:\projects\lf-577`): claim taken over from lf-z5m8; exam-only commit for round 1 findings 1-6 in progress, then the implementer, then review round 2.
+- **factory#45** (`f/45-repo-tabs`, worktree `C:\projects\factory-45`): exam in progress. #44 (idle runner) is not folded in.
+
 **Pass lf-z5m8 finished (laptop, 20:28-22:00 UTC 2026-11-24, stopped at 3 merges).** lf-q2w9 (17:27) had gone silent with no stop note; its three claims were taken over and all three shipped. The claim on **LF #577** is held by lf-z5m8 with the step below: take it over with `--steal --reason`. Resume here:
 - **LF #577, PR #581** (`f/577-worktree-prune`, worktree `C:\projects\lf-577`; exam-only 4f26389, code 76617f8; CI was running). Review round 1 **CHANGES** at 76617f8 (PR comment): 5 blocking safety gaps (merged-head ancestry, `ls-remote` + ancestry for closed PRs, unreadable `git status` means keep, `.git` must be a *file*, live subagent worktrees of another pass by recent activity) and 6 nits (exam gaps, empty leftovers, locked worktrees, orphan branches, ignored files, factory-repo close call). **Next:** the exam-writer adds an exam-only commit on the same branch for findings 1-6 (exam integrity tracks only `labs/` code, so an exam commit after a `scripts/` commit is accepted, as D151); then the implementer fixes 1-5 and nits 7, 8, 10, 11 (nit 9 orphan branches may become a follow-up); then review round 2. **Do not run `worktree_prune.py` against a real clone before it merges.** Write a D-entry for any nit left out.
 - **Shipped: LF #571** as #575 (squash 6b60658; round 1 APPROVE at aa0dbba). Factory dashboard 45486708551 green; live `snapshot.json` `generated_at` 21:01:07Z (merge 21:00:54Z) lists both repositories. D150 amendment 1. Follow-up **#579** (p3).
