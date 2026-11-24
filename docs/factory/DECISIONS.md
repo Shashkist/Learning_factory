@@ -1511,7 +1511,7 @@ in force · Learning Factory · 2026-11-24 · revertible
 
 **Decision.** factory.shashkist.com is built from the factory package at a pinned commit (#568, D149), so LF's `labs/factory-dashboard/` builder and page are dead code. #571 removes them. Its exam-only commit removes the acceptance cases that test only that code and keeps every case that reads a workflow or tests a script outside `labs/factory-dashboard/` (`issue_lock.py`, `factory_pick.py`, `factory_progress.py`, `labs/deploy/nginx/*`). The survivors stay at `labs/factory-dashboard/tests/acceptance/` and need only pytest, PyYAML, the stdlib and bash.
 Removed, with where they are checked now:
-- #18: the 33 builder cases (counts, claims, PRs, runs, deploy and smoke runs, STATE/DECISIONS/OWNER parsing, throughput) and the `fixtures/issue18/` tree. These are checked by factory#6 criterion 1 (`test_c1_*`) and the factory's unit tests.
+- #18: the 24 builder cases (counts, claims, PRs, runs, deploy and smoke runs, STATE/DECISIONS/OWNER parsing, throughput) and the `fixtures/issue18/` tree. These are checked by factory#6 criterion 1 (`test_c1_*`) and the factory's unit tests.
 - #19: the 4 `--public` cases. They no longer apply, because the package has no `--public` flag. The privacy part is factory#6 c4 (`test_c4_no_state_text_in_any_built_file`, `test_c4_snapshot_has_only_the_keys_the_page_shows`).
 - #543: the 3 page repository-tag cases. These are checked by factory#6 c3.
 - **Page cases with no exam in the factory repository today:**
@@ -1540,3 +1540,5 @@ in force · Learning Factory · 2026-11-24 · revertible
 The exam stays under `labs/factory-dashboard/tests/acceptance/` (where exam integrity protects it), not `scripts/`.
 **Alternatives.** Move the exam to `scripts/` (runs on every PR, but exam integrity would no longer protect it); rebuild as `-2` (not needed, the check accepts the order).
 **Revert.** Drop the rule 8 line and the two `paths:` entries; restore the exam from 841e209.
+
+**D150 amendment 1 (review of #575, 2026-11-24).** #18 lost 33 cases in total: 24 builder and 9 page (the list said 33 builder). Three of the builder cases have no match in the factory package at 52280d7: the in-review claim fallback, an in-progress claim winning over an in-review one, and the open-incident throughput count. They are added to factory#42's scope (comment there), to be ported or named as not carried over.
