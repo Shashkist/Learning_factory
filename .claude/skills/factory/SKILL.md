@@ -85,7 +85,7 @@ For every open question: the spec says → `DECISIONS.md` says → research (dis
 2. Dispatch the `implementer` agent (worktree) with the issue, the exam and the relevant rules. It makes everything pass locally.
 3. Push and open a PR: title `feat(area): ... (#n)`, body = what / why / how verified / `Closes #n`. Label the issue `status:in-review`.
 4. Wait for CI: `gh pr checks <pr> --watch`. Red → back to the implementer with the exact failure. Max 5 rounds.
-5. Dispatch the `reviewer` agent (fresh context; give it the PR number and the spec path, not your opinion). Findings → implementer. Max 2 review rounds; after that, you decide, record the D-entry, and split leftovers into follow-up issues.
+5. Dispatch the `reviewer` agent (fresh context; give it the PR number and the spec path, not your opinion). Findings → implementer. The manager posts the reviewer's verdict as a PR comment whose first line is `Review round <k>: APPROVE|CHANGES at <head sha>` (D148). Max 2 review rounds; after that, you decide, record the D-entry, and split leftovers into follow-up issues. When you fix a round-2 `CHANGES` yourself (D145), a fresh `reviewer` verifies that fix; you post its verdict as `Review round 2: APPROVE|CHANGES at <new head sha>`. Never post an APPROVE no reviewer gave (D148 amendment 3).
 
 Heartbeat at every step: `python scripts/issue_lock.py heartbeat <n> --session <you> --step '<what>'`.
 
@@ -93,9 +93,13 @@ Heartbeat at every step: `python scripts/issue_lock.py heartbeat <n> --session <
 
 ```bash
 git log --oneline origin/main..HEAD        # know what you ship
-gh pr merge <pr> --squash --delete-branch
+gh pr view <pr> --json headRefOid --jq .headRefOid   # the head the gate will check
+python scripts/merge_gate.py <pr> --session <you>   # add --repo <owner/name> for another repository
+gh pr merge <pr> --squash --delete-branch --match-head-commit <that head SHA>
 gh run watch $(gh run list --workflow deploy.yml --limit 1 --json databaseId --jq '.[0].databaseId')
 ```
+
+Merge only when the gate prints `MERGE`; on `HOLD`, act on each reason it prints.
 
 For this repository, ship is the Deploy run and the smoke check below. For another repository, shipped means what its `ship:` field in `repos.yaml` says (`main-ci`: green CI on its `main` after the merge, `gh run list -R <repo> --branch main`; no deploy).
 
