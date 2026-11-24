@@ -4,13 +4,10 @@ Observable contract, from the issue only:
   * factory_progress.py add --repo owner/name records the event with its repository; lanes are keyed
     by (repository, issue). --issue 1 with and without --repo Shashkist/factory make two separate lanes.
     Without --repo everything works as before.
-  * The page (index.html + app.js, run in node through the #68 fake browser) shows the lane of another
-    repository as factory#<n> (short repository name, then #<n>); a lane of this repository still shows #<n>.
-    The page is fed with the real reducer output, so the exam does not depend on how live.json names the field.
   * Redaction (public text of live.json) keeps links under https://github.com/Shashkist/factory/ and still
     removes every other foreign URL.
 Events are written by the real CLI into a temp events file (LF_PROGRESS_FILE); their timestamps are then moved
-onto the fixed clock of the page harness. No network, no machine environment (LF_CREW_DIR is unset).
+onto a fixed clock. No network, no machine environment (LF_CREW_DIR is unset).
 """
 # ruff: noqa: E501
 from __future__ import annotations
@@ -81,10 +78,6 @@ def ef(tmp_path) -> Path:
     return tmp_path / "progress.jsonl"
 
 
-def lane_heads(root) -> list[str]:
-    return [base.text(n).strip() for n in lanes_exam.by_class(root, "lane-head")]
-
-
 # ---- criterion 1: two separate lanes ---------------------------------------------------------------
 
 def test_add_accepts_repo_and_records_the_event(ef):
@@ -114,31 +107,6 @@ def test_one_agent_working_in_both_repositories_still_makes_two_lanes(ef):
     add(ef, 1, substep="local step", title="Local task")
     live = live_from(ef)
     assert len(live["issues"]) == 2, live["issues"]
-
-
-# ---- criterion 2: the page -----------------------------------------------------------------------
-
-def test_page_shows_the_other_repository_lane_as_factory_hash_1_and_this_one_as_hash_1(ef, tmp_path):
-    add(ef, 1, repo=FOREIGN, agent="implementer-f", role="implementer", title="Foreign task")
-    add(ef, 1, agent="implementer-l", role="implementer", title="Local task")
-    heads = lane_heads(lanes_exam.run_page(tmp_path, live_from(ef)))
-    assert len(heads) == 2, heads
-    foreign = [h for h in heads if "Foreign task" in h]
-    local = [h for h in heads if "Local task" in h]
-    assert len(foreign) == 1 and foreign[0].startswith("factory#1"), heads
-    assert len(local) == 1 and local[0].startswith("#1") and not local[0].startswith("factory"), heads
-
-
-def test_page_lane_of_this_repository_alone_is_unchanged(ef, tmp_path):
-    add(ef, 7, agent="implementer-l", role="implementer", title="Local task")
-    heads = lane_heads(lanes_exam.run_page(tmp_path, live_from(ef)))
-    assert len(heads) == 1 and heads[0].startswith("#7 Local task"), heads
-
-
-def test_page_does_not_prefix_the_other_repository_with_the_owner(ef, tmp_path):
-    add(ef, 2, repo=FOREIGN, agent="implementer-f", role="implementer", title="Foreign task")
-    heads = lane_heads(lanes_exam.run_page(tmp_path, live_from(ef)))
-    assert len(heads) == 1 and heads[0].startswith("factory#2") and "Shashkist" not in heads[0], heads
 
 
 # ---- criterion 3: redaction ---------------------------------------------------------------------------

@@ -38,7 +38,6 @@ def test_dashboard_push_trigger_is_path_filtered():
     paths = re.findall(r'^      - "(.+)"$', push.group(1), re.MULTILINE)
     assert paths == [
         "docs/factory/**",
-        "labs/factory-dashboard/**",
         ".github/workflows/factory-dashboard.yml",
     ]
 

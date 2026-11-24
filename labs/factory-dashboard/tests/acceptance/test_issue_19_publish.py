@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """Exam for issue #19: publish the dashboard at factory.shashkist.com (see D14).
 
 CONTRACT (the builder works from this)
@@ -22,22 +23,18 @@ labs/deploy/nginx/install-block.sh <name> <file>      (run as `bash install-bloc
         LF_NGINX_CONF   path of the conf to edit (default: the server's default.conf)
         LF_DOCKER       docker binary (default: docker)
 
-build_snapshot.py --public
-    Same CLI as #18 plus the flag. Output has no `state` key; all other keys as in #18.
+.github/workflows/factory-dashboard.yml: builds the snapshot, publish step on main only.
 
-index.html: no third-party URLs, CSP meta with default-src 'self', no inline script bodies.
-
-.github/workflows/factory-dashboard.yml: builds with --public, publish step on main only.
+The build_snapshot.py --public cases and the page cases (no third-party URLs, CSP, no inline script) moved to
+Shashkist/factory with the builder and the page (D149, #571).
 """
 from __future__ import annotations
 
-import json
 import os
 import re
 import shutil
 import stat
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -45,13 +42,9 @@ import yaml
 
 COMPONENT = Path(__file__).resolve().parents[2]
 REPO = COMPONENT.parents[1]
-SCRIPT = COMPONENT / "build_snapshot.py"
-FIXTURES = Path(__file__).resolve().parent / "fixtures" / "issue18"
-NOW = "2026-11-14T12:00:00Z"
 INSTALLER = REPO / "labs" / "deploy" / "nginx" / "install-block.sh"
 FACTORY_CONF = REPO / "labs" / "deploy" / "nginx" / "factory.conf"
 WORKFLOW = REPO / ".github" / "workflows" / "factory-dashboard.yml"
-INDEX = COMPONENT / "index.html"
 BASH = shutil.which("bash")
 
 # ---- installer harness -----------------------------------------------------
@@ -261,73 +254,6 @@ def test_factory_conf_snapshot_is_not_cached():
     m = re.search(r"location\s*=\s*/snapshot\.json\s*\{(.*?)\}", conf_text(), re.S)
     assert m, "no `location = /snapshot.json` block"
     assert re.search(r'add_header\s+Cache-Control\s+"no-cache"\s+always\s*;', m.group(1))
-
-
-# ---- build_snapshot.py --public -------------------------------------------
-
-def snapshot(tmp_path: Path, *extra: str) -> dict:
-    out = tmp_path / "snapshot.json"
-    proc = subprocess.run(
-        [sys.executable, str(SCRIPT), "--out", str(out), "--fixtures", str(FIXTURES),
-         "--repo-root", str(FIXTURES / "repo"), "--now", NOW, *extra],
-        capture_output=True, text=True, encoding="utf-8", cwd=tmp_path,
-    )
-    assert proc.returncode == 0, proc.stdout + proc.stderr
-    return json.loads(out.read_text(encoding="utf-8"))
-
-
-def test_public_snapshot_has_no_state_key(tmp_path):
-    assert "state" not in snapshot(tmp_path, "--public")
-
-
-def test_public_snapshot_contains_no_state_free_text(tmp_path):
-    raw = json.dumps(snapshot(tmp_path, "--public"))
-    for text in ("exam, then build", "Dashboard work", "CI green", "7.8 GB"):
-        assert text not in raw
-
-
-def test_public_snapshot_keeps_the_fields_the_page_renders(tmp_path):
-    pub = snapshot(tmp_path, "--public")
-    full = snapshot(tmp_path)
-    assert pub == {k: v for k, v in full.items() if k != "state"}
-    for key in ("generated_at", "issues", "claim", "prs", "runs", "decisions",
-                "owner_open", "throughput"):
-        assert key in pub
-
-
-def test_snapshot_without_public_keeps_the_18_contract(tmp_path):
-    state = snapshot(tmp_path)["state"]
-    assert set(state) == {"now", "next", "health"}
-    assert "exam, then build" in state["now"]
-
-
-# ---- page ------------------------------------------------------------------
-
-def test_page_has_no_third_party_urls():
-    html = INDEX.read_text(encoding="utf-8")
-    assert "fonts.googleapis" not in html and "fonts.gstatic" not in html
-    assert not re.findall(r"""(?:src|href)\s*=\s*["'](?:https?:)?//""", html, re.I)
-
-
-def test_page_stylesheet_has_no_third_party_urls():
-    css = (COMPONENT / "styles.css").read_text(encoding="utf-8")
-    assert not re.search(r"""(?:url\(|@import)\s*["']?(?:https?:)?//""", css, re.I)
-
-
-def test_page_has_csp_default_src_self():
-    html = INDEX.read_text(encoding="utf-8")
-    m = re.search(r"""<meta[^>]+http-equiv=["']Content-Security-Policy["'][^>]*>""", html, re.I)
-    assert m, "no CSP meta"
-    assert re.search(r"default-src\s+'self'", m.group(0))
-
-
-def test_page_has_no_inline_script_body():
-    html = INDEX.read_text(encoding="utf-8")
-    scripts = list(re.finditer(r"<script\b([^>]*)>(.*?)</script>", html, re.S | re.I))
-    assert len(scripts) >= 2, "expected the theme script and app.js as files"
-    for m in scripts:
-        assert "src=" in m.group(1), "script without src"
-        assert m.group(2).strip() == "", "inline script body"
 
 
 # ---- workflow --------------------------------------------------------------
