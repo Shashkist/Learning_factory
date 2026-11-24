@@ -17,8 +17,8 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE / "ci"))
 
-import issue_lock  # noqa: E402
-from exam_integrity import _is_exam  # noqa: E402
+import issue_lock
+from exam_integrity import _is_exam
 
 MAX_REVIEW_ROUNDS = 2
 MAX_CI_ROUNDS = 5
