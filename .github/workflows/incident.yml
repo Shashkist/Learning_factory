@@ -12,20 +12,19 @@ permissions:
   issues: write
 
 jobs:
-  incident:
+  # Decide whether this run is an incident (the scheduled dashboard flake rule stays local).
+  decide:
     if: >-
       contains(fromJSON('["failure","timed_out","startup_failure"]'), github.event.workflow_run.conclusion) &&
       (!contains(fromJSON('["CI","Dashboard CI"]'), github.event.workflow_run.name) ||
         (github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.event == 'push'))
     runs-on: ubuntu-latest
-    concurrency:
-      group: incident-${{ github.event.workflow_run.name }}
-      cancel-in-progress: false
+    outputs:
+      decision: ${{ steps.gate.outputs.decision }}
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
       WF_NAME: ${{ github.event.workflow_run.name }}
-      RUN_URL: ${{ github.event.workflow_run.html_url }}
       RUN_ID: ${{ github.event.workflow_run.id }}
       RUN_EVENT: ${{ github.event.workflow_run.event }}
     steps:
@@ -44,14 +43,17 @@ jobs:
           fi
           decision=$(python3 scripts/incident_gate.py --workflow "$WF_NAME" --event "$RUN_EVENT" --previous "${previous:-none}") || decision=raise
           echo "decision=$decision" >> "$GITHUB_OUTPUT"
-      - name: Comment on or open the incident issue
-        # fail open: a gate step that died before writing its decision still raises
-        if: ${{ !cancelled() && (steps.gate.outputs.decision == 'raise' || steps.gate.outputs.decision == '') }}
-        run: |
-          title="Incident: $WF_NAME failed"
-          existing=$(gh issue list --state open --label type:incident --json number,title             | jq -r --arg t "$title" '[.[] | select(.title == $t)][0].number // empty')
-          if [ -n "$existing" ]; then
-            gh issue comment "$existing" --body "Failed again: $RUN_URL"
-          else
-            gh issue create --title "$title"               --label "type:incident,priority:p0,status:ready"               --body "The $WF_NAME workflow failed: $RUN_URL"
-          fi
+
+  # The factory's reusable workflow opens or comments on the issue (#613, D165).
+  # Fail open: a decide job that died before writing its decision still raises.
+  incident:
+    needs: decide
+    if: ${{ !cancelled() && needs.decide.result != 'skipped' && (needs.decide.outputs.decision == 'raise' || needs.decide.outputs.decision == '') }}
+    permissions:
+      contents: read
+      issues: write
+    uses: Shashkist/factory/.github/workflows/incident.yml@95753bb72e9c5d885376311efea91db7272f9d16 # v0.1.0
+    with:
+      workflow-name: ${{ github.event.workflow_run.name }}
+      run-url: ${{ github.event.workflow_run.html_url }}
+      conclusion: ${{ github.event.workflow_run.conclusion }}
