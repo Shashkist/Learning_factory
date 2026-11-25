@@ -285,6 +285,8 @@ TODAY_CLAIM = [
 ]
 TODAY_STATUS = [
     ["issue", "list", "--label", "status:in-progress", "--state", "open", "--json", "number,title", "-L", "100"],
+    ["issue", "list", "--label", "status:in-review", "--state", "open", "--json", "number,title", "-L", "100"],
+    ["issue", "list", "--label", "status:needs-owner", "--state", "open", "--json", "number,title", "-L", "100"],
     ["issue", "list", "--state", "open", "--json", "number,title,updatedAt", "-L", "100"],
     ["issue", "view", "5", "--json", "comments"],
 ]

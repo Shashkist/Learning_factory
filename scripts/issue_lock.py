@@ -471,7 +471,12 @@ RECENT_MINUTES = 15
 
 
 def _candidates(run=_run) -> list[dict]:
-    """Issues that might carry a claim, from TWO queries unioned.
+    """Issues that might carry a claim, from FOUR queries unioned: one per claim
+    label (in-progress, in-review, needs-owner; gh ANDs repeated --label flags,
+    so each label is its own call) plus the recently-updated sweep.
+
+    An issue relabelled in-review or needs-owner keeps its claim comment but
+    drops out of the recent window, so those labels must be read too (#592).
 
     NEITHER QUERY IS TRUSTWORTHY ALONE, and finding that out cost a peer a
     confusing minute: they claimed #153, `claim` confirmed it, and `status`
@@ -484,15 +489,20 @@ def _candidates(run=_run) -> list[dict]:
     hazard the lock exists to prevent, one layer out: a `status` that
     under-reports invites exactly the double-claim it is meant to stop.
 
-    So: the label query is the cheap wide net, and a recently-updated sweep
-    covers the window it has not indexed yet -- posting a claim comment bumps
-    `updatedAt` immediately. One extra call, and the comment reads stay
-    bounded to what the two sets return rather than every open issue.
+    So: the label queries are the cheap wide net, and a recently-updated sweep
+    covers the window they have not indexed yet -- posting a claim comment bumps
+    `updatedAt` immediately. Four list calls per repository, and the comment
+    reads stay bounded to what the sets return (deduped by number) rather than
+    every open issue.
     """
-    labelled = json.loads(
-        run(["issue", "list", "--label", CLAIM_LABEL, "--state", "open",
-             "--json", "number,title", "-L", "100"])
-    )
+    labelled = [
+        i
+        for label in (CLAIM_LABEL, "status:in-review", "status:needs-owner")
+        for i in json.loads(
+            run(["issue", "list", "--label", label, "--state", "open",
+                 "--json", "number,title", "-L", "100"])
+        )
+    ]
     recent_raw = json.loads(
         run(["issue", "list", "--state", "open", "--json", "number,title,updatedAt",
              "-L", "100"])
