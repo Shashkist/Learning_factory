@@ -58,4 +58,15 @@ docs/           spec, factory docs, decisions
 
 From `labs/manager/`: `uv run pytest -q`, `uv run ruff check .`, `uv run mypy app`.
 From `labs/web/`: `npm test -- --run`, `npx tsc --noEmit`, `npm run lint`, `npm run build`.
+From the repository root (factory tooling): `uvx pytest scripts -q`.
 Integration tests that need Docker and gVisor run in GitHub Actions (`.github/workflows/ci.yml`). Cloud sessions have no Docker; do not fake it.
+
+## Factory facts
+
+The project profile is `.factory/factory.yaml` (limits, verify commands, exam, required checks, smoke, areas); CI checks it in the `tooling` job.
+
+- **State commits to main.** The factory worktree is created with `git worktree add -B factory ../Learning_factory-factory origin/main` (local branch `factory`, following `origin/main`). State updates there are committed with the message `chore(factory): state, ...` and pushed with `git pull --rebase origin main && git push origin HEAD:main`.
+- **Per-issue worktrees.** An issue of this repository is built in `C:\projects\lf-<n>`; an issue of Shashkist/factory in a worktree of its clone, `C:\projects\factory-<n>`.
+- **Independent areas.** Issues that change different areas can run side by side, for example `labs/content`, `labs/manager` and `.github`; two issues in the same file cannot.
+- **Deploy watch.** After a merge, watch the Deploy workflow run (`deploy.yml`) to the end before the smoke check.
+- **Smoke target.** `https://labs.shashkist.com`, or the server address with a `Host: labs.shashkist.com` header until DNS exists.
