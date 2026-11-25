@@ -4,18 +4,17 @@
 
 ## Now
 
-**Pass lf-g3h8 (laptop, from 13:57 UTC 2026-11-25) is running.** Claims held by lf-g3h8:
-- Shashkist/factory#80 on `f/80-gate-pinned-workflows` (worktree `C:\projectsactory-80`): exam next.
-- Shashkist/factory#63 on `f/63-ci-docs-release` (worktree `C:\projectsactory-63`): exam next.
-- Shashkist/Learning_factory#608 on `f/608-gate-skipped-exam` (worktree `C:\projects\lf-608`): exam next.
-- Leftover worktree `C:/projects/factory-61` (source of #71/#72, #61 closed): content shipped, remove by hand after a look.
-- Tooling: on this laptop `uv run <tool>` fails to spawn; use `uv run python -m <tool>`. The full factory acceptance suite takes 10+ minutes locally (about 2 minutes in CI). Live progress for factory issues needs `--repo Shashkist/factory` on `factory_progress.py add`. After a rebase the gate needs a verdict at the new head: a reviewer checks `git range-diff` (D148 amendment 3: never self-approve). Bash `/tmp` is not Python's `/tmp` on this laptop: write PR bodies with bash, not Python.
+**Pass lf-g3h8 (laptop, 13:57-15:40 UTC 2026-11-25) is stopping.** factory#63 shipped. Two PRs are in flight. Their claims are held by lf-g3h8 with a heartbeat, so take them over (`claim --steal --reason`) when this session has ended:
+- **Shashkist/Learning_factory#608, PR #610** (`f/608-gate-skipped-exam-2`, worktree `C:\projects\lf-608-2`, head b840506). Review: #609 round 1 CHANGES (rename hole), then rebuilt (D103). Round 2 CHANGES at 7e5b072 (renamed or missing docker check: deferred to #611 by D161). An independent check of D161 found that the factory PRs had no `manager-exam`; b840506 fixed the skill line, and a fresh reviewer was verifying it. Next: if that verdict is APPROVE, post `Review round 2: APPROVE at b840506...`, run `merge_gate.py 610`, squash-merge, Deploy, smoke, close #608. If it is CHANGES, fix on the branch (D145) and get a fresh verifier. The old worktree `C:\projects\lf-608` (closed #609) can be removed.
+- **Shashkist/factory#80, PR factory#83** (`f/80-gate-pinned-workflows`, worktree `C:\projectsactory-80`, head f1509b7). Exam 77e89fa + harness fix 61af106, code f1509b7 (D29). Review round 1 is running or pending. Next: read the round-1 verdict on factory#83 (if missing, dispatch the reviewer), act on it, merge with `merge_gate.py 83 --repo Shashkist/factory --exam-gate "acceptance / gate"` (the default `manager-exam` does not exist there once #610 ships), main CI green, close.
+- Leftover worktree `C:/projects/factory-61` (source of #71/#72, #61 closed): its content has shipped; remove it by hand after a look. The harness left a locked agent worktree, `C:/projects/Learning_factory/.claude/worktrees/agent-aec9cf7d10c7efeae` (an isolation failure); remove it when no session uses it.
+- Tooling: on this laptop `uv run <tool>` fails to spawn; use `uv run python -m <tool>`. The full factory acceptance suite takes 10+ minutes locally (about 2 minutes in CI). Live progress for factory issues needs `--repo Shashkist/factory` on `factory_progress.py add`. After a rebase, the gate needs a verdict at the new head: a reviewer checks `git range-diff` (D148 amendment 3: never self-approve). Bash `/tmp` is not Python's `/tmp` on this laptop: write PR bodies with bash or the file tool, not Python. The `implementer` agent type once failed to start (worktree isolation error); a `general-purpose` agent with the implementer brief worked.
 
 Older pass notes (lf-k2v8 and before) are in `history.md` and git history (`git log -p docs/factory/STATE.md`).
 
 ## Next (in order)
 
-1. `factory_pick.py`: factory#80 (p1, new: gate binds the exam-gate and exam-integrity results to the pinned reusable workflows, not the name), factory#7 (p1, client #1 switch: slice it first; #61, #65, #62 are done), factory#67, factory#63, factory#75; LF p2: #608 (new, port of factory#76; depends on factory#76, done), #15, #21, #44, #47, #64, #85; factory#10, #11, #43, #44.
+1. Finish #610 and factory#83 (see Now). Then `factory_pick.py`: factory#7 (p1, client #1 switch: slice it first), factory#67, factory#75, factory#82 (new: dogfood v0.1.0); LF p2: #611 (new, from #610 review, D161), #15, #21, #44, #47, #64, #85; factory#10, #11, #43, #44.
 2. p3 follow-ups: #603, #604, factory#70, #601, #594, #597, #588, factory#57, factory#59, #579, #580, factory#49, #574, factory#33, factory#36, factory#40, factory#41, #561, #564, factory#17, factory#24, #523, #555, #468, #423 (old worktree `C:\projects\lf-423`), #436, #431. Owner item **O26** (heartbeat task).
 
 ## Waiting for the owner
@@ -31,6 +30,7 @@ Older pass notes (lf-k2v8 and before) are in `history.md` and git history (`git 
 
 ## Recently done
 
+- 2026-11-25 pass lf-g3h8: factory#63 (factory#81, 2e8a713; main CI 45640494985; tag v0.1.0 = 95753bb, CI 45624202389; 3 review rounds). Decisions factory D29, D30; LF D160 (+ amendments), D161. Opened factory#82, LF #611. In flight: #610 (#608), factory#83 (factory#80).
 - 2026-11-25 pass lf-a9c1: factory#62 (#77, 76bbf97; main CI 45615309204), factory#65 (judge #74, 645d8f5, main CI 45617025101; exam #78, 95753bb, main CI 45624202389; 3 review rounds on the exam, mutation-checked), factory#76 (#79, c1180aa; main CI 45620523608; factory D28). Opened factory#80, LF #608.
 - 2026-11-25 pass lf-p7c3: #595 (#602; Deploy 45586479978 smoke ok, live on scratch #607), #605 (#606; Deploy 45591320465 smoke ok, live gate on factory#71), factory#61 PR A (factory#69, 2a6fd53; D25, D26). PR B factory#71 approved, PR C exam ready.
 
