@@ -196,6 +196,10 @@ jobs:
           python3 ../../scripts/ci/junit_gate.py docker-acceptance.xml
 
   image-term:
+    # Queue per ref. This does not order runs (a run enters the group only when its docker job ends, and a pending job can be replaced), so :latest is pushed only while main's code is still this commit's (D154).
+    concurrency:
+      group: image-term-${{ github.ref }}
+      cancel-in-progress: false
     # Push only an image whose docker exam job passed.
     needs: docker
     runs-on: ubuntu-latest
@@ -217,14 +221,36 @@ jobs:
           docker run --rm --entrypoint sh ghcr.io/shashkist/lf-lab-term:${{ github.sha }} -c "grep -q '^URIs: http://archive.ubuntu.com/ubuntu/' /etc/apt/sources.list.d/ubuntu.sources && grep -q '^URIs: http://security.ubuntu.com/ubuntu/' /etc/apt/sources.list.d/ubuntu.sources && ! grep -q mirror+file /etc/apt/sources.list.d/ubuntu.sources && ! test -e /etc/apt/lf-mirrors.txt && ! test -e /etc/apt/ubuntu.sources.lf-orig && ! ls /var/lib/apt/lists/ | grep -q -e InRelease -e Packages"
       - name: Log in to ghcr.io
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
       - name: Push lf-lab-term
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          SHA: ${{ github.sha }}
         run: |
-          docker push ghcr.io/shashkist/lf-lab-term:${{ github.sha }}
-          docker push ghcr.io/shashkist/lf-lab-term:latest
+          docker push ghcr.io/shashkist/lf-lab-term:"$SHA"
+          # :latest only while main's code is still this commit's (same rule as Deploy, D154).
+          # The checkout is shallow and ci_paths needs the history between the two commits.
+          if [ "$(git rev-parse --is-shallow-repository)" = true ]; then
+            git fetch -q --no-tags --unshallow origin main
+          else
+            git fetch -q --no-tags origin main
+          fi
+          git show origin/main:scripts/ci_paths.py > "$RUNNER_TEMP/ci_paths.py"
+          may=$(python3 -I "$RUNNER_TEMP/ci_paths.py" deploys "$SHA" origin/main)
+          if [ "$may" = true ]; then
+            docker push ghcr.io/shashkist/lf-lab-term:latest
+            echo "lf-lab-term:latest pushed: $SHA is still main's code"
+          else
+            echo "lf-lab-term:latest skipped: main's code has moved past $SHA (a newer run pushes it)"
+          fi
 
   image-manager:
+    # Queue per ref. This does not order runs (a run enters the group only when its docker job ends, and a pending job can be replaced), so :latest is pushed only while main's code is still this commit's (D154).
+    concurrency:
+      group: image-manager-${{ github.ref }}
+      cancel-in-progress: false
     # Push only an image whose docker exam job passed.
     needs: docker
     runs-on: ubuntu-latest
@@ -256,12 +282,30 @@ jobs:
           sudo LF_TRUSTED_PROXY="$LF_TRUSTED_PROXY" LF_NGINX_NETWORK="$LF_NGINX_NETWORK" docker compose -f labs/deploy/compose.yml config --quiet
       - name: Log in to ghcr.io
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
       - name: Push lf-manager
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          SHA: ${{ github.sha }}
         run: |
-          docker push ghcr.io/shashkist/lf-manager:${{ github.sha }}
-          docker push ghcr.io/shashkist/lf-manager:latest
+          docker push ghcr.io/shashkist/lf-manager:"$SHA"
+          # :latest only while main's code is still this commit's (same rule as Deploy, D154).
+          # The checkout is shallow and ci_paths needs the history between the two commits.
+          if [ "$(git rev-parse --is-shallow-repository)" = true ]; then
+            git fetch -q --no-tags --unshallow origin main
+          else
+            git fetch -q --no-tags origin main
+          fi
+          git show origin/main:scripts/ci_paths.py > "$RUNNER_TEMP/ci_paths.py"
+          may=$(python3 -I "$RUNNER_TEMP/ci_paths.py" deploys "$SHA" origin/main)
+          if [ "$may" = true ]; then
+            docker push ghcr.io/shashkist/lf-manager:latest
+            echo "lf-manager:latest pushed: $SHA is still main's code"
+          else
+            echo "lf-manager:latest skipped: main's code has moved past $SHA (a newer run pushes it)"
+          fi
 
   exam-integrity:
     if: github.event_name == 'pull_request'

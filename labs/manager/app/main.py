@@ -275,7 +275,7 @@ def _mount_web(web_dir: str | None) -> None:
             "LF_WEB_DIR is not set or has no index.html: serving the API only"
         )
         return
-    index = root / "index.html"
+    index = (root / "index.html").resolve()
 
     def page() -> FileResponse:
         return FileResponse(index, headers={"Cache-Control": "no-cache", **framing.FRAME_HEADERS})
@@ -288,7 +288,7 @@ def _mount_web(web_dir: str | None) -> None:
             return page()
         try:
             target = (root / path).resolve()
-            if target == index.resolve():  # an encoded `..%2F` path can still reach the shell
+            if target == index:  # an encoded `..%2F` path can still reach the shell
                 return page()
             if target.is_relative_to(root) and target.is_file():
                 resp = FileResponse(target)
@@ -300,7 +300,9 @@ def _mount_web(web_dir: str | None) -> None:
         # A missing asset must fail as 404 (stale bundle after a deploy), not come back as HTML.
         last = path.rsplit("/", 1)[-1]
         ext = last.rpartition(".")[2].lower() if "." in last else ""
-        if path.startswith("assets/") or ext in _STATIC_EXT:
+        # Deep links under SPA routes (/labs/node.js) still get the UI.
+        top_level_file = "/" not in path and ext in _STATIC_EXT
+        if path.startswith("assets/") or top_level_file:
             raise HTTPException(status_code=404)
         return page()
 

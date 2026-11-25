@@ -61,10 +61,30 @@ def test_head_on_health_and_index_html_no_cache(client: TestClient) -> None:
 
 def test_dotted_deep_link_gets_the_spa_but_unknown_static_ext_is_404(client: TestClient) -> None:
     assert "spa" in client.get("/labs/linux-1.2").text
-    assert client.get("/labs/x/logo.PNG").status_code == 404
-    assert client.get("/a/b.woff2").status_code == 404
+    assert client.get("/logo.PNG").status_code == 404
+    assert client.get("/assets/b.woff2").status_code == 404
 
 
 def test_terminal_route_is_401_not_the_spa(client: TestClient) -> None:
     r = client.get("/s/00000000-0000-0000-0000-000000000000/term")
     assert r.status_code == 401 and "spa" not in r.text
+
+
+def test_index_cache_header_follows_the_resolved_path(client: TestClient) -> None:
+    r = client.get("/foo/../index.html")
+    assert "spa" in r.text
+    assert r.headers["cache-control"] == "no-cache"
+
+
+@pytest.mark.parametrize(
+    "path", ["/labs/node.js", "/labs/x/tasks/config.json", "/labs/a.b/tasks/1.1.css"]
+)
+def test_deep_links_with_a_static_extension_get_the_spa(client: TestClient, path: str) -> None:
+    r = client.get(path)
+    assert r.status_code == 200
+    assert "spa" in r.text
+
+
+@pytest.mark.parametrize("path", ["/app.js", "/favicon.ico", "/assets/m.js", "/assets/x/y.css"])
+def test_missing_top_level_and_asset_files_are_404(client: TestClient, path: str) -> None:
+    assert client.get(path).status_code == 404
