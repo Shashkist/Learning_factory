@@ -4,20 +4,18 @@
 
 ## Now
 
-**Pass lf-t4r9 (laptop, from 17:57 UTC 2026-11-25) is running.** Took over lf-m7q2's three PRs.
-- **#611 done**: PR #617 merged (a09e945), Deploy 45675907143, closed. Nits in #619 (p3).
-- **Shashkist/factory#80, PR factory#84** (`f/80-gate-pinned-workflows-2`, worktree `C:\projects\factory-80-2`). Round 2 CHANGES at b2b30bd; manager decision D29 amendment 2 (factory fb07698): white-space names hold (05d671b, unit cases), job binding by `actions/jobs/<id>` and the exam order nit go to **factory#86 (p1)**. Next: fresh reviewer verdict at 05d671b, CI, gate, merge, main CI, close #80.
-- **#612, PR #618 part A** (`f/612-client-profile-a`, worktree `C:\projects\lf-612`). Round 1 CHANGES at afc4655 (Dashboard CI did not trigger on `.factory/**`, plus 4 nits); all fixed in e71981f. Next: round 2 verdict, docker green, merge, Deploy; then PR B (cherry-pick exam 9151f86, "Closes #612"). The gate says "PR body has no `Closes #n`" on a part-A PR: check D-entries for "Part of" before merging.
-- **#64** (`f/64-live-view-leftovers`, worktree `C:\projects\lf-64`): exam being written.
+**Pass lf-t4r9 (laptop, 17:57-19:25 UTC 2026-11-25) has stopped after 3 merges** (#617, #618, factory#84). One PR is open; its claim is held by lf-t4r9 with a heartbeat: take it over (`claim --steal --reason`) once this session has ended.
+- **#612, PR #620 = PR B** (`f/612-client-profile-b`, worktree `C:\projects\lf-612`, exam only; PR A #618 merged as 6cf97cc). Round 1 CHANGES at 522e35c (the exam missed tooling verify, the exam globs, independent areas and the profile-check step); the exam-writer strengthened it in b2f4167 (16 passed on main, each reviewer mutation now fails). Round 2 CHANGES at b2f4167 (an `if:` could skip the check), fixed in 94ff45e; a fresh reviewer posted **Review round 2: APPROVE at 94ff45e** (nits in #621). Next: wait for `manager-exam` (pending at stop), then gate (`merge_gate.py 620`), merge, Deploy, close #612 citing #618, #620 and the Deploy run, remove the worktree `C:\projects\lf-612`.
+- **Next issues:** #613 (CI calls the reusable workflows, D19 split like #612; depends on #612), then **factory#86 (p1)**: a bound exam check must be a real Actions job (exam first; D29 amendment 2). Then #614 (needs #612, #613; factory#80 is closed). #614 also gets two profile nits from #618 round 2: add `labs/*/tests/**` to `exam`, and the strict acceptance step of Dashboard CI to `verify.dashboard`.
 - Leftover worktree `C:/projects/factory-61` (source of #71/#72, #61 closed): its content has shipped; remove it by hand after a look.
 - Tooling: on this laptop `uv run <tool>` and `uvx --from ... factory-tools` fail to spawn; use `uv run python -m <tool>` (`python -m factory_tools`). In `labs/factory-dashboard`, `test_issue_19_publish.py` hangs locally (`test_installer_appends_block_when_absent`), so the whole folder never finishes; run it per file or exclude #19. The full factory acceptance suite takes 10 to 30 minutes locally (about 2 in CI). Live progress for factory issues needs `--repo Shashkist/factory`. After a rebase the gate needs a verdict at the new head: a reviewer checks `git range-diff` (D148 amendment 3: never self-approve). Bash `/tmp` is not Python's `/tmp` on this laptop. A `general-purpose` agent given the implementer brief works when the `implementer` type fails to start.
 
-Older pass notes (lf-k2v8 and before) are in `history.md` and git history (`git log -p docs/factory/STATE.md`).
+Older pass notes (lf-m7q2 and before) are in `history.md` and git history (`git log -p docs/factory/STATE.md`).
 
 ## Next (in order)
 
-1. Finish factory#84, #617 and #618 plus #612 PR B (see Now). Then #613 (D19 split), #614 (client #1, D162), then `factory_pick.py`: factory#67, factory#75, factory#82 (new: dogfood v0.1.0); LF p2: #611 (new, from #610 review, D161), #15, #21, #44, #47, #64, #85; factory#10, #11, #43, #44.
-2. p3 follow-ups: #603, #604, factory#70, #601, #594, #597, #588, factory#57, factory#59, #579, #580, factory#49, #574, factory#33, factory#36, factory#40, factory#41, #561, #564, factory#17, factory#24, #523, #555, #468, #423 (old worktree `C:\projects\lf-423`), #436, #431. Owner item **O26** (heartbeat task).
+1. Merge #620 and close #612 (see Now). Then #613 (D19 split), factory#86 (p1), #614 (client #1, D162), then `factory_pick.py`: factory#67, factory#75, factory#82 (dogfood v0.1.0); LF p2: #15, #21, #44, #47, #64 (now only the nginx nosniff header, D164), #85; factory#87 (live page leftovers, from #64), factory#10, #11, #43, #44.
+2. p3 follow-ups: #619, #621 (new this pass), #603, #604, factory#70, #601, #594, #597, #588, factory#57, factory#59, #579, #580, factory#49, #574, factory#33, factory#36, factory#40, factory#41, #561, #564, factory#17, factory#24, #523, #555, #468, #423 (old worktree `C:\projects\lf-423`), #436, #431. Owner item **O26** (heartbeat task).
 
 ## Waiting for the owner
 
@@ -31,6 +29,8 @@ Older pass notes (lf-k2v8 and before) are in `history.md` and git history (`git 
 - O16/O7 resolved by D43 (public repository). O12 (back up `.env`), O13 (re-deploy after recreating nginx-proxy3), O5 reopened.
 
 ## Recently done
+
+- 2026-11-25 pass lf-t4r9: #611 (#617, a09e945; main CI 45672595124, Deploy 45675907143; gate smoke: #618 held `docker is pending`), #612 part A (#618, 6cf97cc; main CI 45677714064 `profile check` ok, Deploy 45680757219), factory#80 (factory#84, 53ce802; main CI 45677929107). Decisions: factory D29 amendment 2, LF D164 (#64 split, factory#87). Opened #619, #621, factory#86, factory#87. Left: #620 approved, waiting for CI.
 
 - 2026-11-25 pass lf-m7q2: closed #608 (shipped in #610 by lf-g3h8; Deploy 45650385217; smoke: the gate holds factory PR 83 with `HOLD: manager-exam has not run`). Split factory#7 into #612 to #615 (D162). Decisions: D162, D163 (+ amendment 1), factory D29 amendment 1. Opened factory#85. Left in flight: PRs factory#84, #617, #618.
 - 2026-11-25 pass lf-g3h8: factory#63 (factory#81, 2e8a713; main CI 45640494985; tag v0.1.0 = 95753bb, CI 45624202389; 3 review rounds). Decisions factory D29, D30; LF D160 (+ amendments), D161. Opened factory#82, LF #611. In flight: #610 (#608), factory#83 (factory#80).
