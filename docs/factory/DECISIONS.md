@@ -1638,3 +1638,11 @@ in force · 2026-11-25 · revertible
 **Why.** Each slice is one reviewable PR; the runner switch stays an owner step (factory D2), so the factory work before it is all on files a pass may edit.
 **Alternatives.** One large PR (too big to review, mixes CI and docs); start with the runner diff (it needs the profile and the CI first to have anything to point at).
 **Revert.** Close the four issues; factory#7 goes back to unsliced.
+
+## D163 · #611: with a workflow change, `docker` must be SUCCESS; the #608 case that merged without a docker check is corrected first
+in force · 2026-11-25 · revertible
+
+**Decision.** #611 criterion 1 makes the gate stricter: when any file under `.github/workflows/` changed in any commit of the PR (new or previous name), the gate holds unless a check named `docker` concluded SUCCESS; a missing, renamed or skipped docker check holds with a line naming `docker`. This contradicts one older case, `test_ci_yml_change_alone_does_not_hold_when_docker_did_not_skip` in `labs/factory-dashboard/tests/acceptance/test_issue_608_gate_skipped_exam.py` (rollup without a docker check, ci.yml changed, expects MERGE). The case is corrected in an exam-only commit before any code: same inputs, now expects a hold naming `docker`; a twin with a docker SUCCESS keeps expecting MERGE. This makes the older exam stricter, not weaker. Criterion 2: the gate reads every commit through the paginated `pulls/<n>/commits` API, or holds when it cannot. Criterion 3: `ci_paths.is_heavy` diffs with `--no-renames`, so both sides of a rename count.
+**Why.** D161 deferred the renamed or missing docker check here; a workflow edit can rename or drop the docker job, and only a SUCCESS proves the heavy exam ran.
+**Alternatives.** Bind the docker check to the head's workflow file (factory D29 style; more code, and LF moves to the factory gate with #613 and #614); keep the old case (leaves the hole open).
+**Revert.** Restore the old case's expectation and drop the rule from `scripts/merge_gate.py`.
