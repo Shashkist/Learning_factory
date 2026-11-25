@@ -49,7 +49,9 @@ def with_gate_defaults(rollup):
 
 
 def reasons(*checks):
-    return merge_gate._check_reasons(with_gate_defaults(list(checks)))
+    # the exam gate is named explicitly (D166): these cases test the exam-integrity rule,
+    # not the default gate name, so they hold under the old and the reusable default
+    return merge_gate._check_reasons(with_gate_defaults(list(checks)), "manager-exam")
 
 
 # criterion 1: the exact name behaves as today
@@ -167,7 +169,8 @@ class Gh:
 
 
 def gate(capsys, rollup):
-    code = merge_gate.main(["9", "--session", SESSION], run=Gh(rollup))
+    argv = ["9", "--session", SESSION, "--exam-gate", "manager-exam"]
+    code = merge_gate.main(argv, run=Gh(rollup))
     return code, capsys.readouterr().out
 
 

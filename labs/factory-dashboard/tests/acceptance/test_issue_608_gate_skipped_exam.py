@@ -138,8 +138,9 @@ class Gh:
 
 
 def gate(capsys, rollup, *extra, files=(CODE,), commits=None):
-    code = merge_gate.main(["9", "--session", SESSION, *extra],
-                           run=Gh(rollup, files, commits))
+    # the exam gate is named explicitly (D166); a later --exam-gate in `extra` wins
+    argv = ["9", "--session", SESSION, "--exam-gate", EXAM, *extra]
+    code = merge_gate.main(argv, run=Gh(rollup, files, commits))
     lines = [ln for ln in capsys.readouterr().out.splitlines() if ln.strip()]
     return code, lines
 

@@ -72,7 +72,8 @@ class PrGh(base.Gh):
 
 
 def gate(capsys, rollup, *, commits, **kw):
-    code = merge_gate.main(["9", "--session", base.SESSION], run=PrGh(rollup, commits, **kw))
+    argv = ["9", "--session", base.SESSION, "--exam-gate", base.EXAM]  # explicit (D166)
+    code = merge_gate.main(argv, run=PrGh(rollup, commits, **kw))
     lines = [ln for ln in capsys.readouterr().out.splitlines() if ln.strip()]
     return code, lines
 
