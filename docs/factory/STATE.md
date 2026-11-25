@@ -4,18 +4,19 @@
 
 ## Now
 
-**Pass lf-r7t3 running (laptop, from 03:56 UTC 2026-11-25).** Claims held by lf-r7t3:
-- **Shipped: factory#47** as #56 (squash 92f3b59; round 2 APPROVE at b0c6842; main CI 45545051188 green; live dry run keeps claimed worktrees, wrong `--repo` refused). Follow-ups in factory#57 (p3).
-- **factory#54**: PR #58 round 1 CHANGES (crew title "factory" anywhere moved host work, D21). Rebuilt as `f/54-dashboard-repo-followups-2` (worktree `C:\projectsactory-54b`): exam ce9f287 + exam additions (running), then code (5847b49 + the D21 fix). Close #58 for the new PR. Follow-up factory#59.
-- **LF #81** (D19: PR A #587 on `f/81-manager-image-followups`, worktree `C:\projects\lf-81`; PR B = exam 18feb92 on `f/81-exam`, worktree `C:\projects\lf-81-exam`, after A merges). #587 round 1 CHANGES (`:latest` ordering), fix per D154 running. Follow-up #588.
-- Last pass lf-m4k9 shipped LF #583 (#585) and #584 (#586); round-2 leftovers of #586 (double scan for subagent worktrees, `git@alias:` origin with a user) can join #582.
+**Pass lf-r7t3 finished (laptop, 03:56-05:25 UTC 2026-11-25, stopped at 3 merges).** Resume here:
+- **LF #81, PR B #591** (`f/81-exam`, worktree `C:\projects\lf-81-exam`; the exam alone, `Closes #81`). Claim held by lf-r7t3: take it over with `--steal --reason`. **Next:** CI on #591, a reviewer (exam-only PR: checks the exam against D154 and that `test_issue_72_followup.py` only got stricter), gate, merge, Deploy + smoke, close #81 citing #587 and #591. PR A #587 merged as 18132ea (rounds: 1 CHANGES, 2 APPROVE; D154, D155). #587 evidence: main CI 45550160392 (guard logged `:latest pushed` for both images), Deploy 45552457401 with smoke green, live deep links and 404s checked (comment on #81).
+- **Shipped: factory#47** as #56 (92f3b59; main CI 45545051188; live dry run keeps claimed worktrees, wrong `--repo` refused). Follow-ups factory#57.
+- **Shipped: factory#54** as #60 (ecad631; replaces #58 after round 1 CHANGES, D21; main CI 45549578819). Live page still pinned to factory 9a5e808: **#589** moves the pin (p2). Follow-ups factory#59.
+- New: **#592 (p1)** `issue_lock.py status`/`stale` miss claims on `status:in-review` issues (that is why the orient step showed no claim on factory#47). **#590** (p2) the merge gate learns `Part of #n` (D155 until then). **#588** (p3) a cancelled main CI run is silent. #85 got the manual-Deploy pairing note.
+- Tooling note: on this laptop `uv run <tool>` fails to spawn ("Access is denied"); use `uv run python -m <tool>` (pytest, mypy, factory_tools).
 - Live progress for factory issues needs `--repo Shashkist/factory` on `factory_progress.py add`; the skill text does not say so yet (next skill-touching PR).
 
 Older pass notes (lf-p8n2 and before) are in `history.md` and git history (`git log -p docs/factory/STATE.md`).
 
 ## Next (in order)
 
-1. **factory#47** PR #56 review round 2 (see Now, p1). Then `factory_pick.py`: factory#54 (p2), then the p2 list (LF #15, #21, #44, #47, #64, #81, #85; factory#5, #10, #11). p3 follow-ups: #579, #580, factory#49, #574, factory#33, factory#36, factory#40, factory#41, #561, #564, factory#17, factory#24, #523, #555. Owner item **O26** (heartbeat task).
+1. **#591** (PR B of #81, see Now), then **#592** (p1), then `factory_pick.py`: #589 (dashboard pin, p2), #590 (gate, p2), the p2 list (LF #15, #21, #44, #47, #64, #85; factory#5, #10, #11, #43, #44). p3 follow-ups: #588, factory#57, factory#59, #579, #580, factory#49, #574, factory#33, factory#36, factory#40, factory#41, #561, #564, factory#17, factory#24, #523, #555. Owner item **O26** (heartbeat task).
 2. **#468** (bootstrap exam nits, p3; now on top of #56's exam), **#423** (validator misses, p3; time real shells first; an old worktree `C:\projects\lf-423` exists, check it before starting).
 3. **#436**, **#431** (lab screen follow-ups, p3). **#85** deploy follow-ups; p2 list: #81, #84, #64, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
@@ -32,6 +33,7 @@ Older pass notes (lf-p8n2 and before) are in `history.md` and git history (`git 
 
 ## Recently done
 
+- 2026-11-25 pass lf-r7t3: factory#47 (factory#56; main CI 45545051188), factory#54 (factory#60; main CI 45549578819; live pin move is #589), #81 PR A (#587; Deploy 45552457401, smoke ok, live check on #81; PR B #591 open).
 - 2026-11-25 pass lf-m4k9: #583 (#585; Factory dashboard 45535190679, live app.js byte-equal to factory 9a5e808, repository tabs live), #584 (#586; dry run and `--repo` refusal checked live; main CI 45539992970 `docker` job was still running at close: check it is green). factory#47 rebuilt as factory#56.
 - 2026-11-23 pass lf-h6q3: Shashkist/factory#1 (factory#9; factory main CI 45219016530, first issue built in the second repository), #527 (#557; main CI 45224934361, scenario rendered on main), #556 (#559; `factory_pick.py` run on main). Opened #558, factory#10, factory#11.
 - 2026-11-23 pass lf-w2k6: #545 (#550 + #552; main CI 45199100557, Deploy 45191319753 deployed 1b6261a), #551 (#554; Factory dashboard 45203270186, live app.js byte-equal to c728db0), #544 (#553; `factory_pick.py` run on main). Follow-ups #555, #556.
