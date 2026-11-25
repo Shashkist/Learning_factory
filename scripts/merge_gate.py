@@ -51,22 +51,26 @@ def _check_reasons(checks: list[dict], exam_gate: str = "manager-exam",
         return ["no checks have run on this PR"]
     reasons = []
     changes_ok = any(c.get("name") == "changes" and _state(c) == "SUCCESS" for c in checks)
-    # main's filter counts every workflow file as heavy (scripts/ci_paths.py), so a skipped
-    # docker next to a workflow change can only come from a changed filter (D160 amendment 1)
-    docker_skip_ok = changes_ok and not any(n.startswith(WORKFLOWS) for n in changed)
+    # A workflow change can skip, rename or drop the docker job, so only a check named `docker`
+    # that concluded SUCCESS proves the heavy exam ran (D160 amendment 1, D163)
+    docker_needed = any(n.startswith(WORKFLOWS) for n in changed)
+    needs = f"docker must succeed when a file under {WORKFLOWS} changed"
     for c in checks:
         name = c.get("name") or c.get("context") or "?"
         state = _state(c)
         if c.get("status", "COMPLETED") != "COMPLETED" or state in ("", "PENDING", "EXPECTED"):
             reasons.append(f"{name} is pending")
-        elif state == "SKIPPED" and name == "docker" and not docker_skip_ok:
-            reasons.append("docker was skipped without a trusted `changes` result "
-                           f"(or a file under {WORKFLOWS} changed)")
+        elif name == "docker" and docker_needed and state != "SUCCESS":
+            reasons.append(f"{needs}; it ended in {state.lower()}")
+        elif state == "SKIPPED" and name == "docker" and not changes_ok:
+            reasons.append("docker was skipped without a trusted `changes` result")
         elif state not in PASSED or ((_is_exam_integrity(name) or name == exam_gate)
                                      and state != "SUCCESS"):
             reasons.append(f"{name} ended in {state.lower()}")
     if not any((c.get("name") or c.get("context")) == exam_gate for c in checks):
         reasons.append(f"{exam_gate} has not run")
+    if docker_needed and not any((c.get("name") or c.get("context")) == "docker" for c in checks):
+        reasons.append(f"{needs}; no check named docker ran (missing or renamed)")
     if not any(_is_exam_integrity(c.get("name") or c.get("context") or "") for c in checks):
         reasons.append("exam-integrity has not run")
     return reasons
@@ -84,6 +88,21 @@ def _commit_files(gh, oid: str) -> list[dict]:
             return files
         page, i = dec.raw_decode(out, i)
         files.extend(page.get("files") or [])
+
+
+def _pr_commits(gh, pr: str) -> tuple[list[str], str]:
+    """Every commit oid of the PR, oldest first, and a hold reason when the list is not whole.
+    `pr view --json commits` stops at 100; the REST listing pages through all of them (#611)."""
+    try:
+        pages = json.loads(gh(["api", "--paginate", "--slurp",
+                               f"repos/{{owner}}/{{repo}}/pulls/{pr}/commits"]))
+        oids = [c["sha"] for page in pages for c in page]
+        count = json.loads(gh(["api", f"repos/{{owner}}/{{repo}}/pulls/{pr}"]))["commits"]
+    except (RuntimeError, ValueError, KeyError, TypeError) as e:
+        return [], f"could not read every commit of the PR ({e})"
+    if len(oids) < count:
+        return oids, f"read {len(oids)} of the PR's {count} commits"
+    return oids, ""
 
 
 def _verdicts(comments: list[dict], author: str) -> list[tuple[int, str, str]]:
@@ -114,11 +133,14 @@ def main(argv: list[str], run=issue_lock._run) -> int:
     author = args.author or pr["author"]["login"]
     commit_files = []
     changed = set()
-    for commit in pr.get("commits") or []:
-        files = _commit_files(gh, commit["oid"])
+    oids, commit_reason = _pr_commits(gh, args.pr)
+    for oid in oids:
+        files = _commit_files(gh, oid)
         commit_files.append([f["filename"] for f in files])
         changed.update(n for f in files for n in (f["filename"], f.get("previous_filename")) if n)
     reasons = _check_reasons(pr.get("statusCheckRollup") or [], args.exam_gate, changed)
+    if commit_reason:
+        reasons.append(commit_reason)
     if pr.get("isCrossRepository") is True:
         reasons.append("cross-repository pull request")
 
