@@ -99,6 +99,7 @@ Heartbeat at every step: `python scripts/issue_lock.py heartbeat <n> --session <
 git log --oneline origin/main..HEAD        # know what you ship
 gh pr view <pr> --json headRefOid --jq .headRefOid   # the head the gate will check
 python scripts/merge_gate.py <pr> --session <you>   # add --repo <owner/name> for another repository
+# Shashkist/factory has no `manager-exam`: add --repo Shashkist/factory --exam-gate "acceptance / gate"
 gh pr merge <pr> --squash --delete-branch --match-head-commit <that head SHA>
 gh run watch $(gh run list --workflow deploy.yml --limit 1 --json databaseId --jq '.[0].databaseId')
 ```

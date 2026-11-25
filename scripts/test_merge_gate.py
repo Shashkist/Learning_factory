@@ -40,6 +40,20 @@ def check(name, conclusion="SUCCESS", status="COMPLETED"):
     return {"__typename": "CheckRun", "name": name, "status": status, "conclusion": conclusion}
 
 
+def with_gate_defaults(rollup, exam_gate="manager-exam", changes="changes"):
+    """D160: a non-empty world lacking the exam gate check (and the `changes` check that
+    vouches for a skipped docker) gets a SUCCESS one, so older cases test their own rule.
+    A case sets gh.exam_gate / gh.changes to None for a world without it."""
+    if not rollup:
+        return rollup
+    names = {c.get("name") or c.get("context") for c in rollup}
+    out = list(rollup)
+    for name in (exam_gate, changes):
+        if name and name not in names:
+            out.append(check(name))
+    return out
+
+
 def good_checks():
     return [check("unit"), check("exam-integrity")]
 
@@ -75,13 +89,18 @@ class Gh:
         self.issue_comments = [claim_comment()]
         self.pr.update(over)
         self.calls = []
+        self.exam_gate = "manager-exam"
+        self.changes = "changes"
 
     def __call__(self, argv):
         self.calls.append(list(argv))
         assert argv[0] not in WRITES and argv[:2] != ["pr", "merge"], "gate must be read-only"
         assert "-X" not in argv, "gate must be read-only"
         if argv[:2] == ["pr", "view"]:
-            return json.dumps(self.pr)
+            pr = dict(self.pr)
+            pr["statusCheckRollup"] = with_gate_defaults(
+                pr.get("statusCheckRollup") or [], self.exam_gate, self.changes)
+            return json.dumps(pr)
         if argv[0] == "api":
             path = next(a for a in argv[1:] if a.startswith("repos/"))
             oid = path.rsplit("/commits/", 1)[1].split("?")[0]

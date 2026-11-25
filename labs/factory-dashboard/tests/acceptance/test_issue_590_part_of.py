@@ -68,7 +68,11 @@ class Gh:
         assert argv[0] not in WRITES and argv[:2] != ["pr", "merge"], "gate must be read-only"
         assert "-X" not in argv, "gate must be read-only"
         if argv[:2] == ["pr", "view"]:
-            return json.dumps(self.pr)
+            # D160: the exam gate and `changes` checks are green in this world
+            pr = dict(self.pr)
+            pr["statusCheckRollup"] = pr["statusCheckRollup"] + [
+                check("manager-exam"), check("changes")]
+            return json.dumps(pr)
         if argv[0] == "api":
             return json.dumps({"files": [{"filename": "labs/manager/app/thing.py"}]})
         if argv[:2] == ["issue", "view"]:
