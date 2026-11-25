@@ -4,15 +4,14 @@
 
 ## Now
 
-**Pass lf-r7t3 finished (laptop, 03:56-05:25 UTC 2026-11-25, stopped at 3 merges).** Resume here:
-- **LF #81, PR B #591** (`f/81-exam`, worktree `C:\projects\lf-81-exam`; the exam alone, `Closes #81`). Claim held by lf-r7t3: take it over with `--steal --reason`. **Next:** CI on #591, a reviewer (exam-only PR: checks the exam against D154 and that `test_issue_72_followup.py` only got stricter), gate, merge, Deploy + smoke, close #81 citing #587 and #591. PR A #587 merged as 18132ea (rounds: 1 CHANGES, 2 APPROVE; D154, D155). #587 evidence: main CI 45550160392 (guard logged `:latest pushed` for both images), Deploy 45552457401 with smoke green, live deep links and 404s checked (comment on #81).
-- **Shipped: factory#47** as #56 (92f3b59; main CI 45545051188; live dry run keeps claimed worktrees, wrong `--repo` refused). Follow-ups factory#57.
-- **Shipped: factory#54** as #60 (ecad631; replaces #58 after round 1 CHANGES, D21; main CI 45549578819). Live page still pinned to factory 9a5e808: **#589** moves the pin (p2). Follow-ups factory#59.
-- New: **#592 (p1)** `issue_lock.py status`/`stale` miss claims on `status:in-review` issues (that is why the orient step showed no claim on factory#47). **#590** (p2) the merge gate learns `Part of #n` (D155 until then). **#588** (p3) a cancelled main CI run is silent. #85 got the manual-Deploy pairing note.
-- Tooling note: on this laptop `uv run <tool>` fails to spawn ("Access is denied"); use `uv run python -m <tool>` (pytest, mypy, factory_tools).
+**Pass lf-z4q8 running (laptop, from 05:27 UTC 2026-11-25).** In flight (claims held by lf-z4q8):
+- **LF #81, PR B #591** (`f/81-exam`, worktree `C:\projects\lf-81-exam`): review round 1 CHANGES at 0d5a03e (exam did not pin D154's `:latest` guard, `cancel-in-progress: false`, per-ref groups); exam-only fix commit in progress, then CI, round 2.
+- **LF #592, PR #593** (`f/592-claims-in-review`, worktree `C:\projects\lf-592`): exam 74b93a6 + fix c28ba5d; CI and review round 1 running.
+- **factory#5** sliced (factory D22) into #5 (reusable exam-integrity + JUnit-gate workflows, fetched at `job.workflow_sha`), #61 (dogfood in CI), #62 (reusable incident), #63 (docs + v0.1.0). #5 exam being written in `C:\projectsactory-5` (`f/5-reusable-exam-workflows`).
+- Tooling note: on this laptop `uv run <tool>` fails to spawn ("Access is denied"); use `uv run python -m <tool>` or `uvx`. `scripts/test_worktree_prune.py::test_busy_folder_is_skipped_and_left_intact` fails on Windows on main (TypeError line 125); green on Linux CI.
 - Live progress for factory issues needs `--repo Shashkist/factory` on `factory_progress.py add`; the skill text does not say so yet (next skill-touching PR).
 
-Older pass notes (lf-p8n2 and before) are in `history.md` and git history (`git log -p docs/factory/STATE.md`).
+Older pass notes (lf-r7t3 and before) are in `history.md` and git history (`git log -p docs/factory/STATE.md`).
 
 ## Next (in order)
 
