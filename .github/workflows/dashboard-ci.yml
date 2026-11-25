@@ -11,6 +11,9 @@ on:
       - "scripts/ci/junit_gate.py"
       - "scripts/factory_progress.py"
       - "scripts/worktree_prune.py"
+      # The #542, #544, #556 and #592 exams load these by file path (D156).
+      - "scripts/issue_lock.py"
+      - "scripts/factory_pick.py"
       - "scripts/_hook_io.py"
       # The #569 exam reads CLAUDE.md (D151).
       - "CLAUDE.md"
@@ -26,6 +29,9 @@ on:
       - "scripts/ci/junit_gate.py"
       - "scripts/factory_progress.py"
       - "scripts/worktree_prune.py"
+      # The #542, #544, #556 and #592 exams load these by file path (D156).
+      - "scripts/issue_lock.py"
+      - "scripts/factory_pick.py"
       - "scripts/_hook_io.py"
       # The #569 exam reads CLAUDE.md (D151).
       - "CLAUDE.md"
