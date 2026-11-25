@@ -192,4 +192,4 @@ def test_ci_validates_compose_without_printing_the_resolved_config():
         if re.search(r"docker compose\b.*-f\s+\S*labs/deploy/compose\.yml\b.*\bconfig\b", line)
     ]
     assert cmds, "no step runs `docker compose -f labs/deploy/compose.yml config`"
-    assert any(re.search(r"(\s--quiet\b|\s-q\b)", c) for c in cmds), cmds
+    assert all(re.search(r"(\s--quiet\b|\s-q\b)", c) for c in cmds), cmds
