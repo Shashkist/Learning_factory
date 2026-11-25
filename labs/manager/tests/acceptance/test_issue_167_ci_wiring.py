@@ -143,8 +143,12 @@ def test_no_job_other_than_web_and_docker_uses_node_or_a_browser():
         if name in ("web", "docker"):
             continue
         # a `uses:` caller job (D165) has no steps: its `test-command` is what it runs
-        cmd = str((job.get("with") or {}).get("test-command", ""))
-        called = [{"run": cmd}] if "uses" in job else []
+        called = []
+        if "uses" in job:
+            # only a pinned call of a factory reusable workflow may stand in for steps
+            assert re.fullmatch(r"Shashkist/factory/\.github/workflows/[\w.-]+\.yml@[0-9a-f]{40}",
+                                str(job["uses"])), f"job {name} calls {job['uses']!r}"
+            called = [{"run": str((job.get("with") or {}).get("test-command", ""))}]
         for step in [*job.get("steps", []), *called]:
             assert not _is_node_setup(step), f"job {name} sets up Node"
             run = _run(step)

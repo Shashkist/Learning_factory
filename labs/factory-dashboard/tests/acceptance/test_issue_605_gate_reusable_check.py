@@ -191,3 +191,28 @@ def test_main_holds_with_lookalike_only(capsys):
     code, out = gate(capsys, [check("unit"), check("exam-integrity-lint")])
     assert code == 1
     assert "HOLD: " + NOT_RUN in out
+
+
+# D166: the default exam gate stays tested. `_check_reasons` is called without an exam gate
+# name; the default is `manager-exam` on main and `manager-exam / gate` once #613 lands.
+
+DEFAULT_GATES = ("manager-exam", "manager-exam / gate")
+
+
+def default_reasons(*checks):
+    return merge_gate._check_reasons([check("changes"), check(REUSABLE), *checks])
+
+
+def test_default_gate_missing_holds_naming_manager_exam():
+    out = default_reasons(check("unit"))
+    assert out and any("manager-exam" in r for r in out), out
+
+
+@pytest.mark.parametrize("state", ["SKIPPED", "FAILURE"])
+def test_default_gate_not_success_holds_naming_manager_exam(state):
+    out = default_reasons(*[check(n, state) for n in DEFAULT_GATES])
+    assert out and any("manager-exam" in r for r in out), out
+
+
+def test_default_gate_success_has_no_hold():
+    assert default_reasons(*[check(n) for n in DEFAULT_GATES]) == []

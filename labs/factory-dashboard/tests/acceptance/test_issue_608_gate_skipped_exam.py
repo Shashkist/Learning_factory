@@ -340,3 +340,33 @@ def test_docker_success_with_a_renamed_workflow_is_not_held_for_docker(capsys):
     rollup = green(check("docker"))
     files = [renamed(".github/workflows/ci2.yml", CI_YML)]
     assert gate(capsys, rollup, commits=[files]) == (0, ["MERGE"])
+
+
+# D166: the default exam gate (`manager-exam` on main, `manager-exam / gate` after #613) is
+# still what main() requires when no --exam-gate is given. Both names are served, so the
+# cases hold under either default.
+
+DEFAULT_GATES = ("manager-exam", "manager-exam / gate")
+
+
+def default_gate(capsys, rollup):
+    code = merge_gate.main(["9", "--session", SESSION], run=Gh(rollup))
+    lines = [ln for ln in capsys.readouterr().out.splitlines() if ln.strip()]
+    return code, lines
+
+
+def test_default_gate_success_merges(capsys):
+    rollup = green(*[check(n) for n in DEFAULT_GATES], exam=False)
+    assert default_gate(capsys, rollup) == (0, ["MERGE"])
+
+
+def test_default_gate_missing_holds_naming_manager_exam(capsys):
+    code, lines = default_gate(capsys, green(exam=False))
+    assert_held_naming(code, lines, "manager-exam")
+
+
+@pytest.mark.parametrize("state", ["SKIPPED", "FAILURE", "NEUTRAL"])
+def test_default_gate_not_success_holds_naming_manager_exam(capsys, state):
+    rollup = green(*[check(n, state) for n in DEFAULT_GATES], exam=False)
+    code, lines = default_gate(capsys, rollup)
+    assert_held_naming(code, lines, "manager-exam")

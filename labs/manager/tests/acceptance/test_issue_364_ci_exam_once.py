@@ -38,18 +38,19 @@ REUSABLE_GATE = re.compile(
 CD_MANAGER = re.compile(r"^cd\s+(\./)?labs/manager/?$")
 # every line a reusable exam command may hold: fail-fast shell, the postgres start and wait,
 # the database url, the move into labs/manager, the environment install, the exam line itself
+SLOT = r"[^;&|$`(){}<>]*"  # no command separator, substitution, redirection or group
 REUSABLE_LINES = [
     r"set -euo pipefail",
-    r"docker run -d .*\bpostgres:16\b.*",
-    r"for i in .*; do",
-    r"if docker exec \S+ pg_isready .*; then break; fi",
+    r"docker run -d " + SLOT + r"\bpostgres:16",
+    r"for i in \$\(seq \d+ \d+\); do",
+    r"if docker exec [\w.-]+ pg_isready( -U \w+)?; then break; fi",
     r"sleep \d+",
     r"done",
-    r"docker exec \S+ pg_isready .*",
-    r"export LF_TEST_DATABASE_URL=postgresql://\S+",
+    r"docker exec [\w.-]+ pg_isready( -U \w+)?",
+    r"export LF_TEST_DATABASE_URL=postgresql://[\w:@./-]+",
     r"cd labs/manager",
     r"uv sync",
-    r"uv run pytest .*",
+    r"uv run pytest " + SLOT,
 ]
 
 
@@ -237,6 +238,11 @@ def _check_reusable_gate(job: dict) -> None:
     """The pinned junit-gate.yml call (its `gate` job judges the report), no `if`, and the
     `junit-file` input equal to the exam's report path relative to the repo root."""
     assert REUSABLE_GATE.match(job["_uses"]), job["_uses"]
+    tooling = re.findall(r"git\+https://github\.com/Shashkist/factory@([0-9a-f]{40})",
+                         CI.read_text(encoding="utf-8"))
+    assert tooling and job["_uses"].rsplit("@", 1)[1] == tooling[0], "pin differs from tooling's"
+    autoload = job["_with"].get("disable-pytest-plugin-autoload", True)
+    assert str(autoload).lower() != "false", "plugin autoload must stay disabled"
     assert "if" not in job, "the exam call has an if condition"
     assert "continue-on-error" not in job
     cmd = [s for s in job["steps"] if _exam_line() == s["run"]][0]

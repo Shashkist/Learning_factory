@@ -72,12 +72,14 @@ def test_required_checks_exist_in_ci_yml(profile, ci):
         # D166: a caller job (`uses:`) of a factory reusable workflow also reports one check
         # per job of the called workflow, named `<caller job> / <called job>`
         called = _called_jobs(job)
-        names.update(f"{job_id} / {c}" for c in called)
+        shown = job.get("name") or job_id if isinstance(job, dict) else job_id
+        names.update(f"{shown} / {c}" for c in called)
     missing = [c for c in checks if c not in names]
     assert not missing, f"required_checks not found as jobs in ci.yml: {missing}"
     # the exam must stay required, as the bare job or as the reusable job's checks
-    assert any(c == "manager-exam" or c.startswith("manager-exam / ") for c in checks)
-    assert any(c == "exam-integrity" or c.startswith("exam-integrity / ") for c in checks)
+    # exactly the bare job or the reusable gate job (`exam` succeeds on skipped tests)
+    assert any(c in ("manager-exam", "manager-exam / gate") for c in checks)
+    assert any(c in ("exam-integrity", "exam-integrity / exam-integrity") for c in checks)
 
 
 def _commands(profile, area):
