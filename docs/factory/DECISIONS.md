@@ -1648,3 +1648,12 @@ in force · 2026-11-25 · revertible
 **Revert.** Restore the old case's expectation and drop the rule from `scripts/merge_gate.py`.
 
 **Amendment 1 (2026-11-25, build of #611).** Criterion 2 makes the gate call `repos/{owner}/{repo}/pulls/<n>/commits` (paginated) and `repos/{owner}/{repo}/pulls/<n>` on every run. The fake `gh` of the #608, #590 and #605 exams cannot answer these (an `IndexError`, or a `{"files": ...}` dict). They are taught to answer them (the PR's commit list as `[{"sha": ...}]`, and `{"commits": N}`) in an exam-only commit before the code; no assertion changes, the same kind of setup change as D160 amendment 1. Falling back to `pr view --json commits` on a malformed answer was refused: it would weaken criterion 2.
+
+## D164 · #64: the live page criteria move to Shashkist/factory#87; #64 keeps the nginx header
+in force · factory · 2026-11-25 · revertible
+
+**Finding.** #64 lists leftovers for `labs/factory-dashboard/app.js`, but the live page, its builder and its DOM harnesses moved to the factory package (D149, D150); this repository keeps only the live.json shape and the nginx cases of the #51 exam. Criteria 1 to 6 and 8 cannot be tested here.
+**Decision.** Criteria 1 to 6 and 8 move unchanged to Shashkist/factory#87 (exam first there, with its harnesses). #64 keeps criterion 7 only: `X-Content-Type-Options: nosniff` at server level and in both JSON locations of `labs/deploy/nginx/factory.conf`, carried into the shared configuration only through `install-block.sh`; its exam reads `factory.conf` the way the #51 nginx cases do.
+**Why.** The code lives in the other repository; an issue whose files do not exist here cannot get an exam here.
+**Alternatives.** Close #64 and open two new issues (loses the history); build the page criteria here against a copy of `app.js` (the page is no longer served from here).
+**Revert.** Move the criteria back to #64 and close factory#87.
