@@ -8,6 +8,7 @@ variable. The gate is read-only: any writing gh command fails the test.
 
 import importlib.util
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -48,6 +49,26 @@ def claim_comment(session=SESSION, released=False):
     return {"body": body, "url": "https://github.com/o/r/issues/5#issuecomment-77"}
 
 
+def pr_api(argv, oids):
+    """Answer the PR commit listing (`pulls/9/commits`, 100 per page; --paginate concatenates,
+    --slurp wraps the pages; page=N picks one) and `pulls/9` (commit count); else None."""
+    path = next((a for a in argv[1:] if a.startswith("repos/")), "")
+    bare = path.split("?")[0]
+    if bare.endswith("/pulls/9"):
+        return json.dumps({"commits": len(oids)})
+    if not bare.endswith("/pulls/9/commits"):
+        return None
+    pages = [[{"sha": o} for o in oids[i:i + 100]] for i in range(0, len(oids), 100)] or [[]]
+    if "--slurp" in argv:
+        return json.dumps(pages)
+    if "--paginate" in argv:
+        return "".join(json.dumps(p) for p in pages)
+    pat = re.compile(r"page=(\d+)")
+    m = next(filter(None, (pat.search(a) for a in [path, *argv])), None)
+    n = int(m.group(1)) if m else 1
+    return json.dumps(pages[n - 1] if n <= len(pages) else [])
+
+
 class Gh:
     """Fake gh serving PR 9, green, approved for its head. claims: issue -> comments."""
 
@@ -74,6 +95,9 @@ class Gh:
                 check("manager-exam"), check("changes")]
             return json.dumps(pr)
         if argv[0] == "api":
+            listing = pr_api(argv, [HEAD])
+            if listing is not None:
+                return listing
             return json.dumps({"files": [{"filename": "labs/manager/app/thing.py"}]})
         if argv[:2] == ["issue", "view"]:
             return json.dumps({"comments": self.claims.get(int(argv[2]), [])})
