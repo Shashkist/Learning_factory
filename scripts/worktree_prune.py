@@ -20,6 +20,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import time
@@ -200,7 +201,15 @@ def say(status: str, path: Path, reason: str) -> None:
 
 
 def is_link(p: Path) -> bool:
-    return os.path.islink(p) or getattr(os.path, "isjunction", lambda _: False)(p)
+    """A symlink, a junction or any other reparse point. `os.path.isjunction` needs Python 3.12,
+    and the laptop runs this with 3.11, so junctions are found by their reparse-point attribute."""
+    if os.path.islink(p):
+        return True
+    try:
+        attrs = getattr(os.lstat(p), "st_file_attributes", 0)
+    except OSError:
+        return False
+    return bool(attrs & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400))
 
 
 def nested_entry(path: Path, registered: list[Path]) -> Path | None:
