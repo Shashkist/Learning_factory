@@ -20,9 +20,16 @@ verify:
     cwd: "."
     run:
       - uvx pytest scripts -q
+  dashboard:
+    cwd: labs/factory-dashboard
+    run:
+      - uv run ruff check .
+      - uv run pytest -q
 
 # The exam as CLAUDE.md counts it. scripts/ci/exam_integrity.py stays the authority:
-# it also counts every other path under labs/*/tests/ and leaves tests/unit/ out.
+# it also counts every other path under labs/*/tests/ and leaves tests/unit/ out,
+# so a conftest.py, pytest.ini, tox.ini or setup.cfg under labs/*/tests/unit/ is
+# NOT exam even though the globs below match it.
 exam:
   - "labs/**/tests/acceptance/**"
   - "labs/**/conftest.py"
@@ -34,8 +41,6 @@ protected_paths:
   - "scripts/laptop/**"
   - "scripts/factory_guard.py"
   - "scripts/test_factory_guard.py"
-  - ".github/workflows/**"
-  - "labs/deploy/**"
 
 required_checks:
   - manager
