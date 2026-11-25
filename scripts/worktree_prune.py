@@ -20,6 +20,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import time
@@ -109,13 +110,25 @@ def split_status(path: Path) -> tuple[list[str], list[str], list[str]] | None:
 
     Untracked and ignored entries are collapsed to their top folder (`.venv/`).
     """
-    r = git(path, "status", "--porcelain", "--ignored=matching")
+    r = git(path, "--no-optional-locks", "status", "-z", "--porcelain", "--ignored=matching")
     if r.returncode != 0:
         return None
-    out = r.stdout.splitlines()
-    tracked = [ln[3:] for ln in out if not ln.startswith(("??", "!!"))]
-    untracked = [ln[3:] for ln in out if ln.startswith("??")]
-    ignored = [ln[3:] for ln in out if ln.startswith("!!")]
+    tracked: list[str] = []
+    untracked: list[str] = []
+    ignored: list[str] = []
+    fields = iter(r.stdout.split("\0"))
+    for entry in fields:
+        if not entry:
+            continue
+        code, name = entry[:2], entry[3:]
+        if code == "??":
+            untracked.append(name)
+        elif code == "!!":
+            ignored.append(name)
+        else:
+            tracked.append(name)
+            if "R" in code or "C" in code:
+                next(fields, None)  # the original name of a rename or copy
     return tracked, untracked, ignored
 
 
@@ -187,6 +200,59 @@ def say(status: str, path: Path, reason: str) -> None:
     print(f"{status} {path} {reason}", flush=True)
 
 
+def is_link(p: Path) -> bool:
+    """A symlink, a junction or any other reparse point. `os.path.isjunction` needs Python 3.12,
+    and the laptop runs this with 3.11, so junctions are found by their reparse-point attribute."""
+    if os.path.islink(p):
+        return True
+    try:
+        attrs = getattr(os.lstat(p), "st_file_attributes", 0)
+    except OSError:
+        return False
+    return bool(attrs & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400))
+
+
+def nested_entry(path: Path, registered: list[Path]) -> Path | None:
+    """What makes it unsafe to delete path: another registered worktree, a link, a `.git`, a
+    bare repository below its top level. A folder that cannot be read raises OSError."""
+
+    def fail(e: OSError):
+        raise e
+
+    for other in registered:
+        if other != path and other.is_relative_to(path):
+            return other
+    for root, dirs, files in os.walk(path, onerror=fail):
+        here = Path(root)
+        top = here == path
+        if top:
+            dirs[:] = [d for d in dirs if d != ".git"]
+        for name in dirs + files:
+            if is_link(here / name) or (not top or name != ".git") and name == ".git":
+                return here / name
+        if not top and "HEAD" in files and "objects" in dirs and "refs" in dirs:
+            return here
+    return None
+
+
+GITHUB = "github.com"
+SLUG = r"[^/\:@\s]+/[^/\:@\s]+"
+
+
+def origin_slug(url: str) -> str | None:
+    """`owner/name` of a GitHub origin (https, ssh, scp style or an ssh alias), else None."""
+    m = re.match(rf"^(?:https?|ssh|git)://(?:[^@/]+@)?([^/:]+)(?::\d+)?/({SLUG})/?$", url.strip(), re.IGNORECASE)
+    if m or (m := re.match(rf"^[\w.-]+@([^:/]+):({SLUG})/?$", url.strip())):
+        host, slug = m.group(1).lower(), m.group(2)
+    elif m := re.match(rf"^([\w.-]{{2,}}):({SLUG})/?$", url.strip()):
+        host, slug = GITHUB, m.group(2)  # an ssh alias from the ssh config: host unknown
+    else:
+        return None
+    if host not in (GITHUB, "www." + GITHUB):
+        return None
+    return slug.removesuffix(".git").lower()
+
+
 MAX_NAMES = 20
 
 
@@ -214,7 +280,7 @@ def folder_is_free(path: Path) -> bool:
     return True
 
 
-def remove(main_root: Path, path: Path, branch: str, reason: str, dry_run: bool) -> None:
+def remove(main_root: Path, path: Path, branch: str, reason: str, dry_run: bool, registered) -> None:
     status = split_status(path)
     if status is None:
         say("KEPT", path, "git status failed, cannot tell what is in it")
@@ -222,6 +288,10 @@ def remove(main_root: Path, path: Path, branch: str, reason: str, dry_run: bool)
     tracked, untracked, ignored = status
     if tracked:
         say("KEPT", path, "tracked changes: " + ", ".join(tracked[:5]))
+        return
+    nested = nested_entry(path, registered)
+    if nested is not None:
+        say("KEPT", path, f"holds a link, repository or worktree at {nested}, left alone")
         return
     names = list_names(untracked, ignored)
     if dry_run:
@@ -244,7 +314,7 @@ def remove(main_root: Path, path: Path, branch: str, reason: str, dry_run: bool)
     say("REMOVED", path, reason)
 
 
-def judge(wt: dict, main_root: Path, here: Path, args, pass_start, gh) -> None:
+def judge(wt: dict, main_root: Path, here: Path, args, pass_start, gh, registered) -> None:
     path = Path(wt["worktree"]).resolve()
     branch = wt["branch"]
     m = FEATURE.match(branch)
@@ -274,10 +344,14 @@ def judge(wt: dict, main_root: Path, here: Path, args, pass_start, gh) -> None:
             lambda: remote_safe(main_root, branch, tip, args.dry_run),
         )
         if go:
-            remove(main_root, path, branch, reason, args.dry_run)
+            remove(main_root, path, branch, reason, args.dry_run, registered)
         else:
             say("KEPT", path, reason)
     elif branch.startswith("worktree-agent-"):
+        nested = nested_entry(path, registered)
+        if nested is not None:
+            say("KEPT", path, f"holds a link, repository or worktree at {nested}, left alone")
+            return
         gitfile = path / ".git"
         # read the git files' times first: `git status` refreshes the index itself
         stamps = [path, gitfile, *last_activity_files(path)]
@@ -293,7 +367,7 @@ def judge(wt: dict, main_root: Path, here: Path, args, pass_start, gh) -> None:
             go, why = tip_on_remote(main_root, tip, args.dry_run)
             reason = reason if go else why
         if go:
-            remove(main_root, path, branch, reason, args.dry_run)
+            remove(main_root, path, branch, reason, args.dry_run, registered)
         else:
             say("KEPT", path, reason)
     else:
@@ -315,8 +389,8 @@ def changed_paths(path: Path, status: tuple[list[str], list[str], list[str]]) ->
     """Modified and untracked paths: a file a live session just wrote counts as activity."""
     tracked, untracked, _ = status
     out: list[Path] = []
-    for entry in [e.split(" -> ")[-1] for e in tracked] + untracked:
-        out += newest_under(path / entry.strip('"'))
+    for entry in tracked + untracked:
+        out += newest_under(path / entry)
     return out
 
 
@@ -389,17 +463,28 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--pass-start")
     ap.add_argument("--repo")
     args = ap.parse_args(argv)
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="backslashreplace")
     pass_start = parse_iso(args.pass_start) if args.pass_start else None
     gh = make_gh(args.repo)
 
     here = Path(git(".", "rev-parse", "--show-toplevel").stdout.strip()).resolve()
+    if args.repo:
+        origin = git(here, "config", "--get", "remote.origin.url").stdout.strip()
+        slug = origin_slug(origin)
+        if slug != args.repo.strip().lower().removesuffix(".git"):
+            print(f"--repo {args.repo} does not match this clone's origin ({slug or 'not a github.com repository'}), "
+                  "nothing done", file=sys.stderr)
+            return 2
     if not args.dry_run:
         git(here, "worktree", "prune")
     trees = parse_worktrees(git(here, "worktree", "list", "--porcelain").stdout)
     main_root = Path(trees[0]["worktree"]).resolve()
+    registered = [Path(t["worktree"]).resolve() for t in trees]
     for wt in trees[1:]:
         try:
-            judge(wt, main_root, here, args, pass_start, gh)
+            judge(wt, main_root, here, args, pass_start, gh, registered)
         except (OSError, subprocess.SubprocessError, ValueError) as e:
             say("KEPT", Path(wt["worktree"]), "error, left alone: " + str(e)[:80])
     if args.issue is None:
