@@ -51,34 +51,28 @@ jobs:
       - run: uv run mypy app
       - run: uv run pytest -q --ignore=tests/acceptance
 
+  # The exam runs through the factory's reusable junit-gate (#613, D165): checks are
+  # `manager-exam / exam` and `manager-exam / gate`. The reusable exam job has no services,
+  # so postgres:16 is started here. confcutdir and the addopts override keep conftest.py
+  # files above tests/ and pyproject addopts from skipping or deselecting exam tests.
+  # The reusable job sets PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; the manager exam needs no plugin.
   manager-exam:
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
-    env:
-      LF_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
-    defaults:
-      run:
-        working-directory: labs/manager
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
-      - run: uv sync
-      - name: Acceptance exam must run fully (no skips)
-        # confcutdir and the addopts override keep conftest.py files above tests/
-        # and pyproject addopts from skipping or deselecting exam tests.
-        run: |
-          uv run pytest tests/acceptance -q --confcutdir=tests -o addopts="" -m "not docker" --junitxml=acceptance.xml
-          python3 ../../scripts/ci/junit_gate.py acceptance.xml
+    uses: Shashkist/factory/.github/workflows/junit-gate.yml@95753bb72e9c5d885376311efea91db7272f9d16 # v0.1.0
+    with:
+      timeout-minutes: 25
+      junit-file: labs/manager/acceptance.xml
+      test-command: |
+        set -euo pipefail
+        docker run -d --name lf-exam-postgres -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:16
+        for i in $(seq 1 30); do
+          if docker exec lf-exam-postgres pg_isready -U postgres; then break; fi
+          sleep 2
+        done
+        docker exec lf-exam-postgres pg_isready -U postgres
+        export LF_TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres
+        cd labs/manager
+        uv sync
+        uv run pytest tests/acceptance -q --confcutdir=tests -o addopts="" -m "not docker" --junitxml=acceptance.xml
 
   web:
     runs-on: ubuntu-latest
@@ -307,34 +301,50 @@ jobs:
             echo "lf-manager:latest skipped: main's code has moved past $SHA (a newer run pushes it)"
           fi
 
+  # The factory's reusable check (#613, D165). exam-paths reproduce _is_exam in
+  # scripts/ci/exam_integrity.py: everything under labs/<lab>/tests/ except tests/unit/.
+  # The factory's fnmatch `*` crosses `/`, so each lab is named and the character classes
+  # keep tests/unit/ out while tests/unit_extra/ stays exam. A new lab directory needs a
+  # block here. Pytest config files (conftest.py, pytest.ini, ...) count as exam outside
+  # tests/unit/ by the reusable check's own rule.
   exam-integrity:
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
-      - name: Lint and unit tests for the check scripts
-        run: |
-          uvx ruff check scripts/ci
-          uvx pytest scripts/ci -q
-      - name: Exam integrity per commit
-        env:
-          BASE_REF: ${{ github.base_ref }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          git fetch -q origin "$BASE_REF"
-          base="origin/$BASE_REF"
-          flag=""
-          # Run the base branch copy so a PR cannot weaken its own check.
-          if git show "$base:scripts/ci/exam_integrity.py" > "$RUNNER_TEMP/ei.py" 2>/dev/null; then
-            script="$RUNNER_TEMP/ei.py"
-          else
-            script=scripts/ci/exam_integrity.py   # bootstrap: base has no script yet
-            flag="--bootstrap"
-          fi
-          python "$script" "$base" "$HEAD_SHA" $flag
+    uses: Shashkist/factory/.github/workflows/exam-integrity.yml@95753bb72e9c5d885376311efea91db7272f9d16 # v0.1.0
+    with:
+      exam-paths: |
+        labs/content/tests/[!u]*
+        labs/content/tests/u[!n]*
+        labs/content/tests/un[!i]*
+        labs/content/tests/uni[!t]*
+        labs/content/tests/unit[!/]*
+        labs/deploy/tests/[!u]*
+        labs/deploy/tests/u[!n]*
+        labs/deploy/tests/un[!i]*
+        labs/deploy/tests/uni[!t]*
+        labs/deploy/tests/unit[!/]*
+        labs/factory-dashboard/tests/[!u]*
+        labs/factory-dashboard/tests/u[!n]*
+        labs/factory-dashboard/tests/un[!i]*
+        labs/factory-dashboard/tests/uni[!t]*
+        labs/factory-dashboard/tests/unit[!/]*
+        labs/images/tests/[!u]*
+        labs/images/tests/u[!n]*
+        labs/images/tests/un[!i]*
+        labs/images/tests/uni[!t]*
+        labs/images/tests/unit[!/]*
+        labs/manager/tests/[!u]*
+        labs/manager/tests/u[!n]*
+        labs/manager/tests/un[!i]*
+        labs/manager/tests/uni[!t]*
+        labs/manager/tests/unit[!/]*
+        labs/web/tests/[!u]*
+        labs/web/tests/u[!n]*
+        labs/web/tests/un[!i]*
+        labs/web/tests/uni[!t]*
+        labs/web/tests/unit[!/]*
+      ci-paths: |
+        .github/workflows/ci.yml
+        scripts/ci/**
 
   # Factory tooling tests (progress, crew, issue lock, guard). A job of their
   # own: code from the PR never runs before the exam-integrity check above, and
@@ -350,5 +360,9 @@ jobs:
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
       - name: Unit tests for the factory tooling in scripts/
         run: uvx pytest scripts -q
+      - name: Lint and unit tests for the check scripts
+        run: |
+          uvx ruff check scripts/ci
+          uvx pytest scripts/ci -q
       - name: Project profile check (.factory/factory.yaml)
         run: uvx --from git+https://github.com/Shashkist/factory@95753bb72e9c5d885376311efea91db7272f9d16 factory-tools profile check .factory/factory.yaml # v0.1.0
