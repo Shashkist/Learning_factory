@@ -1587,3 +1587,11 @@ in force · factory · 2026-11-25 · revertible
 **Why.** An exam outside the protected path can be changed with the code unnoticed; a pinned call list that CI never runs breaks `main` silently.
 **Alternatives.** One wide list call with labels filtered locally (fewer calls, but misses issues past the 100-issue limit and changes the pin as much); leave the exam in `scripts/` (unprotected).
 **Revert.** Restore the three-call `TODAY_STATUS`, move the exam back, drop the two path entries.
+
+## D157 · #595: un-parking goes through `issue_lock.py unpark`, which releases the claim naming its branch; `status:blocked` is read like `status:needs-owner`
+in force · factory · 2026-11-25 · revertible
+
+**Decision.** #595 criterion 1 offers two paths; the factory takes the second. A new subcommand `python scripts/issue_lock.py unpark <n> --session <s> [--repo <owner/name>]` (1) reads the issue's claim; when a live (not released) claim exists, it releases it with the reason `un-parked; continue branch <branch>` (the retraction comment and the printed line both name the branch); (2) removes `status:needs-owner` and `status:blocked` and adds `status:ready` (one `gh issue edit`). With no claim it only relabels and says so. An issue that carries neither parked label is refused (exit 1, nothing written). The skill's orient step and FACTORY.md say "un-park with `issue_lock.py unpark`". Also, `status:blocked` joins the claim labels that `status`, `stale` and `factory_pick` read (`_candidates`), so a claim parked as blocked stays visible like one parked as needs-owner. Loosened case, named: the #542 exam's `TODAY_STATUS` pin gains one list call (`--label status:blocked`), placed after `status:needs-owner`; it still pins every call exactly.
+**Why.** Reading every `status:ready` issue's comments would add ~26 comment reads to every `status` and `factory_pick` call; releasing at the moment of un-parking is one write, and the next session learns the branch from the release line, which is what criterion 1 asks for.
+**Alternatives.** Read claims of all `status:ready` issues (slow, grows with the queue); keep the claim and only relabel (the bug); leave it to a sentence in the skill (not testable).
+**Revert.** Remove the `unpark` subcommand and the `status:blocked` query; restore the four-call `TODAY_STATUS`; the skill goes back to relabelling by hand.
