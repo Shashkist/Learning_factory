@@ -219,8 +219,15 @@ def test_docker_success_with_a_ci_yml_change_is_not_held_for_docker(capsys):
     assert (code, lines) == (0, ["MERGE"])
 
 
-def test_ci_yml_change_alone_does_not_hold_when_docker_did_not_skip(capsys):
-    assert gate(capsys, green(), files=[CI_YML]) == (0, ["MERGE"])
+def test_ci_yml_change_without_a_docker_check_holds_naming_docker(capsys):
+    # corrected by D163 (#611): this case expected MERGE; with a workflow change only a
+    # docker check that concluded SUCCESS proves the heavy exam ran
+    code, lines = gate(capsys, green(), files=[CI_YML])
+    assert_held_naming(code, lines, "docker")
+
+
+def test_ci_yml_change_with_docker_success_merges(capsys):
+    assert gate(capsys, green(check("docker")), files=[CI_YML]) == (0, ["MERGE"])
 
 
 # criterion 3: every other check keeps today's rule; exam integrity keeps its own
