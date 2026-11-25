@@ -1563,3 +1563,11 @@ in force · LF · 2026-11-25 · revertible
 **Why.** Keeping a worktree costs one manual look; deleting the target of a link loses work that is not even in the worktree. Links and bare repositories are rare in factory worktrees, so keeping them is cheap.
 **Alternatives.** Remove link entries before `git worktree remove` (deletes only the link, but one missed case loses data); a separate follow-up issue (leaves a known data-loss path live on the laptop).
 **Revert.** Drop the link and bare-repository checks; the script returns to 62bc3f9's behaviour.
+
+## D154 · #81: image jobs are serialized per ref and push `:latest` only while their code is still main's
+in force · factory · 2026-11-25 · revertible
+
+**Decision.** Criterion 4 of #81 takes the `concurrency` option (not "always deploy `LF_MANAGER_TAG=<sha>`"): `image-term` and `image-manager` each get a job-level group `image-<job>-<ref>` with `cancel-in-progress: false`. Review round 1 of #587 (CHANGES) showed the group alone does not order pushes: a job enters its group only when its `docker` job finishes, so an older run whose exam job finishes later pushes `:latest` last, and `deploy.sh` pulls `lf-lab-term:latest`. So, inside the group, each job pushes `:<sha>` always and `:latest` only when `scripts/ci_paths.py deploys <sha> origin/main` says main's code is still this commit's (the check Deploy already uses; docs-only commits on top are fine). `:latest` therefore never moves backwards. Accepted rest: when a third heavy run queues, GitHub cancels the older pending job in the group, and that CI run ends `cancelled` (Deploy needs `success`, the incident workflow ignores `cancelled`). This needs three heavy main commits inside one `docker` job's time; the newest code's own run still deploys. Making a cancelled main run visible is a follow-up issue.
+**Why.** The guard is one reused check; the alternative (pull `:<sha>` on deploy) needs the last heavy sha for docs-only heads and touches the deploy path.
+**Alternatives.** Deploy by `:<sha>` only; no concurrency group, guard alone (a short race between the check and the push).
+**Revert.** Remove the groups and the guard; `:latest` follows the last finished run again.
