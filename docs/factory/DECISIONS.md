@@ -1579,3 +1579,11 @@ in force · factory · 2026-11-25 · revertible
 **Why.** Adding `Closes #81` to PR A would close the issue before its exam lands; editing the gate inside an unrelated PR mixes tooling and feature work.
 **Alternatives.** Put the exam in PR A (refused by exam integrity, D19); wait for #590 first (blocks #81 for a pass).
 **Revert.** Once #590 merges, the gate prints `MERGE` for such PRs and this entry is superseded.
+
+## D156 · #592 review round 1: the exam moves under `labs/factory-dashboard/tests/acceptance/`, and the #542 call pin follows criterion 3
+in force · factory · 2026-11-25 · revertible
+
+**Decision.** Review round 1 of PR #593 (CHANGES at c28ba5d) found that the #592 exam sat in `scripts/` (not exam to `scripts/ci/exam_integrity.py`; every earlier `scripts/` exam lives in `labs/factory-dashboard/tests/acceptance/` and loads the script by file path), and that the #542 case `test_status_on_this_repository_alone_makes_todays_gh_calls` pins `status`'s exact gh call list, which #592 changes, while Dashboard CI does not run on `scripts/issue_lock.py`. The PR is rebuilt as `f/592-claims-in-review-2`: one exam-only commit moves the #592 exam to `labs/factory-dashboard/tests/acceptance/test_issue_592_claims_in_review.py` and updates `TODAY_STATUS` in the #542 exam to the new sequence (one list call per status label, then the recent sweep, then the claim reads); then the code (c28ba5d); then `.github/workflows/dashboard-ci.yml` runs on `scripts/issue_lock.py` and `scripts/factory_pick.py` (pull request and push). Loosened case, named: the #542 `TODAY_STATUS` pin accepts two more label list calls; it still pins every call exactly, so it is as strict as before about everything else. #592's criterion 3 asks for the budget to be updated, which settles it.
+**Why.** An exam outside the protected path can be changed with the code unnoticed; a pinned call list that CI never runs breaks `main` silently.
+**Alternatives.** One wide list call with labels filtered locally (fewer calls, but misses issues past the 100-issue limit and changes the pin as much); leave the exam in `scripts/` (unprotected).
+**Revert.** Restore the three-call `TODAY_STATUS`, move the exam back, drop the two path entries.
