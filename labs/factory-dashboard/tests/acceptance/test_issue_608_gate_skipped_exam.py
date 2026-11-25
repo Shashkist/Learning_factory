@@ -54,24 +54,45 @@ def green(*extra, exam=True, changes=True):
     return base + list(extra)
 
 
+def entry(f):
+    """A changed file: a path, or a ready-made GitHub file object."""
+    return f if isinstance(f, dict) else {"filename": f, "status": "modified"}
+
+
+def renamed(new, old):
+    return {"filename": new, "previous_filename": old, "status": "renamed"}
+
+
+PAGE = 2  # files per page the fake serves with --paginate
+
+
 class Gh:
-    def __init__(self, rollup, files=(CODE,)):
+    """Fake gh. `commits` is a list of file lists, oldest first, one per commit oid; the
+    commits API serves each commit its own files. Without --paginate only page 1 comes back;
+    with --paginate every page is concatenated as JSON objects, one per page, like gh does."""
+
+    def __init__(self, rollup, files=(CODE,), commits=None):
         now = issue_lock.now()
         claim = issue_lock.render({"session": SESSION, "branch": "f/5-x", "worktree": "C:/wt",
                                    "claimed": now, "heartbeat": now, "step": "ship"})
         self.claim = {"body": claim, "url": "https://github.com/o/r/issues/5#issuecomment-77"}
-        self.files = list(files)
+        per_commit = [list(files)] if commits is None else [list(c) for c in commits]
+        self.oids = [format(i + 1, "040x") for i in range(len(per_commit) - 1)] + [HEAD]
+        pairs = zip(self.oids, per_commit, strict=True)
+        self.by_oid = {o: [entry(f) for f in fs] for o, fs in pairs}
+        net = [e["filename"] for es in self.by_oid.values() for e in es]
         self.pr = {
             "author": {"login": "Shashkist"},
             "body": "What.\n\nCloses #5\n",
             "headRefOid": HEAD,
-            "commits": [{"oid": HEAD}],
+            "commits": [{"oid": o} for o in self.oids],
             "statusCheckRollup": rollup,
-            "files": [{"path": f} for f in self.files],
+            "files": [{"path": f} for f in net],
             "comments": [{"author": {"login": "Shashkist"},
                           "body": "Review round 1: APPROVE at " + HEAD + "\n\nOk.",
                           "createdAt": "2026-11-24T10:00:00Z"}],
         }
+        self.net = net
 
     def __call__(self, argv):
         assert argv[0] not in WRITES and argv[:2] != ["pr", "merge"], "gate must be read-only"
@@ -79,16 +100,22 @@ class Gh:
         if argv[:2] == ["pr", "view"]:
             return json.dumps(self.pr)
         if argv[:2] == ["pr", "diff"]:
-            return "\n".join(self.files) + "\n"
+            return "\n".join(self.net) + "\n"
         if argv[0] == "api":
-            return json.dumps({"files": [{"filename": f} for f in self.files]})
+            path = next(a for a in argv[1:] if a.startswith("repos/"))
+            es = self.by_oid[path.rsplit("/commits/", 1)[1].split("?")[0]]
+            pages = [es[i:i + PAGE] for i in range(0, len(es), PAGE)] or [[]]
+            if "--paginate" not in argv:
+                pages = pages[:1]
+            return "".join(json.dumps({"files": pg}) for pg in pages)
         if argv[:2] == ["issue", "view"]:
             return json.dumps({"comments": [self.claim]})
         return ""
 
 
-def gate(capsys, rollup, *extra, files=(CODE,)):
-    code = merge_gate.main(["9", "--session", SESSION, *extra], run=Gh(rollup, files))
+def gate(capsys, rollup, *extra, files=(CODE,), commits=None):
+    code = merge_gate.main(["9", "--session", SESSION, *extra],
+                           run=Gh(rollup, files, commits))
     lines = [ln for ln in capsys.readouterr().out.splitlines() if ln.strip()]
     return code, lines
 
@@ -231,3 +258,53 @@ def test_exam_integrity_missing_still_says_not_run(capsys):
 def test_no_checks_at_all_still_holds(capsys):
     code, lines = gate(capsys, [])
     assert code == 1 and "HOLD: no checks have run on this PR" in lines
+
+
+# D160 amendment 1: every commit, renames, any workflow file, paginated file lists
+
+SKIPPED_DOCKER = green(check("docker", "SKIPPED"))
+
+
+def test_ci_yml_renamed_to_another_workflow_name_holds_naming_docker(capsys):
+    files = [renamed(".github/workflows/ci2.yml", CI_YML)]
+    code, lines = gate(capsys, SKIPPED_DOCKER, commits=[files])
+    assert_held_naming(code, lines, "docker")
+
+
+def test_ci_yml_moved_out_of_workflows_holds_naming_docker(capsys):
+    code, lines = gate(capsys, SKIPPED_DOCKER, commits=[[renamed("x/ci.yml", CI_YML)]])
+    assert_held_naming(code, lines, "docker")
+
+
+def test_another_workflow_file_changed_holds_naming_docker(capsys):
+    files = [CODE, ".github/workflows/deploy.yml"]
+    code, lines = gate(capsys, SKIPPED_DOCKER, commits=[files])
+    assert_held_naming(code, lines, "docker")
+
+
+def test_ci_yml_changed_only_in_the_first_commit_holds_naming_docker(capsys):
+    code, lines = gate(capsys, SKIPPED_DOCKER, commits=[[CI_YML], [CODE]])
+    assert_held_naming(code, lines, "docker")
+
+
+def test_two_commits_without_a_workflow_change_merge(capsys):
+    commits = [[CODE], ["docs/factory/STATE.md", "scripts/merge_gate.py"]]
+    assert gate(capsys, SKIPPED_DOCKER, commits=commits) == (0, ["MERGE"])
+
+
+def test_ci_yml_only_on_the_second_page_of_a_commit_holds_naming_docker(capsys):
+    files = [CODE, "scripts/a.py", "scripts/b.py", "scripts/c.py", CI_YML]
+    assert len(files) > 2 * PAGE
+    code, lines = gate(capsys, SKIPPED_DOCKER, commits=[files])
+    assert_held_naming(code, lines, "docker")
+
+
+def test_many_files_over_several_pages_without_workflow_changes_merge(capsys):
+    files = [CODE] + [f"scripts/f{i}.py" for i in range(5)]
+    assert gate(capsys, SKIPPED_DOCKER, commits=[files]) == (0, ["MERGE"])
+
+
+def test_docker_success_with_a_renamed_workflow_is_not_held_for_docker(capsys):
+    rollup = green(check("docker"))
+    files = [renamed(".github/workflows/ci2.yml", CI_YML)]
+    assert gate(capsys, rollup, commits=[files]) == (0, ["MERGE"])
