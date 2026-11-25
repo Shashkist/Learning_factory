@@ -1679,3 +1679,5 @@ in force · factory · 2026-11-25 · revertible
 **Why.** Each PR is green on its own base. Once PR B lands, the #613 exam pins the reusable layout, so the either-layout branch of the older exams no longer leaves a way back.
 **Alternatives.** One PR with the exam and CI together (refused by exam integrity, D9/D19); park #613 (it blocks #614 and client #1).
 **Revert.** Drop the old-layout branches from the bridged exams after PR B, or revert all three PRs.
+
+**Amendment 1 (2026-11-25, PR 0 of #613).** One more older case reads `incident.yml`: `labs/manager/tests/acceptance/test_issue_1_skeleton.py::test_incident_workflow_applies_incident_labels` wants the three label strings in the file. With the reusable call, the factory's `incident.yml` (pinned) applies them, so the case now also accepts a pinned reusable incident call. **Loosened case:** this one; it checks a pinned call instead of the label text in the reusable layout (the factory's `docs/ci.md` names the labels the workflow applies). Every other bridged case checks the reusable layout as strictly as the local one.
