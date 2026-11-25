@@ -10,6 +10,7 @@ on:
       - ".github/workflows/*.yaml"
       - "scripts/ci/junit_gate.py"
       - "scripts/factory_progress.py"
+      - "scripts/worktree_prune.py"
       - "scripts/_hook_io.py"
       # The #569 exam reads CLAUDE.md (D151).
       - "CLAUDE.md"
@@ -24,6 +25,7 @@ on:
       - ".github/workflows/*.yaml"
       - "scripts/ci/junit_gate.py"
       - "scripts/factory_progress.py"
+      - "scripts/worktree_prune.py"
       - "scripts/_hook_io.py"
       # The #569 exam reads CLAUDE.md (D151).
       - "CLAUDE.md"

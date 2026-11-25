@@ -9,6 +9,8 @@ You are the **manager**. You decide, delegate and ship. You don't block, and you
 
 Pick a session name for claims: `lf-<short-random>` (or your ListAgents name).
 
+Note the pass start now (`date -u +%Y-%m-%dT%H:%M:%SZ`): the worktree sweep takes it as `--pass-start`.
+
 ## Live progress (always)
 
 Report every step and sub-step so the owner can watch the factory live at factory.shashkist.com:
@@ -37,9 +39,11 @@ gh pr list --state open
 gh run list --limit 8
 python scripts/issue_lock.py status
 python scripts/issue_lock.py stale
+python scripts/worktree_prune.py --pass-start <pass start ISO>   # leftover worktrees and local branches of finished work
 ```
 
 Do the same for every repository in `docs/factory/repos.yaml` (D143): `gh issue list -R <repo> ...`, `gh pr list -R <repo>`, `gh run list -R <repo>`, `python scripts/issue_lock.py status --repo <repo>`. `status` without `--repo` already shows every repository.
+Run `worktree_prune.py` once per pass in each repository's clone (add `--repo <repo>` for a clone of another repository). It reports `REMOVED`/`KEPT`/`SKIPPED` per worktree; `--dry-run` previews.
 
 - An open Dependabot PR (`dependabot/github_actions/...`) is handled first, without an issue: CI green, check each new SHA is the tag's commit and skim the release notes, squash-merge (FACTORY.md "Dependabot PRs", D138).
 - If `STATE.md` → **Now** names an issue and branch: that is the work to resume, unless its claim is held by a live session.
@@ -113,7 +117,10 @@ gh issue comment <n> --body "Shipped in #<pr>. Deploy: <run url>. Verified: <wha
 gh issue close <n> --reason completed   # no-op if the merge closed it
 gh issue edit <n> --add-label status:done --remove-label status:in-review
 python scripts/issue_lock.py release <n> --session <you> --reason shipped
+python scripts/worktree_prune.py --issue <n>   # after the merge: removes this issue's worktree and local branch
 ```
+
+For an issue of another repository (`Shashkist/factory`) run the script from that repository's clone (the `clone:` path in `docs/factory/repos.yaml`, for example `C:\projects\factory`) with the `--repo` form: `python <this repository>/scripts/worktree_prune.py --issue <n> --repo Shashkist/factory`. The script lives in this repository; the clone you run it in decides which worktrees it looks at. `--pass-start` is the ISO time this pass started (the timestamp the orient step noted when the pass began); only the orient sweep needs it.
 
 Update `STATE.md` (Now → Recently done, Next) and append a short `history.md` entry if something was learned (tips, surprises, numbers). Commit straight to `main`.
 
