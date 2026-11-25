@@ -82,7 +82,7 @@ def _pin(path, job_id, workflow):
 def _all_pins():
     text = "\n".join(p.read_text(encoding="utf-8") for p in sorted(WORKFLOWS.glob("*.yml")))
     pat = r"Shashkist/factory/\.github/workflows/[\w.-]+\.yml@([0-9a-zA-Z._-]+)"
-    return set(re.findall(pat, text))
+    return re.findall(pat, text)
 
 
 # 1. exam-integrity call
@@ -164,6 +164,14 @@ EDGE_PATHS = [
 ]
 
 
+def expected_exam(path):
+    """`_is_exam`, plus (D166) pytest config files outside labs/, where the factory rule is
+    stricter: a conftest.py at the root or under scripts/ counts as exam."""
+    if path.rsplit("/", 1)[-1] in PYTEST_CONFIG and not _in_unit_dir(path):
+        return True
+    return exam_integrity._is_exam(path)
+
+
 def _tracked():
     out = subprocess.run(["git", "ls-files"], cwd=ROOT, check=True, capture_output=True,
                          text=True).stdout
@@ -179,15 +187,14 @@ def _exam_globs():
 
 def test_exam_paths_match_exam_integrity_on_every_tracked_path():
     globs = _exam_globs()
-    bad = [p for p in _tracked()
-           if factory_is_exam(p, globs) != exam_integrity._is_exam(p)]
+    bad = [p for p in _tracked() if factory_is_exam(p, globs) != expected_exam(p)]
     assert not bad, f"factory and exam_integrity.py disagree on: {bad[:15]}"
 
 
 @pytest.mark.parametrize("path", EDGE_PATHS)
 def test_exam_paths_match_exam_integrity_on_edge_path(path):
     globs = _exam_globs()
-    assert factory_is_exam(path, globs) == exam_integrity._is_exam(path), path
+    assert factory_is_exam(path, globs) == expected_exam(path), path
 
 
 # 3. manager exam through junit-gate.yml
@@ -435,10 +442,12 @@ def test_required_checks_name_the_reusable_checks_not_the_bare_jobs():
 # 9. one pin everywhere
 
 def test_every_factory_reference_uses_one_and_the_same_sha():
-    shas = _all_pins()
+    calls = _all_pins()
     tooling = re.findall(r"git\+https://github\.com/Shashkist/factory@([0-9a-zA-Z._-]+)",
                          CI_YML.read_text(encoding="utf-8"))
     assert tooling, "the tooling job's factory-tools pin is gone"
-    assert len(shas) >= 3, f"expected exam-integrity, junit-gate and incident calls: {shas}"
-    assert len(shas | set(tooling)) == 1, shas | set(tooling)
-    assert all(re.fullmatch(r"[0-9a-f]{40}", s) for s in shas)
+    refs = calls + tooling
+    # count references, not distinct shas: exam-integrity, junit-gate, incident and tooling
+    assert len(refs) >= 4, f"expected a pin on every call and on the tooling job: {refs}"
+    assert len(set(refs)) == 1, f"one sha everywhere, got {sorted(set(refs))}"
+    assert re.fullmatch(r"[0-9a-f]{40}", refs[0])
