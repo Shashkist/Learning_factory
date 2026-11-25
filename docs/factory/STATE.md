@@ -4,7 +4,7 @@
 
 ## Now
 
-**Pass lf-t4r9 (laptop, 17:57-19:25 UTC 2026-11-25) has stopped after 3 merges** (#617, #618, factory#84). One PR is open; its claim is held by lf-t4r9 with a heartbeat: take it over (`claim --steal --reason`) once this session has ended.
+**Pass lf-t4r9 (laptop, 17:57-19:12 UTC 2026-11-25) has stopped after 3 merges** (#617, #618, factory#84). One PR is open; its claim is held by lf-t4r9 with a heartbeat: take it over (`claim --steal --reason`) once this session has ended.
 - **#612, PR #620 = PR B** (`f/612-client-profile-b`, worktree `C:\projects\lf-612`, exam only; PR A #618 merged as 6cf97cc). Round 1 CHANGES at 522e35c (the exam missed tooling verify, the exam globs, independent areas and the profile-check step); the exam-writer strengthened it in b2f4167 (16 passed on main, each reviewer mutation now fails). Round 2 CHANGES at b2f4167 (an `if:` could skip the check), fixed in 94ff45e; a fresh reviewer posted **Review round 2: APPROVE at 94ff45e** (nits in #621). Next: wait for `manager-exam` (pending at stop), then gate (`merge_gate.py 620`), merge, Deploy, close #612 citing #618, #620 and the Deploy run, remove the worktree `C:\projects\lf-612`.
 - **Next issues:** #613 (CI calls the reusable workflows, D19 split like #612; depends on #612), then **factory#86 (p1)**: a bound exam check must be a real Actions job (exam first; D29 amendment 2). Then #614 (needs #612, #613; factory#80 is closed). #614 also gets two profile nits from #618 round 2: add `labs/*/tests/**` to `exam`, and the strict acceptance step of Dashboard CI to `verify.dashboard`.
 - Leftover worktree `C:/projects/factory-61` (source of #71/#72, #61 closed): its content has shipped; remove it by hand after a look.
