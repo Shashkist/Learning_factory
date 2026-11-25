@@ -1604,3 +1604,11 @@ in force · factory · 2026-11-25 · revertible
 **Why.** Criterion 1 is about the next session continuing the branch; a release line the next write erases does not do that.
 **Alternatives.** Keep the claim on un-park instead of releasing it (the original bug: invisible after 15 minutes); write the branch into the issue body (a second place to keep in sync).
 **Revert.** Drop the `claim` check and the `unpark` extras; D157 alone stays.
+
+## D159 · #595 review round 2: the manager fixes on the branch, the exam cases go to #603
+in force · factory · 2026-11-25 · revertible
+
+**Decision.** Amends D158. Review round 2 of PR #602 (CHANGES at aaf2610) found two small blocking holes in `issue_lock.py claim`; the manager fixes them on `f/595-unpark-claims-2` (D145) instead of a `-3` rebuild. (1) `claim` reads every released claim for `continue branch X` (`unparked_branches`), not only the comment it would reuse, so a claim race that left another release first no longer hides the un-park. (2) The `--steal --reason` override past an un-park records `steal_reason` and `abandoned_branch` in the new claim. Nits: `claim` reads the comments once (`pick_claim`); `unpark` prints `#n un-parked` after the relabel; the reason `(no branch recorded)` is matched exactly. Nit 6: with two un-park releases naming X and Y, either `--branch X` or `--branch Y` is accepted. The exam cases for (1), (2) and nit 6 go to follow-up #603 (exam-only), like factory D24; a fresh reviewer verifies only this fix, and anything further it finds becomes a follow-up too.
+**Why.** Two small code fixes do not justify a third rebuild; the cases still get pinned, in their own exam-only PR.
+**Alternatives.** Rebuild as `f/595-unpark-claims-3` with an exam commit first (a third full round for ~20 lines); ship without pinning (a regression could reopen it unseen).
+**Revert.** Close #603 and rebuild #595 as `-3` with the cases in its exam.
