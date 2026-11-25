@@ -4,17 +4,16 @@
 
 ## Now
 
-**Pass lf-a9c1 (laptop, from 12:27 UTC 2026-11-25).** Took over lf-n6t2's claims (session ended). In flight (all Shashkist/factory, claims by lf-a9c1):
-- **factory#62 shipped** (#77, squash 76bbf97; factory main CI 45615309204 green). Closed with evidence.
-- **factory#65 PR A #74** (`f/65-judge-globs`, worktree `C:\projectsactory-65a`): round 2 APPROVE at dbb0799 (fresh reviewer); rebased onto 76bbf97 as 1580480, CI green, a reviewer is confirming the rebase. Then gate, merge, and **PR B** (exam only, `f/65-exam-path-inputs`, worktree `C:\projectsactory-65`: drop code commit 8a366f2, keep exam ff7fa47, `Closes #65`).
-- **factory#76** (`f/76-gate-skipped-exam`, worktree `C:\projectsactory-76`): exam-writer running.
-- Tooling: on this laptop `uv run <tool>` fails to spawn; use `uv run python -m <tool>`. The full factory acceptance suite takes 10+ minutes locally (about 2 minutes in CI). Live progress for factory issues needs `--repo Shashkist/factory` on `factory_progress.py add`. After a rebase the gate needs a verdict at the new head: a reviewer checks the range-diff (D148 amendment 3: never self-approve).
+**Pass lf-a9c1 (laptop, 12:27-13:50 UTC 2026-11-25) stopped cleanly.** No claims held, no PR open, no branch in flight. Took over lf-n6t2's claims (session ended) and shipped them.
+- Next session starts with `factory_pick.py` (see Next).
+- Leftover worktree `C:/projects/factory-61` (`f/61-dogfood-reusable-ci`, source of #71/#72, #61 closed): `worktree_prune.py` keeps it ("no PR for this branch"); its content shipped, remove it by hand after a look.
+- Tooling: on this laptop `uv run <tool>` fails to spawn; use `uv run python -m <tool>`. The full factory acceptance suite takes 10+ minutes locally (about 2 minutes in CI). Live progress for factory issues needs `--repo Shashkist/factory` on `factory_progress.py add`. After a rebase the gate needs a verdict at the new head: a reviewer checks `git range-diff` (D148 amendment 3: never self-approve). Bash `/tmp` is not Python's `/tmp` on this laptop: write PR bodies with bash, not Python.
 
 Older pass notes (lf-k2v8 and before) are in `history.md` and git history (`git log -p docs/factory/STATE.md`).
 
 ## Next (in order)
 
-1. Finish factory#65 and factory#76 (see Now); then `factory_pick.py`: factory#76 (p1), factory#7 (p1, client #1 switch: slice it first; #61 is done, it also wants #65 and #62), factory#67, factory#63, factory#75; LF p2: #15, #21, #44, #47, #64, #85; factory#10, #11, #43, #44.
+1. `factory_pick.py`: factory#80 (p1, new: gate binds the exam-gate and exam-integrity results to the pinned reusable workflows, not the name), factory#7 (p1, client #1 switch: slice it first; #61, #65, #62 are done), factory#67, factory#63, factory#75; LF p2: #608 (new, port of factory#76; depends on factory#76, done), #15, #21, #44, #47, #64, #85; factory#10, #11, #43, #44.
 2. p3 follow-ups: #603, #604, factory#70, #601, #594, #597, #588, factory#57, factory#59, #579, #580, factory#49, #574, factory#33, factory#36, factory#40, factory#41, #561, #564, factory#17, factory#24, #523, #555, #468, #423 (old worktree `C:\projects\lf-423`), #436, #431. Owner item **O26** (heartbeat task).
 
 ## Waiting for the owner
@@ -30,6 +29,7 @@ Older pass notes (lf-k2v8 and before) are in `history.md` and git history (`git 
 
 ## Recently done
 
+- 2026-11-25 pass lf-a9c1: factory#62 (#77, 76bbf97; main CI 45615309204), factory#65 (judge #74, 645d8f5, main CI 45617025101; exam #78, 95753bb, main CI 45624202389; 3 review rounds on the exam, mutation-checked), factory#76 (#79, c1180aa; main CI 45620523608; factory D28). Opened factory#80, LF #608.
 - 2026-11-25 pass lf-p7c3: #595 (#602; Deploy 45586479978 smoke ok, live on scratch #607), #605 (#606; Deploy 45591320465 smoke ok, live gate on factory#71), factory#61 PR A (factory#69, 2a6fd53; D25, D26). PR B factory#71 approved, PR C exam ready.
 
 - 2026-11-25 pass lf-k2v8: factory#5 (factory#66, 34f9188; factory main CI 45571040187, live scratch caller runs 45571216744 and 45571216819), #589 (#598; Factory dashboard 45572025455, live app.js byte-equal to ecad631), #590 (#600; Deploy 45578853422 smoke ok). #81 closed. #595 at PR #602 round 2 CHANGES (D157, D158).
