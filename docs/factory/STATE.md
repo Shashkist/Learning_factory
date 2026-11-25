@@ -4,9 +4,11 @@
 
 ## Now
 
-**Pass lf-a9c1 (laptop, 12:27-13:50 UTC 2026-11-25) stopped cleanly.** No claims held, no PR open, no branch in flight. Took over lf-n6t2's claims (session ended) and shipped them.
-- Next session starts with `factory_pick.py` (see Next).
-- Leftover worktree `C:/projects/factory-61` (`f/61-dogfood-reusable-ci`, source of #71/#72, #61 closed): `worktree_prune.py` keeps it ("no PR for this branch"); its content shipped, remove it by hand after a look.
+**Pass lf-g3h8 (laptop, from 13:57 UTC 2026-11-25) is running.** Claims held by lf-g3h8:
+- Shashkist/factory#80 on `f/80-gate-pinned-workflows` (worktree `C:\projectsactory-80`): exam next.
+- Shashkist/factory#63 on `f/63-ci-docs-release` (worktree `C:\projectsactory-63`): exam next.
+- Shashkist/Learning_factory#608 on `f/608-gate-skipped-exam` (worktree `C:\projects\lf-608`): exam next.
+- Leftover worktree `C:/projects/factory-61` (source of #71/#72, #61 closed): content shipped, remove by hand after a look.
 - Tooling: on this laptop `uv run <tool>` fails to spawn; use `uv run python -m <tool>`. The full factory acceptance suite takes 10+ minutes locally (about 2 minutes in CI). Live progress for factory issues needs `--repo Shashkist/factory` on `factory_progress.py add`. After a rebase the gate needs a verdict at the new head: a reviewer checks `git range-diff` (D148 amendment 3: never self-approve). Bash `/tmp` is not Python's `/tmp` on this laptop: write PR bodies with bash, not Python.
 
 Older pass notes (lf-k2v8 and before) are in `history.md` and git history (`git log -p docs/factory/STATE.md`).
