@@ -4,10 +4,11 @@
 
 ## Now
 
-**Pass lf-m4k9 finished (laptop, 01:57-03:30 UTC 2026-11-25, stopped by time, 2 merges).** The claim on **factory#47** is held by lf-m4k9 with the step below: take it over with `--steal --reason`. Resume here:
-- **factory#47, PR #56** (`f/47-worktree-prune-2`, worktree `C:\projectsactory-47b`, head b0c6842; replaces #55, closed). Exam commits 2c987cd, a9e81c1 (round-1 gaps 8-12), 4fe1299 (gone-folder case fix), 2b839ba (links, bare repositories); code 447a2a8, e8fc8c9, 0b73347, 8b94724 (round-1 findings 1-7), b0c6842 (links and bare repositories, reparse-point check works on Python 3.11). Locally 94 passed, ruff and mypy clean. **Next:** check CI on #56 (full suite ~19 min locally, CI is the judge), then **review round 2** (round 1 was on #55): tell the reviewer to check junction detection under Python 3.11 (`python` on the laptop is 3.11.9; `os.path.isjunction` is 3.12+), that a `--repo` mismatch exits before `git worktree prune`, and the new gone-folder branch deletion (exam case 8b). Factory D20 + amendment 1. Then merge (`main-ci`), close, `worktree_prune.py --issue 47 --repo Shashkist/factory` from `C:\projectsactory`.
-- **Shipped: LF #583** as #585 (squash 1b95c95; round 1 APPROVE, fresh verification APPROVE at e57f0d5 after the rebase; gate `MERGE`). Factory dashboard 45535190679 green; live `app.js` byte-equal to factory 9a5e808; a headless browser shows the repository tabs and `#/factory`. Closed, claim released, worktree removed.
-- **Shipped: LF #584** as #586 (squash b41b6cb; round 1 CHANGES (junction target emptied outside the worktree, reproduced), round 2 CHANGES (junction check needed Python 3.12), manager fix 3597a0f verified by a fresh reviewer, D145). D153. Live: `worktree_prune.py --dry-run` from the factory worktree prints KEPT/REMOVED and changes nothing; `--repo Shashkist/factory` from the LF clone is refused. The full sweep (without `--issue`) is safe to use again. Round-2 non-blocking leftovers (double scan for subagent worktrees, `git@alias:` origin with a user is a mismatch) can join #582.
+**Pass lf-r7t3 running (laptop, from 03:56 UTC 2026-11-25).** Claims held by lf-r7t3:
+- **factory#47, PR #56** (`f/47-worktree-prune-2`, worktree `C:\projects\factory-47b`, head b0c6842; CI green). Review round 2 running (round 1 was on #55). Then merge (`main-ci`), close, `worktree_prune.py --issue 47 --repo Shashkist/factory` from `C:\projects\factory`.
+- **factory#54** (`f/54-dashboard-repo-followups`, worktree `C:\projects\factory-54`): exam being written.
+- **LF #81** (D19 way: PR A code + ci.yml on `f/81-manager-image-followups`, worktree `C:\projects\lf-81`; PR B exam alone on `f/81-exam`, worktree `C:\projects\lf-81-exam`): exam being written.
+- Last pass lf-m4k9 shipped LF #583 (#585) and #584 (#586); round-2 leftovers of #586 (double scan for subagent worktrees, `git@alias:` origin with a user) can join #582.
 - Live progress for factory issues needs `--repo Shashkist/factory` on `factory_progress.py add`; the skill text does not say so yet (next skill-touching PR).
 
 Older pass notes (lf-p8n2 and before) are in `history.md` and git history (`git log -p docs/factory/STATE.md`).
