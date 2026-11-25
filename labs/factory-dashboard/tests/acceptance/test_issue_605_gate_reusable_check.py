@@ -38,8 +38,17 @@ def check(name, conclusion="SUCCESS", status="COMPLETED"):
             "conclusion": conclusion}
 
 
+def with_gate_defaults(rollup):
+    """D160: a non-empty world lacking `manager-exam` / `changes` gets a SUCCESS one, so
+    these cases keep testing the exam-integrity rule only."""
+    if not rollup:
+        return rollup
+    names = {c["name"] for c in rollup}
+    return rollup + [check(n) for n in ("manager-exam", "changes") if n not in names]
+
+
 def reasons(*checks):
-    return merge_gate._check_reasons(list(checks))
+    return merge_gate._check_reasons(with_gate_defaults(list(checks)))
 
 
 # criterion 1: the exact name behaves as today
@@ -123,7 +132,9 @@ class Gh:
     def __call__(self, argv):
         assert argv[0] not in {"merge", "comment", "review", "edit", "close"}
         if argv[:2] == ["pr", "view"]:
-            return json.dumps(self.pr)
+            pr = dict(self.pr)
+            pr["statusCheckRollup"] = with_gate_defaults(pr["statusCheckRollup"])
+            return json.dumps(pr)
         if argv[0] == "api":
             return json.dumps({"files": [{"filename": "labs/manager/app/thing.py"}]})
         if argv[:2] == ["issue", "view"]:
