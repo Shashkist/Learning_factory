@@ -199,28 +199,49 @@ def say(status: str, path: Path, reason: str) -> None:
     print(f"{status} {path} {reason}", flush=True)
 
 
+def is_link(p: Path) -> bool:
+    return os.path.islink(p) or getattr(os.path, "isjunction", lambda _: False)(p)
+
+
 def nested_entry(path: Path, registered: list[Path]) -> Path | None:
-    """Another registered worktree, or a `.git` file or folder below the top level, inside path."""
+    """What makes it unsafe to delete path: another registered worktree, a link, a `.git`, a
+    bare repository below its top level. A folder that cannot be read raises OSError."""
+
+    def fail(e: OSError):
+        raise e
+
     for other in registered:
         if other != path and other.is_relative_to(path):
             return other
-    for root, dirs, files in os.walk(path):
+    for root, dirs, files in os.walk(path, onerror=fail):
         here = Path(root)
-        if here == path:
+        top = here == path
+        if top:
             dirs[:] = [d for d in dirs if d != ".git"]
-            continue
         for name in dirs + files:
-            if name == ".git":
+            if is_link(here / name) or (not top or name != ".git") and name == ".git":
                 return here / name
+        if not top and "HEAD" in files and "objects" in dirs and "refs" in dirs:
+            return here
     return None
 
 
+GITHUB = "github.com"
+SLUG = r"[^/\:@\s]+/[^/\:@\s]+"
+
+
 def origin_slug(url: str) -> str | None:
-    """`owner/name` of a remote URL (https, ssh or scp style), None for a local path."""
-    m = re.match(r"^(?:[a-z+]+://[^/]+/|[\w.-]+@[^:/]+:)(.+?)/?$", url.strip(), re.IGNORECASE)
-    if not m:
+    """`owner/name` of a GitHub origin (https, ssh, scp style or an ssh alias), else None."""
+    m = re.match(rf"^(?:https?|ssh|git)://(?:[^@/]+@)?([^/:]+)(?::\d+)?/({SLUG})/?$", url.strip(), re.IGNORECASE)
+    if m or (m := re.match(rf"^[\w.-]+@([^:/]+):({SLUG})/?$", url.strip())):
+        host, slug = m.group(1).lower(), m.group(2)
+    elif m := re.match(rf"^([\w.-]{{2,}}):({SLUG})/?$", url.strip()):
+        host, slug = GITHUB, m.group(2)  # an ssh alias from the ssh config: host unknown
+    else:
         return None
-    return m.group(1).removesuffix(".git").lower()
+    if host not in (GITHUB, "www." + GITHUB):
+        return None
+    return slug.removesuffix(".git").lower()
 
 
 MAX_NAMES = 20
@@ -250,7 +271,7 @@ def folder_is_free(path: Path) -> bool:
     return True
 
 
-def remove(main_root: Path, path: Path, branch: str, reason: str, dry_run: bool) -> None:
+def remove(main_root: Path, path: Path, branch: str, reason: str, dry_run: bool, registered) -> None:
     status = split_status(path)
     if status is None:
         say("KEPT", path, "git status failed, cannot tell what is in it")
@@ -258,6 +279,10 @@ def remove(main_root: Path, path: Path, branch: str, reason: str, dry_run: bool)
     tracked, untracked, ignored = status
     if tracked:
         say("KEPT", path, "tracked changes: " + ", ".join(tracked[:5]))
+        return
+    nested = nested_entry(path, registered)
+    if nested is not None:
+        say("KEPT", path, f"holds a link, repository or worktree at {nested}, left alone")
         return
     names = list_names(untracked, ignored)
     if dry_run:
@@ -292,8 +317,6 @@ def judge(wt: dict, main_root: Path, here: Path, args, pass_start, gh, registere
         say("KEPT", path, "folder missing, left to git worktree prune")
     elif "locked" in wt:
         say("KEPT", path, "locked" + (": " + wt["locked"] if wt["locked"] else ""))
-    elif (nested := nested_entry(path, registered)) is not None:
-        say("KEPT", path, f"holds another repository or worktree at {nested}, left alone")
     elif m:
         try:
             claim, _ = issue_lock.find_claim(int(m.group(1)), gh)
@@ -312,10 +335,14 @@ def judge(wt: dict, main_root: Path, here: Path, args, pass_start, gh, registere
             lambda: remote_safe(main_root, branch, tip, args.dry_run),
         )
         if go:
-            remove(main_root, path, branch, reason, args.dry_run)
+            remove(main_root, path, branch, reason, args.dry_run, registered)
         else:
             say("KEPT", path, reason)
     elif branch.startswith("worktree-agent-"):
+        nested = nested_entry(path, registered)
+        if nested is not None:
+            say("KEPT", path, f"holds a link, repository or worktree at {nested}, left alone")
+            return
         gitfile = path / ".git"
         # read the git files' times first: `git status` refreshes the index itself
         stamps = [path, gitfile, *last_activity_files(path)]
@@ -331,7 +358,7 @@ def judge(wt: dict, main_root: Path, here: Path, args, pass_start, gh, registere
             go, why = tip_on_remote(main_root, tip, args.dry_run)
             reason = reason if go else why
         if go:
-            remove(main_root, path, branch, reason, args.dry_run)
+            remove(main_root, path, branch, reason, args.dry_run, registered)
         else:
             say("KEPT", path, reason)
     else:
@@ -436,8 +463,10 @@ def main(argv: list[str] | None = None) -> int:
     here = Path(git(".", "rev-parse", "--show-toplevel").stdout.strip()).resolve()
     if args.repo:
         origin = git(here, "config", "--get", "remote.origin.url").stdout.strip()
-        if origin_slug(origin) != args.repo.strip().lower().removesuffix(".git"):
-            print(f"--repo {args.repo} does not match this clone's origin, nothing done", file=sys.stderr)
+        slug = origin_slug(origin)
+        if slug != args.repo.strip().lower().removesuffix(".git"):
+            print(f"--repo {args.repo} does not match this clone's origin ({slug or 'not a github.com repository'}), "
+                  "nothing done", file=sys.stderr)
             return 2
     if not args.dry_run:
         git(here, "worktree", "prune")
