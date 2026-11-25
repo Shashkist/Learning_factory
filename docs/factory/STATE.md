@@ -3,11 +3,10 @@
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
 ## Now
-
-**Pass lf-x8b3 (laptop, from 19:27 UTC 2026-11-25) is running.** Merged #620 (#612 closed: Deploy 45688847381). Three issues in flight, all claimed by lf-x8b3:
-- **#613** (D165): exam 3ceb8de on `f/613-reusable-ci-exam` (worktree `C:\projects\lf-613`, PR B, not pushed); PR A being built on `f/613-reusable-ci` (worktree `C:\projects\lf-613-a`).
-- **factory#86** (p1): exam being written on `f/86-bound-job` (worktree `C:\projectsactory-86`).
-- **#64** (D164, nosniff only): exam being written on `f/64-nosniff` (worktree `C:\projects\lf-64`).
+**Pass lf-x8b3 (laptop, 19:27-21:00 UTC 2026-11-25) has stopped after 2 merges** (#620 closing #612, #622 closing #64). Two issues in flight, both claimed by lf-x8b3 with a heartbeat: take them over (`claim --steal --reason`) once this session has ended.
+- **#613** (D165, D166 + amendment 1): three PRs. **PR 0 = #624** (`f/613-reusable-ci-bridge`, worktree `C:\projects\lf-613-0`, exam only, `Part of #613`): round 1 CHANGES at ab91380 (four loosened cases), fixed in 85d4fc8 (every reviewer mutation now fails); a round-2 reviewer was running at stop, see the PR comments for its verdict. Then merge #624. **PR A** = `f/613-reusable-ci` (worktree `C:\projects\lf-613-a`, a5f5853..d3f01e9, pushed, no PR yet): rebase onto main after #624, open as `Part of #613`, CI must be green (the manager exam now runs in the reusable `junit-gate.yml` with postgres from `docker run`: unproven on GitHub), gate with `--exam-gate "manager-exam / gate"` (main's gate default is still `manager-exam` until A lands), review, merge, Deploy. **PR B** = `f/613-reusable-ci-exam` (worktree `C:\projects\lf-613`, 3ceb8de + d260648, not pushed; 61 cases, all pass on A's tree): rebase after A, push, open with `Closes #613`.
+- **factory#86** (p1): **PR factory#89** (`f/86-bound-job-2`, worktree `C:\projectsactory-86-2`) replaces factory#88 (closed): round 1 CHANGES on #88 at c3b45ea (a forged SUCCESS check could point at the real, failed gate job), fixed with exam 2cecb0c before the code 69fadfa. A round-2 reviewer was running at stop; post its verdict as `Review round 2: ... at <head>` if it is not on the PR yet. Then `merge_gate.py 89 --repo Shashkist/factory --exam-gate "acceptance / gate"`, merge, main CI, close.
+- **Next issues:** #614 (needs #613), then `factory_pick.py`.
 - Leftover worktree `C:/projects/factory-61` (source of #71/#72, #61 closed): its content has shipped; remove it by hand after a look.
 - Tooling: on this laptop `uv run <tool>` and `uvx --from ... factory-tools` fail to spawn; use `uv run python -m <tool>` (`python -m factory_tools`). In `labs/factory-dashboard`, `test_issue_19_publish.py` hangs locally (`test_installer_appends_block_when_absent`), so the whole folder never finishes; run it per file or exclude #19. The full factory acceptance suite takes 10 to 30 minutes locally (about 2 in CI). Live progress for factory issues needs `--repo Shashkist/factory`. After a rebase the gate needs a verdict at the new head: a reviewer checks `git range-diff` (D148 amendment 3: never self-approve). Bash `/tmp` is not Python's `/tmp` on this laptop. A `general-purpose` agent given the implementer brief works when the `implementer` type fails to start.
 
@@ -15,8 +14,8 @@ Older pass notes (lf-m7q2 and before) are in `history.md` and git history (`git 
 
 ## Next (in order)
 
-1. #613, factory#86, #64 (see Now). Then #614 (client #1, D162), then `factory_pick.py`: factory#67, factory#75, factory#82 (dogfood v0.1.0); LF p2: #15, #21, #44, #47, #85; factory#87 (live page leftovers, from #64), factory#10, #11, #43, #44.
-2. p3 follow-ups: #619, #621 (new this pass), #603, #604, factory#70, #601, #594, #597, #588, factory#57, factory#59, #579, #580, factory#49, #574, factory#33, factory#36, factory#40, factory#41, #561, #564, factory#17, factory#24, #523, #555, #468, #423 (old worktree `C:\projects\lf-423`), #436, #431. Owner item **O26** (heartbeat task).
+1. #613 (#624, then PR A, then PR B) and factory#89 (see Now). Then #614 (client #1, D162), then `factory_pick.py`: factory#67, factory#75, factory#82 (dogfood v0.1.0); LF p2: #15, #21, #44, #47, #85; factory#87 (live page leftovers, from #64), factory#10, #11, #43, #44.
+2. p3 follow-ups: #623 (new, from #622 review), #619, #621, #603, #604, factory#70, #601, #594, #597, #588, factory#57, factory#59, #579, #580, factory#49, #574, factory#33, factory#36, factory#40, factory#41, #561, #564, factory#17, factory#24, #523, #555, #468, #423 (old worktree `C:\projects\lf-423`), #436, #431. Owner item **O26** (heartbeat task).
 
 ## Waiting for the owner
 
