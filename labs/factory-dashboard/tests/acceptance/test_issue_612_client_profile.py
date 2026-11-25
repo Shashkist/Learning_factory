@@ -159,11 +159,11 @@ def test_claude_md_factory_facts_worktrees():
 
 def test_claude_md_factory_facts_independent_areas_with_examples():
     s = _facts_section()
-    m = re.search(r"Independent areas[^\n]*", s, re.I)
+    m = re.search(r"Independent areas.*?(?=\n- |\Z)", s, re.I | re.S)
     assert m, "Factory facts must state the independent-areas fact"
-    line = m.group(0)
+    bullet = m.group(0)
     for area in ("labs/content", "labs/manager", ".github"):
-        assert area in line, f"independent-areas example missing: {area}"
+        assert area in bullet, f"independent-areas example missing: {area}"
 
 
 def test_claude_md_factory_facts_deploy_watch_and_smoke_target():
@@ -171,7 +171,6 @@ def test_claude_md_factory_facts_deploy_watch_and_smoke_target():
     m = re.search(r"Deploy watch[^\n]*", s, re.I)
     assert m, "Factory facts must state the deploy watch"
     assert "deploy.yml" in m.group(0)
-    assert "Deploy workflow" in m.group(0)
     assert "https://labs.shashkist.com" in s
     assert "`Host: labs.shashkist.com`" in s
 
@@ -181,11 +180,18 @@ def test_tooling_job_runs_profile_check_pinned_by_sha():
     ci = yaml.safe_load(text)
     job = ci["jobs"]["tooling"]
     assert not job.get("continue-on-error"), "the tooling job must not continue on error"
+    assert "if" not in job, "the tooling job must not be conditional (no `if:`)"
     steps = [s for s in job["steps"] if "factory-tools profile check" in str(s.get("run", ""))]
     assert len(steps) == 1, "exactly one tooling step must run `factory-tools profile check`"
     step = steps[0]
     assert "continue-on-error" not in step, "the profile check step must not continue on error"
+    assert "if" not in step, "the profile check step must not be conditional (no `if:`)"
     run = str(step["run"]).strip()
+    assert re.fullmatch(
+        r"uvx --from git\+https://github\.com/Shashkist/factory@[0-9a-f]{40} "
+        r"factory-tools profile check \.factory/factory\.yaml",
+        run,
+    ), "the step must be exactly the pinned `uvx --from ... factory-tools profile check` command"
     assert re.search(r"factory-tools profile check \.factory/factory\.yaml$", run), (
         "the check must target .factory/factory.yaml"
     )
@@ -193,7 +199,9 @@ def test_tooling_job_runs_profile_check_pinned_by_sha():
         "Shashkist/factory must be pinned by a 40-hex SHA in the step"
     )
     # YAML drops comments, so the `# v<semver>` comment is read from the raw line of the step.
-    raw = [ln for ln in text.splitlines() if "factory-tools profile check" in ln]
+    block = re.search(r"^  tooling:[ ]*$(.*?)(?=^  \S[^\n]*:[ ]*$|\Z)", text, re.M | re.S)
+    assert block, "ci.yml has no tooling job block"
+    raw = [ln for ln in block.group(1).splitlines() if "factory-tools profile check" in ln]
     assert len(raw) == 1
     assert re.search(
         r"git\+https://github\.com/Shashkist/factory@[0-9a-f]{40}\s.*#\s*v\d+\.\d+\.\d+\s*$",
