@@ -1612,3 +1612,11 @@ in force · factory · 2026-11-25 · revertible
 **Why.** Two small code fixes do not justify a third rebuild; the cases still get pinned, in their own exam-only PR.
 **Alternatives.** Rebuild as `f/595-unpark-claims-3` with an exam commit first (a third full round for ~20 lines); ship without pinning (a regression could reopen it unseen).
 **Revert.** Close #603 and rebuild #595 as `-3` with the cases in its exam.
+
+## D160 · #608: the merge gate requires `manager-exam` to succeed (`--exam-gate`), and a skipped `docker` holds when the PR changes `ci.yml`
+in force · 2026-11-25 · revertible
+
+**Decision.** Port of factory D28. `scripts/merge_gate.py` holds unless the exam gate check concluded SUCCESS; its name is `manager-exam` by default and is set with `--exam-gate "<name>"` (exact match), next to `--author`. SKIPPED, NEUTRAL, any other conclusion or a missing check holds with a `HOLD:` line naming the check. `docker` SKIPPED keeps passing when `changes` concluded SUCCESS; a SKIPPED `docker` holds with a reason line when the PR's files include `.github/workflows/ci.yml` (it may have changed its own path filter) or when `changes` did not succeed. Every other check keeps today's rule (SUCCESS, NEUTRAL, SKIPPED pass), exam integrity keeps its own.
+**Why.** #608 criteria 1 to 3. `manager-exam` has no `if:`, so only a PR that changed the workflow can skip it; `docker` is path-scoped by design (D98), so it cannot be required outright, but its skip can be trusted only when the filter that skipped it is main's.
+**Alternatives.** Require every check to be SUCCESS (breaks `docker` and `image-*` skips, D98); hold every PR that changes `ci.yml` (blocks every workflow change); bind the checks to the workflow file at the head (factory D29, the follow-up when LF calls the reusable workflows, factory#7).
+**Revert.** Drop the two rules and the option from `scripts/merge_gate.py`.
