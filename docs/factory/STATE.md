@@ -4,19 +4,17 @@
 
 ## Now
 
-**Pass lf-n6t2 (laptop, from 10:26 UTC 2026-11-25), wrapping up.** In flight (all Shashkist/factory, claims by lf-n6t2):
-- **factory#61 shipped** (PR B #71 ae584e4, PR C #72 1606ae6; factory main CI 45610041673 green; scratch #73 showed `exam-integrity / exam-integrity` red on a mixed commit). Closed with evidence.
-- **factory#65** ships as two PRs (factory D27: the judge is CI surface, so its exam cannot ride with it). **PR A #74** (`f/65-judge-globs`, worktree `C:\projectsactory-65a`): round 2 CHANGES fixed by the manager at dbb0799, a fresh reviewer is verifying. Next: post `Review round 2: APPROVE|CHANGES at dbb0799`, gate, merge. Then **PR B**: rebase `f/65-exam-path-inputs` (worktree `C:\projectsactory-65`) onto main and drop its code commit 8a366f2 (keep only the exam ff7fa47), push, PR `test(ci): exam for exam and CI-surface path inputs (#65)` with `Closes #65`, CI, reviewer, merge.
-- **factory#62** PR #77 (`f/62-reusable-incident`, worktree `C:\projectsactory-62`): CI green, review round 1 running.
-- New follow-ups: factory#75 (merge gate takes the exam/CI globs, p2), factory#76 (merge gate holds when the exam gate check was skipped, p1).
-- Tooling: on this laptop `uv run <tool>` fails to spawn; use `uv run python -m <tool>`. The full factory acceptance suite takes 10+ minutes locally (about 2 minutes in CI): agents should run the touched files and leave the rest to CI. The qa plugin guard hook sometimes times out on Edit/Bash; retry, and check that files you meant to write exist.
-- Live progress for factory issues needs `--repo Shashkist/factory` on `factory_progress.py add`; the skill text does not say so yet (next skill-touching PR).
+**Pass lf-a9c1 (laptop, from 12:27 UTC 2026-11-25).** Took over lf-n6t2's claims (session ended). In flight (all Shashkist/factory, claims by lf-a9c1):
+- **factory#62 shipped** (#77, squash 76bbf97; factory main CI 45615309204 green). Closed with evidence.
+- **factory#65 PR A #74** (`f/65-judge-globs`, worktree `C:\projectsactory-65a`): round 2 APPROVE at dbb0799 (fresh reviewer); rebased onto 76bbf97 as 1580480, CI green, a reviewer is confirming the rebase. Then gate, merge, and **PR B** (exam only, `f/65-exam-path-inputs`, worktree `C:\projectsactory-65`: drop code commit 8a366f2, keep exam ff7fa47, `Closes #65`).
+- **factory#76** (`f/76-gate-skipped-exam`, worktree `C:\projectsactory-76`): exam-writer running.
+- Tooling: on this laptop `uv run <tool>` fails to spawn; use `uv run python -m <tool>`. The full factory acceptance suite takes 10+ minutes locally (about 2 minutes in CI). Live progress for factory issues needs `--repo Shashkist/factory` on `factory_progress.py add`. After a rebase the gate needs a verdict at the new head: a reviewer checks the range-diff (D148 amendment 3: never self-approve).
 
 Older pass notes (lf-k2v8 and before) are in `history.md` and git history (`git log -p docs/factory/STATE.md`).
 
 ## Next (in order)
 
-1. Finish factory#65 and factory#62 (see Now); then `factory_pick.py`: factory#76 (p1), factory#7 (p1, client #1 switch: slice it first; #61 is done, it also wants #65 and #62), factory#67, factory#63, factory#75; LF p2: #15, #21, #44, #47, #64, #85; factory#10, #11, #43, #44.
+1. Finish factory#65 and factory#76 (see Now); then `factory_pick.py`: factory#76 (p1), factory#7 (p1, client #1 switch: slice it first; #61 is done, it also wants #65 and #62), factory#67, factory#63, factory#75; LF p2: #15, #21, #44, #47, #64, #85; factory#10, #11, #43, #44.
 2. p3 follow-ups: #603, #604, factory#70, #601, #594, #597, #588, factory#57, factory#59, #579, #580, factory#49, #574, factory#33, factory#36, factory#40, factory#41, #561, #564, factory#17, factory#24, #523, #555, #468, #423 (old worktree `C:\projects\lf-423`), #436, #431. Owner item **O26** (heartbeat task).
 
 ## Waiting for the owner
