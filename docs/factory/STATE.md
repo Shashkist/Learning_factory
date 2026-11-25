@@ -4,10 +4,11 @@
 
 ## Now
 
-**Pass lf-p7c3 finished (laptop, 08:57-10:10 UTC 2026-11-25; 3 merges: #602, #606, factory#69).** Resume here:
-- **factory#61, three PRs (factory D26).** Claim held by lf-p7c3 (take over with `--steal --reason`). PR A factory#69 merged (2a6fd53). **PR B factory#71** (`f/61-dogfood-b`, worktree `C:\projectsactory-61b`): CI green through the reusable workflows, `Review round 1: APPROVE at aa900e1` posted; **next: gate (`merge_gate.py 71 --repo Shashkist/factory`), merge** (only if the head is still aa900e1). Then **PR C**: exam commit ccf8ecc on `f/61-dogfood-c` (worktree `C:\projectsactory-61c`): rebase onto main after B, push, open PR `test(ci): ... final form (#61)` with `Closes #61`, CI, reviewer, merge. Then criterion 1 live: a scratch draft PR that changes `tests/acceptance` and `src` together must show `exam-integrity / exam-integrity` red; link it in the close comment with factory main CI. Old first-build branch `f/61-dogfood-reusable-ci` (worktree `C:\projectsactory-61`) is superseded: delete it after C.
-- **Shipped this pass:** #595 (#602, 608e136; Deploy 45586479978 smoke ok; live on scratch #607: unpark names the branch, a mismatched claim refused, the named one accepted); #605 (#606, 3786478; Deploy 45591320465 smoke ok; live: merged gate counts `exam-integrity / exam-integrity` on factory#71, the old gate said "has not run").
-- New issues: #603 (p3, exam for the #595 round-2 fix plus two edge cases from its verifier), #604 (p3, claim race on a reused released comment), factory#70 (p3, Dependabot config, explicit plugin-autoload input, docs/tools.md gate line).
+**Pass lf-n6t2 running (laptop, from 10:26 UTC 2026-11-25).** In flight (all Shashkist/factory, claims by lf-n6t2):
+- **factory#61:** PR B factory#71 merged (ae584e4). PR C factory#72 (`f/61-dogfood-c`, worktree `C:\projectsactory-61c`): first CI red only because the pin case skipped in the shallow checkout (the JUnit gate refuses skips); exam fix in progress, then reviewer, merge, criterion 1 live (scratch draft PR mixing exam and src shows `exam-integrity / exam-integrity` red).
+- **factory#62** (`f/62-reusable-incident`, worktree `C:\projectsactory-62`): exam being written.
+- **factory#65** (`f/65-exam-path-inputs`, worktree `C:\projectsactory-65`): exam being written.
+- Previous pass lf-p7c3 shipped #595, #605, factory#69 (see Recently done).
 - Tooling: on this laptop `uv run <tool>` fails to spawn; use `uv run python -m <tool>` or `uvx`. The LF `docker` CI job on main takes ~20 minutes, so Deploy lands ~25 minutes after a merge.
 - Live progress for factory issues needs `--repo Shashkist/factory` on `factory_progress.py add`; the skill text does not say so yet (next skill-touching PR).
 
