@@ -4,19 +4,19 @@
 
 ## Now
 
-**Pass lf-n6t2 running (laptop, from 10:26 UTC 2026-11-25).** In flight (all Shashkist/factory, claims by lf-n6t2):
-- **factory#61:** PR B factory#71 merged (ae584e4). PR C factory#72 (`f/61-dogfood-c`, worktree `C:\projectsactory-61c`): first CI red only because the pin case skipped in the shallow checkout (the JUnit gate refuses skips); exam fix in progress, then reviewer, merge, criterion 1 live (scratch draft PR mixing exam and src shows `exam-integrity / exam-integrity` red).
-- **factory#62** (`f/62-reusable-incident`, worktree `C:\projectsactory-62`): exam being written.
-- **factory#65** (`f/65-exam-path-inputs`, worktree `C:\projectsactory-65`): exam being written.
-- Previous pass lf-p7c3 shipped #595, #605, factory#69 (see Recently done).
-- Tooling: on this laptop `uv run <tool>` fails to spawn; use `uv run python -m <tool>` or `uvx`. The LF `docker` CI job on main takes ~20 minutes, so Deploy lands ~25 minutes after a merge.
+**Pass lf-n6t2 (laptop, from 10:26 UTC 2026-11-25), wrapping up.** In flight (all Shashkist/factory, claims by lf-n6t2):
+- **factory#61 shipped** (PR B #71 ae584e4, PR C #72 1606ae6; factory main CI 45610041673 green; scratch #73 showed `exam-integrity / exam-integrity` red on a mixed commit). Closed with evidence.
+- **factory#65** ships as two PRs (factory D27: the judge is CI surface, so its exam cannot ride with it). **PR A #74** (`f/65-judge-globs`, worktree `C:\projectsactory-65a`): round 2 CHANGES fixed by the manager at dbb0799, a fresh reviewer is verifying. Next: post `Review round 2: APPROVE|CHANGES at dbb0799`, gate, merge. Then **PR B**: rebase `f/65-exam-path-inputs` (worktree `C:\projectsactory-65`) onto main and drop its code commit 8a366f2 (keep only the exam ff7fa47), push, PR `test(ci): exam for exam and CI-surface path inputs (#65)` with `Closes #65`, CI, reviewer, merge.
+- **factory#62** PR #77 (`f/62-reusable-incident`, worktree `C:\projectsactory-62`): CI green, review round 1 running.
+- New follow-ups: factory#75 (merge gate takes the exam/CI globs, p2), factory#76 (merge gate holds when the exam gate check was skipped, p1).
+- Tooling: on this laptop `uv run <tool>` fails to spawn; use `uv run python -m <tool>`. The full factory acceptance suite takes 10+ minutes locally (about 2 minutes in CI): agents should run the touched files and leave the rest to CI. The qa plugin guard hook sometimes times out on Edit/Bash; retry, and check that files you meant to write exist.
 - Live progress for factory issues needs `--repo Shashkist/factory` on `factory_progress.py add`; the skill text does not say so yet (next skill-touching PR).
 
 Older pass notes (lf-k2v8 and before) are in `history.md` and git history (`git log -p docs/factory/STATE.md`).
 
 ## Next (in order)
 
-1. **factory#61 PR B #71 merge, then PR C** (see Now); then `factory_pick.py`: factory#7 (p1, client #1 switch: slice it first; it needs #61 done), factory#62, factory#65, factory#67, factory#63; LF p2: #15, #21, #44, #47, #64, #85; factory#10, #11, #43, #44.
+1. Finish factory#65 and factory#62 (see Now); then `factory_pick.py`: factory#76 (p1), factory#7 (p1, client #1 switch: slice it first; #61 is done, it also wants #65 and #62), factory#67, factory#63, factory#75; LF p2: #15, #21, #44, #47, #64, #85; factory#10, #11, #43, #44.
 2. p3 follow-ups: #603, #604, factory#70, #601, #594, #597, #588, factory#57, factory#59, #579, #580, factory#49, #574, factory#33, factory#36, factory#40, factory#41, #561, #564, factory#17, factory#24, #523, #555, #468, #423 (old worktree `C:\projects\lf-423`), #436, #431. Owner item **O26** (heartbeat task).
 
 ## Waiting for the owner
