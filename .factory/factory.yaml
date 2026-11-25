@@ -44,9 +44,9 @@ protected_paths:
 
 required_checks:
   - manager
-  - manager-exam
+  - manager-exam / gate
   - web
-  - exam-integrity
+  - exam-integrity / exam-integrity
   - tooling
 
 labels:
