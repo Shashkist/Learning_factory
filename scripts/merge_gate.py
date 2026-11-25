@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Deterministic merge gate (#84, D148): MERGE or HOLD from facts only.
 
-Usage: merge_gate.py <pr> --session <s> [--repo owner/name] [--author login]
+Usage: merge_gate.py <pr> --session <s> [--repo owner/name] [--author login] [--exam-gate name]
 Prints `MERGE`, or one `HOLD: <reason>` line per reason. Exit 0 / 1. Read-only.
 A line-anchored `Part of #n` (a D19 PR A, #590) counts like `Closes #n` for the claim check.
 The exam-integrity check is named `exam-integrity` or `<caller> / exam-integrity` (reusable workflow, #605).
+The exam gate check (`manager-exam`, or `--exam-gate`, exact name) must be SUCCESS (#608, D160). A
+SKIPPED `docker` passes only when `changes` is SUCCESS and the PR leaves `.github/workflows/ci.yml` alone.
 """
 
 from __future__ import annotations
@@ -30,6 +32,7 @@ CLOSES = re.compile(r"^\s*closes\s+#(\d+)\s*$", re.IGNORECASE | re.MULTILINE)
 PART_OF = re.compile(r"^\s*part\s+of\s+#(\d+)\s*$", re.IGNORECASE | re.MULTILINE)
 # Exam files for counting CI rounds only (D148 amendment 1b, 2): tooling exams and another
 # repository's tests/acceptance/ besides D9's labs/*/tests/.
+CI_WORKFLOW = ".github/workflows/ci.yml"
 TOOLING_TEST = re.compile(r"^(scripts/(ci/)?test_[^/]*\.py|tests/acceptance/.+)$")
 
 
@@ -37,17 +40,30 @@ def _is_exam_integrity(name: str) -> bool:
     return name == "exam-integrity" or name.endswith(" / exam-integrity")
 
 
-def _check_reasons(checks: list[dict]) -> list[str]:
+def _state(c: dict) -> str:
+    return (c.get("conclusion") or c.get("state") or "").upper()
+
+
+def _check_reasons(checks: list[dict], exam_gate: str = "manager-exam",
+                   changed: tuple | list | set = ()) -> list[str]:
     if not checks:
         return ["no checks have run on this PR"]
     reasons = []
+    changes_ok = any(c.get("name") == "changes" and _state(c) == "SUCCESS" for c in checks)
+    docker_skip_ok = changes_ok and CI_WORKFLOW not in changed
     for c in checks:
         name = c.get("name") or c.get("context") or "?"
-        state = (c.get("conclusion") or c.get("state") or "").upper()
+        state = _state(c)
         if c.get("status", "COMPLETED") != "COMPLETED" or state in ("", "PENDING", "EXPECTED"):
             reasons.append(f"{name} is pending")
-        elif state not in PASSED or (_is_exam_integrity(name) and state != "SUCCESS"):
+        elif state == "SKIPPED" and name == "docker" and not docker_skip_ok:
+            reasons.append("docker was skipped without a trusted `changes` result "
+                           f"(or {CI_WORKFLOW} changed)")
+        elif state not in PASSED or ((_is_exam_integrity(name) or name == exam_gate)
+                                     and state != "SUCCESS"):
             reasons.append(f"{name} ended in {state.lower()}")
+    if not any((c.get("name") or c.get("context")) == exam_gate for c in checks):
+        reasons.append(f"{exam_gate} has not run")
     if not any(_is_exam_integrity(c.get("name") or c.get("context") or "") for c in checks):
         reasons.append("exam-integrity has not run")
     return reasons
@@ -70,6 +86,7 @@ def main(argv: list[str], run=issue_lock._run) -> int:
     ap.add_argument("--session", required=True)
     ap.add_argument("--repo")
     ap.add_argument("--author")
+    ap.add_argument("--exam-gate", default="manager-exam")
     args = ap.parse_args(argv)
     gh = issue_lock.scoped(run, args.repo)
 
@@ -78,7 +95,12 @@ def main(argv: list[str], run=issue_lock._run) -> int:
     pr = json.loads(gh(["pr", "view", args.pr, "--json", fields]))
     head = pr["headRefOid"].lower()
     author = args.author or pr["author"]["login"]
-    reasons = _check_reasons(pr.get("statusCheckRollup") or [])
+    commit_files = []
+    for commit in pr.get("commits") or []:
+        files = json.loads(gh(["api", f"repos/{{owner}}/{{repo}}/commits/{commit['oid']}"]))
+        commit_files.append([f["filename"] for f in files.get("files", [])])
+    reasons = _check_reasons(pr.get("statusCheckRollup") or [], args.exam_gate,
+                             {n for names in commit_files for n in names})
     if pr.get("isCrossRepository") is True:
         reasons.append("cross-repository pull request")
 
@@ -91,9 +113,7 @@ def main(argv: list[str], run=issue_lock._run) -> int:
         reasons.append(f"review round {rounds} is over the limit of {MAX_REVIEW_ROUNDS}")
 
     code_commits = 0
-    for commit in pr.get("commits") or []:
-        files = json.loads(gh(["api", f"repos/{{owner}}/{{repo}}/commits/{commit['oid']}"]))
-        names = [f["filename"] for f in files.get("files", [])]
+    for names in commit_files:
         if not (names and all(_is_exam(n) or TOOLING_TEST.match(n) for n in names)):
             code_commits += 1
     if code_commits > MAX_CI_ROUNDS:
