@@ -344,6 +344,11 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Code fetched from outside this repository runs in this job.
+          persist-credentials: false
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
       - name: Unit tests for the factory tooling in scripts/
         run: uvx pytest scripts -q
+      - name: Project profile check (.factory/factory.yaml)
+        run: uvx --from git+https://github.com/Shashkist/factory@95753bb72e9c5d885376311efea91db7272f9d16 factory-tools profile check .factory/factory.yaml # v0.1.0

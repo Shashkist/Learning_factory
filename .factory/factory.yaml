@@ -1,0 +1,110 @@
+# Learning Factory's project profile (Shashkist/factory docs/profile.md).
+# Checked in CI by `factory-tools profile check` (tooling job of .github/workflows/ci.yml).
+methodology: "0.1"
+
+verify:
+  manager:
+    cwd: labs/manager
+    run:
+      - uv run pytest -q
+      - uv run ruff check .
+      - uv run mypy app
+  web:
+    cwd: labs/web
+    run:
+      - npm test -- --run
+      - npx tsc --noEmit
+      - npm run lint
+      - npm run build
+  tooling:
+    cwd: "."
+    run:
+      - uvx pytest scripts -q
+  dashboard:
+    cwd: labs/factory-dashboard
+    run:
+      - uv run ruff check .
+      - uv run pytest -q
+
+# The exam as CLAUDE.md counts it. scripts/ci/exam_integrity.py stays the authority:
+# it also counts every other path under labs/*/tests/ and leaves tests/unit/ out,
+# so a conftest.py, pytest.ini, tox.ini or setup.cfg under labs/*/tests/unit/ is
+# NOT exam even though the globs below match it.
+exam:
+  - "labs/**/tests/acceptance/**"
+  - "labs/**/conftest.py"
+  - "labs/**/pytest.ini"
+  - "labs/**/tox.ini"
+  - "labs/**/setup.cfg"
+
+protected_paths:
+  - "scripts/laptop/**"
+  - "scripts/factory_guard.py"
+  - "scripts/test_factory_guard.py"
+
+required_checks:
+  - manager
+  - manager-exam
+  - web
+  - exam-integrity
+  - tooling
+
+labels:
+  ready: "status:ready"
+  in-progress: "status:in-progress"
+  in-review: "status:in-review"
+  blocked: "status:blocked"
+  done: "status:done"
+  needs-owner: "status:needs-owner"
+  p0: "priority:p0"
+  p1: "priority:p1"
+  p2: "priority:p2"
+  feature: "type:feature"
+  incident: "type:incident"
+
+limits:
+  ci_rounds: 5
+  review_rounds: 2
+  parallel_issues: 3
+
+models:
+  manager: opus
+  exam-writer: sonnet
+  implementer: sonnet
+  reviewer: opus
+  researcher: sonnet
+
+smoke:
+  workflow: server-smoke.yml
+
+research_hints:
+  - KodeKloud
+  - Killercoda
+  - iximiuz Labs
+  - Instruqt
+
+areas:
+  manager:
+    - "labs/manager/**"
+  web:
+    - "labs/web/**"
+  content:
+    - "labs/content/**"
+  images:
+    - "labs/images/**"
+  deploy:
+    - "labs/deploy/**"
+  dashboard:
+    - "labs/factory-dashboard/**"
+  tooling:
+    - "scripts/**"
+  ci:
+    - ".github/**"
+
+planning:
+  spec: docs/superpowers/specs/2026-11-14-lab-platform-design.md
+  keep_ready: 5
+
+owner_files:
+  decisions: docs/factory/DECISIONS.md
+  owner: docs/factory/OWNER.md

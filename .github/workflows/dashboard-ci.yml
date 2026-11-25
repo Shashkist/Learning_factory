@@ -18,6 +18,8 @@ on:
       # The #569 exam reads CLAUDE.md (D151).
       - "CLAUDE.md"
       - ".claude/agents/**"
+      # The #612 exam reads the project profile.
+      - ".factory/**"
   push:
     branches: [main]
     paths:
@@ -36,6 +38,8 @@ on:
       # The #569 exam reads CLAUDE.md (D151).
       - "CLAUDE.md"
       - ".claude/agents/**"
+      # The #612 exam reads the project profile.
+      - ".factory/**"
 
 permissions:
   contents: read
