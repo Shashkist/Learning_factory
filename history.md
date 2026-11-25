@@ -2,6 +2,14 @@
 
 Short entries with insights and fun facts about building this with Claude Code, for the POC presentation.
 
+## 2026-11-25 · Pass lf-z4q8: every PR came back from review, and that was the point
+
+- **Three lanes, five review verdicts, all CHANGES before APPROVE.** #591 (an exam-only PR), #592 (claims on in-review issues) and factory#5 (reusable CI workflows) each got a fresh reviewer, and each was sent back at least once. None of the findings were style: an exam that missed the actual fix, an exam in a folder the integrity check does not protect, and a CI judge that the code it judges could overwrite.
+- **Mutation testing by the reviewer.** The #81 reviewer edited `ci.yml` ten different ways (`docker push --all-tags`, `-a`, an untagged push, the guard moved after the push) and ran the exam after each. Two of the ten slipped through the first fix; the second fix caught all ten. Testing the tests is cheap when an agent does the typing.
+- **A security review of a reusable workflow.** In the first version, the caller's test command ran in the same job as the judge, so test code could rewrite the judge file or put a fake `python3` on `$GITHUB_PATH` before the gate ran. The fix moves the judge into its own job that only downloads the report. A new GitHub context (`job.workflow_sha`, August 2026) lets the judge check out exactly the commit the caller pinned.
+- **A hidden pin.** Changing `issue_lock status` from 2 to 4 `gh` calls broke an older exam that pins the exact call list, and CI would not have noticed because its path filter did not cover the script. The reviewer found it by running the neighbouring exams; the fix added the path filter.
+- **Rebasing costs a review.** After one merge, the next PR was rebased (no conflicts), and the merge gate refused it: an APPROVE is tied to a head SHA. A two-minute reviewer confirmed with `git range-diff` that the content was identical, rather than the manager approving its own rebase.
+
 ## 2026-11-20 · Pass lf-w4t7: three small issues in ~45 minutes, and a red test on purpose
 
 - **Three lanes, one manager.** #293 (exam nits), #298 (bootstrap follow-ups) and #67 (remove a diagnostic) ran side by side, each in its own worktree. All three merged within about 45 minutes of the first claim.

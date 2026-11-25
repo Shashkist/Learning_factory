@@ -4,20 +4,22 @@
 
 ## Now
 
-**Pass lf-z4q8 running (laptop, from 05:27 UTC 2026-11-25).** In flight (claims held by lf-z4q8):
-- **LF #81, PR B #591** (`f/81-exam`, worktree `C:\projects\lf-81-exam`): review round 1 CHANGES at 0d5a03e (exam did not pin D154's `:latest` guard, `cancel-in-progress: false`, per-ref groups); exam-only fix commit in progress, then CI, round 2.
-- **LF #592, PR #593** (`f/592-claims-in-review`, worktree `C:\projects\lf-592`): exam 74b93a6 + fix c28ba5d; CI and review round 1 running.
-- **factory#5** sliced (factory D22) into #5 (reusable exam-integrity + JUnit-gate workflows, fetched at `job.workflow_sha`), #61 (dogfood in CI), #62 (reusable incident), #63 (docs + v0.1.0). #5 exam being written in `C:\projectsactory-5` (`f/5-reusable-exam-workflows`).
-- Tooling note: on this laptop `uv run <tool>` fails to spawn ("Access is denied"); use `uv run python -m <tool>` or `uvx`. `scripts/test_worktree_prune.py::test_busy_folder_is_skipped_and_left_intact` fails on Windows on main (TypeError line 125); green on Linux CI.
+**Pass lf-z4q8 finished (laptop, 05:27-07:15 UTC 2026-11-25; 2 merges, every PR needed review rounds).** Resume here:
+- **factory#5, PR factory#66** (`f/5-reusable-exam-workflows-2`, worktree `C:\projectsactory-5-2`; replaces #64 per factory D23). Claim held by lf-z4q8: take it over with `--steal --reason`. Review round 2 CHANGES at 76b7366: **one line**: the `gate` job in `junit-gate.yml` must be `if: ${{ always() }}` (a cancelled run otherwise skips the gate, and a skipped required check passes). Also nits 3-4: `PYTEST_DISABLE_PLUGIN_AUTOLOAD` as an input (default on), and the header names the CI-surface limit until #65. **Next:** fix on the branch (D145), a fresh reviewer verifies and posts `Review round 2: APPROVE at <sha>`, gate, merge. **Before closing #5** (rule 5): a live scratch caller (a throwaway branch in factory calling `Shashkist/factory/.github/workflows/junit-gate.yml@<sha>` and `exam-integrity.yml@<sha>`) shows the gate green on a passing report, red on a missing one, `report/acceptance.xml` for a nested `junit-file`, and red on a cancelled run. Round 2 finding 2 (exam: judge must be the last command, `/usr/bin/python3 -I` in both files) goes to a follow-up issue or into #65's exam.
+- **LF #81: PR B #591 merged** as 3e1e5ea (rounds: 1 CHANGES, 2 CHANGES, fix verified APPROVE at 8e70968, rebased head re-verified at cbfddbb). Close #81 citing #587 and #591 once main CI and Deploy for 3e1e5ea are green (see the #81 comments; if this pass did not close it, do it first).
+- **Shipped: #592** as #596 (6f7c8a0; rebuilt from #593 per D156; main CI 45562813955, Dashboard CI 45562813991, Deploy 45565078264 smoke green).
+- factory#5 was sliced (factory D22): #5 (A), #61 dogfood in CI (B), #62 reusable incident (C), #63 docs + v0.1.0 (D); exam paths split to factory#65 (D23).
+- New issues: #594 (p3, Windows-only worktree_prune test), #595 (p2, a claim on an issue un-parked to `status:ready` drops out of `status` and `factory_pick`), #597 (p3, #81 exam nits: push after `fi`, chained pushes). Also worth an issue: `scripts/ci/exam_integrity.py` counts only `labs/` as code, so a commit mixing a dashboard exam and a `scripts/` file passes (reviewer note on #596).
+- Tooling: on this laptop `uv run <tool>` fails to spawn; use `uv run python -m <tool>` or `uvx`. The full dashboard and factory acceptance suites take >10 minutes locally; CI runs them in ~1-2 minutes.
+- Lesson: rebasing an approved PR invalidates its APPROVE (the gate ties it to the head SHA); a 2-minute reviewer with `git range-diff` re-verifies. Prefer merging before rebasing other PRs when possible.
 - Live progress for factory issues needs `--repo Shashkist/factory` on `factory_progress.py add`; the skill text does not say so yet (next skill-touching PR).
 
 Older pass notes (lf-r7t3 and before) are in `history.md` and git history (`git log -p docs/factory/STATE.md`).
 
 ## Next (in order)
 
-1. **#591** (PR B of #81, see Now), then **#592** (p1), then `factory_pick.py`: #589 (dashboard pin, p2), #590 (gate, p2), the p2 list (LF #15, #21, #44, #47, #64, #85; factory#5, #10, #11, #43, #44). p3 follow-ups: #588, factory#57, factory#59, #579, #580, factory#49, #574, factory#33, factory#36, factory#40, factory#41, #561, #564, factory#17, factory#24, #523, #555. Owner item **O26** (heartbeat task).
-2. **#468** (bootstrap exam nits, p3; now on top of #56's exam), **#423** (validator misses, p3; time real shells first; an old worktree `C:\projects\lf-423` exists, check it before starting).
-3. **#436**, **#431** (lab screen follow-ups, p3). **#85** deploy follow-ups; p2 list: #81, #84, #64, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
+1. Close **#81** if still open; **factory#66** (see Now); then `factory_pick.py`: factory#61 (dogfood, p1, after #5), factory#62, factory#65, factory#63; LF p2: #595, #589 (dashboard pin), #590 (gate learns `Part of #n`), #15, #21, #44, #47, #64, #85; factory#10, #11, #43, #44.
+2. p3 follow-ups: #594, #597, #588, factory#57, factory#59, #579, #580, factory#49, #574, factory#33, factory#36, factory#40, factory#41, #561, #564, factory#17, factory#24, #523, #555, #468, #423 (old worktree `C:\projects\lf-423`), #436, #431. Owner item **O26** (heartbeat task).
 
 ## Waiting for the owner
 
@@ -32,6 +34,7 @@ Older pass notes (lf-r7t3 and before) are in `history.md` and git history (`git 
 
 ## Recently done
 
+- 2026-11-25 pass lf-z4q8: #592 (#596 after #593, D156; Deploy 45565078264 smoke ok), #81 PR B (#591, 3e1e5ea; exam-only, 3 review rounds). factory#5 sliced (D22, D23), PR factory#66 at round 2 CHANGES (one line).
 - 2026-11-25 pass lf-r7t3: factory#47 (factory#56; main CI 45545051188), factory#54 (factory#60; main CI 45549578819; live pin move is #589), #81 PR A (#587; Deploy 45552457401, smoke ok, live check on #81; PR B #591 open).
 - 2026-11-25 pass lf-m4k9: #583 (#585; Factory dashboard 45535190679, live app.js byte-equal to factory 9a5e808, repository tabs live), #584 (#586; dry run and `--repo` refusal checked live; main CI 45539992970 `docker` job was still running at close: check it is green). factory#47 rebuilt as factory#56.
 - 2026-11-23 pass lf-h6q3: Shashkist/factory#1 (factory#9; factory main CI 45219016530, first issue built in the second repository), #527 (#557; main CI 45224934361, scenario rendered on main), #556 (#559; `factory_pick.py` run on main). Opened #558, factory#10, factory#11.
