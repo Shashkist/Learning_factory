@@ -4,17 +4,17 @@
 
 ## Now
 
-**Pass lf-m4k9 running (laptop, from 01:57 UTC 2026-11-25).** Claims held by lf-m4k9:
-- **factory#47** rebuild as `f/47-worktree-prune-2` (worktree `C:\projectsactory-47b`; exam b5289ec cherry-picked as c58a80b; factory D20). Exam-only commit for review gaps 8-12 in progress, then the three code commits from #55 with fixes for findings 1-6.
-- **LF #584** (`f/584-prune-nested`, worktree `C:\projects\lf-584`; exam 715c682). Implementer running. Until it ships, run the close-step prune only with `--issue <n>` and check for a nested `.claude/worktrees/` first.
-- **LF #583** PR #585 (`f/583-dashboard-pin`, worktree `C:\projects\lf-583`): pin moved to factory 9a5e808; CI and review round 1 running. Workflow-touching: rebase over git and `--force-with-lease` if main moves.
+**Pass lf-m4k9 finished (laptop, 01:57-03:30 UTC 2026-11-25, stopped by time, 2 merges).** The claim on **factory#47** is held by lf-m4k9 with the step below: take it over with `--steal --reason`. Resume here:
+- **factory#47, PR #56** (`f/47-worktree-prune-2`, worktree `C:\projectsactory-47b`, head b0c6842; replaces #55, closed). Exam commits 2c987cd, a9e81c1 (round-1 gaps 8-12), 4fe1299 (gone-folder case fix), 2b839ba (links, bare repositories); code 447a2a8, e8fc8c9, 0b73347, 8b94724 (round-1 findings 1-7), b0c6842 (links and bare repositories, reparse-point check works on Python 3.11). Locally 94 passed, ruff and mypy clean. **Next:** check CI on #56 (full suite ~19 min locally, CI is the judge), then **review round 2** (round 1 was on #55): tell the reviewer to check junction detection under Python 3.11 (`python` on the laptop is 3.11.9; `os.path.isjunction` is 3.12+), that a `--repo` mismatch exits before `git worktree prune`, and the new gone-folder branch deletion (exam case 8b). Factory D20 + amendment 1. Then merge (`main-ci`), close, `worktree_prune.py --issue 47 --repo Shashkist/factory` from `C:\projectsactory`.
+- **Shipped: LF #583** as #585 (squash 1b95c95; round 1 APPROVE, fresh verification APPROVE at e57f0d5 after the rebase; gate `MERGE`). Factory dashboard 45535190679 green; live `app.js` byte-equal to factory 9a5e808; a headless browser shows the repository tabs and `#/factory`. Closed, claim released, worktree removed.
+- **Shipped: LF #584** as #586 (squash b41b6cb; round 1 CHANGES (junction target emptied outside the worktree, reproduced), round 2 CHANGES (junction check needed Python 3.12), manager fix 3597a0f verified by a fresh reviewer, D145). D153. Live: `worktree_prune.py --dry-run` from the factory worktree prints KEPT/REMOVED and changes nothing; `--repo Shashkist/factory` from the LF clone is refused. The full sweep (without `--issue`) is safe to use again. Round-2 non-blocking leftovers (double scan for subagent worktrees, `git@alias:` origin with a user is a mismatch) can join #582.
 - Live progress for factory issues needs `--repo Shashkist/factory` on `factory_progress.py add`; the skill text does not say so yet (next skill-touching PR).
 
 Older pass notes (lf-p8n2 and before) are in `history.md` and git history (`git log -p docs/factory/STATE.md`).
 
 ## Next (in order)
 
-1. **factory#47** rebuild and **LF #584** (see Now, p1), **LF #583** (pin, p1). Then `factory_pick.py`: factory#54 (p2), then the p2 list (LF #15, #21, #44, #47, #64, #81, #85; factory#5, #10, #11). p3 follow-ups: #579, #580, factory#49, #574, factory#33, factory#36, factory#40, factory#41, #561, #564, factory#17, factory#24, #523, #555. Owner item **O26** (heartbeat task).
+1. **factory#47** PR #56 review round 2 (see Now, p1). Then `factory_pick.py`: factory#54 (p2), then the p2 list (LF #15, #21, #44, #47, #64, #81, #85; factory#5, #10, #11). p3 follow-ups: #579, #580, factory#49, #574, factory#33, factory#36, factory#40, factory#41, #561, #564, factory#17, factory#24, #523, #555. Owner item **O26** (heartbeat task).
 2. **#468** (bootstrap exam nits, p3; now on top of #56's exam), **#423** (validator misses, p3; time real shells first; an old worktree `C:\projects\lf-423` exists, check it before starting).
 3. **#436**, **#431** (lab screen follow-ups, p3). **#85** deploy follow-ups; p2 list: #81, #84, #64, #47, #44, #21, #15, #14. Keep at least 5 issues `status:ready`.
 
@@ -31,6 +31,7 @@ Older pass notes (lf-p8n2 and before) are in `history.md` and git history (`git 
 
 ## Recently done
 
+- 2026-11-25 pass lf-m4k9: #583 (#585; Factory dashboard 45535190679, live app.js byte-equal to factory 9a5e808, repository tabs live), #584 (#586; dry run and `--repo` refusal checked live; main CI 45539992970 `docker` job was still running at close: check it is green). factory#47 rebuilt as factory#56.
 - 2026-11-23 pass lf-h6q3: Shashkist/factory#1 (factory#9; factory main CI 45219016530, first issue built in the second repository), #527 (#557; main CI 45224934361, scenario rendered on main), #556 (#559; `factory_pick.py` run on main). Opened #558, factory#10, factory#11.
 - 2026-11-23 pass lf-w2k6: #545 (#550 + #552; main CI 45199100557, Deploy 45191319753 deployed 1b6261a), #551 (#554; Factory dashboard 45203270186, live app.js byte-equal to c728db0), #544 (#553; `factory_pick.py` run on main). Follow-ups #555, #556.
 - 2026-11-23 pass lf-c7m4: #538 (#530, c494eb4; deploy evidence pending); closed #532 (#539) with Dashboard CI 45154808016; sliced #536 into #542-#544 (D143); incident #541 and hardening #545 opened.
