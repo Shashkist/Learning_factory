@@ -54,6 +54,7 @@ A full CI run (on a PR or on a push to main) costs about **29 billable minutes**
 
 ## Labels
 
+- Un-park a `status:needs-owner` or `status:blocked` issue with `python scripts/issue_lock.py unpark <n> --session <you>`: it releases the held claim, names the branch to continue, and relabels to `status:ready`.
 - `status:ready` · `status:in-progress` · `status:in-review` · `status:needs-owner` · `status:blocked` · `status:done` · `status:superseded`
 - `type:feature` · `type:infra` · `type:bug` · `type:incident` · `type:content` (lab content) · `type:research` · `type:epic`
 - `priority:p0` (line down) · `priority:p1` · `priority:p2` · `priority:p3`
