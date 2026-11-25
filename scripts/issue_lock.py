@@ -261,7 +261,11 @@ def find_claim(number: int, run=_run) -> tuple[dict | None, int | None]:
     comment per issue instead of a stack of them, which is what makes a
     heartbeat cheap enough to run on every step.
     """
-    claims = find_all_claims(number, run)
+    return pick_claim(find_all_claims(number, run))
+
+
+def pick_claim(claims: list[tuple[dict, int | None]]) -> tuple[dict | None, int | None]:
+    """`find_claim` over claims already read, so one command reads them once."""
     for claim, cid in claims:
         if "released" not in claim:
             return claim, cid
@@ -309,31 +313,46 @@ def live_rivals(number: int, session: str, stale_after: float, run=_run):
     ]
 
 
-def unparked_branch(number: int, run=_run) -> str | None:
-    """The branch an un-park told the next session to continue, if the comment
-    a claim would reuse is that release (#595)."""
-    claims = find_all_claims(number, run)
-    if not claims:
-        return None
-    found = re.search(r"continue branch ([^\s(]\S*)", str(claims[0][0].get("reason") or ""))
-    return found.group(1) if found else None
+NO_BRANCH = "(no branch recorded)"
+
+
+def unparked_branches(claims: list[tuple[dict, int | None]]) -> list[tuple[str, str]]:
+    """(branch, reason) for every released claim whose un-park told the next
+    session which branch to continue (#595). Every released claim is read, not
+    only the comment a claim would reuse: after a claim race the un-park
+    release can sit in a later comment."""
+    out = []
+    for claim, _ in claims:
+        if "released" not in claim:
+            continue
+        reason = str(claim.get("reason") or "")
+        found = re.search(r"continue branch (.+?)\s*$", reason)
+        if found and found.group(1) != NO_BRANCH:
+            out.append((found.group(1), reason))
+    return out
 
 
 def cmd_claim(args, run=_run) -> int:
     run = scoped(run, getattr(args, "repo", None))
-    existing, comment_id = find_claim(args.number, run)
+    claims = find_all_claims(args.number, run)
+    existing, comment_id = pick_claim(claims)
 
-    if existing is None and comment_id is not None and not (args.steal and args.reason):
-        old = find_all_claims(args.number, run)[0][0]
-        named = unparked_branch(args.number, run)
-        if named and named != args.branch:
-            print(
-                "#" + str(args.number) + " was un-parked: " + str(old.get("reason"))
-                + NL + "Claim it with --branch " + named
-                + ", or --steal with --reason to start another branch.",
-                file=sys.stderr,
-            )
-            return 1
+    # An un-park named the branch to continue; another branch needs an explicit
+    # --steal --reason, and that override is recorded in the new claim (#595).
+    abandoned: list[str] = []
+    if existing is None and comment_id is not None:
+        named = unparked_branches(claims)
+        if named and args.branch not in {b for b, _ in named}:
+            if not (args.steal and args.reason):
+                print(
+                    "#" + str(args.number) + " was un-parked: "
+                    + "; ".join(reason for _, reason in named)
+                    + NL + "Claim it with --branch " + " or ".join(b for b, _ in named)
+                    + ", or --steal with --reason to start another branch.",
+                    file=sys.stderr,
+                )
+                return 1
+            abandoned = [b for b, _ in named]
 
     if existing and existing.get("session") != args.session:
         age = age_minutes(existing.get("heartbeat", ""))
@@ -366,6 +385,9 @@ def cmd_claim(args, run=_run) -> int:
     if args.steal and existing:
         claim["stolen_from"] = existing.get("session")
         claim["steal_reason"] = args.reason
+    if abandoned:
+        claim["steal_reason"] = args.reason
+        claim["abandoned_branch"] = ", ".join(abandoned)
 
     write_comment(args.number, render(claim), comment_id, run)
 
@@ -512,15 +534,15 @@ def cmd_unpark(args, run=_run) -> int:
             )
             return 1
     for c, cid in live:
-        branch = str(c.get("branch") or "") or "(no branch recorded)"
+        branch = str(c.get("branch") or "") or NO_BRANCH
         write_comment(
             args.number, retraction(args.session, "un-parked; continue branch " + branch),
             cid, run,
         )
         print("#" + number + " claim released; continue branch " + branch)
-    print("#" + number + (" un-parked" if live else " un-parked; no claim to release"))
     run(["issue", "edit", number,
          "--remove-label", ",".join(PARKED_LABELS), "--add-label", "status:ready"])
+    print("#" + number + (" un-parked" if live else " un-parked; no claim to release"))
     return 0
 
 
