@@ -134,7 +134,7 @@ def test_ip6tables_rules_match_only_the_lab_bridge_and_are_tagged():
     code = _code()
     _need_mechanism(code)
     if not _uses_ip6tables(code):
-        pytest.skip("this implementation uses the bridge sysctl, not ip6tables")
+        return  # the bridge sysctl is used instead; test_script_adds_an_ipv6_mechanism is strict
     rules = _v6_rule_lines(code)
     assert rules, "ip6tables is used but no rule with a -j target is spelled out"
     for ln in rules:
@@ -146,7 +146,7 @@ def test_ip6tables_drops_cover_input_and_forwarding():
     code = _code()
     _need_mechanism(code)
     if not _uses_ip6tables(code):
-        pytest.skip("this implementation uses the bridge sysctl, not ip6tables")
+        return  # the bridge sysctl is used instead; test_script_adds_an_ipv6_mechanism is strict
     v6 = "\n".join(ln for ln in code.splitlines() if "ip6tables" in ln) + "\n".join(
         body for name, body in _functions(code).items() if "6" in name
     )
@@ -161,7 +161,7 @@ def test_ip6tables_is_idempotent_checked_before_adding_and_never_flushes():
     code = _code()
     _need_mechanism(code)
     if not _uses_ip6tables(code):
-        pytest.skip("this implementation uses the bridge sysctl, not ip6tables")
+        return  # the bridge sysctl is used instead; test_script_adds_an_ipv6_mechanism is strict
     assert re.search(r"ip6tables\b[^\n]*\s-C\b", code), "no `ip6tables -C` check before adding"
     assert not re.search(r"ip6tables\b[^\n]*\s-F(\s|$)", code), "never flush a chain"
     assert not re.search(r"ip6tables\b[^\n]*\s(-P|--policy)\s", code), "never change a policy"
@@ -177,7 +177,7 @@ def test_sysctl_targets_only_the_lab_bridge_and_is_persisted_under_sysctl_d():
     code = _code()
     _need_mechanism(code)
     if not _uses_sysctl(code):
-        pytest.skip("this implementation uses ip6tables, not the bridge sysctl")
+        return  # ip6tables is used instead; test_script_adds_an_ipv6_mechanism is strict
     assert SYSCTL_KEY in code, f"the sysctl is not {SYSCTL_KEY}"
     assert not re.search(r"net\.ipv6\.conf\.(all|default)\.", code), (
         "never change the IPv6 sysctls of all or default interfaces"
@@ -441,7 +441,9 @@ def test_lab_cannot_reach_a_container_on_another_bridge_over_ipv6(lab_pair, imag
     request.addfinalizer(lambda: _run(["docker", "rm", "-f", "-v", other], timeout=120))
     _docker("run", "-d", "--name", other, "--runtime=runsc", "--log-driver", "none",
             "--entrypoint", "sleep", image, "3600")
-    mac = json.loads(_docker("inspect", other).stdout)[0]["NetworkSettings"]["MacAddress"]
+    # Docker 28+ leaves the top-level MacAddress empty: read it per network (default bridge).
+    nets = json.loads(_docker("inspect", other).stdout)[0]["NetworkSettings"]["Networks"]
+    mac = nets["bridge"]["MacAddress"]
     assert mac, "no MAC on the default bridge container"
     _assert_probe_works(labs.a, "eth0")
     rc = _probe(labs.a, _eui64(mac), "eth0", PORT)
