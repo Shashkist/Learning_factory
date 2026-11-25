@@ -196,6 +196,10 @@ jobs:
           python3 ../../scripts/ci/junit_gate.py docker-acceptance.xml
 
   image-term:
+    # Queue (never cancel) runs per ref: GitHub keeps only the newest pending run, so the newest push runs last and :latest ends on it.
+    concurrency:
+      group: image-term-${{ github.ref }}
+      cancel-in-progress: false
     # Push only an image whose docker exam job passed.
     needs: docker
     runs-on: ubuntu-latest
@@ -217,7 +221,9 @@ jobs:
           docker run --rm --entrypoint sh ghcr.io/shashkist/lf-lab-term:${{ github.sha }} -c "grep -q '^URIs: http://archive.ubuntu.com/ubuntu/' /etc/apt/sources.list.d/ubuntu.sources && grep -q '^URIs: http://security.ubuntu.com/ubuntu/' /etc/apt/sources.list.d/ubuntu.sources && ! grep -q mirror+file /etc/apt/sources.list.d/ubuntu.sources && ! test -e /etc/apt/lf-mirrors.txt && ! test -e /etc/apt/ubuntu.sources.lf-orig && ! ls /var/lib/apt/lists/ | grep -q -e InRelease -e Packages"
       - name: Log in to ghcr.io
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
       - name: Push lf-lab-term
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
@@ -225,6 +231,10 @@ jobs:
           docker push ghcr.io/shashkist/lf-lab-term:latest
 
   image-manager:
+    # Queue (never cancel) runs per ref: GitHub keeps only the newest pending run, so the newest push runs last and :latest ends on it.
+    concurrency:
+      group: image-manager-${{ github.ref }}
+      cancel-in-progress: false
     # Push only an image whose docker exam job passed.
     needs: docker
     runs-on: ubuntu-latest
@@ -256,7 +266,9 @@ jobs:
           sudo LF_TRUSTED_PROXY="$LF_TRUSTED_PROXY" LF_NGINX_NETWORK="$LF_NGINX_NETWORK" docker compose -f labs/deploy/compose.yml config --quiet
       - name: Log in to ghcr.io
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
       - name: Push lf-manager
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
