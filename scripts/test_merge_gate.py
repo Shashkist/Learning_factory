@@ -42,7 +42,7 @@ def check(name, conclusion="SUCCESS", status="COMPLETED"):
     return {"__typename": "CheckRun", "name": name, "status": status, "conclusion": conclusion}
 
 
-def with_gate_defaults(rollup, exam_gate="manager-exam", changes="changes"):
+def with_gate_defaults(rollup, exam_gate="manager-exam / gate", changes="changes"):
     """D160: a non-empty world lacking the exam gate check (and the `changes` check that
     vouches for a skipped docker) gets a SUCCESS one, so older cases test their own rule.
     A case sets gh.exam_gate / gh.changes to None for a world without it."""
@@ -91,7 +91,7 @@ class Gh:
         self.issue_comments = [claim_comment()]
         self.pr.update(over)
         self.calls = []
-        self.exam_gate = "manager-exam"
+        self.exam_gate = "manager-exam / gate"
         self.changes = "changes"
         self.count = None  # `pulls/9` commit count; None means every listed commit
         self.listing_fails = False
