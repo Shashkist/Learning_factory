@@ -3,9 +3,8 @@
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
 ## Now
-**Pass lf-b5n2 (laptop, from 21:27 UTC 2026-11-25) is running.** It took over #613 from lf-x8b3 (claim stolen, that pass had stopped) and claimed #44.
-- **#613** (D165, D166 + amendment 1): three PRs. **PR 0 = #624** (`f/613-reusable-ci-bridge`, worktree `C:\projects\lf-613-0`, exam only): round 1 CHANGES at ab91380, fixed in 85d4fc8; a fresh round-2 reviewer is running. Then merge #624. **PR A** = `f/613-reusable-ci` (worktree `C:\projects\lf-613-a`, pushed, no PR yet): rebase after #624, open as `Part of #613`, gate with `--exam-gate "manager-exam / gate"`. **PR B** = `f/613-reusable-ci-exam` (worktree `C:\projects\lf-613`, not pushed): rebase after A, open with `Closes #613`.
-- **#44** (D167): `f/44-ipv6-isolation`, worktree `C:\projects\lf-44`; exam being written.
+**Pass lf-b5n2 (laptop, 21:27-22:58 UTC 2026-11-25) has stopped after 1 merge** (#626 closing #44). One issue in flight, claimed by lf-b5n2: take it over (`claim --steal --reason`) once this session has ended.
+- **#613** (D165, D166 + amendments 1 and 2): three PRs. **PR 0 = #624** (`f/613-reusable-ci-bridge`, worktree `C:\projects\lf-613-0`, exam only): round 2 CHANGES at 85d4fc8 (two older exams not bridged: #590's fake rollup lacks `manager-exam / gate`; #229's two incident cases; plus a #1 nit). An exam-writer was bridging them at stop and pushes to the branch as `test(factory): bridge the #590 rollup and the #229 incident cases (#613)`. Check the branch: if that commit is there, wait for green CI, then have a **fresh reviewer** verify it (round 3, D145/D148) and post its verdict. If it is not there, dispatch the exam-writer with the round-2 comment on #624. Ask the reviewer to run the FULL dashboard and manager exam folders on PR A's tree, not only the changed files. Then merge #624. **PR A** = `f/613-reusable-ci` (worktree `C:\projects\lf-613-a`, pushed, no PR yet): rebase after #624, open as `Part of #613`, gate with `--exam-gate "manager-exam / gate"`. **PR B** = `f/613-reusable-ci-exam` (worktree `C:\projects\lf-613`, not pushed): rebase after A, open with `Closes #613`.
 - **Next issues:** #614 (needs #613), then `factory_pick.py`.
 - Leftover worktree `C:/projects/factory-61` (source of #71/#72, #61 closed): its content has shipped; remove it by hand after a look.
 - Tooling: on this laptop `uv run <tool>` and `uvx --from ... factory-tools` fail to spawn; use `uv run python -m <tool>` (`python -m factory_tools`). In `labs/factory-dashboard`, `test_issue_19_publish.py` hangs locally (`test_installer_appends_block_when_absent`), so the whole folder never finishes; run it per file or exclude #19. The full factory acceptance suite takes 10 to 30 minutes locally (about 2 in CI). Live progress for factory issues needs `--repo Shashkist/factory`. After a rebase the gate needs a verdict at the new head: a reviewer checks `git range-diff` (D148 amendment 3: never self-approve). Bash `/tmp` is not Python's `/tmp` on this laptop. A `general-purpose` agent given the implementer brief works when the `implementer` type fails to start.
@@ -14,7 +13,7 @@ Older pass notes (lf-m7q2 and before) are in `history.md` and git history (`git 
 
 ## Next (in order)
 
-1. #613 (#624, then PR A, then PR B) (see Now). Then #614 (client #1, D162), then `factory_pick.py`: factory#67, factory#75, factory#82 (dogfood v0.1.0); LF p2: #15, #21, #44, #47, #85; factory#87 (live page leftovers, from #64), factory#10, #11, #43, #44.
+1. #613 (#624, then PR A, then PR B) (see Now). Then #614 (client #1, D162), then `factory_pick.py`: #627 (p2, IPv6 guard fails open: do it soon), factory#67, factory#75, factory#82 (dogfood v0.1.0); LF p2: #15, #21, #47, #85; factory#87 (live page leftovers, from #64), factory#10, #11, #43, #44.
 2. p3 follow-ups: #623 (new, from #622 review), #619, #621, #603, #604, factory#70, #601, #594, #597, #588, factory#57, factory#59, #579, #580, factory#49, #574, factory#33, factory#36, factory#40, factory#41, #561, #564, factory#17, factory#24, #523, #555, #468, #423 (old worktree `C:\projects\lf-423`), #436, #431. Owner item **O26** (heartbeat task).
 
 ## Waiting for the owner
@@ -29,6 +28,8 @@ Older pass notes (lf-m7q2 and before) are in `history.md` and git history (`git 
 - O16/O7 resolved by D43 (public repository). O12 (back up `.env`), O13 (re-deploy after recreating nginx-proxy3), O5 reopened.
 
 ## Recently done
+
+- 2026-11-25 pass lf-b5n2: #44 (#626, 288e287; replaced #625, whose exam skipped a case and read the top-level MAC (D103); bootstrap apply 45716080501 inserted the IPv6 drops on the server, `BOOTSTRAP RESULT: changed`; server smoke 45716438877 ok). Decisions D167, D166 amendment 2. Opened #627 (IPv6 guard hardening). Left: #624 round-2 fixes in progress.
 
 - 2026-11-25 pass lf-x8b3: #612 (#620, d405961; main CI 45685605302 profile check ok, Deploy 45688847381), #64 (#622, 8f17cbf; main CI 45694056110, Deploy 45697069925; live nosniff on `/`, both JSON files and an unknown path), factory#86 (factory#89, a2a9346; main CI 45701680871; replaced factory#88 after round 1). Decisions D165, D166 (+ amendment 1). Opened #623. Left: #624 in round 2, #613 PR A and PR B ready on branches.
 
