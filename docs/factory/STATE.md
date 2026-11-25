@@ -5,7 +5,7 @@
 ## Now
 
 **Pass lf-r7t3 running (laptop, from 03:56 UTC 2026-11-25).** Claims held by lf-r7t3:
-- **factory#47, PR #56** (`f/47-worktree-prune-2`, worktree `C:\projects\factory-47b`, head b0c6842; CI green). Review round 2 running (round 1 was on #55). Then merge (`main-ci`), close, `worktree_prune.py --issue 47 --repo Shashkist/factory` from `C:\projects\factory`.
+- **Shipped: factory#47** as #56 (squash 92f3b59; round 2 APPROVE at b0c6842; main CI 45545051188 green; live dry run keeps claimed worktrees, wrong `--repo` refused). Follow-ups in factory#57 (p3).
 - **factory#54** (`f/54-dashboard-repo-followups`, worktree `C:\projects\factory-54`): exam being written.
 - **LF #81** (D19 way: PR A code + ci.yml on `f/81-manager-image-followups`, worktree `C:\projects\lf-81`; PR B exam alone on `f/81-exam`, worktree `C:\projects\lf-81-exam`): exam being written.
 - Last pass lf-m4k9 shipped LF #583 (#585) and #584 (#586); round-2 leftovers of #586 (double scan for subagent worktrees, `git@alias:` origin with a user) can join #582.
