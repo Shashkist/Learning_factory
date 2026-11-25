@@ -92,7 +92,7 @@ def deploys(tag: str, head: str) -> bool:
 
 
 def is_heavy(base: str, head: str) -> bool:
-    names = git("diff", "--name-only", "-z", f"{base}...{head}").stdout.decode("utf-8").split("\0")
+    names = git("diff", "--name-only", "--no-renames", "-z", f"{base}...{head}").stdout.decode("utf-8").split("\0")
     return any(n.startswith(HEAVY) for n in names if n)
 
 

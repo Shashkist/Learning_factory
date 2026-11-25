@@ -295,3 +295,11 @@ def test_heavy_uses_merge_base(repo: Path) -> None:
     commit(repo, "labs/manager/new.py")
     git(repo, "checkout", "-q", "pr")
     assert heavy(repo, "main") == "false"
+
+
+def test_heavy_counts_the_old_side_of_a_rename(repo: Path) -> None:
+    git(repo, "checkout", "-q", "-b", "pr")
+    (repo / "docs").mkdir()
+    git(repo, "mv", "labs/manager/app.py", "docs/app.py")
+    git(repo, "commit", "-q", "-m", "move")
+    assert heavy(repo, "main") == "true"

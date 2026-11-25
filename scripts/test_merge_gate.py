@@ -10,6 +10,8 @@ same seam as issue_lock and factory_pick: `run(argv)` receives the gh arguments
   `comments[]` (`author.login`, `body`, `createdAt`, oldest first).
 * `api repos/<owner>/<repo>/commits/<oid>` (or with the `{owner}/{repo}`
   placeholder): `{"files": [{"filename": ...}]}`, plain JSON, no --jq.
+* `api --paginate --slurp repos/.../pulls/9/commits`: the PR's commits as one page
+  (`[[{"sha": ...}]]`), and `api repos/.../pulls/9`: `{"commits": <count>}` (#611).
 * `issue view <n> --json comments`: the claim comments (via issue_lock.render).
 * Anything that writes (pr merge, comment, review, edit, close, api -X) fails
   the test: the gate is read-only.
@@ -91,6 +93,8 @@ class Gh:
         self.calls = []
         self.exam_gate = "manager-exam"
         self.changes = "changes"
+        self.count = None  # `pulls/9` commit count; None means every listed commit
+        self.listing_fails = False
 
     def __call__(self, argv):
         self.calls.append(list(argv))
@@ -103,6 +107,14 @@ class Gh:
             return json.dumps(pr)
         if argv[0] == "api":
             path = next(a for a in argv[1:] if a.startswith("repos/"))
+            oids = [c["oid"] for c in self.pr.get("commits") or []]
+            if path.endswith("/pulls/9"):
+                return json.dumps({"commits": len(oids) if self.count is None else self.count})
+            if path.endswith("/pulls/9/commits"):
+                assert "--paginate" in argv and "--slurp" in argv, argv
+                if self.listing_fails:
+                    raise RuntimeError("gh api failed: HTTP 502")
+                return json.dumps([[{"sha": o} for o in oids]])
             oid = path.rsplit("/commits/", 1)[1].split("?")[0]
             return json.dumps({"files": [{"filename": f} for f in self.files[oid]]})
         if argv[:2] == ["issue", "view"]:
@@ -297,6 +309,38 @@ def test_exam_only_commits_are_not_counted(capsys):
     gh.files = {o: [EXAM_FILE] for o in exam}
     gh.files.update({o: [CODE_FILE] for o in oids})
     # 9 commits, but only 5 of them change code: 5 CI rounds, within the limit.
+    assert gate(capsys, gh) == (0, ["MERGE"])
+
+
+# ---- every commit, docker on a workflow change (#611) -------------------------------
+
+def test_commit_listing_failure_holds(capsys):
+    gh = Gh()
+    gh.listing_fails = True
+    assert_single_hold(*gate(capsys, gh), "commit")
+
+
+def test_short_commit_listing_holds(capsys):
+    gh = Gh()
+    gh.count = 3
+    assert_single_hold(*gate(capsys, gh), "2 of the PR's 3 commits")
+
+
+def test_workflow_change_without_docker_holds_naming_docker(capsys):
+    gh = Gh()
+    gh.files[HEAD] = [CODE_FILE, ".github/workflows/ci.yml"]
+    assert_single_hold(*gate(capsys, gh), "docker", "missing or renamed")
+
+
+def test_workflow_change_with_docker_skipped_holds_once(capsys):
+    gh = Gh(statusCheckRollup=good_checks() + [check("docker", "SKIPPED")])
+    gh.files[HEAD] = [".github/workflows/deploy.yml"]
+    assert_single_hold(*gate(capsys, gh), "docker", "skipped")
+
+
+def test_workflow_change_with_docker_success_merges(capsys):
+    gh = Gh(statusCheckRollup=good_checks() + [check("docker")])
+    gh.files[HEAD] = [".github/workflows/ci.yml"]
     assert gate(capsys, gh) == (0, ["MERGE"])
 
 
