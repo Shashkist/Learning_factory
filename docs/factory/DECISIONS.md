@@ -1646,3 +1646,5 @@ in force · 2026-11-25 · revertible
 **Why.** D161 deferred the renamed or missing docker check here; a workflow edit can rename or drop the docker job, and only a SUCCESS proves the heavy exam ran.
 **Alternatives.** Bind the docker check to the head's workflow file (factory D29 style; more code, and LF moves to the factory gate with #613 and #614); keep the old case (leaves the hole open).
 **Revert.** Restore the old case's expectation and drop the rule from `scripts/merge_gate.py`.
+
+**Amendment 1 (2026-11-25, build of #611).** Criterion 2 makes the gate call `repos/{owner}/{repo}/pulls/<n>/commits` (paginated) and `repos/{owner}/{repo}/pulls/<n>` on every run. The fake `gh` of the #608, #590 and #605 exams cannot answer these (an `IndexError`, or a `{"files": ...}` dict). They are taught to answer them (the PR's commit list as `[{"sha": ...}]`, and `{"commits": N}`) in an exam-only commit before the code; no assertion changes, the same kind of setup change as D160 amendment 1. Falling back to `pr view --json commits` on a malformed answer was refused: it would weaken criterion 2.
