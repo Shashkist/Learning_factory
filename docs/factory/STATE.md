@@ -4,15 +4,11 @@
 
 ## Now
 
-**Pass lf-z4q8 finished (laptop, 05:27-07:15 UTC 2026-11-25; 2 merges, every PR needed review rounds).** Resume here:
-- **factory#5, PR factory#66** (`f/5-reusable-exam-workflows-2`, worktree `C:\projectsactory-5-2`; replaces #64 per factory D23). Claim held by lf-z4q8: take it over with `--steal --reason`. Review round 2 CHANGES at 76b7366: **one line**: the `gate` job in `junit-gate.yml` must be `if: ${{ always() }}` (a cancelled run otherwise skips the gate, and a skipped required check passes). Also nits 3-4: `PYTEST_DISABLE_PLUGIN_AUTOLOAD` as an input (default on), and the header names the CI-surface limit until #65. **Next:** fix on the branch (D145), a fresh reviewer verifies and posts `Review round 2: APPROVE at <sha>`, gate, merge. **Before closing #5** (rule 5): a live scratch caller (a throwaway branch in factory calling `Shashkist/factory/.github/workflows/junit-gate.yml@<sha>` and `exam-integrity.yml@<sha>`) shows the gate green on a passing report, red on a missing one, `report/acceptance.xml` for a nested `junit-file`, and red on a cancelled run. Round 2 finding 2 (exam: judge must be the last command, `/usr/bin/python3 -I` in both files) goes to a follow-up issue or into #65's exam.
-- **LF #81: PR B #591 merged** as 3e1e5ea (rounds: 1 CHANGES, 2 CHANGES, fix verified APPROVE at 8e70968, rebased head re-verified at cbfddbb). Close #81 citing #587 and #591 once main CI and Deploy for 3e1e5ea are green (see the #81 comments; if this pass did not close it, do it first).
-- **Shipped: #592** as #596 (6f7c8a0; rebuilt from #593 per D156; main CI 45562813955, Dashboard CI 45562813991, Deploy 45565078264 smoke green).
-- factory#5 was sliced (factory D22): #5 (A), #61 dogfood in CI (B), #62 reusable incident (C), #63 docs + v0.1.0 (D); exam paths split to factory#65 (D23).
-- New issues: #594 (p3, Windows-only worktree_prune test), #595 (p2, a claim on an issue un-parked to `status:ready` drops out of `status` and `factory_pick`), #597 (p3, #81 exam nits: push after `fi`, chained pushes). Also worth an issue: `scripts/ci/exam_integrity.py` counts only `labs/` as code, so a commit mixing a dashboard exam and a `scripts/` file passes (reviewer note on #596).
-- Tooling: on this laptop `uv run <tool>` fails to spawn; use `uv run python -m <tool>` or `uvx`. The full dashboard and factory acceptance suites take >10 minutes locally; CI runs them in ~1-2 minutes.
-- Lesson: rebasing an approved PR invalidates its APPROVE (the gate ties it to the head SHA); a 2-minute reviewer with `git range-diff` re-verifies. Prefer merging before rebasing other PRs when possible.
-- Live progress for factory issues needs `--repo Shashkist/factory` on `factory_progress.py add`; the skill text does not say so yet (next skill-touching PR).
+**Pass lf-k2v8 running (laptop, from 07:27 UTC 2026-11-25).** In flight:
+- **factory#5, PR factory#66** (`f/5-reusable-exam-workflows-2`, worktree `C:\projectsactory-5-2`): round 2 fix (gate `always()`, autoload input, header) verified with one new finding (empty artifact name falls back to every artifact); fixed in dcc725b, a fresh reviewer verifies. Then gate, merge, live scratch caller before closing #5.
+- **#589, PR #598** (`f/589-dashboard-pin`, worktree `C:\projects\lf-589`): pin moved to factory ecad631; CI running. After merge: Factory dashboard run, live `app.js` byte-equal, headless check.
+- **#595** (`f/595-unpark-claims`, worktree `C:\projects\lf-595`): D157 (`issue_lock.py unpark`, `status:blocked` read); exam being written.
+- Done this pass: #81 closed with evidence (Deploy 45568225189 smoke green), claim released.
 
 Older pass notes (lf-r7t3 and before) are in `history.md` and git history (`git log -p docs/factory/STATE.md`).
 
