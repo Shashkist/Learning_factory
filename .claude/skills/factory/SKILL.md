@@ -48,7 +48,7 @@ Run `worktree_prune.py` once per pass in each repository's clone (add `--repo <r
 - An open Dependabot PR (`dependabot/github_actions/...`) is handled first, without an issue: CI green, check each new SHA is the tag's commit and skim the release notes, squash-merge (FACTORY.md "Dependabot PRs", D138).
 - If `STATE.md` → **Now** names an issue and branch: that is the work to resume, unless its claim is held by a live session.
 - A stale claim's branch is continued, not restarted.
-- Check `OWNER.md` for ticked items: un-park the issues they unblock (`status:needs-owner` → `status:ready`).
+- Check `OWNER.md` for ticked items: un-park the issues they unblock with `python scripts/issue_lock.py unpark <n> --session <you>` (add `--repo` for another repository); it releases a held claim and names the branch to continue (`--force` for a live claim of another session).
 
 ## 1 · Fix the line
 

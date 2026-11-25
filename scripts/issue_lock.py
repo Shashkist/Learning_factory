@@ -309,9 +309,31 @@ def live_rivals(number: int, session: str, stale_after: float, run=_run):
     ]
 
 
+def unparked_branch(number: int, run=_run) -> str | None:
+    """The branch an un-park told the next session to continue, if the comment
+    a claim would reuse is that release (#595)."""
+    claims = find_all_claims(number, run)
+    if not claims:
+        return None
+    found = re.search(r"continue branch ([^\s(]\S*)", str(claims[0][0].get("reason") or ""))
+    return found.group(1) if found else None
+
+
 def cmd_claim(args, run=_run) -> int:
     run = scoped(run, getattr(args, "repo", None))
     existing, comment_id = find_claim(args.number, run)
+
+    if existing is None and comment_id is not None and not (args.steal and args.reason):
+        old = find_all_claims(args.number, run)[0][0]
+        named = unparked_branch(args.number, run)
+        if named and named != args.branch:
+            print(
+                "#" + str(args.number) + " was un-parked: " + str(old.get("reason"))
+                + NL + "Claim it with --branch " + named
+                + ", or --steal with --reason to start another branch.",
+                file=sys.stderr,
+            )
+            return 1
 
     if existing and existing.get("session") != args.session:
         age = age_minutes(existing.get("heartbeat", ""))
@@ -465,17 +487,54 @@ def cmd_release(args, run=_run) -> int:
     return 0
 
 
+PARKED_LABELS = ("status:needs-owner", "status:blocked")
+
+
+def cmd_unpark(args, run=_run) -> int:
+    """Hand a parked issue back to the queue: release its claim, naming the branch."""
+    run = scoped(run, getattr(args, "repo", None))
+    number = str(args.number)
+    raw = run(["issue", "view", number, "--json", "labels"])
+    names = {x["name"] for x in json.loads(raw).get("labels", [])}
+    if not names & set(PARKED_LABELS):
+        print("#" + number + " is not parked (no status:needs-owner or status:blocked).",
+              file=sys.stderr)
+        return 1
+    live = [(c, cid) for c, cid in find_all_claims(args.number, run) if "released" not in c]
+    for c, _ in live:
+        age = age_minutes(c.get("heartbeat", ""))
+        if (c.get("session") != args.session and age < DEFAULT_STALE_AFTER.total_seconds() / 60
+                and not args.force):
+            print(
+                "#" + number + " is held by " + str(c.get("session"))
+                + " (heartbeat " + format(age, ".0f") + "m ago). --force to un-park anyway.",
+                file=sys.stderr,
+            )
+            return 1
+    for c, cid in live:
+        branch = str(c.get("branch") or "") or "(no branch recorded)"
+        write_comment(
+            args.number, retraction(args.session, "un-parked; continue branch " + branch),
+            cid, run,
+        )
+        print("#" + number + " claim released; continue branch " + branch)
+    print("#" + number + (" un-parked" if live else " un-parked; no claim to release"))
+    run(["issue", "edit", number,
+         "--remove-label", ",".join(PARKED_LABELS), "--add-label", "status:ready"])
+    return 0
+
+
 #: How far back the recently-updated sweep looks. Generous: its only job is to
 #: cover the window in which the label index has not caught up.
 RECENT_MINUTES = 15
 
 
 def _candidates(run=_run) -> list[dict]:
-    """Issues that might carry a claim, from FOUR queries unioned: one per claim
-    label (in-progress, in-review, needs-owner; gh ANDs repeated --label flags,
+    """Issues that might carry a claim, from FIVE queries unioned: one per claim
+    label (in-progress, in-review, needs-owner, blocked; gh ANDs repeated --label flags,
     so each label is its own call) plus the recently-updated sweep.
 
-    An issue relabelled in-review or needs-owner keeps its claim comment but
+    An issue relabelled in-review, needs-owner or blocked keeps its claim comment but
     drops out of the recent window, so those labels must be read too (#592).
 
     NEITHER QUERY IS TRUSTWORTHY ALONE, and finding that out cost a peer a
@@ -491,13 +550,14 @@ def _candidates(run=_run) -> list[dict]:
 
     So: the label queries are the cheap wide net, and a recently-updated sweep
     covers the window they have not indexed yet -- posting a claim comment bumps
-    `updatedAt` immediately. Four list calls per repository, and the comment
+    `updatedAt` immediately. Five list calls per repository, and the comment
     reads stay bounded to what the sets return (deduped by number) rather than
     every open issue.
     """
     labelled = [
         i
-        for label in (CLAIM_LABEL, "status:in-review", "status:needs-owner")
+        for label in (CLAIM_LABEL, "status:in-review", "status:needs-owner",
+                       "status:blocked")
         for i in json.loads(
             run(["issue", "list", "--label", label, "--state", "open",
                  "--json", "number,title", "-L", "100"])
@@ -702,6 +762,12 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--reason")
     r.add_argument("--force", action="store_true")
     r.set_defaults(func=cmd_release)
+
+    u = sub.add_parser("unpark", help="parked issue back to ready; release its claim")
+    common(u)
+    u.add_argument("--force", action="store_true",
+                   help="release a live claim of another session")
+    u.set_defaults(func=cmd_unpark)
 
     s = sub.add_parser("status", help="who holds what")
     s.add_argument("--json", action="store_true")
