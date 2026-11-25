@@ -1573,12 +1573,13 @@ in force · factory · 2026-11-25 · revertible
 **Revert.** Remove the groups and the guard; `:latest` follows the last finished run again.
 
 ## D155 · A D19 "PR A" (Part of #n) passes the merge gate with its only hold being the missing `Closes #n`
-in force · factory · 2026-11-25 · revertible
+superseded · factory · 2026-11-25 · revertible
 
 **Decision.** `scripts/merge_gate.py` (D148 amendment 1) holds every PR without a line-anchored `Closes #n`, but a D19 PR A must not close its issue ("Part of #n"; PR B with the exam closes it). #587 (PR A of #81) is the first PR A since the gate exists. Until the gate learns the form, the manager merges a PR A when the gate's **only** reason is `PR body has no Closes #n`, the body has a line-anchored `Part of #n`, and the manager has checked by hand that this session holds #n's claim (`issue_lock.py status`). Every other reason still holds the merge. Follow-up #590 teaches the gate `Part of #n` (claim check included).
 **Why.** Adding `Closes #81` to PR A would close the issue before its exam lands; editing the gate inside an unrelated PR mixes tooling and feature work.
 **Alternatives.** Put the exam in PR A (refused by exam integrity, D19); wait for #590 first (blocks #81 for a pass).
 **Revert.** Once #590 merges, the gate prints `MERGE` for such PRs and this entry is superseded.
+**Superseded by #590.** The merge gate reads a line-anchored `Part of #n` with the claim check; the manual stand-in is no longer needed.
 
 ## D156 · #592 review round 1: the exam moves under `labs/factory-dashboard/tests/acceptance/`, and the #542 call pin follows criterion 3
 in force · factory · 2026-11-25 · revertible

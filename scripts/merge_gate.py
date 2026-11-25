@@ -3,6 +3,7 @@
 
 Usage: merge_gate.py <pr> --session <s> [--repo owner/name] [--author login]
 Prints `MERGE`, or one `HOLD: <reason>` line per reason. Exit 0 / 1. Read-only.
+A line-anchored `Part of #n` (a D19 PR A, #590) counts like `Closes #n` for the claim check.
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ MAX_CI_ROUNDS = 5
 PASSED = {"SUCCESS", "NEUTRAL", "SKIPPED"}
 VERDICT = re.compile(r"^Review round (\d+): (APPROVE|CHANGES) at ([0-9a-fA-F]{7,40})\s*$")
 CLOSES = re.compile(r"^\s*closes\s+#(\d+)\s*$", re.IGNORECASE | re.MULTILINE)
+PART_OF = re.compile(r"^\s*part\s+of\s+#(\d+)\s*$", re.IGNORECASE | re.MULTILINE)
 # Exam files for counting CI rounds only (D148 amendment 1b, 2): tooling exams and another
 # repository's tests/acceptance/ besides D9's labs/*/tests/.
 TOOLING_TEST = re.compile(r"^(scripts/(ci/)?test_[^/]*\.py|tests/acceptance/.+)$")
@@ -92,7 +94,8 @@ def main(argv: list[str], run=issue_lock._run) -> int:
     if code_commits > MAX_CI_ROUNDS:
         reasons.append(f"ci round {code_commits} is over the limit of {MAX_CI_ROUNDS}")
 
-    closed_set = {int(n) for n in CLOSES.findall(pr.get("body") or "")}
+    body = pr.get("body") or ""
+    closed_set = {int(n) for n in CLOSES.findall(body) + PART_OF.findall(body)}
     # GitHub closes on any closing keyword anywhere in the body: every issue it will close
     # needs this session's claim, and one in another repository always holds.
     pr_repo = (pr.get("url") or "").split("/pull/")[0]
