@@ -4,18 +4,20 @@
 
 ## Now
 
-**Pass lf-k2v8 running (laptop, from 07:27 UTC 2026-11-25).** In flight:
-- **factory#5, PR factory#66** (`f/5-reusable-exam-workflows-2`, worktree `C:\projectsactory-5-2`): round 2 fix (gate `always()`, autoload input, header) verified with one new finding (empty artifact name falls back to every artifact); fixed in dcc725b, a fresh reviewer verifies. Then gate, merge, live scratch caller before closing #5.
-- **#589, PR #598** (`f/589-dashboard-pin`, worktree `C:\projects\lf-589`): pin moved to factory ecad631; CI running. After merge: Factory dashboard run, live `app.js` byte-equal, headless check.
-- **#595** (`f/595-unpark-claims`, worktree `C:\projects\lf-595`): D157 (`issue_lock.py unpark`, `status:blocked` read); exam being written.
-- Done this pass: #81 closed with evidence (Deploy 45568225189 smoke green), claim released.
+**Pass lf-k2v8 finished (laptop, 07:27-08:50 UTC 2026-11-25; 3 merges: factory#66, #598, #600).** Resume here:
+- **#595, PR #602** (`f/595-unpark-claims-2`, worktree `C:\projects\lf-595`; rebuilt from #599 per D158). Claim held by lf-k2v8: take it over with `--steal --reason`. Review round 2 CHANGES at aaf2610: two small blocking items in `scripts/issue_lock.py`: (1) `unparked_branch` must look for `continue branch` in **every** released claim (`find_all_claims`), not only the first comment; (2) the `claim --steal --reason` override past an un-park release must record `steal_reason` and `abandoned_branch` in the new claim. Nits 3-5: read the comments once in `cmd_claim`; print `#n un-parked` after the relabel; match the exact `(no branch recorded)` instead of excluding a leading `(`. **Next:** record D159 (round 2: the manager fixes on the branch per D145, exam cases for (1) and (2) go to a follow-up issue rather than a `-3` rebuild, like factory D24), fix, a fresh reviewer verifies and posts `Review round 2: APPROVE at <sha>`, gate, merge, Deploy, then a live `issue_lock.py unpark` dry check on a scratch issue or on the next real un-park.
+- **Shipped this pass:** factory#5 (#66, 34f9188; live scratch caller: pass and nested green, missing, failed-after-report and cancelled red, judge from Shashkist/factory@34f9188); #589 (#598, 0ac6da9; Factory dashboard 45572025455, live `app.js` byte-equal to ecad631, tabs `Learning_factory 29`, `factory 22`); #590 (#600, 8091165; Deploy 45578853422 smoke ok; gate on main reads `Part of #81` on PR #587). #81 closed with Deploy 45568225189.
+- New issues: factory#67 (p2, exam pins the round-2 hardening of the reusable workflows, plus fail-closed on empty `job.workflow_sha`), #601 (p3, merge gate line-break and docs nits from #600).
+- Tooling: on this laptop `uv run <tool>` fails to spawn; use `uv run python -m <tool>` or `uvx`. The full dashboard acceptance suite takes ~10 minutes locally. `scripts/test_worktree_prune.py::test_busy_folder_is_skipped_and_left_intact` fails on Windows only (#594).
+- Lesson: fresh verifiers of a manager fix keep finding one more hole in the same job; decide up front that the verification is narrow and further items become a follow-up (factory D24).
+- Live progress for factory issues needs `--repo Shashkist/factory` on `factory_progress.py add`; the skill text does not say so yet (next skill-touching PR).
 
 Older pass notes (lf-r7t3 and before) are in `history.md` and git history (`git log -p docs/factory/STATE.md`).
 
 ## Next (in order)
 
-1. Close **#81** if still open; **factory#66** (see Now); then `factory_pick.py`: factory#61 (dogfood, p1, after #5), factory#62, factory#65, factory#63; LF p2: #595, #589 (dashboard pin), #590 (gate learns `Part of #n`), #15, #21, #44, #47, #64, #85; factory#10, #11, #43, #44.
-2. p3 follow-ups: #594, #597, #588, factory#57, factory#59, #579, #580, factory#49, #574, factory#33, factory#36, factory#40, factory#41, #561, #564, factory#17, factory#24, #523, #555, #468, #423 (old worktree `C:\projects\lf-423`), #436, #431. Owner item **O26** (heartbeat task).
+1. **#595 / PR #602** (see Now); then `factory_pick.py`: factory#61 (dogfood, p1, now unblocked by #5), factory#62, factory#65, factory#67, factory#63; LF p2: #15, #21, #44, #47, #64, #85; factory#10, #11, #43, #44.
+2. p3 follow-ups: #601, #594, #597, #588, factory#57, factory#59, #579, #580, factory#49, #574, factory#33, factory#36, factory#40, factory#41, #561, #564, factory#17, factory#24, #523, #555, #468, #423 (old worktree `C:\projects\lf-423`), #436, #431. Owner item **O26** (heartbeat task).
 
 ## Waiting for the owner
 
@@ -30,6 +32,7 @@ Older pass notes (lf-r7t3 and before) are in `history.md` and git history (`git 
 
 ## Recently done
 
+- 2026-11-25 pass lf-k2v8: factory#5 (factory#66, 34f9188; factory main CI 45571040187, live scratch caller runs 45571216744 and 45571216819), #589 (#598; Factory dashboard 45572025455, live app.js byte-equal to ecad631), #590 (#600; Deploy 45578853422 smoke ok). #81 closed. #595 at PR #602 round 2 CHANGES (D157, D158).
 - 2026-11-25 pass lf-z4q8: #592 (#596 after #593, D156; Deploy 45565078264 smoke ok), #81 PR B (#591, 3e1e5ea; exam-only, 3 review rounds). factory#5 sliced (D22, D23), PR factory#66 at round 2 CHANGES (one line).
 - 2026-11-25 pass lf-r7t3: factory#47 (factory#56; main CI 45545051188), factory#54 (factory#60; main CI 45549578819; live pin move is #589), #81 PR A (#587; Deploy 45552457401, smoke ok, live check on #81; PR B #591 open).
 - 2026-11-25 pass lf-m4k9: #583 (#585; Factory dashboard 45535190679, live app.js byte-equal to factory 9a5e808, repository tabs live), #584 (#586; dry run and `--repo` refusal checked live; main CI 45539992970 `docker` job was still running at close: check it is green). factory#47 rebuilt as factory#56.
