@@ -1,4 +1,5 @@
 """Acceptance tests for issue #1: repo skeleton and CI pipeline."""
+import re
 from pathlib import Path
 
 import pytest
@@ -76,5 +77,11 @@ def test_incident_workflow_reacts_to_ci_deploy_smoke_failures():
 
 def test_incident_workflow_applies_incident_labels():
     text = (WORKFLOWS / "incident.yml").read_text(encoding="utf-8")
+    # D166: the reusable layout calls the factory's incident.yml (pinned), which applies
+    # these labels itself (docs/ci.md); the local layout names them in this file
+    reusable = re.search(
+        r"uses:\s*Shashkist/factory/\.github/workflows/incident\.yml@[0-9a-f]{40}\s+#\s*v\d", text)
+    if reusable:
+        return
     for label in ("type:incident", "priority:p0", "status:ready"):
         assert label in text
