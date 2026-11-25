@@ -68,22 +68,67 @@ def _commands(profile, area):
     return Path(str(block.get("cwd", "."))).as_posix().strip("/"), list(run or [])
 
 
-def test_verify_manager_commands_match_claude_md(profile):
-    cwd, run = _commands(profile, "manager")
-    assert cwd == "labs/manager"
-    for cmd in ("uv run pytest -q", "uv run ruff check .", "uv run mypy app"):
-        assert cmd in run
+def _claude_verify_commands():
+    """Parse the 'Verification commands' section of CLAUDE.md: {cwd: [commands]}."""
+    text = CLAUDE_MD.read_text(encoding="utf-8")
+    m = re.search(r"^## Verification commands[^\n]*\n(.*?)(?=^#{1,2} |\Z)", text, re.M | re.S)
+    assert m, "CLAUDE.md has no Verification commands section"
+    result = {}
+    for line in m.group(1).splitlines():
+        if not line.startswith("From "):
+            continue
+        head, _, rest = line.partition(": ")
+        if "repository root" in head:
+            cwd = "."
+        else:
+            cwd_m = re.match(r"From `([^`]+)`", head)
+            assert cwd_m, f"cannot read the directory in: {line}"
+            cwd = cwd_m.group(1).strip("/")
+        result[cwd] = re.findall(r"`([^`]+)`", rest)
+    return result
 
 
-def test_verify_web_commands_match_claude_md(profile):
-    cwd, run = _commands(profile, "web")
-    assert cwd == "labs/web"
-    for cmd in ("npm test -- --run", "npx tsc --noEmit", "npm run lint", "npm run build"):
-        assert cmd in run
+@pytest.mark.parametrize(
+    "area,cwd",
+    [
+        ("manager", "labs/manager"),
+        ("web", "labs/web"),
+        ("tooling", "."),
+        ("dashboard", "labs/factory-dashboard"),
+    ],
+)
+def test_verify_area_matches_claude_md_verification_commands(profile, area, cwd):
+    got_cwd, run = _commands(profile, area)
+    assert got_cwd == cwd
+    documented = _claude_verify_commands()
+    assert cwd in documented, f"CLAUDE.md Verification commands has no entry for {cwd}"
+    assert run == documented[cwd], f"verify.{area} differs from CLAUDE.md"
 
 
-def test_exam_globs_include_acceptance_tests(profile):
-    assert "labs/**/tests/acceptance/**" in (profile.get("exam") or [])
+def test_verify_exact_commands(profile):
+    expected = {
+        "manager": ("labs/manager", ["uv run pytest -q", "uv run ruff check .", "uv run mypy app"]),
+        "web": (
+            "labs/web",
+            ["npm test -- --run", "npx tsc --noEmit", "npm run lint", "npm run build"],
+        ),
+        "tooling": (".", ["uvx pytest scripts -q"]),
+        "dashboard": ("labs/factory-dashboard", ["uv run ruff check .", "uv run pytest -q"]),
+    }
+    for area, (cwd, cmds) in expected.items():
+        assert _commands(profile, area) == (cwd, cmds), f"verify.{area}"
+
+
+def test_exam_globs_are_the_five_claude_md_paths(profile):
+    globs = profile.get("exam") or []
+    for g in (
+        "labs/**/tests/acceptance/**",
+        "labs/**/conftest.py",
+        "labs/**/pytest.ini",
+        "labs/**/tox.ini",
+        "labs/**/setup.cfg",
+    ):
+        assert g in globs, f"exam glob missing: {g}"
 
 
 def test_smoke_workflow_is_server_smoke_and_exists(profile):
@@ -91,10 +136,11 @@ def test_smoke_workflow_is_server_smoke_and_exists(profile):
     assert (ROOT / ".github" / "workflows" / "server-smoke.yml").is_file()
 
 
-def test_planning_spec_points_at_an_existing_file(profile):
+def test_planning_spec_points_at_an_existing_file_named_by_claude_md(profile):
     spec = (profile.get("planning") or {}).get("spec")
-    assert spec, "planning.spec must be set"
+    assert spec == "docs/superpowers/specs/2026-11-14-lab-platform-design.md"
     assert (ROOT / spec).is_file(), f"planning.spec {spec} does not exist"
+    assert spec in CLAUDE_MD.read_text(encoding="utf-8"), "CLAUDE.md must name the planning spec"
 
 
 def test_claude_md_factory_facts_state_commit_recipe():
@@ -105,28 +151,51 @@ def test_claude_md_factory_facts_state_commit_recipe():
 
 def test_claude_md_factory_facts_worktrees():
     s = _facts_section()
-    assert "git worktree add" in s
-    assert "factory" in s and "branch" in s
+    assert "git worktree add -B factory" in s
+    assert "origin/main" in s
     assert "C:\\projects\\lf-<n>" in s
     assert "C:\\projects\\factory-<n>" in s
 
 
+def test_claude_md_factory_facts_independent_areas_with_examples():
+    s = _facts_section()
+    m = re.search(r"Independent areas[^\n]*", s, re.I)
+    assert m, "Factory facts must state the independent-areas fact"
+    line = m.group(0)
+    for area in ("labs/content", "labs/manager", ".github"):
+        assert area in line, f"independent-areas example missing: {area}"
+
+
 def test_claude_md_factory_facts_deploy_watch_and_smoke_target():
     s = _facts_section()
-    assert re.search(r"deploy", s, re.I) and re.search(r"watch", s, re.I)
-    assert "Deploy" in s, "name the Deploy workflow"
-    assert "labs.shashkist.com" in s
-    assert "Host:" in s
+    m = re.search(r"Deploy watch[^\n]*", s, re.I)
+    assert m, "Factory facts must state the deploy watch"
+    assert "deploy.yml" in m.group(0)
+    assert "Deploy workflow" in m.group(0)
+    assert "https://labs.shashkist.com" in s
+    assert "`Host: labs.shashkist.com`" in s
 
 
 def test_tooling_job_runs_profile_check_pinned_by_sha():
     text = CI_YML.read_text(encoding="utf-8")
     ci = yaml.safe_load(text)
-    steps = ci["jobs"]["tooling"]["steps"]
-    assert any("factory-tools profile check" in str(s.get("run", "")) for s in steps), (
-        "the tooling job must run `factory-tools profile check`"
+    job = ci["jobs"]["tooling"]
+    assert not job.get("continue-on-error"), "the tooling job must not continue on error"
+    steps = [s for s in job["steps"] if "factory-tools profile check" in str(s.get("run", ""))]
+    assert len(steps) == 1, "exactly one tooling step must run `factory-tools profile check`"
+    step = steps[0]
+    assert "continue-on-error" not in step, "the profile check step must not continue on error"
+    run = str(step["run"]).strip()
+    assert re.search(r"factory-tools profile check \.factory/factory\.yaml$", run), (
+        "the check must target .factory/factory.yaml"
     )
-    pinned = re.search(
-        r"Shashkist/factory(?:\.git)?@([0-9a-f]{40})\b[^\n]*#\s*v\d+\.\d+\.\d+", text
+    assert re.search(r"git\+https://github\.com/Shashkist/factory@[0-9a-f]{40}\s", run + " "), (
+        "Shashkist/factory must be pinned by a 40-hex SHA in the step"
     )
-    assert pinned, "Shashkist/factory must be pinned by a 40-hex SHA with a `# v<semver>` comment"
+    # YAML drops comments, so the `# v<semver>` comment is read from the raw line of the step.
+    raw = [ln for ln in text.splitlines() if "factory-tools profile check" in ln]
+    assert len(raw) == 1
+    assert re.search(
+        r"git\+https://github\.com/Shashkist/factory@[0-9a-f]{40}\s.*#\s*v\d+\.\d+\.\d+\s*$",
+        raw[0],
+    ), "the pin line needs a `# v<semver>` comment on the same line"
