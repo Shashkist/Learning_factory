@@ -168,21 +168,36 @@ def test_image_job_group_is_per_ref_and_never_cancels(name):
     assert "github.ref" in str(conc.get("group")), conc
 
 
+_SHA_TAG = re.compile(
+    r":\s*[\"']?(\$\{?SHA\}?|\$\{?GITHUB_SHA\}?|\$\{\{\s*github\.sha\s*\}\})[\"']?(\s|$)"
+)
+
+
+def _is_sha_push(ln: str) -> bool:
+    """A push whose tag is explicitly the SHA, and nothing that fans out to other tags."""
+    if re.search(r"(^|\s)(-a|--all-tags)(\s|$)", ln) or ":latest" in ln:
+        return False
+    return bool(_SHA_TAG.search(ln))
+
+
+def _is_latest_like(ln: str) -> bool:
+    """Every push that is not explicitly the SHA tag may move :latest (named, -a, untagged)."""
+    return not _is_sha_push(ln)
+
+
 @pytest.mark.parametrize("name", ["image-manager", "image-term"])
 def test_latest_is_pushed_only_behind_the_ci_paths_deploys_guard(name):
     latest = [
         (s, run, ln)
         for s, run, lines in _pushes(name)
         for ln in lines
-        if ":latest" in ln
+        if _is_latest_like(ln)
     ]
     assert latest, f"{name}: no `docker push ...:latest`"
-    for s, run, ln in latest:
-        if _is_guard(s.get("if", "")):
-            continue
+    for _s, run, ln in latest:
         before = run[: run.index(ln)]
-        assert _is_guard(before), f"{name}: :latest pushed with no ci_paths deploys guard"
-        assert ln != ln.lstrip(), f"{name}: :latest push is not in the conditional: {ln!r}"
+        assert _is_guard(before), f"{name}: {ln.strip()!r} may move :latest, no deploys guard"
+        assert ln != ln.lstrip(), f"{name}: {ln.strip()!r} may move :latest outside the conditional"
 
 
 @pytest.mark.parametrize("name", ["image-manager", "image-term"])
@@ -191,7 +206,7 @@ def test_sha_tag_is_pushed_unconditionally(name):
         (s, run, ln)
         for s, run, lines in _pushes(name)
         for ln in lines
-        if ":latest" not in ln and re.search(r"SHA|github\.sha", run)
+        if _is_sha_push(ln)
     ]
     assert sha, f"{name}: no `docker push` of the :<sha> tag"
     for s, run, ln in sha:
