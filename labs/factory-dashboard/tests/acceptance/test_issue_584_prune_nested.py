@@ -210,7 +210,11 @@ def test_non_ascii_untracked_file_is_listed_by_its_real_name_before_removal(w):
     git(wt, "commit", "-m", "docs")
     w.pr("f/91-names", "MERGED")
     (wt / "docs" / f"{SHALOM}.txt").write_text("x\n")
-    out = ok(w.run())
+    env = {**w.env, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
+    p = subprocess.run([sys.executable, str(SCRIPT)], cwd=w.repo, env=env,
+                       capture_output=True, timeout=120)
+    out = p.stdout.decode("utf-8", errors="replace")
+    assert p.returncode == 0, out + p.stderr.decode("utf-8", errors="replace")
     assert not wt.exists()
     assert f"{SHALOM}.txt" in out, out
     assert "\\327" not in out, out
@@ -251,3 +255,114 @@ def test_repo_that_matches_origin_still_works(w, url):
     out = ok(w.run("--repo", "acme/widgets"))
     assert not wt.exists() and "f/94-repo" not in w.branches()
     assert "REMOVED" in w.line(out, "wt-94")
+
+
+def test_repo_mismatch_leaves_the_admin_entry_of_a_prunable_worktree(w):
+    git(w.repo, "remote", "set-url", "origin", "https://github.com/acme/widgets.git")
+    gone = w.worktree("f/95-gone", "wt-95")
+    w.pr("f/95-gone", "MERGED")
+    shutil.rmtree(gone)
+    admin = w.repo / ".git" / "worktrees"
+    names_before = sorted(p.name for p in admin.iterdir())
+    assert names_before
+    p = w.run("--repo", "someone/else")
+    assert p.returncode != 0, p.stdout + p.stderr
+    assert sorted(p.name for p in admin.iterdir()) == names_before
+
+
+@pytest.mark.parametrize("url", [
+    "https://gitlab.com/acme/widgets.git",
+    "git@gitlab.com:acme/widgets.git",
+])
+def test_origin_on_another_host_is_a_mismatch(w, url):
+    git(w.repo, "remote", "set-url", "origin", url)
+    wt = w.worktree("f/96-host", "wt-96")
+    w.pr("f/96-host", "MERGED")
+    p = w.run("--repo", "acme/widgets")
+    assert p.returncode != 0, p.stdout + p.stderr
+    assert wt.exists() and "f/96-host" in w.branches()
+
+
+def test_ssh_alias_origin_without_a_user_is_accepted_as_its_slug(w):
+    git(w.repo, "remote", "set-url", "origin", "github-earnix:acme/widgets.git")
+    wt = w.worktree("f/97-alias", "wt-97")
+    w.pr("f/97-alias", "MERGED")
+    out = ok(w.run("--repo", "acme/widgets"))
+    assert not wt.exists() and "f/97-alias" not in w.branches()
+    assert "REMOVED" in w.line(out, "wt-97")
+
+
+# ---- links and bare repositories inside a finished worktree --------------------------------------
+
+
+def make_link(link, target) -> None:
+    """A directory symlink, or on Windows a junction when symlinks need a privilege we lack."""
+    try:
+        os.symlink(target, link, target_is_directory=True)
+        return
+    except (OSError, NotImplementedError):
+        pass
+    if sys.platform == "win32":
+        r = subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)],
+                           capture_output=True, text=True)
+        if r.returncode == 0:
+            return
+    pytest.skip("no directory link can be created here")
+
+
+def run_timed(w: World, *args: str) -> tuple[subprocess.CompletedProcess, float]:
+    start = time.monotonic()
+    p = subprocess.run([sys.executable, str(SCRIPT), *args], cwd=w.repo, env=w.env,
+                       capture_output=True, text=True, timeout=60)
+    return p, time.monotonic() - start
+
+
+@pytest.mark.parametrize("dry", [False, True])
+def test_worktree_with_a_link_to_an_outside_folder_is_kept_and_the_target_survives(w, dry):
+    parent = w.worktree("f/98-link", "wt-98")
+    w.pr("f/98-link", "MERGED")
+    outside = w.tmp / "outside-plain"
+    outside.mkdir()
+    (outside / "precious.txt").write_text("not part of any worktree\n")
+    (parent / "node_modules").mkdir()
+    make_link(parent / "node_modules" / "pkg", outside)
+    p, _ = run_timed(w, *(["--dry-run"] if dry else []))
+    assert p.returncode == 0, p.stdout + p.stderr
+    assert (outside / "precious.txt").read_text() == "not part of any worktree\n"
+    assert parent.exists() and "f/98-link" in w.branches()
+    line = w.line(p.stdout, "wt-98")
+    assert line.startswith("KEPT"), p.stdout
+    assert "pkg" in norm(line), line
+
+
+@pytest.mark.parametrize("dry", [False, True])
+def test_worktree_with_a_link_back_into_itself_is_kept_promptly(w, dry):
+    parent = w.worktree("f/99-loop", "wt-99")
+    w.pr("f/99-loop", "MERGED")
+    (parent / "sub").mkdir()
+    (parent / "sub" / "keep.txt").write_text("x\n")
+    make_link(parent / "loop", parent)
+    p, took = run_timed(w, *(["--dry-run"] if dry else []))
+    assert p.returncode == 0, p.stdout + p.stderr
+    assert "Traceback" not in p.stderr, p.stderr
+    assert took < 45, took
+    assert (parent / "sub" / "keep.txt").exists() and "f/99-loop" in w.branches()
+    line = w.line(p.stdout, "wt-99")
+    assert line.startswith("KEPT"), p.stdout
+    assert "loop" in norm(line), line
+
+
+@pytest.mark.parametrize("dry", [False, True])
+def test_worktree_with_a_nested_bare_repository_is_kept(w, dry):
+    parent = w.worktree("f/100-bare", "wt-100")
+    w.pr("f/100-bare", "MERGED")
+    bare = parent / "vendor" / "mirror"
+    bare.mkdir(parents=True)
+    git(bare, "init", "--bare", "-b", "main")
+    assert not (bare / ".git").exists() and (bare / "HEAD").exists()
+    out = ok(w.run(*(["--dry-run"] if dry else [])))
+    assert parent.exists() and (bare / "HEAD").exists(), out
+    assert "f/100-bare" in w.branches()
+    line = w.line(out, "wt-100")
+    assert line.startswith("KEPT"), out
+    assert "mirror" in norm(line), line
