@@ -63,6 +63,7 @@ dry() { [ "$DRY_RUN" = 1 ]; }
 
 # Wait for the xtables lock instead of failing when another tool holds it.
 iptables() { command iptables -w 10 "$@"; }
+ip6tables() { command ip6tables -w 10 "$@"; }
 
 # Print a command; run it unless this is a dry run.
 run() {
@@ -693,7 +694,49 @@ chain_rules() {
   echo "x -i $BRIDGE -m comment --comment $TAG -j DROP"
 }
 
+# IPv6 guard (D167): lf-labs has no IPv6, but a lab may still get a link-local address under
+# gVisor. Drop everything IPv6 from the bridge, tagged like the IPv4 rules. One rule per line,
+# first word is the chain. Forwarding goes in DOCKER-USER when ip6tables has it, else FORWARD.
+ip6_rules() {
+  local fwd=FORWARD
+  if ip6tables -n -L DOCKER-USER >/dev/null 2>&1; then fwd=DOCKER-USER; fi
+  echo "$fwd -i $BRIDGE -m comment --comment $TAG -j DROP"
+  echo "INPUT -i $BRIDGE -m comment --comment $TAG -j DROP"
+}
+
+# No ip6tables (or no IPv6 in the kernel): there is nothing to guard, say so and go on.
+ip6_available() {
+  if command -v ip6tables >/dev/null 2>&1 && ip6tables -n -L INPUT >/dev/null 2>&1; then return 0; fi
+  log "ip6tables not usable here: no IPv6 guard added"
+  return 1
+}
+
+ip6_missing() {
+  local rule a rules
+  ip6_available || return 1
+  mapfile -t rules < <(ip6_rules)
+  for rule in "${rules[@]}"; do
+    read -ra a <<<"$rule"
+    ip6tables -C "${a[@]}" 2>/dev/null || return 0
+  done
+  return 1
+}
+
+apply_ip6() {
+  local rule a rules
+  ip6_available || return 0
+  mapfile -t rules < <(ip6_rules)
+  for rule in "${rules[@]}"; do
+    read -ra a <<<"$rule"
+    if ! ip6tables -C "${a[@]}" 2>/dev/null; then
+      run ip6tables -I "${a[0]}" 1 "${a[@]:1}"
+      INS_V6+=("$rule")
+    fi
+  done
+}
+
 # What this run inserted, so a rollback removes only that.
+INS_V6=()
 INS_DU=()
 INS_CHAIN=()
 CHAIN_CREATED=0
@@ -720,6 +763,7 @@ rules_missing() {
     iptables -C "$CHAIN" "${a[@]:1}" 2>/dev/null || return 0
   done
   iptables -C INPUT "${INPUT_JUMP[@]}" 2>/dev/null || return 0
+  ip6_missing && return 0
   return 1
 }
 
@@ -779,6 +823,7 @@ apply_rules() {
     run iptables -I INPUT 1 "${INPUT_JUMP[@]}"
     JUMP_ADDED=1
   fi
+  apply_ip6
 }
 
 # An earlier boot copy or unit is kept as <file>.lf-prev while this step runs: a rollback puts it
@@ -827,6 +872,10 @@ rollback_iptables() {
     rm -f "$SBIN_COPY" || true
   fi
   if [ "$UNIT_WRITTEN" = 1 ]; then systemctl daemon-reload || true; fi
+  for rule in "${INS_V6[@]}"; do
+    read -ra a <<<"$rule"
+    ip6tables -D "${a[@]}" || true
+  done
   if [ "$JUMP_ADDED" = 1 ]; then iptables -D INPUT "${INPUT_JUMP[@]}" || true; fi
   for rule in "${INS_CHAIN[@]}"; do
     read -ra a <<<"$rule"
