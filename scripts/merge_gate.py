@@ -6,7 +6,8 @@ Prints `MERGE`, or one `HOLD: <reason>` line per reason. Exit 0 / 1. Read-only.
 A line-anchored `Part of #n` (a D19 PR A, #590) counts like `Closes #n` for the claim check.
 The exam-integrity check is named `exam-integrity` or `<caller> / exam-integrity` (reusable workflow, #605).
 The exam gate check (`manager-exam`, or `--exam-gate`, exact name) must be SUCCESS (#608, D160). A
-SKIPPED `docker` passes only when `changes` is SUCCESS and the PR leaves `.github/workflows/ci.yml` alone.
+SKIPPED `docker` passes only when `changes` is SUCCESS and no commit of the PR touches a file under
+`.github/workflows/` (new or previous name; D160 amendment 1).
 """
 
 from __future__ import annotations
@@ -32,7 +33,7 @@ CLOSES = re.compile(r"^\s*closes\s+#(\d+)\s*$", re.IGNORECASE | re.MULTILINE)
 PART_OF = re.compile(r"^\s*part\s+of\s+#(\d+)\s*$", re.IGNORECASE | re.MULTILINE)
 # Exam files for counting CI rounds only (D148 amendment 1b, 2): tooling exams and another
 # repository's tests/acceptance/ besides D9's labs/*/tests/.
-CI_WORKFLOW = ".github/workflows/ci.yml"
+WORKFLOWS = ".github/workflows/"
 TOOLING_TEST = re.compile(r"^(scripts/(ci/)?test_[^/]*\.py|tests/acceptance/.+)$")
 
 
@@ -50,7 +51,9 @@ def _check_reasons(checks: list[dict], exam_gate: str = "manager-exam",
         return ["no checks have run on this PR"]
     reasons = []
     changes_ok = any(c.get("name") == "changes" and _state(c) == "SUCCESS" for c in checks)
-    docker_skip_ok = changes_ok and CI_WORKFLOW not in changed
+    # main's filter counts every workflow file as heavy (scripts/ci_paths.py), so a skipped
+    # docker next to a workflow change can only come from a changed filter (D160 amendment 1)
+    docker_skip_ok = changes_ok and not any(n.startswith(WORKFLOWS) for n in changed)
     for c in checks:
         name = c.get("name") or c.get("context") or "?"
         state = _state(c)
@@ -58,7 +61,7 @@ def _check_reasons(checks: list[dict], exam_gate: str = "manager-exam",
             reasons.append(f"{name} is pending")
         elif state == "SKIPPED" and name == "docker" and not docker_skip_ok:
             reasons.append("docker was skipped without a trusted `changes` result "
-                           f"(or {CI_WORKFLOW} changed)")
+                           f"(or a file under {WORKFLOWS} changed)")
         elif state not in PASSED or ((_is_exam_integrity(name) or name == exam_gate)
                                      and state != "SUCCESS"):
             reasons.append(f"{name} ended in {state.lower()}")
@@ -67,6 +70,20 @@ def _check_reasons(checks: list[dict], exam_gate: str = "manager-exam",
     if not any(_is_exam_integrity(c.get("name") or c.get("context") or "") for c in checks):
         reasons.append("exam-integrity has not run")
     return reasons
+
+
+def _commit_files(gh, oid: str) -> list[dict]:
+    """Every file entry of one commit. `gh api --paginate` prints one JSON object per page
+    (300 files each), back to back; merge their `files` lists."""
+    out = gh(["api", "--paginate", f"repos/{{owner}}/{{repo}}/commits/{oid}"])
+    dec, i, files = json.JSONDecoder(), 0, []
+    while True:
+        while i < len(out) and out[i].isspace():
+            i += 1
+        if i >= len(out):
+            return files
+        page, i = dec.raw_decode(out, i)
+        files.extend(page.get("files") or [])
 
 
 def _verdicts(comments: list[dict], author: str) -> list[tuple[int, str, str]]:
@@ -96,11 +113,12 @@ def main(argv: list[str], run=issue_lock._run) -> int:
     head = pr["headRefOid"].lower()
     author = args.author or pr["author"]["login"]
     commit_files = []
+    changed = set()
     for commit in pr.get("commits") or []:
-        files = json.loads(gh(["api", f"repos/{{owner}}/{{repo}}/commits/{commit['oid']}"]))
-        commit_files.append([f["filename"] for f in files.get("files", [])])
-    reasons = _check_reasons(pr.get("statusCheckRollup") or [], args.exam_gate,
-                             {n for names in commit_files for n in names})
+        files = _commit_files(gh, commit["oid"])
+        commit_files.append([f["filename"] for f in files])
+        changed.update(n for f in files for n in (f["filename"], f.get("previous_filename")) if n)
+    reasons = _check_reasons(pr.get("statusCheckRollup") or [], args.exam_gate, changed)
     if pr.get("isCrossRepository") is True:
         reasons.append("cross-repository pull request")
 
