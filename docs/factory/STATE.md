@@ -4,9 +4,10 @@
 
 ## Now
 
-**Pass lf-t4r9 (laptop, 17:57-19:12 UTC 2026-11-25) has stopped after 3 merges** (#617, #618, factory#84). One PR is open; its claim is held by lf-t4r9 with a heartbeat: take it over (`claim --steal --reason`) once this session has ended.
-- **#612, PR #620 = PR B** (`f/612-client-profile-b`, worktree `C:\projects\lf-612`, exam only; PR A #618 merged as 6cf97cc). Round 1 CHANGES at 522e35c (the exam missed tooling verify, the exam globs, independent areas and the profile-check step); the exam-writer strengthened it in b2f4167 (16 passed on main, each reviewer mutation now fails). Round 2 CHANGES at b2f4167 (an `if:` could skip the check), fixed in 94ff45e; a fresh reviewer posted **Review round 2: APPROVE at 94ff45e** (nits in #621). Next: wait for `manager-exam` (pending at stop), then gate (`merge_gate.py 620`), merge, Deploy, close #612 citing #618, #620 and the Deploy run, remove the worktree `C:\projects\lf-612`.
-- **Next issues:** #613 (CI calls the reusable workflows, D19 split like #612; depends on #612), then **factory#86 (p1)**: a bound exam check must be a real Actions job (exam first; D29 amendment 2). Then #614 (needs #612, #613; factory#80 is closed). #614 also gets two profile nits from #618 round 2: add `labs/*/tests/**` to `exam`, and the strict acceptance step of Dashboard CI to `verify.dashboard`.
+**Pass lf-x8b3 (laptop, from 19:27 UTC 2026-11-25) is running.** Merged #620 (#612 closed: Deploy 45688847381). Three issues in flight, all claimed by lf-x8b3:
+- **#613** (D165): exam 3ceb8de on `f/613-reusable-ci-exam` (worktree `C:\projects\lf-613`, PR B, not pushed); PR A being built on `f/613-reusable-ci` (worktree `C:\projects\lf-613-a`).
+- **factory#86** (p1): exam being written on `f/86-bound-job` (worktree `C:\projectsactory-86`).
+- **#64** (D164, nosniff only): exam being written on `f/64-nosniff` (worktree `C:\projects\lf-64`).
 - Leftover worktree `C:/projects/factory-61` (source of #71/#72, #61 closed): its content has shipped; remove it by hand after a look.
 - Tooling: on this laptop `uv run <tool>` and `uvx --from ... factory-tools` fail to spawn; use `uv run python -m <tool>` (`python -m factory_tools`). In `labs/factory-dashboard`, `test_issue_19_publish.py` hangs locally (`test_installer_appends_block_when_absent`), so the whole folder never finishes; run it per file or exclude #19. The full factory acceptance suite takes 10 to 30 minutes locally (about 2 in CI). Live progress for factory issues needs `--repo Shashkist/factory`. After a rebase the gate needs a verdict at the new head: a reviewer checks `git range-diff` (D148 amendment 3: never self-approve). Bash `/tmp` is not Python's `/tmp` on this laptop. A `general-purpose` agent given the implementer brief works when the `implementer` type fails to start.
 
@@ -14,7 +15,7 @@ Older pass notes (lf-m7q2 and before) are in `history.md` and git history (`git 
 
 ## Next (in order)
 
-1. Merge #620 and close #612 (see Now). Then #613 (D19 split), factory#86 (p1), #614 (client #1, D162), then `factory_pick.py`: factory#67, factory#75, factory#82 (dogfood v0.1.0); LF p2: #15, #21, #44, #47, #64 (now only the nginx nosniff header, D164), #85; factory#87 (live page leftovers, from #64), factory#10, #11, #43, #44.
+1. #613, factory#86, #64 (see Now). Then #614 (client #1, D162), then `factory_pick.py`: factory#67, factory#75, factory#82 (dogfood v0.1.0); LF p2: #15, #21, #44, #47, #85; factory#87 (live page leftovers, from #64), factory#10, #11, #43, #44.
 2. p3 follow-ups: #619, #621 (new this pass), #603, #604, factory#70, #601, #594, #597, #588, factory#57, factory#59, #579, #580, factory#49, #574, factory#33, factory#36, factory#40, factory#41, #561, #564, factory#17, factory#24, #523, #555, #468, #423 (old worktree `C:\projects\lf-423`), #436, #431. Owner item **O26** (heartbeat task).
 
 ## Waiting for the owner
