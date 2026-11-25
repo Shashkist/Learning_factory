@@ -109,13 +109,25 @@ def split_status(path: Path) -> tuple[list[str], list[str], list[str]] | None:
 
     Untracked and ignored entries are collapsed to their top folder (`.venv/`).
     """
-    r = git(path, "status", "--porcelain", "--ignored=matching")
+    r = git(path, "--no-optional-locks", "status", "-z", "--porcelain", "--ignored=matching")
     if r.returncode != 0:
         return None
-    out = r.stdout.splitlines()
-    tracked = [ln[3:] for ln in out if not ln.startswith(("??", "!!"))]
-    untracked = [ln[3:] for ln in out if ln.startswith("??")]
-    ignored = [ln[3:] for ln in out if ln.startswith("!!")]
+    tracked: list[str] = []
+    untracked: list[str] = []
+    ignored: list[str] = []
+    fields = iter(r.stdout.split("\0"))
+    for entry in fields:
+        if not entry:
+            continue
+        code, name = entry[:2], entry[3:]
+        if code == "??":
+            untracked.append(name)
+        elif code == "!!":
+            ignored.append(name)
+        else:
+            tracked.append(name)
+            if "R" in code or "C" in code:
+                next(fields, None)  # the original name of a rename or copy
     return tracked, untracked, ignored
 
 
@@ -187,6 +199,30 @@ def say(status: str, path: Path, reason: str) -> None:
     print(f"{status} {path} {reason}", flush=True)
 
 
+def nested_entry(path: Path, registered: list[Path]) -> Path | None:
+    """Another registered worktree, or a `.git` file or folder below the top level, inside path."""
+    for other in registered:
+        if other != path and other.is_relative_to(path):
+            return other
+    for root, dirs, files in os.walk(path):
+        here = Path(root)
+        if here == path:
+            dirs[:] = [d for d in dirs if d != ".git"]
+            continue
+        for name in dirs + files:
+            if name == ".git":
+                return here / name
+    return None
+
+
+def origin_slug(url: str) -> str | None:
+    """`owner/name` of a remote URL (https, ssh or scp style), None for a local path."""
+    m = re.match(r"^(?:[a-z+]+://[^/]+/|[\w.-]+@[^:/]+:)(.+?)/?$", url.strip(), re.IGNORECASE)
+    if not m:
+        return None
+    return m.group(1).removesuffix(".git").lower()
+
+
 MAX_NAMES = 20
 
 
@@ -244,7 +280,7 @@ def remove(main_root: Path, path: Path, branch: str, reason: str, dry_run: bool)
     say("REMOVED", path, reason)
 
 
-def judge(wt: dict, main_root: Path, here: Path, args, pass_start, gh) -> None:
+def judge(wt: dict, main_root: Path, here: Path, args, pass_start, gh, registered) -> None:
     path = Path(wt["worktree"]).resolve()
     branch = wt["branch"]
     m = FEATURE.match(branch)
@@ -256,6 +292,8 @@ def judge(wt: dict, main_root: Path, here: Path, args, pass_start, gh) -> None:
         say("KEPT", path, "folder missing, left to git worktree prune")
     elif "locked" in wt:
         say("KEPT", path, "locked" + (": " + wt["locked"] if wt["locked"] else ""))
+    elif (nested := nested_entry(path, registered)) is not None:
+        say("KEPT", path, f"holds another repository or worktree at {nested}, left alone")
     elif m:
         try:
             claim, _ = issue_lock.find_claim(int(m.group(1)), gh)
@@ -315,8 +353,8 @@ def changed_paths(path: Path, status: tuple[list[str], list[str], list[str]]) ->
     """Modified and untracked paths: a file a live session just wrote counts as activity."""
     tracked, untracked, _ = status
     out: list[Path] = []
-    for entry in [e.split(" -> ")[-1] for e in tracked] + untracked:
-        out += newest_under(path / entry.strip('"'))
+    for entry in tracked + untracked:
+        out += newest_under(path / entry)
     return out
 
 
@@ -389,17 +427,26 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--pass-start")
     ap.add_argument("--repo")
     args = ap.parse_args(argv)
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="backslashreplace")
     pass_start = parse_iso(args.pass_start) if args.pass_start else None
     gh = make_gh(args.repo)
 
     here = Path(git(".", "rev-parse", "--show-toplevel").stdout.strip()).resolve()
+    if args.repo:
+        origin = git(here, "config", "--get", "remote.origin.url").stdout.strip()
+        if origin_slug(origin) != args.repo.strip().lower().removesuffix(".git"):
+            print(f"--repo {args.repo} does not match this clone's origin, nothing done", file=sys.stderr)
+            return 2
     if not args.dry_run:
         git(here, "worktree", "prune")
     trees = parse_worktrees(git(here, "worktree", "list", "--porcelain").stdout)
     main_root = Path(trees[0]["worktree"]).resolve()
+    registered = [Path(t["worktree"]).resolve() for t in trees]
     for wt in trees[1:]:
         try:
-            judge(wt, main_root, here, args, pass_start, gh)
+            judge(wt, main_root, here, args, pass_start, gh, registered)
         except (OSError, subprocess.SubprocessError, ValueError) as e:
             say("KEPT", Path(wt["worktree"]), "error, left alone: " + str(e)[:80])
     if args.issue is None:
