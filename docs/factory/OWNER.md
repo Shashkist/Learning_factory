@@ -58,6 +58,8 @@ The factory never waits on these. It works around them and comes back when they 
   order by 2 desc, 1;
   ```
 
+- [ ] **O27 · (1 minute) factory PR #90 is approved but over the review-round limit** — factory#67, an exam-only PR. Rounds 1 to 3 asked for changes and the manager decided each one (factory D31 to D33). Round 4 approved head e9874e1, with CI green (175 cases, 0 skipped). `merge_gate.py` holds it with `review round 4 is over the limit of 2`. Moving the same commits to a new PR to reset the count was refused as a way around the gate, so the factory will not do that. Pick one: (a) merge it yourself: `gh pr merge 90 -R Shashkist/factory --squash --delete-branch --match-head-commit e9874e1a78fd07cdbe292e602eea988fed5f64bd`; or (b) say how the gate should treat rounds beyond 2 that the manager decided and a fresh reviewer then approved (for example, allow a merge when every round past 2 is backed by a D-entry). Then tick this box; the next pass closes #67 with the main CI run.
+
 ## Questions
 
 _None yet._ When the factory meets something only Ilia can answer, it lands here with the issue link and the assumption it made meanwhile.
