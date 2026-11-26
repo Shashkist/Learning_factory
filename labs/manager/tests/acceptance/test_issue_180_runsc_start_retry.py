@@ -100,6 +100,13 @@ STUBS = {
 SEED = {"max-concurrent-uploads": 4}
 
 
+def _no_ipv6_proc(tmp_path):
+    """An empty directory for PROC_ROOT: no net/if_inet6, so no IPv6 in the kernel (D169)."""
+    empty = tmp_path / "empty-proc"
+    empty.mkdir(exist_ok=True)
+    return empty
+
+
 class _Run:
     def __init__(self, tmp_path: Path, runsc_fails: int) -> None:
         self.dir = tmp_path
@@ -137,6 +144,8 @@ class _Run:
 
         env = {
             "PATH": f"{bindir}{os.pathsep}{os.environ['PATH']}",
+            # D169: an empty /proc, so the kernel reads as having no IPv6 and the guard is skipped.
+            "PROC_ROOT": str(_no_ipv6_proc(tmp_path)),
             "HOME": str(tmp_path),
             "STUB_DIR": str(stubdir),
             "STUB_DAEMON_JSON": str(self.daemon_json),

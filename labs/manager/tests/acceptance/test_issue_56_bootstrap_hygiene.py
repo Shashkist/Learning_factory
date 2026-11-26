@@ -136,6 +136,13 @@ STUBS = {
 }
 
 
+def _no_ipv6_proc(tmp_path):
+    """An empty directory for PROC_ROOT: no net/if_inet6, so no IPv6 in the kernel (D169)."""
+    empty = tmp_path / "empty-proc"
+    empty.mkdir(exist_ok=True)
+    return empty
+
+
 class _Host:
     """One run of the real bootstrap.sh against the stubs."""
 
@@ -205,6 +212,8 @@ class _Host:
             path = f"{bindir}{os.pathsep}{realbin}"
         env = {
             "PATH": path,
+            # D169: an empty /proc, so the kernel reads as having no IPv6 and the guard is skipped.
+            "PROC_ROOT": str(_no_ipv6_proc(tmp_path)),
             "HOME": str(tmp_path),
             "STUB_DIR": str(stubdir),
             "STUB_BIN": str(bindir),
