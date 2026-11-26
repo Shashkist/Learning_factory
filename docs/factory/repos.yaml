@@ -1,9 +1,13 @@
 # Repositories the factory works on. Read by scripts/issue_lock.py (LF_REPOS_FILE overrides the path).
+# docker_check: false turns off the merge gate rule that a workflow change needs a `docker` check (no docker job); absent or true keeps it.
+# The key is ignored for Shashkist/Learning_factory: the rule is always on there (D177).
 - repo: Shashkist/Learning_factory
   default: true
   clone: C:\projects\Learning_factory
   ship: deploy-smoke
+  docker_check: true
 - repo: Shashkist/factory
   default: false
   clone: C:\projects\factory
   ship: main-ci
+  docker_check: false

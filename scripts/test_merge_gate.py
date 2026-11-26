@@ -429,3 +429,55 @@ def test_live_merged_pr_holds_only_for_claim_and_verdict():
     assert any("claim" in ln for ln in low), lines
     for word in ("check", "ci round", "review round", "issue"):
         assert not any(word in ln for ln in low), (word, lines)
+
+
+# ---- docker rule per repository (#645) ----------------------------------------------
+
+def _repos(tmp_path, monkeypatch, *entries):
+    f = tmp_path / "repos.yaml"
+    f.write_text("\n".join(f"- repo: {r}\n  default: false{extra}" for r, extra in entries) + "\n",
+                 encoding="utf-8")
+    monkeypatch.setenv("LF_REPOS_FILE", str(f))
+
+
+def _workflow_pr():
+    gh = Gh()
+    gh.files[HEAD] = [".github/workflows/ci.yml"]
+    return gh
+
+
+def test_docker_check_false_repo_is_not_held_for_docker(capsys, tmp_path, monkeypatch):
+    _repos(tmp_path, monkeypatch, ("o/fac", "\n  docker_check: false"))
+    assert gate(capsys, _workflow_pr(), "--repo", "O/FAC") == (0, ["MERGE"])
+
+
+def test_docker_check_true_repo_is_still_held_for_docker(capsys, tmp_path, monkeypatch):
+    _repos(tmp_path, monkeypatch, ("o/lf", "\n  docker_check: true"))
+    assert_single_hold(*gate(capsys, _workflow_pr(), "--repo", "o/lf"), "docker")
+
+
+@pytest.mark.parametrize("extra", ["", "\n  docker_check: maybe"])
+def test_docker_check_without_valid_key_fails_closed(capsys, tmp_path, monkeypatch, extra):
+    _repos(tmp_path, monkeypatch, ("o/x", extra))
+    assert_single_hold(*gate(capsys, _workflow_pr(), "--repo", "o/x"), "docker")
+
+
+def test_docker_check_unlisted_repo_or_missing_file_fails_closed(tmp_path, monkeypatch):
+    _repos(tmp_path, monkeypatch, ("o/fac", "\n  docker_check: false"))
+    assert issue_lock.docker_check("o/other") is True
+    monkeypatch.setenv("LF_REPOS_FILE", str(tmp_path / "missing.yaml"))
+    assert issue_lock.docker_check("o/fac") is True
+
+
+def test_docker_check_false_never_turns_the_rule_off_for_this_repository(capsys, tmp_path, monkeypatch):
+    _repos(tmp_path, monkeypatch, (issue_lock.HERE_REPO, "\n  docker_check: false"))
+    assert issue_lock.docker_check(issue_lock.HERE_REPO.upper()) is True
+    assert issue_lock.docker_check() is True
+    assert_single_hold(*gate(capsys, _workflow_pr(), "--repo", issue_lock.HERE_REPO), "docker")
+    assert_single_hold(*gate(capsys, _workflow_pr()), "docker")
+
+
+def test_docker_check_warns_on_an_unreadable_repos_file(capsys, tmp_path, monkeypatch):
+    monkeypatch.setenv("LF_REPOS_FILE", str(tmp_path / "missing.yaml"))
+    assert issue_lock.docker_check("o/fac") is True
+    assert "repos.yaml" in capsys.readouterr().err

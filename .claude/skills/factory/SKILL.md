@@ -104,6 +104,8 @@ gh pr merge <pr> --squash --delete-branch --match-head-commit <that head SHA>
 gh run watch $(gh run list --workflow deploy.yml --limit 1 --json databaseId --jq '.[0].databaseId')
 ```
 
+A Shashkist/factory PR that changes `.github/workflows/` also needs that repository's own gate to print `MERGE`: `python -m factory_tools merge-gate <pr> --repo Shashkist/factory --session <you> --exam-gate "acceptance / gate"`, run in its clone. It binds the exam checks to the pinned reusable workflows; ours checks names only (D177 amendment 1).
+
 Merge only when the gate prints `MERGE`; on `HOLD`, act on each reason it prints.
 
 For this repository, ship is the Deploy run and the smoke check below. For another repository, shipped means what its `ship:` field in `repos.yaml` says (`main-ci`: green CI on its `main` after the merge, `gh run list -R <repo> --branch main`; no deploy).

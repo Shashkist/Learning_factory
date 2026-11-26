@@ -7,7 +7,8 @@ A line-anchored `Part of #n` (a D19 PR A, #590) counts like `Closes #n` for the 
 The exam-integrity check is named `exam-integrity` or `<caller> / exam-integrity` (reusable workflow, #605).
 The exam gate check (`manager-exam / gate`, or `--exam-gate`, exact name) must be SUCCESS (#608, D160). A
 SKIPPED `docker` passes only when `changes` is SUCCESS and no commit of the PR touches a file under
-`.github/workflows/` (new or previous name; D160 amendment 1).
+`.github/workflows/` (new or previous name; D160 amendment 1). That docker rule applies unless the
+repository's repos.yaml entry says `docker_check: false`; it always applies to this repository (#645, D177).
 """
 
 from __future__ import annotations
@@ -46,14 +47,14 @@ def _state(c: dict) -> str:
 
 
 def _check_reasons(checks: list[dict], exam_gate: str = "manager-exam / gate",
-                   changed: tuple | list | set = ()) -> list[str]:
+                   changed: tuple | list | set = (), docker_rule: bool = True) -> list[str]:
     if not checks:
         return ["no checks have run on this PR"]
     reasons = []
     changes_ok = any(c.get("name") == "changes" and _state(c) == "SUCCESS" for c in checks)
     # A workflow change can skip, rename or drop the docker job, so only a check named `docker`
     # that concluded SUCCESS proves the heavy exam ran (D160 amendment 1, D163)
-    docker_needed = any(n.startswith(WORKFLOWS) for n in changed)
+    docker_needed = docker_rule and any(n.startswith(WORKFLOWS) for n in changed)
     needs = f"docker must succeed when a file under {WORKFLOWS} changed"
     for c in checks:
         name = c.get("name") or c.get("context") or "?"
@@ -138,7 +139,8 @@ def main(argv: list[str], run=issue_lock._run) -> int:
         files = _commit_files(gh, oid)
         commit_files.append([f["filename"] for f in files])
         changed.update(n for f in files for n in (f["filename"], f.get("previous_filename")) if n)
-    reasons = _check_reasons(pr.get("statusCheckRollup") or [], args.exam_gate, changed)
+    reasons = _check_reasons(pr.get("statusCheckRollup") or [], args.exam_gate, changed,
+                            issue_lock.docker_check(args.repo))
     if commit_reason:
         reasons.append(commit_reason)
     if pr.get("isCrossRepository") is True:
