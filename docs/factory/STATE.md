@@ -3,9 +3,9 @@
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
 ## Now
-**Pass lf-q8n5 (laptop, 07:27-~09:10 UTC 2026-11-26) stopped on time after 1 merge** (#643: closed #633 and #594). It holds the claims below; take each over (`claim --steal --reason 'session gone'`) once this session has ended.
+**Pass lf-q8n5 (laptop, 07:27-~09:10 UTC 2026-11-26) stopped on time after 2 merges** (#643: closed #633 and #594; factory#94: closed factory#87). It holds the claims below; take each over (`claim --steal --reason 'session gone'`) once this session has ended.
 - **#614** (p1, needs:laptop) = **PR #644** (`f/614-switch-kit-2`, worktree `C:\projects\lf-614`; the first branch `f/614-switch-kit` was replaced under D175 amendment 1). Factory tag **v0.2.0** pushed (29a613e). Commits: #614 exam, #612 exam correction (exact 4-command dashboard list), code (O29 item with the runner diff, profile, CLAUDE.md), the PowerShell parse fix, and **ee8ae66** (round-1 fixes, D175 amendment 2: uv's `.exe` launchers are refused on this laptop, so the runner writes `factory-tools.cmd` / `factory-tools` shims that run the tool environment's python; best-effort progress calls; early install; `factory:<role>` agents; extraction command; switch back deletes the marker). **Review round 1: CHANGES** (posted). **A round-2 reviewer was running at the stop**; if no `Review round 2` comment is on #644, dispatch a fresh reviewer for ee8ae66 (round 2 is the last: after it, decide under D145). When approved and CI green: `python scripts/merge_gate.py 644 --session <you>` (body says `Part of #614`), merge, Deploy, then post the O29 text on factory#7, label #614 `status:needs-owner` (criterion 4: it closes when the owner reports the first pass on the plugin), release the claim with a note.
-- **factory#87** = **factory PR #94** (`f/87-live-page-leftovers`, worktree `C:\projects\factory-87`): exam ebbba15, code 56c8c10 (full suite 1707 passed locally). **A round-1 reviewer was running at the stop**; if no `Review round 1` comment is on factory#94, dispatch one. Merge with `python scripts/merge_gate.py 94 --repo Shashkist/factory --session <you> --exam-gate "acceptance / gate"`; shipped = green factory main CI. Criterion 7 moved to **factory#95** (p3).
+- **factory#87: done** (factory#94, 0d9417b; factory main CI 45788396846 success; round 1 APPROVE). Criterion 7 and three review nits are in **factory#95** (p3).
 - **#627**: apply waits for the owner (O28). **factory#67** (PR factory#90): waits for the owner (O27).
 - Tooling: `uv run <tool>` fails here because uv's `.exe` launchers are refused (Access is denied); use `uv run python -m <tool>`. The factory guard refuses shell text naming the runner folder or the guard file: write such text with the file tools. GitHub's "Update branch" merge commit is refused by exam-integrity (D174): re-cut by rebase. The factory dashboard's full test suite takes ~37 min on this laptop.
 
@@ -13,7 +13,7 @@ Older pass notes (lf-m7q2 and before) are in `history.md` and git history (`git 
 
 ## Next (in order)
 
-1. #644 (#614) round 2 and merge; factory#94 (factory#87) review and merge; then `factory_pick.py`: factory#67, factory#75, factory#82 (dogfood v0.1.0); LF p2: #15, #21, #47, #85; factory#87 (live page leftovers, from #64), factory#10, #11, #44.
+1. #644 (#614) round 2 and merge; then `factory_pick.py`: factory#67, factory#75, factory#82 (dogfood v0.1.0); LF p2: #15, #21, #47, #85; factory#87 (live page leftovers, from #64), factory#10, #11, #44.
 2. p3 follow-ups: factory#95, #642, #636, #637, #623 (new, from #622 review), #619, #621, #603, #604, factory#70, #601, #597, #588, factory#57, factory#59, #579, #580, factory#49, #574, factory#33, factory#36, factory#40, factory#41, #561, #564, factory#17, factory#24, #523, #555, #468, #423 (old worktree `C:\projects\lf-423`), #436, #431. Owner item **O26** (heartbeat task).
 
 ## Waiting for the owner
@@ -29,7 +29,7 @@ Older pass notes (lf-m7q2 and before) are in `history.md` and git history (`git 
 
 ## Recently done
 
-- 2026-11-26 pass lf-q8n5: #633 and #594 (one bug) shipped in #643 (42dac55; main CI 45779431933, Deploy 45783809538). Factory tag v0.2.0 (29a613e). D175 with amendments 1 and 2. #644 (#614) and factory#94 (factory#87) in review. Opened factory#95.
+- 2026-11-26 pass lf-q8n5: #633 and #594 (one bug) shipped in #643 (42dac55; main CI 45779431933, Deploy 45783809538). Factory tag v0.2.0 (29a613e). D175 with amendments 1 and 2. factory#87 shipped in factory#94 (0d9417b; main CI 45788396846). #644 (#614) in review round 2. Opened factory#95.
 - 2026-11-26 pass lf-x7p3: #631 shipped (#638, D174), #613 PR B (#639, D173), #627 merged (#640; apply = O28). Opened #642. factory#43 closed.
 - 2026-11-26 pass lf-r5k2: #613 PR A (#635, b2c947a; replaced #630 under D172). Decisions D170, D171 (+ amendment 1), D172, D165 amendment 1. Opened #631 (from factory#43), #633, #636, #637. #632 round 1 CHANGES, re-sequenced to `-4`; #634 approved, re-running CI after the main update.
 
