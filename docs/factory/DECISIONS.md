@@ -1829,3 +1829,11 @@ in force · factory · 2026-11-26
 **Why.** A live check through nginx fails for reasons a new image cannot cause or cure (the shared proxy, its network, DNS); rolling back a good image then restarts every live terminal for nothing. A real image fault shows in the container checks, which do roll back, and a failed run already opens an incident.
 **Alternatives.** Put the live checks on the rollback path (the issue's first option); one issue for all of #85 (several PRs of unrelated scope).
 **Revert.** Move the two live checks into the rollback block of `labs/deploy/deploy.sh`.
+
+## D184 · #655: the host-shape smoke step asks the manager which sessions are live; its exam sits with the other smoke exams
+in force · factory · 2026-11-27
+
+**Decision.** (1) "A `lab-*` container that no active session owns" is decided the way the janitor decides it: a new read-only manager command `python -m app.cli live-sessions` prints the id of every live session (the janitor's `LIVE` predicate), one per line, ids only (no names, no student data). The smoke step (terminal check only, scheduled and deploy-called) runs `iptables -C DOCKER-USER -i br-lf-labs ! -s 172.31.240.2 -m comment --comment lf-labs -j DROP`, then lists `lab-*` containers between two `live-sessions` reads (as the janitor does), and fails only for a container whose id is in neither read and that is still there, still unowned, 30 s later (a session ending during the check is not a leftover). It prints container names only. (2) The exam goes to `labs/manager/tests/acceptance/test_issue_655_*.py`, next to the other `server-smoke.yml` exams (#86, #90, #94), because CI runs that folder; no CI job runs a `labs/deploy/tests/` folder.
+**Why.** The container's `lf.expires` label alone would miss a stuck container of a session that ended early until its expiry; the manager's own list is exact. Two reads and a re-check follow the janitor's race handling.
+**Alternatives.** Only `lf.expires` plus a grace period (no manager code, less precise); a `psql` query from the workflow (couples the workflow to the schema).
+**Revert.** Drop the leftover half of the step and the command; keep the firewall check.
