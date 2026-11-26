@@ -414,8 +414,16 @@ def test_runner_has_runsc_suid_registered_with_allow_suid():
     assert res.returncode == 0, res.stderr
     rt = json.loads(res.stdout)
     assert SUID in rt and "runsc" in rt, f"live runtimes: {sorted(rt)}"
-    assert rt[SUID]["path"] == rt["runsc"]["path"], rt
-    assert SUID_ARG in (rt[SUID].get("runtimeArgs") or []), rt[SUID]
+    # D181 amendment 1: the runner's runsc-suid is the release pinned in bootstrap.sh, installed
+    # apart from the apt runsc, so the paths differ; check the pinned release and the server's args.
+    pinned = re.search(r"^RUNSC_RELEASE=(\S+)", SCRIPT.read_text(encoding="utf-8"), re.M).group(1)
+    ver = subprocess.run([rt[SUID]["path"], "--version"], capture_output=True, text=True,
+                         timeout=60)
+    assert ver.returncode == 0, f"{rt[SUID]['path']}: {ver.stderr}"
+    assert f"release-{pinned}" in ver.stdout, f"pinned {pinned}, got: {ver.stdout}"
+    suid_args = rt[SUID].get("runtimeArgs") or []
+    assert OVERLAY in suid_args, rt[SUID]
+    assert SUID_ARG in suid_args, rt[SUID]
     assert SUID_ARG not in (rt["runsc"].get("runtimeArgs") or []), rt["runsc"]
 
 
