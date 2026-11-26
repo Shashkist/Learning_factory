@@ -1697,3 +1697,11 @@ in force · factory · 2026-11-25 · revertible
 **Why.** #627 criteria 1 to 3 say "the step fails", and a guard that silently skips at boot is the hole #627 closes.
 **Alternatives.** At boot, warn instead of failing (lab IPv6 isolation would rest on a log line). Write `bridge-nf-call-ip6tables=1` ourselves (host-wide, touches the owner's other services, rule 1).
 **Revert.** Make `--rules-only` skip the two checks with a log line, and drop the matching #627 cases.
+
+## D169 · #627: older bootstrap sandboxes say "no IPv6" through `PROC_ROOT`; fail-closed stays
+in force · factory · 2026-11-26 · revertible
+
+**Decision.** #627's fail-closed rule (the kernel has IPv6 but `ip6tables` is missing or unusable: the step fails) broke 21 cases in three older exams on PR #628: `test_issue_56_bootstrap_hygiene.py` (10), `test_issue_180_runsc_start_retry.py` (5), `test_issue_294_runsc_check_no_hub.py` (6). Their sandboxes run the whole bootstrap with stubbed tools and no `ip6tables` stub, on a CI runner whose real `/proc/net/if_inet6` exists, so the iptables step now fails and rolls back. Before #627 that sandbox reached the old "ip6tables not usable here: no IPv6 guard added" skip, which is the hole #627 closes. The older sandboxes get a **fixture-only** change: they set `PROC_ROOT` to an empty directory, so the kernel reads as having no IPv6 and the guard is skipped with one log line, the same path they took before. **No assertion changes; no case is loosened.** None of the three exams tests IPv6, and the IPv6 paths stay covered by the #44 and #627 exams. The change is an exam-only commit before the code, on a re-sequenced branch `f/627-ipv6-guard-hardening-3` (D103). #628 is closed in its favour.
+**Why.** The alternatives weaken #627 (skip when `ip6tables` is absent) or make the script detect a test sandbox.
+**Alternatives.** A logging `ip6tables` stub in each older sandbox (the guard path would then depend on the runner's real `bridge-nf-call-ip6tables`). A code-side "skip when `ip6tables` is absent", which is what #627 removes.
+**Revert.** Drop `PROC_ROOT` from the three sandboxes and make a missing `ip6tables` skip again.
