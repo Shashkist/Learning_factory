@@ -998,3 +998,11 @@ Tips:
 - **A shared-server change stops at the permission layer, and that is fine.** The dry run showed the live server already meets the new precondition, and the apply would only swap a boot script. The laptop's permission settings still refused the dispatch of the apply. It became owner item O28 with the exact command; the issue stays open until the apply has been smoke-tested.
 - **Numbers:** 3 PRs merged, 7 agents dispatched (2 exam-writer runs, 1 implementer, 4 reviewers), 2 D-entries, 1 follow-up issue, about 95 minutes.
 
+
+## Pass lf-q8n5: a release tag, a diff the owner applies, and a laptop that refuses its own tools (2026-11-26, laptop, ~07:27-09:10 UTC)
+
+- **Some deliverables are a diff, not a merge.** The laptop runner is owner infrastructure, so #614 ships a unified diff inside OWNER.md, and its exam applies that diff to today's files in a temp repo (and also accepts "already applied", so the exam stays green after the owner applies it).
+- **Two reviewers, two different catches.** The manager spotted that `"$FactorySha: ..."` is not a string with a colon in PowerShell but a scope-qualified variable, a parse error that would have stopped the whole runner. The fresh reviewer went further and ran things: uv's `.exe` launchers are refused on this laptop ("Access is denied"), so the freshly installed tool could never start. The fix is two tiny shims (`.cmd` and an extension-less shell script) that call the tool environment's python. Lesson: "it installs" is not "it runs here".
+- **An older exam can pin the very list a new issue must change.** #612's exam fixed the dashboard verify list at exactly two commands; the owner asked for two more. The answer was an exact list for an exact list (equally strict), in an exam-only commit on a fresh branch before the code.
+- **Duplicates happen.** #594 and #633 were the same one-line Windows-only test bug, filed by two passes a day apart; one PR closed both, after the merge gate asked for a claim on each.
+- **Numbers:** 1 PR merged (2 issues closed), 2 more PRs in review across 2 repositories, 1 release tag, 10 agents dispatched, 1 D-entry with 2 amendments, 1 follow-up issue, about 100 minutes.
