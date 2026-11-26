@@ -105,7 +105,7 @@ def _read_entries(path: Path) -> list[dict]:
     return entries
 
 
-def docker_check(repo: str | None = None, path: Path | None = None) -> bool:
+def docker_check(repo: str | None = None) -> bool:
     """Whether the merge gate's docker rule applies to `repo` (default: this repository).
 
     Off only when the repository's entry says `docker_check: false`; on in every other case
@@ -117,7 +117,7 @@ def docker_check(repo: str | None = None, path: Path | None = None) -> bool:
     want = (repo or HERE_REPO).lower()
     if want == HERE_REPO.lower():
         return True
-    path = path or Path(os.environ.get("LF_REPOS_FILE") or REPOS_FILE)
+    path = Path(os.environ.get("LF_REPOS_FILE") or REPOS_FILE)
     try:
         entries = _read_entries(path)
     except (OSError, ValueError, KeyError):
