@@ -1785,3 +1785,13 @@ in force · factory · 2026-11-26 · revertible
 **Why.** One judge for every client repository; fixing the local copy would change a script that no longer runs on PRs.
 **Alternatives.** Close #21 outright (loses the exam items); fix the local `exam_integrity.py` too (dead code path).
 **Revert.** Move the items back into #21 and close factory#109.
+
+## D179 · #47: sudo labs run on a second gVisor runtime, `runsc-suid` (runsc plus `--allow-suid`)
+in force · factory · 2026-11-26
+
+**Finding (research for #47).** gVisor ignores the setuid and setgid bits on exec unless runsc runs with `--allow-suid` (runsc flag table, `runsc/config/flags.go`: "allows ID elevation when executing binaries with the SUID/SGID bits set"; the exec path passes `Kernel().AllowSUID` to the loader). That is the D26 symptom; no mount option is involved. `no-new-privileges` still blocks elevation with the flag on. The flag is per runtime, not per container. The server registers runsc in `/etc/docker/daemon.json` (bootstrap run 45807958298: `runtimes: {"runsc": ...}`, live runtimes list it), so a second runtime entry is a reloadable `daemon.json` change (`systemctl reload docker`, no restart). Competitors: iximiuz Labs gives root in a microVM; KodeKloud mixes root and sudo labs.
+**Decision.** Register a second runtime `runsc-suid`: the same runsc binary and the same `runtimeArgs` as `runsc`, plus `--allow-suid`. Only `sudo: true` labs use it; every other lab stays on `runsc` with `no-new-privileges`, so a normal lab still cannot become root. Two slices: (1) the bootstrap's runtime step adds `runtimes.runsc-suid` (jq merge, backup, reload, baseline check, rollback, exactly like `runsc`) and the CI `docker` job registers it on the runner; (2) the manager picks `runsc-suid` for sudo labs (`LF_SUDO_RUNTIME`, default `runsc-suid`), falls back to `runsc` with one log line when that runtime is not loaded (sudo then fails as today), and the two D26 exam tests come back plus one that `sudo -n id` fails in a normal lab.
+**Why.** Keeps gVisor for every lab (spec §6), needs no in-container privilege helper, and the existing sudoers file from #7 works unchanged.
+**Alternatives.** A root helper with a unix socket and a `sudo` shim (most code, a home-made privilege boundary); the terminal as root (no real `sudo`, root-owned files); runc for sudo labs (breaks spec §6, owner's call).
+**Assumption.** The pinned runsc release 20260817.0 has `--allow-suid` (the flag dates from 2020); slice 1 proves it on the runner (`sudo -n id -u` prints 0 under `runsc-suid`) before the server apply.
+**Revert.** Remove `runtimes.runsc-suid` from daemon.json (reload) and set the manager back to `runsc` for every lab.
