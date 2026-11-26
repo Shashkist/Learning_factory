@@ -3,6 +3,11 @@
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
 ## Now
+**Pass lf-q8n5 (laptop, from 07:27 UTC 2026-11-26)** holds two claims:
+- **#614** (`f/614-switch-kit`, worktree `C:\projects\lf-614`): factory tag **v0.2.0** pushed (29a613e, D175). Exam b166879; implementer building the OWNER.md item O29 (runner diff), profile and CLAUDE.md changes.
+- **factory#87** (`f/87-live-page-leftovers`, worktree `C:\projects\factory-87`): exam being written (criteria 1 to 6; criterion 7 goes to a follow-up).
+
+Notes of the previous pass (lf-x7p3):
 **Pass lf-x7p3 (laptop, 05:27-~07:05 UTC 2026-11-26) stopped after 3 merges** (#638, #639, #640). It holds **no claims**.
 - **#613: done** (closed with evidence: #635 + #639, main CI 45768610861, Deploy 45771009491 at 334cff8). Worktrees lf-613, lf-613-0, lf-613-a, lf-613-c and lf-631 removed; `lf-613-rv2-*` may remain (check `worktree_prune.py`). Follow-up **#642** (p3).
 - **#614 (needs:laptop, p1) is next.** Depends on #613 and factory#80 (closed). Factory has only `v0.1.0` (95753bb, before #80's 53ce802): criterion 1 needs a new tag (for example `v0.2.0`) on factory's green `main` (29a613e, CI 45745611278 success); see factory D30 for how v0.1.0 was made. The OWNER.md item needs a diff of the laptop runner files: the factory guard blocks any shell command whose text names that folder, so read those files with the file tools, not the shell.
