@@ -715,8 +715,8 @@ ip6_fwd_chain() {
 }
 
 ip6_rules() {
-  echo "$FWD6 -i br-lf-labs -m comment --comment lf-labs -j DROP"
-  echo "INPUT -i br-lf-labs -m comment --comment lf-labs -j DROP"
+  echo "$FWD6 -i $BRIDGE -m comment --comment $TAG -j DROP"
+  echo "INPUT -i $BRIDGE -m comment --comment $TAG -j DROP"
 }
 
 # none: the kernel has no IPv6, nothing to guard. ok: ip6tables works. unusable: the kernel has
@@ -744,16 +744,22 @@ ip6_missing() {
     read -ra a <<<"$rule"
     ip6tables -C "${a[@]}" 2>/dev/null || return 0
   done
+  # The rules only guard lab-to-lab IPv6 when bridged frames go through ip6tables.
+  [ "$(cat "$PROC_ROOT/sys/net/bridge/bridge-nf-call-ip6tables" 2>/dev/null || true)" = 1 ] || return 0
   return 1
 }
 
-# Read-only: lab-to-lab IPv6 only meets the guard when bridged frames go through ip6tables.
-ip6_preconditions() {
-  local v
+ip6_usable_check() {
   if [ "$IP6_STATE" = unusable ]; then
     err "the kernel has IPv6 but ip6tables is missing or not usable: the IPv6 guard cannot be put in place"
     return 1
   fi
+}
+
+# Read-only: lab-to-lab IPv6 only meets the guard when bridged frames go through ip6tables. At boot
+# this runs after the drops are inserted, so a failed check never leaves the host without them.
+ip6_bridge_nf_check() {
+  local v
   v="$(cat "$PROC_ROOT/sys/net/bridge/bridge-nf-call-ip6tables" 2>/dev/null || true)"
   if [ "$v" != 1 ]; then
     err "bridge-nf-call-ip6tables is '${v:-absent}', not 1: lab-to-lab IPv6 would bypass the ip6tables guard (load br_netfilter and set it to 1; this script never writes it)"
@@ -765,7 +771,7 @@ apply_ip6() {
   local rule a rules
   ip6_state
   [ "$IP6_STATE" = none ] && return 0
-  ip6_preconditions
+  ip6_usable_check
   ip6_fwd_chain
   mapfile -t rules < <(ip6_rules)
   for rule in "${rules[@]}"; do
@@ -775,6 +781,7 @@ apply_ip6() {
       INS_V6+=("$rule")
     fi
   done
+  ip6_bridge_nf_check
 }
 
 # What this run inserted, so a rollback removes only that.
