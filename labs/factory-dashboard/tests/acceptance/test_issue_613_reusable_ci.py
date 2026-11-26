@@ -103,6 +103,11 @@ def test_exam_integrity_job_passes_exam_paths_and_ci_paths():
     assert str(with_.get("ci-paths", "")).split(), "ci-paths missing"
 
 
+def test_exam_integrity_job_has_no_base_ref_input():
+    with_ = _jobs(CI_YML)["exam-integrity"].get("with") or {}
+    assert "base-ref" not in with_, "base-ref must stay unset (the reusable check picks the base)"
+
+
 def test_ci_paths_include_the_ci_workflow_and_the_ci_scripts():
     with_ = _jobs(CI_YML)["exam-integrity"].get("with") or {}
     ci_paths = str(with_.get("ci-paths", "")).split()
@@ -140,6 +145,9 @@ EDGE_PATHS = [
     "labs/web/tests/acceptance/a.spec.ts",
     "labs/web/tests/e2e/a.spec.ts",
     "labs/web/tests/unit/a.ts",
+    "labs/web/tests/ui/a.spec.ts",
+    "labs/manager/tests/under/x.py",
+    "labs/manager/tests/unicode/x.py",
     "labs/manager/app/tests_helper.py",
     "labs/manager/app/main.py",
     "labs/manager/conftest.py",
@@ -235,6 +243,11 @@ def test_test_command_starts_postgres_16_and_waits_for_pg_isready_before_pytest(
     i_run = cmd.find("docker run")
     i_ready = cmd.find("pg_isready")
     i_pytest = cmd.find("pytest")
+    # the wait loop may end without postgres ready: one more pg_isready must follow the
+    # loop's `done` and come before pytest
+    i_done = cmd.find("done", i_ready)
+    i_final = cmd.rfind("pg_isready", 0, i_pytest)
+    assert i_done > i_ready >= 0 and i_final > i_done, "pg_isready missing after the wait loop"
     assert i_run >= 0 and "postgres:16" in cmd, "must docker run postgres:16"
     assert i_ready > i_run, "must wait with pg_isready after starting postgres"
     assert i_pytest > i_ready, "pytest must run after the wait"
@@ -345,11 +358,31 @@ def test_incident_call_fails_open_when_the_decision_is_empty():
 
 # 6. tooling job
 
+IGNORES_CI = re.compile(r"--(ignore|deselect)(=|\s+)\S*scripts/ci")
+
+
+def _runs_scripts_tests_in_full(runs):
+    return (bool(re.search(r"pytest\s+scripts(/ci)?/?(\s|$)", runs))
+            and not IGNORES_CI.search(runs))
+
+
+@pytest.mark.parametrize("runs,ok", [
+    ("uvx pytest scripts -q", True),
+    ("uvx pytest scripts -q --ignore=scripts/ci", False),
+    ("uvx pytest scripts -q --ignore scripts/ci", False),
+    ("uvx pytest scripts -q --deselect scripts/ci/test_x.py::t", False),
+    ("uvx pytest scripts -q --deselect=scripts/ci", False),
+])
+def test_tooling_pytest_matcher_refuses_a_run_that_skips_scripts_ci(runs, ok):
+    assert _runs_scripts_tests_in_full(runs) is ok
+
+
 def test_tooling_job_lints_and_tests_the_ci_scripts():
     steps = _jobs(CI_YML)["tooling"]["steps"]
-    runs = "\n".join(s.get("run", "") for s in steps)
+    runs = chr(10).join(s.get("run", "") for s in steps)
     assert "ruff check scripts/ci" in runs
     assert re.search(r"pytest\s+scripts(/ci)?/?(\s|$)", runs), "pytest must run on scripts"
+    assert not IGNORES_CI.search(runs), "the pytest run must not ignore or deselect scripts/ci"
 
 
 # 7. merge gate default exam gate
