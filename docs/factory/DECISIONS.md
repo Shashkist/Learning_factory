@@ -1779,3 +1779,9 @@ in force · factory · 2026-11-26 · revertible
 **Revert.** Drop the key and the `docker_rule` argument; D176 applies again.
 
 **D177 amendment 1 (review round 1 of #646).** Two changes. First, `docker_check` ignores the key for Shashkist/Learning_factory, and a missing or unreadable file prints a warning. Second, D176's second gate stays required. A Shashkist/factory PR that changes `.github/workflows/` merges only when the factory's own gate also prints MERGE (`python -m factory_tools merge-gate <pr> --repo Shashkist/factory --session <you> --exam-gate "acceptance / gate"`, which binds the exam checks to the pinned reusable workflows, factory D29). Our gate checks names only, so it cannot see a rewritten workflow that always reports success.
+
+## D178 · #21 is re-scoped: the judge items go to factory#109, the #25 exam tightening stays
+**Decision.** This repository runs the factory's reusable `exam-integrity.yml` at a pinned tag (ci.yml, v0.1.0), and its own `scripts/ci/exam_integrity.py` no longer judges PRs. So the judge items of #21 (record and pin the exam commit, count every `.github/workflows/**` file as CI surface, count `pyproject.toml` pytest config as exam surface) are fixed once in Shashkist/factory and reach this repository with the next pin move: they moved to Shashkist/factory#109 (p2). #21 keeps only the tightening of the #25 exam (host-key options per ssh/scp call, mutation cases, the full secret-reference scan) and drops to p3, since the live workflows already use `StrictHostKeyChecking=yes` with a pinned `UserKnownHostsFile`.
+**Why.** One judge for every client repository; fixing the local copy would change a script that no longer runs on PRs.
+**Alternatives.** Close #21 outright (loses the exam items); fix the local `exam_integrity.py` too (dead code path).
+**Revert.** Move the items back into #21 and close factory#109.
