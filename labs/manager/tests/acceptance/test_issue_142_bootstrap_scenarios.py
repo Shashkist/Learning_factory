@@ -138,6 +138,19 @@ def _dir_aside(sc, keep_empty_dir: bool) -> None:
         _sudo("mkdir", "-m", "0755", DOCKER_DIR)
 
 
+def _bridge_nf_on(sc) -> None:
+    """Host precondition of the IPv6 guard (#627, D170): `bridge-nf-call-ip6tables` is 1, which
+    needs br_netfilter (the CI runner does not load it). Same steps as the #627 `guarded`
+    fixture; the old value is put back by the scope. The script itself never writes it."""
+    _run(["sudo", "-n", "modprobe", "br_netfilter"])
+    key = "net.bridge.bridge-nf-call-ip6tables"
+    old = _run(["sudo", "-n", "sysctl", "-n", key])
+    res = _run(["sudo", "-n", "sysctl", "-w", f"{key}=1"])
+    assert res.returncode == 0, f"exam precondition: cannot set {key}=1: {res.stderr}"
+    if old.returncode == 0:
+        sc.undo.append(lambda: _run(["sudo", "-n", "sysctl", "-w", f"{key}={old.stdout.strip()}"]))
+
+
 def _daemon_mentions_runsc() -> bool:
     try:
         return "runsc" in Path(DAEMON_JSON).read_text()
@@ -235,6 +248,7 @@ def lock_held():
     s = SimpleNamespace()
     with _runner_scope() as sc:
         _assert_lock_free()
+        _bridge_nf_on(sc)
         with _lock_held():
             s.second = _bootstrap({"DRY_RUN": "1", **sc.good_env})
             s.second_real = _bootstrap(sc.good_env)
@@ -278,6 +292,7 @@ def create_path():
     s = SimpleNamespace()
     with _runner_scope() as sc:
         _assert_lock_free()
+        _bridge_nf_on(sc)
         _unregister_runsc(sc)
         _dir_aside(sc, keep_empty_dir=False)
         s.precondition = not _exists(DOCKER_DIR)
