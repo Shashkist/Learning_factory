@@ -3,19 +3,17 @@
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
 ## Now
-**Pass lf-n4t2 (laptop, from 15:28 UTC 2026-11-26) is running.** It took over lf-v6n8's two claims.
-- **factory#11** = PR factory#107 (`f/11-integrity-sitecustomize`, worktree `C:\projectsactory-11`): CI green on e227f1c; round-2 reviewer running. Then PR B (exam 70ce5cb on `exam/11-keep`, plus exam cases for package and compiled forms, plus the incident.yml sentence).
-- **factory#102** = PR factory#108 (`f/102-gate-rounds-past-limit`, worktree `C:\projectsactory-102`): CI green on 895a063; round-1 reviewer running.
-- **#648** (new, slice 1 of #85: prune old images after a deploy), branch `f/648-prune-images`, worktree `C:\projects\lf-648`: exam next.
-- D178: #21 re-scoped; its judge items moved to factory#109 (new, p2).
+**Pass lf-j5w2 (laptop, from 17:27 UTC 2026-11-26) is running.** It took over lf-n4t2's claims (that pass ended at ~17:15 without a stop note; it merged factory#107 and factory#111 and closed factory#11).
+- **factory#102** = PR factory#108 (`f/102-gate-rounds-past-limit`, worktree `C:\projectsactory-102`): exam for D38 amendment 1 (c9987a7) and the round-1 fixes (ac4f673) pushed, rebased on main; local: 504 tests, ruff and mypy clean. CI, then the round-2 reviewer.
+- **#648** (slice 1 of #85: prune old images after a deploy), branch `f/648-prune-images`, worktree `C:\projects\lf-648`: exam 54afc94 pushed; implementer running.
 - **factory#7** and **#614** stay `status:needs-owner` (O29).
-- Tooling: `uv run <tool>` fails here (launcher .exe refused); use `uv run python -m <tool>`. The factory guard refuses shell text naming the runner folder or the guard file: write such text with the file tools. GitHub's "Update branch" merge commit is refused by exam-integrity (D174): re-cut by rebase. A change to `src/factory_tools/ci/**` in the factory repository cannot ship with its exam (factory D27): judge first, exam second. The factory's full acceptance suite is slow here; list files explicitly.
+- Tooling: `uv run <tool>` fails here (launcher .exe refused); use `uv run python -m <tool>`. The factory guard refuses shell text naming the runner folder or the guard file: write such text with the file tools. GitHub's "Update branch" merge commit is refused by exam-integrity (D174): re-cut by rebase. A change to `src/factory_tools/ci/**` in the factory repository cannot ship with its exam (factory D27): judge first, exam second. The factory's full acceptance suite is slow here; list files explicitly. The deploy exams (bash fakes) are very slow on Windows: run single tests with `-k`.
 
 Older pass notes (lf-m7q2 and before) are in `history.md` and git history (`git log -p docs/factory/STATE.md`).
 
 ## Next (in order)
 
-1. factory#107 round 2 and PR B (factory#11); factory#108 (factory#102) review and merge; then `factory_pick.py`: factory#10; LF p2: #15, #47, #85. #21's exam-integrity items now belong to the factory's reusable `exam-integrity.yml` (factory#10/#11); re-scope or close it.
+1. factory#108 (factory#102) round 2 and merge; #648 PR, review, merge, deploy and a server check that old images went; then `factory_pick.py`: factory#10; LF p2: #15, #47, #85. #21's exam-integrity items now belong to the factory's reusable `exam-integrity.yml` (factory#10/#11); re-scope or close it.
 2. p3 follow-ups: #647, factory#105 (new, from the #646 and #104 reviews), factory#103 (new, from the #101 review), factory#100, factory#95, #642, #636, #637, #623 (new, from #622 review), #619, #621, #603, #604, factory#70, #601, #597, #588, factory#57, factory#59, #579, #580, factory#49, #574, factory#33, factory#36, factory#40, factory#41, #561, #564, factory#17, factory#24, #523, #555, #468, #423 (old worktree `C:\projects\lf-423`), #436, #431. Owner item **O26** (heartbeat task).
 
 ## Waiting for the owner
@@ -31,6 +29,7 @@ Older pass notes (lf-m7q2 and before) are in `history.md` and git history (`git 
 
 ## Recently done
 
+- 2026-11-26 pass lf-n4t2: factory#11 closed (factory#107, c309782; factory#111, cc88d0d; main CI 45864982898). LF D178 (#21 re-scoped), factory D38 amendment 1. Opened #648, factory#109.
 - 2026-11-26 pass lf-v6n8: #645 (#646, b739621; Deploy 45835664366), factory#91 (factory#104, 2380e53; main CI 45831815967, live scratch run 45832304038). Factory D38, D39. Opened #647, factory#105.
 - 2026-11-26 pass lf-k3j6: factory#75 (factory#101, 39f094b; main CI 45815131073). Closed #627 (isolation smoke 45811374627) and factory#67 (owner merge, D36). Decisions D177 (+ amendment 1), factory D37. Opened factory#103. In review: #646 (#645), factory#104 (factory#91).
 - 2026-11-26 pass lf-10f1: #644 (#614 switch kit, a10118d; round-2 D145 fixes verified twice), factory#96 (f0375d9; factory main CI 45799890573) and factory#99 (60d17eb; main CI 45803678313) closed factory#82. Decisions: factory D34, D35; LF D176. Opened #645, factory#100. factory#101 (factory#75) in CI.
