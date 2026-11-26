@@ -243,6 +243,31 @@ class Sandbox:
         return subprocess.run([BASH, _posix(harness)], env=self.env(), capture_output=True,
                               text=True, timeout=timeout)
 
+    def run_decided(self, timeout: int = 300) -> subprocess.CompletedProcess:
+        """A normal run of the iptables step through the real decision path.
+
+        `do_step iptables` asks `need_iptables` first and only then applies: when the answer is
+        "no" it says "already in place" and succeeds, exactly like a real second run. Only the
+        two root-only checks (the /usr/local/sbin copy and the systemd unit) are reported as
+        current and `apply_iptables` is reduced to `apply_rules`; the rest is the script's own.
+        """
+        assert BASH
+        harness = self.state / "harness_decided.sh"
+        harness.write_bytes(
+            (
+                "set -Eeuo pipefail\n"
+                "set -- --rules-only\n"
+                f'source "{_posix(self._prelude())}"\n'
+                "sbin_current() { return 0; }\n"
+                "unit_current() { return 0; }\n"
+                "apply_iptables() { apply_rules; }\n"
+                "do_step iptables\n"
+                "echo 'HARNESS: step finished'\n"
+            ).encode()
+        )
+        return subprocess.run([BASH, _posix(harness)], env=self.env(), capture_output=True,
+                              text=True, timeout=timeout)
+
     def rules(self, tool: str) -> list[str]:
         p = self.state / f"{tool}.rules"
         return [ln for ln in p.read_text().splitlines() if ln] if p.exists() else []
@@ -359,6 +384,110 @@ def test_no_ipv6_kernel_does_not_need_bridge_nf_call_ip6tables(sb):
     res = sb.step()
     assert res.returncode == 0, f"a host without IPv6 must not fail on bridge-nf:\n{_out(res)}"
     assert "HARNESS: step finished" in res.stdout
+
+
+# ---------------------------------------------------------------- sandbox: guard already in place
+
+
+def _tagged4(sb: Sandbox) -> list[str]:
+    return [r for r in sb.rules("iptables") if re.search(TAG_RE, r)]
+
+
+@pytest.mark.parametrize("value", ["0", None], ids=["value-0", "file-absent"])
+def test_normal_run_fails_when_the_guard_is_in_place_but_bridge_nf_call_ip6tables_is_no_longer_1(
+    sb, value
+):
+    """Finding 1: a first run with bridge-nf on inserted every rule; later the value is not 1.
+
+    The rules are all there, so only the bridge-nf precondition can say the step is needed.
+    A run that reports "already in place" with exit 0 hides that lab-to-lab IPv6 now bypasses it.
+    """
+    sb.configure(bridge_nf="1")
+    first = sb.run_decided()
+    assert first.returncode == 0, _out(first)
+    assert sb.tagged6(), "precondition: the first run did not put the IPv6 guard in place"
+    before6, before4 = sorted(sb.tagged6()), sorted(_tagged4(sb))
+    sb.configure(bridge_nf=value)
+    assert sorted(sb.tagged6()) == before6  # configure() keeps the rules file
+    res = sb.run_decided()
+    assert res.returncode != 0, (
+        f"a normal run succeeded with the guard in place and bridge-nf-call-ip6tables "
+        f"'{value}':\n{_out(res)}"
+    )
+    assert BR_NF in _out(res), f"no clear line about {BR_NF}:\n{_out(res)}"
+    assert "already in place" not in res.stdout, f"the step claimed nothing to do:\n{res.stdout}"
+    assert "HARNESS: step finished" not in res.stdout
+    # the earlier, complete rules were not inserted by this run: they stay
+    assert sorted(sb.tagged6()) == before6
+    assert sorted(_tagged4(sb)) == before4
+
+
+def test_normal_run_with_the_guard_in_place_and_bridge_nf_1_still_says_already_in_place(sb):
+    """The counterpart: the precondition holds, so the second run really has nothing to do."""
+    sb.configure(bridge_nf="1")
+    assert sb.run_decided().returncode == 0
+    rules = sorted(sb.tagged6())
+    res = sb.run_decided()
+    assert res.returncode == 0, _out(res)
+    assert "already in place" in res.stdout, res.stdout
+    assert sorted(sb.tagged6()) == rules
+
+
+# ---------------------------------------------------------------- sandbox: boot keeps the drops
+
+
+@pytest.mark.parametrize("value", ["0", None], ids=["value-0", "file-absent"])
+def test_boot_rules_only_fails_loudly_but_keeps_the_ipv6_and_ipv4_drops_when_bridge_nf_is_not_1(
+    sb, value
+):
+    """Finding 2: at boot the drops must be in place whatever the bridge-nf value says.
+
+    The INPUT drop is useful on its own and the forwarding drop starts to work as soon as
+    br_netfilter is loaded, so --rules-only keeps both and still exits non-zero with the line.
+    """
+    sb.configure(inet6=True, ip6tables="ok", bridge_nf=value)
+    res = sb.rules_only()
+    assert res.returncode != 0, f"boot said all is well with bridge-nf '{value}':\n{_out(res)}"
+    assert BR_NF in _out(res), f"no clear line about {BR_NF}:\n{_out(res)}"
+    rules = sb.tagged6()
+    assert any(r.startswith("INPUT ") and r.endswith("-j DROP") for r in rules), (
+        f"the IPv6 INPUT drop is not in place after boot: {rules}"
+    )
+    assert any(not r.startswith("INPUT ") and r.endswith("-j DROP") for r in rules), (
+        f"the IPv6 forwarding drop is not in place after boot: {rules}"
+    )
+    assert len(rules) == 2, rules
+    for r in rules:
+        assert re.search(r"-i br-lf-labs(\s|$)", r), f"not scoped to the bridge: {r}"
+    assert any(r.startswith("DOCKER-USER ") for r in _tagged4(sb)), _tagged4(sb)
+    assert any(r.startswith("INPUT ") for r in _tagged4(sb)), _tagged4(sb)
+    nf = sb.proc / "sys/net/bridge" / BR_NF
+    assert not nf.exists() or nf.read_text().strip() == value, "the script wrote the value"
+
+
+@pytest.mark.parametrize("value", ["0", None], ids=["value-0", "file-absent"])
+def test_boot_after_the_guard_was_in_place_keeps_it_when_bridge_nf_is_no_longer_1(sb, value):
+    sb.configure(bridge_nf="1")
+    assert sb.rules_only().returncode == 0
+    rules6, rules4 = sorted(sb.tagged6()), sorted(_tagged4(sb))
+    sb.configure(bridge_nf=value)
+    res = sb.rules_only()
+    assert res.returncode != 0, _out(res)
+    assert BR_NF in _out(res)
+    assert sorted(sb.tagged6()) == rules6
+    assert sorted(_tagged4(sb)) == rules4
+
+
+@pytest.mark.parametrize("value", ["0", None], ids=["value-0", "file-absent"])
+def test_normal_run_in_the_same_state_still_fails_and_rolls_back_what_it_inserted(sb, value):
+    """A normal run must not keep rules when the precondition fails (boot is the exception)."""
+    sb.configure(inet6=True, ip6tables="ok", bridge_nf=value)
+    res = sb.run_decided()
+    assert res.returncode != 0, _out(res)
+    assert BR_NF in _out(res), _out(res)
+    assert "HARNESS: step finished" not in res.stdout
+    assert not _tagged4(sb), f"the failed normal run left tagged IPv4 rules: {_tagged4(sb)}"
+    assert not sb.tagged6(), f"the failed normal run left tagged IPv6 rules: {sb.tagged6()}"
 
 
 # ---------------------------------------------------------------- sandbox: fail closed
@@ -568,6 +697,30 @@ def test_bootstrap_fails_when_bridge_nf_call_ip6tables_is_off_and_never_writes_i
     finally:
         if old is not None:
             _run(["sudo", "-n", "sysctl", "-w", f"{key}={old}"])
+
+
+@pytest.mark.docker
+def test_bootstrap_fails_when_the_guard_is_in_place_and_bridge_nf_call_ip6tables_turns_off(
+    guarded,
+):
+    """Finding 1 on the host: no cleaning of the rules between the runs, so every rule is there."""
+    run = guarded
+    key = f"net.bridge.{BR_NF}"
+    rules = sorted(h44._tagged_v6_rules(h44._host_v6_state()))
+    assert rules, "precondition: the guard is not in place"
+    _set_sysctl(key, "0")
+    try:
+        res = _bootstrap(run.run_env, unset=("DRY_RUN",))
+        assert res.returncode != 0, (
+            "a normal run passed with the guard in place and bridge-nf-call-ip6tables=0:\n"
+            + res.stdout + res.stderr
+        )
+        assert BR_NF in res.stdout + res.stderr, "no clear line about bridge-nf-call-ip6tables"
+        assert _last_line(res) == f"{RESULT} failed"
+        assert _run(["sudo", "-n", "sysctl", "-n", key]).stdout.strip() == "0"
+        assert sorted(h44._tagged_v6_rules(h44._host_v6_state())) == rules
+    finally:
+        _set_sysctl(key, "1")
 
 
 @pytest.mark.docker
