@@ -1731,3 +1731,19 @@ in force · factory · 2026-11-26 · revertible
 **Why.** The limit is a stop signal for fix loops; past it, the manager decides (FACTORY.md). Re-sequencing is the same tool as D103, and it keeps the gate's count honest for the new PR (four code commits, one CI round each, no fixes pending).
 **Alternatives.** A flag on `merge_gate.py` to override the limit (a tooling change, bigger than this case); park #613 for the owner (nothing only the owner can decide).
 **Revert.** Close the new PR and reopen #630.
+
+## D173 · #613 PR B: two corrections of the new exam after PR A's round-1 changes
+in force · factory · 2026-11-26 · revertible
+
+**Decision.** PR B (the #613 exam, not yet merged) was written before PR A's round-1 review. Against `main` after #635 it fails three cases, and both causes are exam defects, corrected by the exam-writer in an exam-only commit on `f/613-reusable-ci-exam` before the PR opens: (1) `test_exam_paths_match_exam_integrity_on_edge_path` wants the `exam-paths` globs to equal `_is_exam` on the nested paths `labs/manager/app/tests/helper.py` and `labs/images/term/tests/x.sh`. The name-independent globs of D165 amendment 1 (a) count those as exam (the factory glob's `*` crosses `/`), `_is_exam` does not. Counting more paths as exam is stricter, so the case accepts the factory rule as a superset there: every path `_is_exam` calls exam must be exam under the globs, and a path may be exam only under the globs when it has a non-`unit` `tests/` segment below `labs/<x>/`. The tracked-path case stays an exact match (no tracked path differs). (2) `test_tooling_job_lints_and_tests_the_ci_scripts` wants the literal `pytest scripts/ci`; round 1 removed that line as a duplicate because `uvx pytest scripts -q` already runs it (22 `scripts/ci` tests collected). The case accepts `pytest scripts` or `pytest scripts/ci`.
+**Why.** "Exams that contradict each other": keep the stricter rule (more exam paths) and keep the reviewed code. No older exam changes.
+**Alternatives.** Narrow `exam-paths` back to the per-lab list (the blocking round-1 finding of #630); re-add the duplicate line to `ci.yml` (a code change for a test's wording).
+**Revert.** Restore the two cases from 279b30c and re-add the line / the lab list in `ci.yml`.
+
+## D174 · #631: the approved PR #634 is re-cut as #638 by rebase, not updated with a merge commit
+in force · factory · 2026-11-26 · revertible
+
+**Decision.** Updating #634 with `main` produced a merge commit, which the exam-integrity judge refuses ("merge commits are not allowed on a PR branch"), and force-pushes are refused. The three approved commits (a30641b..19a0329) were rebased onto `main` as `f/631-dashboard-server-stats-2` (PR #638); `git patch-id --stable` of both diffs is equal (8e7484d6). As in D172, no verdict carries over by assertion: a fresh reviewer checks that the diff equals the approved one, and only its verdict is posted. In future, a branch behind `main` is rebased into a new branch, never updated with the GitHub "Update branch" merge.
+**Why.** Same tool as D103 and D172; keeps the PR history linear and the judge green.
+**Alternatives.** Allow merge commits from `main` in the judge (a factory change, weakens the rule).
+**Revert.** Close #638, reopen #634.
