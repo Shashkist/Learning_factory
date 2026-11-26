@@ -1714,3 +1714,11 @@ in force · factory · 2026-11-26 · revertible
 **Production.** The live value of `bridge-nf-call-ip6tables` is unknown. The merge of #627 triggers the bootstrap dry run on `main`, which reads it read-only. If that run fails on this precondition, the old boot copy stays in place (only an apply replaces it), and loading `br_netfilter` persistently is a host-wide change: an owner item, not an agent action (rule 1).
 **Alternatives.** Absent = skip with a log line (leaves the hole open on hosts without the module). Load `br_netfilter` in the CI docker job (hides the precondition from the exam that depends on it). Give the lab image `ttyd -6` (changes the product to suit a test).
 **Revert.** Make an absent value skip with a log line and drop the #142 fixture lines; point the #627 probes back at port 7681.
+
+## D171 · factory#43: server memory and disk come from LF's publish job; the work is LF #631
+in force · factory · 2026-11-26 · revertible
+
+**Decision.** factory#43's criterion 1 answer: the numbers never existed. The old LF builder set `"server": None` since #18, and D12 left it null "until the smoke workflow (#15) provides it", which never happened; the move to the factory package lost nothing. The fix is entirely in this repository (the factory's `app.js` already renders `server.memory` and `server.disk` as text), so it is tracked as LF #631 and factory#43 is closed with a pointer when #631 ships. The publish job (production environment, already holds the server key) reads `free -b` and `df -B1 -P /` over its existing ControlMaster connection, and `scripts/dashboard_server_stats.py` merges `{"memory": "<used> of <total> (<pct>%)", "disk": ...}` into `site/snapshot.json` before the copy. Any failure leaves `null` (the page says `n/a`) with one log line; publishing never fails on it. The snapshot job keeps no secrets (factory D12).
+**Why.** The only job with server access is the publish job; a separate scheduled SSH job would add connections (incident #26) and minutes.
+**Alternatives.** The manager exposes the numbers on an HTTP endpoint (public host stats, more code); wait for #15 (open since phase 1).
+**Revert.** Drop the read and merge lines from the publish job; `server` goes back to null.
