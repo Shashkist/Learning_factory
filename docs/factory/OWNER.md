@@ -58,6 +58,177 @@ The factory never waits on these. It works around them and comes back when they 
   order by 2 desc, 1;
   ```
 
+- [ ] **O29 · (5 minutes) Switch the laptop runner to the factory plugin at v0.2.0** — #614, D175. The runner starts taking the factory methodology from the plugin of Shashkist/factory at tag `v0.2.0` instead of the project skill. What the change does: a shallow clone of Shashkist/factory tag `v0.2.0` (commit `29a613e65389cbee2dc646cec25e71863d00064c`) under `%LOCALAPPDATA%\learning-factory\factory-v0.2.0`, refused if the tag moved (its HEAD must be that exact SHA); `uv tool install` of `factory-tools` from that clone, once per SHA; `claude` starts with `--plugin-dir` and the pass prompt names the plugin skill `factory:factory`; the runner's progress calls and the hooks go through `factory-tools progress ...` (same events file); the guard hook is untouched. Prerequisite: `uv` and `git` on PATH. Steps, in an owner session in `C:\projects\Learning_factory`: save the diff below to a file, `git apply` it, commit both runner files as one commit (`chore(runner): switch to the factory plugin v0.2.0 (#614)`), and push. How to check it worked: wait for one pass; then the clone folder `factory-v0.2.0` and the marker file `factory-tools-29a613e65389cbee2dc646cec25e71863d00064c` exist under `%LOCALAPPDATA%\learning-factory`, `factory-tools --help` runs, the pass's run log (`runs\<time>.log`) shows it followed `factory:factory`, and its lane shows on the live page factory.shashkist.com. Then comment on #614 and tick this box (the issue closes on your report of that first pass). Switch back: `git revert <that commit>` and push (optionally `uv tool uninstall factory-tools`).
+  ```diff
+  diff --git a/scripts/laptop/factory-hooks.json b/scripts/laptop/factory-hooks.json
+  index 17bd644..d382509 100644
+  --- a/scripts/laptop/factory-hooks.json
+  +++ b/scripts/laptop/factory-hooks.json
+  @@ -17,7 +17,7 @@
+           "hooks": [
+             {
+               "type": "command",
+  -            "command": "python \"${CLAUDE_PROJECT_DIR:-.}/scripts/factory_progress.py\" hook || true",
+  +            "command": "factory-tools progress hook || true",
+               "timeout": 5
+             }
+           ]
+  @@ -29,7 +29,7 @@
+           "hooks": [
+             {
+               "type": "command",
+  -            "command": "python \"${CLAUDE_PROJECT_DIR:-.}/scripts/factory_progress.py\" hook || true",
+  +            "command": "factory-tools progress hook || true",
+               "timeout": 5
+             }
+           ]
+  @@ -40,7 +40,7 @@
+           "hooks": [
+             {
+               "type": "command",
+  -            "command": "python \"${CLAUDE_PROJECT_DIR:-.}/scripts/factory_progress.py\" hook || true",
+  +            "command": "factory-tools progress hook || true",
+               "timeout": 5
+             }
+           ]
+  @@ -51,7 +51,7 @@
+           "hooks": [
+             {
+               "type": "command",
+  -            "command": "python \"${CLAUDE_PROJECT_DIR:-.}/scripts/factory_progress.py\" hook || true",
+  +            "command": "factory-tools progress hook || true",
+               "timeout": 5
+             }
+           ]
+  @@ -62,7 +62,7 @@
+           "hooks": [
+             {
+               "type": "command",
+  -            "command": "python \"${CLAUDE_PROJECT_DIR:-.}/scripts/factory_progress.py\" hook || true",
+  +            "command": "factory-tools progress hook || true",
+               "timeout": 5
+             }
+           ]
+  @@ -73,7 +73,7 @@
+           "hooks": [
+             {
+               "type": "command",
+  -            "command": "python \"${CLAUDE_PROJECT_DIR:-.}/scripts/factory_progress.py\" hook || true",
+  +            "command": "factory-tools progress hook || true",
+               "timeout": 5
+             }
+           ]
+  diff --git a/scripts/laptop/factory-poll.ps1 b/scripts/laptop/factory-poll.ps1
+  index 3da353c..0018a13 100644
+  --- a/scripts/laptop/factory-poll.ps1
+  +++ b/scripts/laptop/factory-poll.ps1
+  @@ -19,16 +19,20 @@ $PassMinutes = 90            # the manager stops itself after ~90 min or 3 merge
+   $MaxPassesPerDay = 0         # cost guard; 0 = unlimited (owner, 2026-11-15: unlimited for now). Claude plan limits still apply
+   $ProgressKey = Join-Path $StateDir 'progress_key'   # forced-command key: can only write live.json
+   $ServerHost  = 'root@207.154.193.238'
+  +# The factory methodology (plugin + factory-tools), pinned (#614, D175). A moved tag is refused: the clone's HEAD must be this SHA.
+  +$FactoryTag  = 'v0.2.0'
+  +$FactorySha  = '29a613e65389cbee2dc646cec25e71863d00064c'
+  +$FactoryDir  = Join-Path $StateDir "factory-$FactoryTag"   # shallow clone: plugin\ and the factory-tools source
+  +$env:PATH    = (Join-Path $env:USERPROFILE '.local\bin') + ';' + $env:PATH   # uv's tool bin: factory-tools for the runner, claude and its hooks
+   $env:LF_PROGRESS_FILE = Join-Path $StateDir 'progress.jsonl'
+   $env:LF_CREW_DIR = Join-Path $env:USERPROFILE '.claude\projects\C--projects-Learning-factory-factory'   # crew view: factory transcripts only
+   $HooksFile   = Join-Path $Main 'scripts/laptop/factory-hooks.json'   # live-view hooks, factory runs only (D28)
+  -$Progress    = if (Test-Path (Join-Path $Worktree 'scripts/factory_progress.py')) { Join-Path $Worktree 'scripts/factory_progress.py' } else { Join-Path $Main 'scripts/factory_progress.py' }
+   function Publish-Live([string]$state = '', [string]$note = '', [switch]$Force) {
+       # Best effort: never let the live view break the factory.
+       try {
+  -        if ($state) { & python $Progress runner-state --state $state --note $note 2>$null | Out-Null }
+  +        if ($state) { & factory-tools progress runner-state --state $state --note $note 2>$null | Out-Null }
+           $extra = @(); if ($Force) { $extra = @('--force') }   # final state of a pass: never dropped by the 15 s gap
+  -        if (Test-Path $ProgressKey) { & python $Progress publish --key $ProgressKey --host $ServerHost @extra 2>$null | Out-Null }
+  +        if (Test-Path $ProgressKey) { & factory-tools progress publish --key $ProgressKey --host $ServerHost @extra 2>$null | Out-Null }
+       } catch {}
+   }
+   
+  @@ -46,8 +50,8 @@ function Log($m) { "$(Get-Date -Format s)  $m" | Add-Content -Encoding utf8 $Log
+   function Stop-OrphanHooks {
+       try {
+           $cutoff = (Get-Date).AddMinutes(-2)
+  -        $old = @(Get-CimInstance Win32_Process -Filter "Name='python.exe'" | Where-Object {
+  -            $_.CommandLine -match '[\/]factory_progress\.py"?\s+hook\b|[\/]factory_guard\.py' -and $_.CreationDate -lt $cutoff })
+  +        $old = @(Get-CimInstance Win32_Process -Filter "Name='python.exe' OR Name='factory-tools.exe'" | Where-Object {
+  +            $_.CommandLine -match '[\/]factory_progress\.py"?\s+hook\b|[\/]factory_guard\.py|factory-tools(\.exe)?"?\s+progress\s+hook\b' -and $_.CreationDate -lt $cutoff })
+           foreach ($p in $old) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue }
+           if ($old.Count -gt 0) { Log "stopped $($old.Count) orphaned hook process(es) (#230)" }
+       } catch {}
+  @@ -111,7 +115,7 @@ if ($alive.Count -gt 0) {
+           foreach ($p in $alive) { & taskkill.exe /PID $p.ProcessId /T /F 2>$null | Out-Null }
+           Log "stopped: orphaned manager (pid $($alive.ProcessId -join ',')) had no runner and started over 3 h ago"
+           Notify 'Learning Factory: orphaned pass stopped' 'A manager outlived its runner for over 3 hours and was stopped. The next pass resumes from STATE.md.' 'orphan'
+  -        & python $Progress pass-end --result timeout 2>$null | Out-Null
+  +        & factory-tools progress pass-end --result timeout 2>$null | Out-Null
+           Publish-Live -Force
+           exit 0
+       }
+  @@ -206,30 +210,48 @@ try {
+           $n.ShowBalloonTip(8000, 'Learning Factory', 'Factory pass started', 'Info')
+       } catch {}
+   
+  +    # The factory methodology at the pinned tag (#614, D175): clone once, refuse a moved tag, install factory-tools once per SHA.
+  +    if (-not (Test-Path (Join-Path $FactoryDir '.git'))) {
+  +        git clone -q --depth 1 --branch $FactoryTag https://github.com/Shashkist/factory $FactoryDir
+  +        if ($LASTEXITCODE -ne 0) { throw "clone of factory $FactoryTag failed ($LASTEXITCODE)" }
+  +        Log "cloned factory $FactoryTag"
+  +    }
+  +    $head = (git -C $FactoryDir rev-parse HEAD).Trim()
+  +    if ($head -ne $FactorySha) { throw "factory $FactoryTag is at $head, expected $FactorySha: the tag moved, refusing it" }
+  +    $toolsMarker = Join-Path $StateDir "factory-tools-$FactorySha"
+  +    if (-not (Test-Path $toolsMarker)) {
+  +        uv tool install --force $FactoryDir
+  +        if ($LASTEXITCODE -ne 0) { throw "uv tool install of factory-tools failed ($LASTEXITCODE)" }
+  +        New-Item -ItemType File -Force $toolsMarker | Out-Null
+  +        Log "installed factory-tools from $FactoryTag"
+  +    }
+  +    $pluginDir = Join-Path $FactoryDir 'plugin'
+  +
+       $prompt = @"
+   You are the manager of the Learning Factory software factory, running one pass on the owner's laptop in the worktree $Worktree. The owner approved hands-off operation in advance (docs/factory/DECISIONS.md D1, D7).
+   This worktree is on the local branch 'factory' which follows origin/main: push state commits with 'git push origin HEAD:main' after 'git pull --rebase origin main'; feature work goes on f/<n>-<slug> branches as usual.
+  -Read CLAUDE.md, then load the project skill 'factory' and follow it exactly, starting from docs/factory/STATE.md. Take issues labelled needs:laptop first, then the normal queue.
+  +Read CLAUDE.md, then load the plugin skill 'factory:factory' (the factory methodology at $FactoryTag, not the project skill 'factory') and follow it exactly, starting from docs/factory/STATE.md; project facts come from 'factory-tools methodology render'. Take issues labelled needs:laptop first, then the normal queue.
+   Decide yourself and record decisions in docs/factory/DECISIONS.md; put owner-only blockers in docs/factory/OWNER.md and move on. Commits, pushes and squash-merges of green, reviewed PRs are pre-approved; commit by explicit paths only; never add attribution or mention Claude, AI or agents in commits, PRs or comments.
+   Stop after about $PassMinutes minutes of work or 3 merged PRs, and update docs/factory/STATE.md so the next pass resumes exactly where you stopped.
+   "@
+       $budgetArg = if ($MaxPassesPerDay -gt 0) { @('--budget', $MaxPassesPerDay) } else { @() }   # unlimited: the page shows just 'pass N'
+  -    & python $Progress pass-start --pass-no ($passes + 1) @budgetArg 2>$null | Out-Null
+  +    & factory-tools progress pass-start --pass-no ($passes + 1) @budgetArg 2>$null | Out-Null
+       Publish-Live
+       $runLog = Join-Path $RunsDir ("{0}.log" -f (Get-Date -Format 'yyyyMMdd-HHmm'))
+       # From here on, everything this runner starts dies with it (#230). Joined this late on purpose: the
+       # browser that the one-time dashboard notice may open must outlive the runner.
+       if (-not (Enter-PassJob)) { Log 'job object unavailable: hook orphans are cleaned on the next tick instead' }
+       $job = Start-Job -ScriptBlock {
+  -        param($wt, $claude, $model, $p, $out, $progressFile, $hooks)
+  +        param($wt, $claude, $model, $p, $out, $progressFile, $hooks, $pluginDir)
+           Set-Location $wt
+           $env:LF_PROGRESS_FILE = $progressFile        # hooks record only when this is set
+           # Headless claude stops background subagents 10 min after the manager's last turn; pass 9 lost an
+           # implementer mid-fix that way. Wait for them: the awake-time limit below still bounds the pass.
+           $env:CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS = '3600000'   # 60 min: long enough for a slow implementer, never forever
+           $extra = if (Test-Path $hooks) { @('--settings', $hooks) } else { @() }
+  +        $extra += @('--plugin-dir', $pluginDir)
+           & $claude -p $p --model $model --permission-mode auto @extra *>&1 | Out-File -Encoding utf8 $out
+  -    } -ArgumentList $Worktree, $Claude, $Model, $prompt, $runLog, $env:LF_PROGRESS_FILE, $HooksFile
+  +    } -ArgumentList $Worktree, $Claude, $Model, $prompt, $runLog, $env:LF_PROGRESS_FILE, $HooksFile, $pluginDir
+       $result = 'done'
+       # The limit counts awake time only: a gap of more than a minute between two ticks means the laptop
+       # slept, and that time is not charged to the pass (a night of sleep used to "time out" a working pass).
+  @@ -248,7 +270,7 @@ Stop after about $PassMinutes minutes of work or 3 merged PRs, and update docs/f
+       Remove-Job $job -Force
+       $tail = if (Test-Path $runLog) { (Get-Content $runLog -Tail 3) -join ' | ' } else { '(no output)' }
+       Log "$result. last lines: $tail"
+  -    & python $Progress pass-end --result $result 2>$null | Out-Null
+  +    & factory-tools progress pass-end --result $result 2>$null | Out-Null
+       Publish-Live -Force
+       if ((Test-Path $runLog) -and ((Get-Item $runLog).Length -eq 0)) {
+           Notify 'Learning Factory: pass produced no output' "The last pass wrote nothing. Is Claude Code logged in? See $runLog" 'empty'
+  ```
 - [ ] **O28 · (2 minutes) Apply the #627 IPv6 guard hardening on the server** — #627, PR #640 (522950d). The merge ran the bootstrap **dry run** (run 45768715118, success): the IPv4 and IPv6 rules are already in place, the read-only `bridge-nf-call-ip6tables` check passed (so the live value is 1), and the apply would only replace the boot copy `/usr/local/sbin/lf-labs-iptables` and re-enable its unit; no rule changes. The squash message had no `[bootstrap apply]` line, and the factory's own dispatch of the apply was refused by this laptop's permission settings, so the new boot copy (fails closed at boot, keeps the drops) is not installed yet. Run: `gh workflow run bootstrap.yml -R Shashkist/Learning_factory --ref main -f apply=true`, then check the run ends with `BOOTSTRAP RESULT: changed` (or `ok`) and the baseline line shows your other services unchanged. Tick this box; the next pass runs the server isolation smoke and closes #627. (Or allow the factory to dispatch `bootstrap.yml` with `apply=true` in future.)
 - [ ] **O27 · (1 minute) factory PR #90 is approved but over the review-round limit** — factory#67, an exam-only PR. Rounds 1 to 3 asked for changes and the manager decided each one (factory D31 to D33). Round 4 approved head e9874e1, with CI green (175 cases, 0 skipped). `merge_gate.py` holds it with `review round 4 is over the limit of 2`. Moving the same commits to a new PR to reset the count was refused as a way around the gate, so the factory will not do that. Pick one: (a) merge it yourself: `gh pr merge 90 -R Shashkist/factory --squash --delete-branch --match-head-commit e9874e1a78fd07cdbe292e602eea988fed5f64bd`; or (b) say how the gate should treat rounds beyond 2 that the manager decided and a fresh reviewer then approved (for example, allow a merge when every round past 2 is backed by a D-entry). Then tick this box; the next pass closes #67 with the main CI run.
 

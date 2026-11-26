@@ -69,5 +69,6 @@ The project profile is `.factory/factory.yaml` (limits, verify commands, exam, r
 - **State commits to main.** The factory worktree is created with `git worktree add -B factory ../Learning_factory-factory origin/main` (local branch `factory`, following `origin/main`). State updates there are committed with the message `chore(factory): state, ...` and pushed with `git pull --rebase origin main && git push origin HEAD:main`.
 - **Per-issue worktrees.** An issue of this repository is built in `C:\projects\lf-<n>`; an issue of Shashkist/factory in a worktree of its clone, `C:\projects\factory-<n>`.
 - **Independent areas.** Issues that change different areas can run side by side, for example `labs/content`, `labs/manager` and `.github`; two issues in the same file cannot.
+- **Merge gate exam check.** The merge gate's exam check in this repository is `manager-exam / gate`; with the factory tools run `factory-tools merge-gate <pr> --session <you> --exam-gate "manager-exam / gate"` (the tool's default `acceptance / gate` is the factory repository's).
 - **Deploy watch.** After a merge, watch the Deploy workflow run (`deploy.yml`) to the end before the smoke check.
 - **Smoke target.** `https://labs.shashkist.com`, or the server address with a `Host: labs.shashkist.com` header until DNS exists.

@@ -25,6 +25,8 @@ verify:
     run:
       - uv run ruff check .
       - uv run pytest -q
+      - uv run pytest tests/acceptance -q --confcutdir=tests -o addopts="" --junitxml=acceptance.xml
+      - python ../../scripts/ci/junit_gate.py acceptance.xml
 
 # The exam as CLAUDE.md counts it. In CI the pinned reusable exam-integrity check
 # (ci.yml, exam-paths) is the authority; scripts/ci/exam_integrity.py is the local
@@ -37,6 +39,12 @@ exam:
   - "labs/**/pytest.ini"
   - "labs/**/tox.ini"
   - "labs/**/setup.cfg"
+  # The five exam-paths globs of ci.yml (D175): everything under labs/<lab>/tests/ except tests/unit/.
+  - "labs/*/tests/[!u]*"
+  - "labs/*/tests/u[!n]*"
+  - "labs/*/tests/un[!i]*"
+  - "labs/*/tests/uni[!t]*"
+  - "labs/*/tests/unit[!/]*"
 
 protected_paths:
   - "scripts/laptop/**"
@@ -60,6 +68,7 @@ labels:
   p0: "priority:p0"
   p1: "priority:p1"
   p2: "priority:p2"
+  p3: "priority:p3"
   feature: "type:feature"
   incident: "type:incident"
 
