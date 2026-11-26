@@ -134,7 +134,16 @@ def test_verify_exact_commands(profile):
             ["npm test -- --run", "npx tsc --noEmit", "npm run lint", "npm run build"],
         ),
         "tooling": (".", ["uvx pytest scripts -q"]),
-        "dashboard": ("labs/factory-dashboard", ["uv run ruff check .", "uv run pytest -q"]),
+        "dashboard": (
+            "labs/factory-dashboard",
+            [
+                "uv run ruff check .",
+                "uv run pytest -q",
+                'uv run pytest tests/acceptance -q --confcutdir=tests -o addopts="" '
+                "--junitxml=acceptance.xml",
+                "python ../../scripts/ci/junit_gate.py acceptance.xml",
+            ],
+        ),
     }
     for area, (cwd, cmds) in expected.items():
         assert _commands(profile, area) == (cwd, cmds), f"verify.{area}"
