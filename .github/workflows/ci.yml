@@ -65,10 +65,10 @@ jobs:
         set -euo pipefail
         docker run -d --name lf-exam-postgres -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:16
         for i in $(seq 1 30); do
-          if docker exec lf-exam-postgres pg_isready -h 127.0.0.1 -U postgres; then break; fi
+          if docker exec lf-exam-postgres pg_isready -U postgres; then break; fi
           sleep 2
         done
-        docker exec lf-exam-postgres pg_isready -h 127.0.0.1 -U postgres
+        docker exec lf-exam-postgres pg_isready -U postgres
         export LF_TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres
         cd labs/manager
         uv sync
