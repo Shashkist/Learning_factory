@@ -122,7 +122,8 @@ def test_busy_folder_is_skipped_and_left_intact(repo, capsys):
     (wt / "note.txt").write_text("x")
     holder = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"], cwd=wt / "sub")
     try:
-        wp.remove(repo, wt, "f/1-busy", "PR merged", False)
+        # registered: every worktree path, resolved, the way main() builds it
+        wp.remove(repo, wt, "f/1-busy", "PR merged", False, [repo.resolve(), wt.resolve()])
     finally:
         holder.kill()
         holder.wait()
