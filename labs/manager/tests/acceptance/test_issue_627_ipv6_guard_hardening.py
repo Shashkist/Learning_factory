@@ -315,10 +315,10 @@ def test_ip6_input_rule_text_is_a_tagged_bridge_drop_not_a_list_call():
     code = h44._code()
     ok = [
         ln for ln in code.splitlines()
-        if re.search(r"INPUT\s+-i\s+br-lf-labs", ln)
-        and re.search(r"--comment\s+lf-labs", ln)
-        and re.search(r"-j\s+DROP", ln)
-        and not re.search(r"\s-L", ln)
+        if re.search(r"\bINPUT\s+-i\s+br-lf-labs\b", ln)
+        and re.search(r"--comment\s+lf-labs\b", ln)
+        and re.search(r"-j\s+DROP\b", ln)
+        and not re.search(r"\s-L\b", ln)
     ]
     assert ok, "no IPv6 INPUT rule text `INPUT -i br-lf-labs -m comment --comment lf-labs -j DROP`"
 
