@@ -19,16 +19,21 @@ $PassMinutes = 90            # the manager stops itself after ~90 min or 3 merge
 $MaxPassesPerDay = 0         # cost guard; 0 = unlimited (owner, 2026-11-15: unlimited for now). Claude plan limits still apply
 $ProgressKey = Join-Path $StateDir 'progress_key'   # forced-command key: can only write live.json
 $ServerHost  = 'root@207.154.193.238'
+# The factory methodology (plugin + factory-tools), pinned (#614, D175). A moved tag is refused: the clone's HEAD must be this SHA.
+$FactoryTag  = 'v0.2.0'
+$FactorySha  = '29a613e65389cbee2dc646cec25e71863d00064c'
+$FactoryDir  = Join-Path $StateDir "factory-$FactoryTag"   # shallow clone: plugin\ and the factory-tools source
+$FactoryBin  = Join-Path $StateDir 'bin'                   # shims for factory-tools (uv's own .exe launcher is refused on this laptop)
+$env:PATH    = $FactoryBin + ';' + $env:PATH               # first on PATH: the runner, claude and its hooks find factory-tools here
 $env:LF_PROGRESS_FILE = Join-Path $StateDir 'progress.jsonl'
 $env:LF_CREW_DIR = Join-Path $env:USERPROFILE '.claude\projects\C--projects-Learning-factory-factory'   # crew view: factory transcripts only
 $HooksFile   = Join-Path $Main 'scripts/laptop/factory-hooks.json'   # live-view hooks, factory runs only (D28)
-$Progress    = if (Test-Path (Join-Path $Worktree 'scripts/factory_progress.py')) { Join-Path $Worktree 'scripts/factory_progress.py' } else { Join-Path $Main 'scripts/factory_progress.py' }
 function Publish-Live([string]$state = '', [string]$note = '', [switch]$Force) {
     # Best effort: never let the live view break the factory.
     try {
-        if ($state) { & python $Progress runner-state --state $state --note $note 2>$null | Out-Null }
+        if ($state) { & factory-tools progress runner-state --state $state --note $note 2>$null | Out-Null }
         $extra = @(); if ($Force) { $extra = @('--force') }   # final state of a pass: never dropped by the 15 s gap
-        if (Test-Path $ProgressKey) { & python $Progress publish --key $ProgressKey --host $ServerHost @extra 2>$null | Out-Null }
+        if (Test-Path $ProgressKey) { & factory-tools progress publish --key $ProgressKey --host $ServerHost @extra 2>$null | Out-Null }
     } catch {}
 }
 
@@ -47,7 +52,7 @@ function Stop-OrphanHooks {
     try {
         $cutoff = (Get-Date).AddMinutes(-2)
         $old = @(Get-CimInstance Win32_Process -Filter "Name='python.exe'" | Where-Object {
-            $_.CommandLine -match '[\/]factory_progress\.py"?\s+hook\b|[\/]factory_guard\.py' -and $_.CreationDate -lt $cutoff })
+            $_.CommandLine -match '[\/]factory_progress\.py"?\s+hook\b|[\/]factory_guard\.py|factory_tools"?\s+progress\s+hook\b' -and $_.CreationDate -lt $cutoff })
         foreach ($p in $old) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue }
         if ($old.Count -gt 0) { Log "stopped $($old.Count) orphaned hook process(es) (#230)" }
     } catch {}
@@ -72,7 +77,40 @@ function Enter-PassJob {
     } catch { return $false }
 }
 
+# The factory methodology at the pinned tag (#614, D175): clone once, refuse a moved tag, install factory-tools once per SHA.
+# uv's own factory-tools.exe launcher is refused on this laptop ("Access is denied"), so the tool runs through two shims
+# in $FactoryBin that start the tool environment's python: factory-tools.cmd (PowerShell, cmd) and factory-tools (Git Bash).
+function Test-FactoryTools {
+    try { $global:LASTEXITCODE = 1; & factory-tools --help *> $null; return ($LASTEXITCODE -eq 0) } catch { return $false }
+}
+function Install-Factory {
+    # $true when factory-tools answers; $false (and a log line) when the clone, the tag or the install is not right.
+    $toolsMarker = Join-Path $StateDir "factory-tools-$FactorySha"
+    if (-not (Test-Path (Join-Path $FactoryDir '.git'))) {
+        git clone -q --depth 1 --branch $FactoryTag https://github.com/Shashkist/factory $FactoryDir 2>$null
+        if ($LASTEXITCODE -ne 0) { Log "clone of factory $FactoryTag failed ($LASTEXITCODE)"; return $false }
+        Log "cloned factory $FactoryTag"
+    }
+    $head = "$(git -C $FactoryDir rev-parse HEAD)".Trim()
+    if ($head -ne $FactorySha) { Log "factory $FactoryTag is at $head, expected ${FactorySha}: the tag moved, refusing it"; return $false }
+    if ((Test-Path $toolsMarker) -and (Test-FactoryTools)) { return $true }
+    uv tool install --force $FactoryDir 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) { Log "uv tool install of factory-tools failed ($LASTEXITCODE)"; return $false }
+    $py = Join-Path "$(uv tool dir)".Trim() 'factory-tools\Scripts\python.exe'
+    if (-not (Test-Path $py)) { Log "factory-tools environment has no python at $py"; return $false }
+    New-Item -ItemType Directory -Force $FactoryBin | Out-Null
+    Set-Content -Encoding ascii (Join-Path $FactoryBin 'factory-tools.cmd') "@`"$py`" -P -m factory_tools %*"
+    $pyFwd = $py -replace '\\', '/'
+    [IO.File]::WriteAllText((Join-Path $FactoryBin 'factory-tools'), (@('#!/bin/sh', "exec `"$pyFwd`" -P -m factory_tools `"`$@`"") -join "`n") + "`n")
+    if (-not (Test-FactoryTools)) { Log 'factory-tools does not answer --help through its shim'; return $false }
+    New-Item -ItemType File -Force $toolsMarker | Out-Null
+    Log "installed factory-tools from $FactoryTag"
+    return $true
+}
+
 Stop-OrphanHooks
+# Best effort, before the first Publish-Live (the live view needs factory-tools), never while a pass holds the lock; a pass requires it again below.
+try { if (-not (Test-Path $Lock) -and -not (Install-Factory)) { Log 'factory-tools not ready yet; a pass will not start without it' } } catch { Log "factory install failed: $($_.Exception.Message)" }
 
 function Notify($title, $text, $key) {
     # Rate-limited Windows notification: the same $key alerts at most once every 3 hours.
@@ -111,7 +149,7 @@ if ($alive.Count -gt 0) {
         foreach ($p in $alive) { & taskkill.exe /PID $p.ProcessId /T /F 2>$null | Out-Null }
         Log "stopped: orphaned manager (pid $($alive.ProcessId -join ',')) had no runner and started over 3 h ago"
         Notify 'Learning Factory: orphaned pass stopped' 'A manager outlived its runner for over 3 hours and was stopped. The next pass resumes from STATE.md.' 'orphan'
-        & python $Progress pass-end --result timeout 2>$null | Out-Null
+        try { & factory-tools progress pass-end --result timeout 2>$null | Out-Null } catch {}
         Publish-Live -Force
         exit 0
     }
@@ -206,30 +244,34 @@ try {
         $n.ShowBalloonTip(8000, 'Learning Factory', 'Factory pass started', 'Info')
     } catch {}
 
+    if (-not (Install-Factory)) { throw "factory $FactoryTag is not ready (see poll.log): a pass does not start without it" }
+    $pluginDir = Join-Path $FactoryDir 'plugin'
+
     $prompt = @"
 You are the manager of the Learning Factory software factory, running one pass on the owner's laptop in the worktree $Worktree. The owner approved hands-off operation in advance (docs/factory/DECISIONS.md D1, D7).
 This worktree is on the local branch 'factory' which follows origin/main: push state commits with 'git push origin HEAD:main' after 'git pull --rebase origin main'; feature work goes on f/<n>-<slug> branches as usual.
-Read CLAUDE.md, then load the project skill 'factory' and follow it exactly, starting from docs/factory/STATE.md. Take issues labelled needs:laptop first, then the normal queue.
+Read CLAUDE.md, then load the plugin skill 'factory:factory' (the factory methodology at $FactoryTag, not the project skill 'factory') and follow it exactly, starting from docs/factory/STATE.md; project facts come from 'factory-tools methodology render'. Dispatch the plugin's role agents 'factory:exam-writer', 'factory:implementer', 'factory:reviewer' and 'factory:researcher', not the project's agents of the same names. Take issues labelled needs:laptop first, then the normal queue.
 Decide yourself and record decisions in docs/factory/DECISIONS.md; put owner-only blockers in docs/factory/OWNER.md and move on. Commits, pushes and squash-merges of green, reviewed PRs are pre-approved; commit by explicit paths only; never add attribution or mention Claude, AI or agents in commits, PRs or comments.
 Stop after about $PassMinutes minutes of work or 3 merged PRs, and update docs/factory/STATE.md so the next pass resumes exactly where you stopped.
 "@
     $budgetArg = if ($MaxPassesPerDay -gt 0) { @('--budget', $MaxPassesPerDay) } else { @() }   # unlimited: the page shows just 'pass N'
-    & python $Progress pass-start --pass-no ($passes + 1) @budgetArg 2>$null | Out-Null
+    try { & factory-tools progress pass-start --pass-no ($passes + 1) @budgetArg 2>$null | Out-Null } catch {}
     Publish-Live
     $runLog = Join-Path $RunsDir ("{0}.log" -f (Get-Date -Format 'yyyyMMdd-HHmm'))
     # From here on, everything this runner starts dies with it (#230). Joined this late on purpose: the
     # browser that the one-time dashboard notice may open must outlive the runner.
     if (-not (Enter-PassJob)) { Log 'job object unavailable: hook orphans are cleaned on the next tick instead' }
     $job = Start-Job -ScriptBlock {
-        param($wt, $claude, $model, $p, $out, $progressFile, $hooks)
+        param($wt, $claude, $model, $p, $out, $progressFile, $hooks, $pluginDir)
         Set-Location $wt
         $env:LF_PROGRESS_FILE = $progressFile        # hooks record only when this is set
         # Headless claude stops background subagents 10 min after the manager's last turn; pass 9 lost an
         # implementer mid-fix that way. Wait for them: the awake-time limit below still bounds the pass.
         $env:CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS = '3600000'   # 60 min: long enough for a slow implementer, never forever
         $extra = if (Test-Path $hooks) { @('--settings', $hooks) } else { @() }
+        $extra += @('--plugin-dir', $pluginDir)
         & $claude -p $p --model $model --permission-mode auto @extra *>&1 | Out-File -Encoding utf8 $out
-    } -ArgumentList $Worktree, $Claude, $Model, $prompt, $runLog, $env:LF_PROGRESS_FILE, $HooksFile
+    } -ArgumentList $Worktree, $Claude, $Model, $prompt, $runLog, $env:LF_PROGRESS_FILE, $HooksFile, $pluginDir
     $result = 'done'
     # The limit counts awake time only: a gap of more than a minute between two ticks means the laptop
     # slept, and that time is not charged to the pass (a night of sleep used to "time out" a working pass).
@@ -248,7 +290,7 @@ Stop after about $PassMinutes minutes of work or 3 merged PRs, and update docs/f
     Remove-Job $job -Force
     $tail = if (Test-Path $runLog) { (Get-Content $runLog -Tail 3) -join ' | ' } else { '(no output)' }
     Log "$result. last lines: $tail"
-    & python $Progress pass-end --result $result 2>$null | Out-Null
+    try { & factory-tools progress pass-end --result $result 2>$null | Out-Null } catch {}
     Publish-Live -Force
     if ((Test-Path $runLog) -and ((Get-Item $runLog).Length -eq 0)) {
         Notify 'Learning Factory: pass produced no output' "The last pass wrote nothing. Is Claude Code logged in? See $runLog" 'empty'
