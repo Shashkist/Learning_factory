@@ -3,9 +3,10 @@
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
 ## Now
-**Pass lf-10f1 (laptop, from 09:27 UTC 2026-11-26) running.** Took over #614 from lf-q8n5 (ended).
-- **#614** (p1, needs:laptop) = **PR #644** (`f/614-switch-kit-2`, worktree `C:\projects\lf-614`, head ee8ae66, CI green). Round-2 reviewer dispatched at 09:30 (no round-2 comment existed). After it: merge under D145 if needed, Deploy, post the O29 text on factory#7, label #614 `status:needs-owner` (criterion 4), release the claim with a note.
-- **factory#75** (p2) = branch `f/75-gate-exam-globs`, worktree `C:\projectsactory-75`. Factory D34 recorded (d494351). Exam-writer running.
+**Pass lf-10f1 (laptop, from 09:27 UTC 2026-11-26) running.** Took over #614 from lf-q8n5 (ended). 1 merge so far (factory#96).
+- **#614** (p1, needs:laptop) = **PR #644** (`f/614-switch-kit-2`, worktree `C:\projects\lf-614`). Round 2 CHANGES at ee8ae66; D145 fixes e7b5853 (check steps, lock-guarded install, `-P` shims) and a4eb5a1 (two control bytes in the check path). A fresh reviewer is verifying a4eb5a1. After APPROVE: merge gate, merge, Deploy, post the O29 text on factory#7, label #614 `status:needs-owner`, release the claim.
+- **factory#75** (p2) = branch `f/75-gate-exam-globs`, worktree `C:\projectsactory-75`, exam 3dd8714 (pushed), D34. Implementer running; then PR, CI, review.
+- **factory#82** (p2): criterion 1 shipped (factory#96, f0375d9, main CI 45799890573); criterion 2 evidence on the issue (scratch #97, run 45794635454, incident #98 closed). Criterion 3 = **PR factory#99** (`f/82-uses-exam`, worktree `C:\projectsactory-82-exam`): round 1 CHANGES (the broad pattern let fork/local lines count as pins); exam-writer is fixing. D35 (factory), D176 (LF: the gate's docker rule does not apply to factory PRs; #645 fixes the gate).
 - **factory#87: done** (factory#94, 0d9417b; factory main CI 45788396846 success; round 1 APPROVE). Criterion 7 and three review nits are in **factory#95** (p3).
 - **#627**: apply waits for the owner (O28). **factory#67** (PR factory#90): waits for the owner (O27).
 - Tooling: `uv run <tool>` fails here because uv's `.exe` launchers are refused (Access is denied); use `uv run python -m <tool>`. The factory guard refuses shell text naming the runner folder or the guard file: write such text with the file tools. GitHub's "Update branch" merge commit is refused by exam-integrity (D174): re-cut by rebase. The factory dashboard's full test suite takes ~37 min on this laptop.
