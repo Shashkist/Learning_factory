@@ -18,10 +18,15 @@ def _fmt(used: int, total: int) -> str:
 
 
 def _memory(free_output: str) -> str:
+    column = None
     for line in free_output.splitlines():
         parts = line.split()
-        if parts and parts[0] == "Mem:":
-            total, available = int(parts[1]), int(parts[6])
+        if "available" in parts:
+            column = parts.index("available") + 1  # the Mem row starts with a label
+        elif parts and parts[0] == "Mem:":
+            if column is None:
+                raise ValueError("no available column")
+            total, available = int(parts[1]), int(parts[column])
             return _fmt(total - available, total)
     raise ValueError("no Mem row")
 
@@ -30,14 +35,14 @@ def _disk(df_output: str) -> str:
     for line in df_output.splitlines():
         parts = line.split()
         if len(parts) >= 6 and parts[-1] == "/":
-            return _fmt(int(parts[2]), int(parts[1]))
+            return _fmt(int(parts[-4]), int(parts[-5]))
     raise ValueError("no root row")
 
 
 def parse(free_output: str, df_output: str) -> dict | None:
     try:
         return {"memory": _memory(free_output), "disk": _disk(df_output)}
-    except (ValueError, IndexError, ZeroDivisionError, AttributeError, TypeError):
+    except (ValueError, IndexError, ArithmeticError, AttributeError, TypeError):
         return None
 
 
