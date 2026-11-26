@@ -249,5 +249,34 @@ wait_for "no-cache on https://$factory_host/live.json" check_live_json || die "l
 
 printf '%s\n' "$tag" > "$root/deployed-tag"
 say "deployed lf-manager:$tag; all checks passed"
+
+# ---- prune our old images (only after every check above passed; never fatal)
+# Removes lf-manager tags other than the deployed one and the previous one (rollback target), and
+# dangling images whose repository is under $image_prefix/. Nothing else is ever named: no
+# `system prune`, no unfiltered `image prune`, no --force (an image in use simply stays).
+pruned=0
+prune_one() { # prune_one <ref to remove> <what to show in the log>
+  if "$docker" rmi "$1" >/dev/null 2>&1; then
+    pruned=$((pruned + 1))
+  else
+    say "skip: could not remove $2 (in use or already gone)"
+  fi
+}
+prune_images() {
+  local repo itag iid
+  while read -r repo itag iid; do
+    [ "$repo" = "$image_prefix/lf-manager" ] || continue
+    [ -n "$itag" ] && [ "$itag" != "<none>" ] || continue
+    [ "$itag" != "$tag" ] && [ "$itag" != "$prev" ] || continue
+    prune_one "$repo:$itag" "$repo:$itag"
+  done < <("$docker" images --filter "reference=$image_prefix/lf-manager" --format '{{.Repository}} {{.Tag}} {{.ID}}' 2>/dev/null || true)
+  while read -r repo itag iid; do
+    case "$repo" in "$image_prefix"/*) ;; *) continue ;; esac
+    [ -n "$iid" ] || continue
+    prune_one "$iid" "dangling $repo $iid"
+  done < <("$docker" images --filter dangling=true --format '{{.Repository}} {{.Tag}} {{.ID}}' 2>/dev/null || true)
+}
+prune_images || true
+say "pruned $pruned old image(s)"
 # Machine-readable proof of a real apply (the workflow runs the smoke only when it sees this line).
 printf 'deployed %s\n' "$tag"
