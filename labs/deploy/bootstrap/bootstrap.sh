@@ -694,26 +694,51 @@ chain_rules() {
   echo "x -i $BRIDGE -m comment --comment $TAG -j DROP"
 }
 
-# IPv6 guard (D167): lf-labs has no IPv6, but a lab may still get a link-local address under
+# IPv6 guard (D167, D168): lf-labs has no IPv6, but a lab may still get a link-local address under
 # gVisor. Drop everything IPv6 from the bridge, tagged like the IPv4 rules. One rule per line,
 # first word is the chain. Forwarding goes in DOCKER-USER when ip6tables has it, else FORWARD.
-ip6_rules() {
-  local fwd=FORWARD
-  if ip6tables -n -L DOCKER-USER >/dev/null 2>&1; then fwd=DOCKER-USER; fi
-  echo "$fwd -i $BRIDGE -m comment --comment $TAG -j DROP"
-  echo "INPUT -i $BRIDGE -m comment --comment $TAG -j DROP"
+# Both are decided once per run (IP6_STATE, FWD6), so a run says it once and uses one chain.
+PROC_ROOT="${PROC_ROOT:-/proc}"
+IP6_STATE=""
+FWD6=""
+
+# The boot unit can start before dockerd has made the ip6tables DOCKER-USER chain: wait for it
+# briefly, so --rules-only and a normal run choose the same chain.
+ip6_fwd_chain() {
+  local i
+  [ -n "$FWD6" ] && return 0
+  FWD6=FORWARD
+  for i in 1 2 3 4 5 6; do
+    if ip6tables -n -L DOCKER-USER >/dev/null 2>&1; then FWD6=DOCKER-USER; return 0; fi
+    [ "$i" = 6 ] || sleep 1
+  done
 }
 
-# No ip6tables (or no IPv6 in the kernel): there is nothing to guard, say so and go on.
-ip6_available() {
-  if command -v ip6tables >/dev/null 2>&1 && ip6tables -n -L INPUT >/dev/null 2>&1; then return 0; fi
-  log "ip6tables not usable here: no IPv6 guard added"
-  return 1
+ip6_rules() {
+  echo "$FWD6 -i br-lf-labs -m comment --comment lf-labs -j DROP"
+  echo "INPUT -i br-lf-labs -m comment --comment lf-labs -j DROP"
+}
+
+# none: the kernel has no IPv6, nothing to guard. ok: ip6tables works. unusable: the kernel has
+# IPv6 but ip6tables is missing or fails; the guard fails closed (no `command -v`: ip6tables is a
+# function here, so that would always succeed).
+ip6_state() {
+  [ -n "$IP6_STATE" ] && return 0
+  if [ ! -e "$PROC_ROOT/net/if_inet6" ]; then
+    IP6_STATE=none
+    log "no IPv6 in the kernel (net/if_inet6 absent): no IPv6 guard added"
+  elif ip6tables -n -L INPUT >/dev/null 2>&1; then
+    IP6_STATE=ok
+  else
+    IP6_STATE=unusable
+  fi
 }
 
 ip6_missing() {
   local rule a rules
-  ip6_available || return 1
+  ip6_state
+  case "$IP6_STATE" in none) return 1 ;; unusable) return 0 ;; esac
+  ip6_fwd_chain
   mapfile -t rules < <(ip6_rules)
   for rule in "${rules[@]}"; do
     read -ra a <<<"$rule"
@@ -722,9 +747,26 @@ ip6_missing() {
   return 1
 }
 
+# Read-only: lab-to-lab IPv6 only meets the guard when bridged frames go through ip6tables.
+ip6_preconditions() {
+  local v
+  if [ "$IP6_STATE" = unusable ]; then
+    err "the kernel has IPv6 but ip6tables is missing or not usable: the IPv6 guard cannot be put in place"
+    return 1
+  fi
+  v="$(cat "$PROC_ROOT/sys/net/bridge/bridge-nf-call-ip6tables" 2>/dev/null || true)"
+  if [ "$v" != 1 ]; then
+    err "bridge-nf-call-ip6tables is '${v:-absent}', not 1: lab-to-lab IPv6 would bypass the ip6tables guard (load br_netfilter and set it to 1; this script never writes it)"
+    return 1
+  fi
+}
+
 apply_ip6() {
   local rule a rules
-  ip6_available || return 0
+  ip6_state
+  [ "$IP6_STATE" = none ] && return 0
+  ip6_preconditions
+  ip6_fwd_chain
   mapfile -t rules < <(ip6_rules)
   for rule in "${rules[@]}"; do
     read -ra a <<<"$rule"
