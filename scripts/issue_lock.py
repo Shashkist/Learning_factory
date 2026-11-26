@@ -82,6 +82,47 @@ def _unquote(value: str) -> str:
     return value
 
 
+def _read_entries(path: Path) -> list[dict]:
+    """The repos.yaml entries, one dict per repository. Raises on a missing or malformed file."""
+    entries: list[dict] = []
+    for raw in path.read_text(encoding="utf-8-sig").splitlines():
+        line = raw.split(" #", 1)[0].rstrip()
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        if line.startswith("- "):
+            entries.append({})
+            line = "  " + line[2:]
+        key, sep, value = line.strip().partition(":")
+        if not entries or not sep or not key.isidentifier():
+            raise ValueError(line)
+        entries[-1][key] = _unquote(value)
+    unique: dict[str, dict] = {}
+    for e in entries:
+        unique.setdefault(e["repo"].lower(), e)
+    entries = list(unique.values())
+    if not entries or any(e["repo"].count("/") != 1 for e in entries):
+        raise ValueError("no repositories")
+    return entries
+
+
+def docker_check(repo: str | None = None, path: Path | None = None) -> bool:
+    """Whether the merge gate's docker rule applies to `repo` (default: this repository).
+
+    Off only when the repository's entry says `docker_check: false`; on in every other case
+    (not listed, no key, unrecognised value, file missing or unreadable): fail closed.
+    """
+    path = path or Path(os.environ.get("LF_REPOS_FILE") or REPOS_FILE)
+    try:
+        entries = _read_entries(path)
+    except (OSError, ValueError, KeyError):
+        return True
+    want = (repo or HERE_REPO).lower()
+    for e in entries:
+        if e["repo"].lower() == want:
+            return e.get("docker_check", "").strip().lower() != "false"
+    return True
+
+
 def read_repos(path: Path | None = None) -> tuple[list[str], str, dict[str, str]]:
     """(repositories, default, clone path per repository) from repos.yaml.
 
@@ -96,25 +137,8 @@ def read_repos(path: Path | None = None) -> tuple[list[str], str, dict[str, str]
     the tooling job runs with no dependencies, so no PyYAML here.
     """
     path = path or Path(os.environ.get("LF_REPOS_FILE") or REPOS_FILE)
-    entries: list[dict] = []
     try:
-        for raw in path.read_text(encoding="utf-8-sig").splitlines():
-            line = raw.split(" #", 1)[0].rstrip()
-            if not line.strip() or line.lstrip().startswith("#"):
-                continue
-            if line.startswith("- "):
-                entries.append({})
-                line = "  " + line[2:]
-            key, sep, value = line.strip().partition(":")
-            if not entries or not sep or not key.isidentifier():
-                raise ValueError(line)
-            entries[-1][key] = _unquote(value)
-        unique: dict[str, dict] = {}
-        for e in entries:
-            unique.setdefault(e["repo"].lower(), e)
-        entries = list(unique.values())
-        if not entries or any(e["repo"].count("/") != 1 for e in entries):
-            raise ValueError("no repositories")
+        entries = _read_entries(path)
     except (OSError, ValueError, KeyError):
         print(
             "warning: " + str(path) + " (repos.yaml) is missing or unreadable;"
