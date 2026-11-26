@@ -3,10 +3,10 @@
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
 ## Now
-**Pass lf-v6n8 (laptop, from 13:27 UTC 2026-11-26) in flight.** Took over lf-k3j6's claims.
-- **#645** = PR #646 (`f/645-gate-docker-per-repo`, worktree `C:\projects\lf-645`, head 1474ee9, CI green): fresh reviewer verifying the round-2 D145 fix.
-- **factory#91** = PR factory#104 (`f/91-gate-fail-closed`, worktree `C:\projectsactory-91`, head 9329298, CI green): round-1 reviewer running.
-- **factory#102** (`f/102-gate-rounds-past-limit`, worktree `C:\projectsactory-102`): exam-writer running.
+**Pass lf-v6n8 (laptop, from 13:27 UTC 2026-11-26) in flight, 2 merges so far.**
+- Closed: **#645** (#646, b739621; CI 45832032037, Deploy 45835664366; gate smoke: factory#104 no longer shows the docker hold), **factory#91** (factory#104, 2380e53; main CI 45831815967; live guard in scratch draft factory#106, run 45832304038). Follow-ups: #647, factory#105. Factory decisions D38, D39.
+- **factory#102** (`f/102-gate-rounds-past-limit`, worktree `C:\projectsactory-102`; exam 09a1245, contract in D38): implementer running.
+- **factory#11** (`f/11-integrity-sitecustomize`, worktree `C:\projectsactory-11`; exam 3e832f1, scope in D39): implementer running.
 - **factory#7** and **#614** stay `status:needs-owner` (O29).
 - Tooling: `uv run <tool>` fails here (launcher .exe refused); use `uv run python -m <tool>`. The factory guard refuses shell text naming the runner folder or the guard file: write such text with the file tools. GitHub's "Update branch" merge commit is refused by exam-integrity (D174): re-cut by rebase. If the `implementer` agent type refuses to start (stale `.claude/worktrees/agent-*` in the shared checkout), use `general-purpose` with the implementer brief.
 
@@ -30,6 +30,7 @@ Older pass notes (lf-m7q2 and before) are in `history.md` and git history (`git 
 
 ## Recently done
 
+- 2026-11-26 pass lf-v6n8: #645 (#646, b739621; Deploy 45835664366), factory#91 (factory#104, 2380e53; main CI 45831815967, live scratch run 45832304038). Factory D38, D39. Opened #647, factory#105.
 - 2026-11-26 pass lf-k3j6: factory#75 (factory#101, 39f094b; main CI 45815131073). Closed #627 (isolation smoke 45811374627) and factory#67 (owner merge, D36). Decisions D177 (+ amendment 1), factory D37. Opened factory#103. In review: #646 (#645), factory#104 (factory#91).
 - 2026-11-26 pass lf-10f1: #644 (#614 switch kit, a10118d; round-2 D145 fixes verified twice), factory#96 (f0375d9; factory main CI 45799890573) and factory#99 (60d17eb; main CI 45803678313) closed factory#82. Decisions: factory D34, D35; LF D176. Opened #645, factory#100. factory#101 (factory#75) in CI.
 - 2026-11-26 pass lf-q8n5: #633 and #594 (one bug) shipped in #643 (42dac55; main CI 45779431933, Deploy 45783809538). Factory tag v0.2.0 (29a613e). D175 with amendments 1 and 2. factory#87 shipped in factory#94 (0d9417b; main CI 45788396846). #644 (#614) in review round 2. Opened factory#95.
