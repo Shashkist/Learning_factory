@@ -4,9 +4,9 @@
 
 ## Now
 **Pass lf-x7p3 (laptop, from 05:27 UTC 2026-11-26) is running.** It took over lf-r5k2's claims (#613, #627, #631).
-- **#631:** #634 re-cut as **PR #638** (D174: rebase, patch-id equal to the approved diff). Fresh reviewer confirming equality; then CI, gate, merge, Factory dashboard run, live check of `server-stats.txt`.
-- **#613 PR B** (`f/613-reusable-ci-exam`, `C:\projects\lf-613`, rebased): exam-writer correcting 3 cases (D173), then open with `Closes #613`. Then #614 (needs:laptop).
-- **#627** (`f/627-ipv6-guard-hardening-4`, `C:\projects\lf-627-4`): implementer fixing review round-1 findings; then a new PR replacing #632.
+- **#631:** shipped as **e1250c9** (PR #638, D174 re-cut of #634). Factory dashboard run 45765025096 success; `https://factory.shashkist.com/server-stats.txt` is live (free/df output). Waiting for the next snapshot to show memory and disk, then close #631 and point factory#43 at it.
+- **#613 PR B = PR #639** (`f/613-reusable-ci-exam`, `C:\projects\lf-613`): D173 corrections 8c40cf5; review round 1 CHANGES (exam gaps, exam-only fixes in progress); follow-up #642. Then #614 (needs:laptop).
+- **#627** (`f/627-ipv6-guard-hardening-4`, `C:\projects\lf-627-4`): fix 0f5cf85; **PR #640** replaces #632; draft #641 (402928c, no fix) shows whether the new cases are red without the fix: close it after CI.
 
 Notes of the previous pass (lf-r5k2):
 **Pass lf-r5k2 (laptop, 03:27-~05:05 UTC 2026-11-26) stopped.** It holds the claims below; take each over (`claim --steal --reason`) once this session has ended.
