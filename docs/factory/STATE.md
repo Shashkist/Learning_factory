@@ -5,7 +5,7 @@
 ## Now
 **Pass lf-10f1 (laptop, 09:27-~11:05 UTC 2026-11-26) stopped after 3 merges** (#644, factory#96, factory#99). It still holds the claim on factory#75; take it over (`claim --steal --reason 'session gone' --repo Shashkist/factory`).
 - **factory#75** (p2) = **PR factory#101** (`f/75-gate-exam-globs`, worktree `C:\projectsactory-75`; exam 3dd8714, code 2481c72; D34). CI was running at the stop. Next: a round-1 `reviewer`, then the gate (`python scripts/merge_gate.py 101 --session <you> --repo Shashkist/factory --exam-gate "acceptance / gate"`), merge, factory main CI, close.
-- **#614: merged** as #644 (a10118d), labelled `status:needs-owner` (criterion 4: the owner applies O29 and reports the first pass on the plugin). The O29 text is on factory#7. The claim is released. **Check that LF main CI 45803260927 and the Deploy for a10118d were green** (they were still running at the stop).
+- **#614: merged** as #644 (a10118d), labelled `status:needs-owner` (criterion 4: the owner applies O29 and reports the first pass on the plugin). The O29 text is on factory#7. The claim is released. LF main CI 45803260927 green on a10118d; Deploy 45806732503 (5e3f4be, includes a10118d) green with its smoke job.
 - **factory#82: done** (factory#96 f0375d9, factory#99 60d17eb, scratch run 45794635454; D35). Nits in factory#100.
 - New: **#645** (p2): make the gate's docker rule per repository (D176 applies until then).
 - **factory#87: done** (factory#94, 0d9417b; factory main CI 45788396846 success; round 1 APPROVE). Criterion 7 and three review nits are in **factory#95** (p3).
