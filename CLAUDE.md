@@ -59,7 +59,7 @@ docs/           spec, factory docs, decisions
 From `labs/manager/`: `uv run pytest -q`, `uv run ruff check .`, `uv run mypy app`.
 From `labs/web/`: `npm test -- --run`, `npx tsc --noEmit`, `npm run lint`, `npm run build`.
 From the repository root (factory tooling): `uvx pytest scripts -q`.
-From `labs/factory-dashboard/` (dashboard and the factory tooling exams): `uv run ruff check .`, `uv run pytest -q`.
+From `labs/factory-dashboard/` (dashboard and the factory tooling exams): `uv run ruff check .`, `uv run pytest -q`, `uv run pytest tests/acceptance -q --confcutdir=tests -o addopts="" --junitxml=acceptance.xml`, `python ../../scripts/ci/junit_gate.py acceptance.xml`.
 Integration tests that need Docker and gVisor run in GitHub Actions (`.github/workflows/ci.yml`). Cloud sessions have no Docker; do not fake it.
 
 ## Factory facts

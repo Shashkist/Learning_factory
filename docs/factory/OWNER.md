@@ -119,7 +119,7 @@ The factory never waits on these. It works around them and comes back when they 
              }
            ]
   diff --git a/scripts/laptop/factory-poll.ps1 b/scripts/laptop/factory-poll.ps1
-  index 3da353c..0018a13 100644
+  index 3da353c..ce6a4eb 100644
   --- a/scripts/laptop/factory-poll.ps1
   +++ b/scripts/laptop/factory-poll.ps1
   @@ -19,16 +19,20 @@ $PassMinutes = 90            # the manager stops itself after ~90 min or 3 merge
@@ -177,7 +177,7 @@ The factory never waits on these. It works around them and comes back when they 
   +        Log "cloned factory $FactoryTag"
   +    }
   +    $head = (git -C $FactoryDir rev-parse HEAD).Trim()
-  +    if ($head -ne $FactorySha) { throw "factory $FactoryTag is at $head, expected $FactorySha: the tag moved, refusing it" }
+  +    if ($head -ne $FactorySha) { throw "factory $FactoryTag is at $head, expected ${FactorySha}: the tag moved, refusing it" }
   +    $toolsMarker = Join-Path $StateDir "factory-tools-$FactorySha"
   +    if (-not (Test-Path $toolsMarker)) {
   +        uv tool install --force $FactoryDir
