@@ -1812,6 +1812,8 @@ in force · factory · 2026-11-26
 **Alternatives.** Pin the runner's `runsc` too (moves all 409 docker exams to an older release in one step); amend AC5 to "the current release" and prove the pinned one only on the server after the apply (later, and on production).
 **Revert.** Build `runsc-suid` from the runner's `runsc` entry again (the first #654 head, 3ea0f10).
 
+**Amendment 1 (pass lf-h2k9, #651 PR 2).** The #651 exam case `test_runner_has_runsc_suid_registered_with_allow_suid` asserted that the runner's `runsc-suid` path equals `runsc`'s path, which this decision changed on the runner (the server keeps that equality: AC1 and the bootstrap scenarios still check it). An exam-only commit on `f/651-runsc-suid-2` replaces that one assertion with a check that is at least as strict: the runner's `runsc-suid` binary reports the `RUNSC_RELEASE` pinned in `bootstrap.sh`, its `runtimeArgs` carry `RUNSC_OVERLAY` and `--allow-suid`, and `runsc` has no `--allow-suid`. The negative control (plain `runsc` keeps euid 1001) runs the runner's apt release, not the pinned one; registering a third runtime only for that control is not worth a runner change, since gVisor's setuid handling is the same flag on both builds. No other exam case changes.
+
 ## D182 · #15 is sliced: most of its first criterion already ships as the terminal and task smoke
 in force · factory · 2026-11-26
 
