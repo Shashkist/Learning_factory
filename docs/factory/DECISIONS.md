@@ -1803,3 +1803,27 @@ in force · factory · 2026-11-26
 **Why.** Same rule as D27 in the factory repository: what judges or runs the exam lands without the exam; the docker-marked #651 cases then run against a runner that already has the runtime.
 **Alternatives.** Register `runsc-suid` inside a docker-marked fixture (root on the runner from a test; the exam would own runner setup).
 **Revert.** Drop the `runsc-suid` lines from the `docker` job.
+
+## D181 · #651: the runner's `runsc-suid` runs the server's pinned runsc with the server's args
+in force · factory · 2026-11-26
+
+**Decision.** Review round 1 of #654 found that the runner's runsc comes from the apt `release` channel (20261123.1 in that run), while the server runs the release pinned in `bootstrap.sh` (20260817.0) with `--overlay2=root:memory`. So the `docker` job now downloads the pinned release (URL and sha512 read from `bootstrap.sh`, one source of truth), installs it as `/usr/local/bin/runsc-pinned`, and registers `runsc-suid` as that binary with `RUNSC_OVERLAY` plus `--allow-suid`, exactly the entry the server gets. The runner's `runsc` stays the apt build (the existing docker exams are unchanged). The step runs with `pipefail`, checks `runsc` by key and prints the `runsc-suid` entry, and fails unless its args contain `--allow-suid`.
+**Why.** #651 AC5 and D179's assumption ask for proof with the pinned release; the #651 exam then proves euid 0 on the same binary and flags as production.
+**Alternatives.** Pin the runner's `runsc` too (moves all 409 docker exams to an older release in one step); amend AC5 to "the current release" and prove the pinned one only on the server after the apply (later, and on production).
+**Revert.** Build `runsc-suid` from the runner's `runsc` entry again (the first #654 head, 3ea0f10).
+
+## D182 · #15 is sliced: most of its first criterion already ships as the terminal and task smoke
+in force · factory · 2026-11-26
+
+**Decision.** The terminal and task smoke (#86, #90, #128) already runs nightly and after every real deploy: smoke student, start, pass a task, end, `lab-*` container gone. What #15 still asks is sliced into three issues: (a) the nightly smoke also checks the lab isolation firewall rule on the server (read-only `iptables -C`) and that no `lab-*` container or `lf-` lab volume is left over; (b) a nightly soak: 30 sessions in a row through the public URL as the smoke student, with forced ends by missed heartbeat and by time limit, then no `lab-*` containers, no orphan volumes, free memory and disk within 50 MB of the start, a summary in the run log, failure opens an incident; (c) the manager-restart forced end in the soak, which restarts `lf-manager` and so is gated to a quiet hour with no live student sessions. #15 stays open as the parent until the three are closed.
+**Why.** One PR per slice of about 400 lines; the read-only check is small and useful now (a firewall flush would leave labs unisolated until the next reboot), the soak needs a time-limit override for the smoke lab, and the restart touches live students.
+**Alternatives.** One large PR; drop the restart case.
+**Revert.** Close the slices and work #15 as one issue.
+
+## D183 · #85 is sliced; the live checks through nginx stay off the rollback path
+in force · factory · 2026-11-26
+
+**Decision.** #85's open items become #658 (a cancelled Deploy is noticed, p2), #659 (migrations check on re-runs, stale-run skip in the job `if`, lab image paired on manual deploys) and #660 (the exam follow-ups, exam-only). Image pruning shipped in #650 (#648); the docs-only item already holds (a docs-only commit runs no CI, so no Deploy). The live-check item is decided here, not built: the container checks (healthz, default route, migrations line) keep rolling back; the live checks through nginx (`/healthz`, `/api/health` via the shared `nginx-proxy3`) keep failing the run without a rollback. #85 is closed when this entry lands.
+**Why.** A live check through nginx fails for reasons a new image cannot cause or cure (the shared proxy, its network, DNS); rolling back a good image then restarts every live terminal for nothing. A real image fault shows in the container checks, which do roll back, and a failed run already opens an incident.
+**Alternatives.** Put the live checks on the rollback path (the issue's first option); one issue for all of #85 (several PRs of unrelated scope).
+**Revert.** Move the two live checks into the rollback block of `labs/deploy/deploy.sh`.
