@@ -5,7 +5,7 @@ Usage: merge_gate.py <pr> --session <s> [--repo owner/name] [--author login] [--
 Prints `MERGE`, or one `HOLD: <reason>` line per reason. Exit 0 / 1. Read-only.
 A line-anchored `Part of #n` (a D19 PR A, #590) counts like `Closes #n` for the claim check.
 The exam-integrity check is named `exam-integrity` or `<caller> / exam-integrity` (reusable workflow, #605).
-The exam gate check (`manager-exam`, or `--exam-gate`, exact name) must be SUCCESS (#608, D160). A
+The exam gate check (`manager-exam / gate`, or `--exam-gate`, exact name) must be SUCCESS (#608, D160). A
 SKIPPED `docker` passes only when `changes` is SUCCESS and no commit of the PR touches a file under
 `.github/workflows/` (new or previous name; D160 amendment 1).
 """
@@ -45,7 +45,7 @@ def _state(c: dict) -> str:
     return (c.get("conclusion") or c.get("state") or "").upper()
 
 
-def _check_reasons(checks: list[dict], exam_gate: str = "manager-exam",
+def _check_reasons(checks: list[dict], exam_gate: str = "manager-exam / gate",
                    changed: tuple | list | set = ()) -> list[str]:
     if not checks:
         return ["no checks have run on this PR"]
@@ -122,7 +122,7 @@ def main(argv: list[str], run=issue_lock._run) -> int:
     ap.add_argument("--session", required=True)
     ap.add_argument("--repo")
     ap.add_argument("--author")
-    ap.add_argument("--exam-gate", default="manager-exam")
+    ap.add_argument("--exam-gate", default="manager-exam / gate")
     args = ap.parse_args(argv)
     gh = issue_lock.scoped(run, args.repo)
 

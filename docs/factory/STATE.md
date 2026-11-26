@@ -3,10 +3,11 @@
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
 ## Now
-**Pass lf-r5k2 (laptop, from 03:27 UTC 2026-11-26)** took over #613 and #627 from lf-w9d4 and claimed #631. In flight:
-- #630 (#613 PR A): implementer fixing review round 1 on `f/613-reusable-ci-2` (D165 amendment 1 written).
-- #627: D170 decided both CI questions (absent bridge-nf fails like 0, #142 fixture loads br_netfilter; the exam brings its own IPv6 listener, ttyd stays IPv4-only). Exam-writer fixing the exams on `-3`; then cherry-pick 97412e0.
-- #631 (new, from factory#43, D171): exam-writer on `f/631-dashboard-server-stats` (worktree `C:\projects\lf-631`).
+**Pass lf-r5k2 (laptop, 03:27-~05:00 UTC 2026-11-26)** holds #613, #627, #631. Lanes:
+- **#613 PR A = #635** (`f/613-reusable-ci-3`, worktree `C:\projects\lf-613-c`). It replaces #630, which review round 2 approved at 47e3ee0 with CI green but the gate held at CI round 6 of 5 (D172: the same diff in four commits, byte-identical, checked with `diff`). A fresh reviewer verifies the identity; post its verdict as `Review round 1: ... at <head>` on #635. Merge with `python scripts/merge_gate.py 635 --session <you> --exam-gate "manager-exam / gate"`, then Deploy and smoke. Then PR B (`f/613-reusable-ci-exam`, worktree `C:\projects\lf-613`, not pushed): rebase onto main and open with `Closes #613`. Round-1 nit 4 (`pg_isready -h`) moved to #629 (D165 amendment 1 (e)).
+- **#627 = PR #632** (`-3`, head c0ac332): round 1 CHANGES (two blocking: the bridge-nf check is skipped when the guard is already in place; at boot a failed check leaves no IPv6 drop). CI on `-3` was fully green, including all IPv6 docker cases (D170 worked). Re-sequenced to **`f/627-ipv6-guard-hardening-4`** (worktree `C:\projects\lf-627-4`): exam commits plus a new exam case for both findings (exam-writer running at 04:30). **Next:** cherry-pick c0ac332 onto `-4`, then an implementer fixes findings 1 to 3 (ip6_missing reports missing when bridge-nf is not 1; read bridge-nf after the insert loop; `$BRIDGE`/`$TAG` in `ip6_rules`), open a new PR, close #632, review round 2. Follow-up #636 (outcome readable). After the merge, the bootstrap dry run reads the live bridge-nf value (D170).
+- **#631 = PR #634** (`f/631-dashboard-server-stats`, worktree `C:\projects\lf-631`, from factory#43, D171 + amendment 1): round 1 CHANGES fixed in 19a0329; round-2 reviewer running. After the merge: the first publish writes `server-stats.txt`, the next snapshot shows the numbers; then close factory#43 with a pointer. Follow-up #637.
+- New p3: #633 (Windows-only prune test, old `remove()` signature).
 
 Notes of the previous pass (lf-w9d4), still the detail for #613 and #627:
 **Pass lf-w9d4 (laptop, 01:27-~03:05 UTC 2026-11-26)** took over lf-c3w8's lanes. #624 (PR 0 of #613) merged as 927af61. All lanes below are claimed by lf-w9d4. Take each over (`claim --steal --reason`) once this session has ended.
