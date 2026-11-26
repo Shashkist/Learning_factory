@@ -144,6 +144,9 @@ report() {
   if runsc_in_file && ! runsc_overlay_ok; then
     log "WARNING: runtimes.runsc in $DAEMON_JSON has no runtimeArgs $RUNSC_OVERLAY: lab root filesystem writes are not capped by the memory limit (existing entry left untouched)"
   fi
+  if suid_in_file && ! suid_entry_ok; then
+    log "WARNING: runtimes.$SUID_RT in $DAEMON_JSON is not runsc's path with $SUID_ARG: existing entry left untouched"
+  fi
   log "-- network $NET (subnet ip-range)"; network_config || log "(not created)"
   log "-- iptables -S DOCKER-USER"; iptables -S DOCKER-USER || true
   log "-- iptables -S INPUT (lf-labs rules)"
@@ -163,6 +166,20 @@ runsc_overlay_ok() {
   jq -e --arg a "$RUNSC_OVERLAY" '(.runtimes.runsc.runtimeArgs // []) | any(. == $a)' "$DAEMON_JSON" >/dev/null 2>&1
 }
 
+# The second runtime for labs that need setuid binaries (sudo, D179): runsc's path and args plus --allow-suid.
+SUID_RT=runsc-suid
+SUID_ARG="--allow-suid"
+
+suid_in_file() {
+  [ -f "$DAEMON_JSON" ] || return 1
+  jq -e --arg n "$SUID_RT" '.runtimes[$n]' "$DAEMON_JSON" >/dev/null 2>&1
+}
+
+# The file entry is the one this script would write: runsc's path, and the --allow-suid arg.
+suid_entry_ok() {
+  jq -e --arg n "$SUID_RT" --arg a "$SUID_ARG" '.runtimes[$n] as $s | $s.path == .runtimes.runsc.path and (($s.runtimeArgs // []) | any(. == $a))' "$DAEMON_JSON" >/dev/null 2>&1
+}
+
 runtimes_json() { docker info --format '{{json .Runtimes}}' 2>/dev/null || true; }
 
 # Runtime names and paths only: the full `docker info` entries carry feature JSON (public log).
@@ -176,6 +193,7 @@ runtime_has() {
 }
 
 runsc_loaded() { runtime_has runsc; }
+suid_loaded() { runtime_has "$SUID_RT"; }
 
 # The runsc docker has loaded carries the overlay arg (what `docker info` shows, not the file).
 runsc_loaded_overlay() {
@@ -307,10 +325,23 @@ runsc_flag_registered_check() {
   exit 1
 }
 
+# runsc-suid is wanted when it is not in the file, or is the entry we would write and not loaded.
+# A differing entry stays as it is (the report warns); with runsc outside the file there is
+# nothing to copy it from.
+need_suid() {
+  if suid_in_file; then
+    suid_entry_ok || return 1
+    suid_loaded && return 1
+    return 0
+  fi
+  runsc_in_file
+}
+
 need_runtime() {
   if runsc_in_file; then
-    runsc_loaded && return 1
-    return 0
+    runsc_loaded || return 0
+    need_suid
+    return
   fi
   if runsc_loaded; then
     runsc_flag_registered_check
@@ -360,7 +391,7 @@ reload_extras() {
   for k in $(jq -r --argjson r "$RELOADABLE_KEYS" 'keys[] | select(. as $k | $r | index($k))' "$DAEMON_JSON"); do
     echo "key $k"
   done
-  for name in $(jq -r '(.runtimes // {}) | del(.runsc) | keys[]' "$DAEMON_JSON"); do
+  for name in $(jq -r '(.runtimes // {}) | del(.runsc, .["runsc-suid"]) | keys[]' "$DAEMON_JSON"); do
     runtime_has "$name" || echo "runtime $name (not loaded)"
   done
 }
@@ -373,12 +404,13 @@ report_reload_extras() {
   log "${extras:-(none)}"
 }
 
-strip_runsc='del(.runtimes.runsc) | if .runtimes == {} then del(.runtimes) else . end'
+strip_runsc='del(.runtimes.runsc, .runtimes["runsc-suid"]) | if .runtimes == {} then del(.runtimes) else . end'
 
 RUNSC_URL="https://storage.googleapis.com/gvisor/releases/release/$RUNSC_RELEASE/x86_64"
 RUNSC_DEST=/usr/local/bin/runsc
 RUNSC_INSTALLED=0
 RELOAD_EXISTING=0
+RUNSC_LOADED_BEFORE=0
 DAEMON_TMP=""
 
 # Used only for the jq install (ensure_jq), which never runs in a dry run.
@@ -433,25 +465,36 @@ check_existing_runsc() {
 
 apply_runtime() {
   local runsc_bin new orig i
-  if runsc_in_file; then check_existing_runsc; fi
+  if runsc_in_file && ! runsc_loaded; then check_existing_runsc; fi
   if [ -f "$DAEMON_JSON" ]; then
     DAEMON_BACKUP="$DAEMON_JSON.lf-bak.$STAMP"
     run cp -p "$DAEMON_JSON" "$DAEMON_BACKUP"
   fi
   if command -v runsc >/dev/null 2>&1; then runsc_bin="$(command -v runsc)"; else install_runsc; runsc_bin=$RUNSC_DEST; fi
 
-  if runsc_in_file; then
-    log "runsc is already in $DAEMON_JSON and nothing else would change: validating, then only reloading docker"
+  if [ -f "$DAEMON_JSON" ]; then orig="$(cat "$DAEMON_JSON")"; else orig='{}'; fi
+  new="$orig"
+  if ! runsc_in_file; then
+    new="$(printf '%s' "$new" | jq --arg p "$runsc_bin" --arg a "$RUNSC_OVERLAY" '.runtimes = ((.runtimes // {}) + {runsc: {path: $p, runtimeArgs: [$a]}})')"
+  fi
+  # runsc-suid: the same entry plus --allow-suid; an entry already there is never rewritten.
+  if ! suid_in_file; then
+    new="$(printf '%s' "$new" | jq --arg n "$SUID_RT" --arg a "$SUID_ARG" '.runtimes[$n] = (.runtimes.runsc | .runtimeArgs = ((.runtimeArgs // []) + [$a]))')"
+  fi
+  RUNSC_LOADED_BEFORE=0
+  if runsc_loaded; then RUNSC_LOADED_BEFORE=1; fi
+  if [ "$(printf '%s' "$new" | jq -S .)" = "$(printf '%s' "$orig" | jq -S .)" ]; then
+    log "the runtimes are already in $DAEMON_JSON and nothing else would change: validating, then only reloading docker"
     validate_daemon_json "$DAEMON_JSON"
     RELOAD_EXISTING=1
     run systemctl reload docker
   else
-    if [ -f "$DAEMON_JSON" ]; then orig="$(cat "$DAEMON_JSON")"; else orig='{}'; fi
-    new="$(printf '%s' "$orig" | jq --arg p "$runsc_bin" --arg a "$RUNSC_OVERLAY" '.runtimes = ((.runtimes // {}) + {runsc: {path: $p, runtimeArgs: [$a]}})')"
     if [ "$(printf '%s' "$new" | jq -S "$strip_runsc")" != "$(printf '%s' "$orig" | jq -S "$strip_runsc")" ]; then
-      err "refusing to write $DAEMON_JSON: the merge would change more than runtimes.runsc"
+      err "refusing to write $DAEMON_JSON: the merge would change more than the runsc runtimes"
       return 1
     fi
+    # runsc in the file but not loaded: a rollback has to drop it again (as when only reloading).
+    if runsc_in_file && ! runsc_loaded; then RELOAD_EXISTING=1; fi
     # Only the runtimes key is shown: the neighbouring keys may hold credentials (public log).
     log "planned $DAEMON_JSON diff (jq -S '{runtimes}', before -> after):"
     diff -u <(printf '%s' "$orig" | jq -S '{runtimes: (.runtimes // {})}') <(printf '%s' "$new" | jq -S '{runtimes: (.runtimes // {})}') || true
@@ -485,6 +528,13 @@ apply_runtime() {
     done
     if ! runsc_loaded; then err "docker does not list runsc after the reload"; return 1; fi
     if ! runsc_loaded_overlay; then err "docker lists runsc without $RUNSC_OVERLAY after the reload: $(runtimes_brief)"; return 1; fi
+    if suid_entry_ok; then
+      for i in $(seq 30); do
+        if suid_loaded; then break; fi
+        sleep 1
+      done
+      if ! suid_loaded; then err "docker does not list $SUID_RT after the reload"; return 1; fi
+    fi
   fi
   # The check image comes from a local copy; a missing one is pulled from a mirror first, because
   # Docker Hub answers anonymous pulls with 429 (#294). The runsc runs below never pull.
@@ -517,13 +567,16 @@ put_daemon_json() {
   tmp="$(mktemp /etc/docker/daemon.json.lf-restore.XXXXXX)" && cp -p "$1" "$tmp" && mv "$tmp" "$DAEMON_JSON"
 }
 
-wait_runsc_gone() {
-  local i
+# Waits until docker no longer lists the runtime(s) named in the arguments.
+wait_runtimes_gone() {
+  local i n gone
   for i in $(seq 30); do
-    if ! runsc_loaded; then return 0; fi
+    gone=1
+    for n in "$@"; do if runtime_has "$n"; then gone=0; fi; done
+    if [ "$gone" = 1 ]; then return 0; fi
     sleep 1
   done
-  err "ROLLBACK: docker still lists runsc after the reload; continuing with the restore"
+  err "ROLLBACK: docker still lists $* after the reload; continuing with the restore"
   return 1
 }
 
@@ -539,10 +592,10 @@ rollback_runtime() {
     if [ "$RELOAD_EXISTING" = 1 ] || [ -z "$DAEMON_BACKUP" ] || ! jq -e 'has("runtimes")' "$DAEMON_BACKUP" >/dev/null 2>&1; then
       stage="$(mktemp /etc/docker/daemon.json.lf-stage.XXXXXX)" || stage=""
       if [ -n "$stage" ]; then
-        if [ -n "$DAEMON_BACKUP" ]; then jq '.runtimes = ((.runtimes // {}) | del(.runsc))' "$DAEMON_BACKUP" > "$stage"; else echo '{"runtimes": {}}' > "$stage"; fi
+        if [ -n "$DAEMON_BACKUP" ]; then jq '.runtimes = ((.runtimes // {}) | del(.runsc, .["runsc-suid"]))' "$DAEMON_BACKUP" > "$stage"; else echo '{"runtimes": {}}' > "$stage"; fi
         if put_daemon_json "$stage"; then
           systemctl reload docker || true
-          wait_runsc_gone || true
+          wait_runtimes_gone runsc "$SUID_RT" || true
         fi
         rm -f "$stage" || true
       fi
@@ -554,7 +607,8 @@ rollback_runtime() {
     fi
     # The original file lists runsc when this run only reloaded it: a reload now would load it again.
     if [ "$RELOAD_EXISTING" = 0 ]; then systemctl reload docker || true; fi
-    wait_runsc_gone || true
+    # runsc stays loaded when the original file had it loaded; runsc-suid always goes.
+    if [ "$RUNSC_LOADED_BEFORE" = 1 ]; then wait_runtimes_gone "$SUID_RT" || true; else wait_runtimes_gone runsc "$SUID_RT" || true; fi
   fi
   # An /etc/docker this run created goes away only when empty (rmdir fails on anything else).
   if [ "$DOCKER_DIR_CREATED" = 1 ]; then rmdir /etc/docker 2>/dev/null || true; fi
