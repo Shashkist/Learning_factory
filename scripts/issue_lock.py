@@ -110,13 +110,23 @@ def docker_check(repo: str | None = None, path: Path | None = None) -> bool:
 
     Off only when the repository's entry says `docker_check: false`; on in every other case
     (not listed, no key, unrecognised value, file missing or unreadable): fail closed.
+    Always on for this repository (HERE_REPO), whatever the file says: the gate reads the
+    repos.yaml next to this script, which may be a PR's own worktree, so no file can turn
+    off the rule that guards this repository's docker job (#645 review, D177).
     """
+    want = (repo or HERE_REPO).lower()
+    if want == HERE_REPO.lower():
+        return True
     path = path or Path(os.environ.get("LF_REPOS_FILE") or REPOS_FILE)
     try:
         entries = _read_entries(path)
     except (OSError, ValueError, KeyError):
+        print(
+            "warning: " + str(path) + " (repos.yaml) is missing or unreadable;"
+            " keeping the docker rule on for " + (repo or HERE_REPO),
+            file=sys.stderr,
+        )
         return True
-    want = (repo or HERE_REPO).lower()
     for e in entries:
         if e["repo"].lower() == want:
             return e.get("docker_check", "").strip().lower() != "false"

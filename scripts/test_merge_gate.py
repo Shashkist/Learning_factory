@@ -467,3 +467,17 @@ def test_docker_check_unlisted_repo_or_missing_file_fails_closed(tmp_path, monke
     assert issue_lock.docker_check("o/other") is True
     monkeypatch.setenv("LF_REPOS_FILE", str(tmp_path / "missing.yaml"))
     assert issue_lock.docker_check("o/fac") is True
+
+
+def test_docker_check_false_never_turns_the_rule_off_for_this_repository(capsys, tmp_path, monkeypatch):
+    _repos(tmp_path, monkeypatch, (issue_lock.HERE_REPO, "\n  docker_check: false"))
+    assert issue_lock.docker_check(issue_lock.HERE_REPO.upper()) is True
+    assert issue_lock.docker_check() is True
+    assert_single_hold(*gate(capsys, _workflow_pr(), "--repo", issue_lock.HERE_REPO), "docker")
+    assert_single_hold(*gate(capsys, _workflow_pr()), "docker")
+
+
+def test_docker_check_warns_on_an_unreadable_repos_file(capsys, tmp_path, monkeypatch):
+    monkeypatch.setenv("LF_REPOS_FILE", str(tmp_path / "missing.yaml"))
+    assert issue_lock.docker_check("o/fac") is True
+    assert "repos.yaml" in capsys.readouterr().err

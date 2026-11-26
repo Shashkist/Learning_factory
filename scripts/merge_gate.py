@@ -7,7 +7,8 @@ A line-anchored `Part of #n` (a D19 PR A, #590) counts like `Closes #n` for the 
 The exam-integrity check is named `exam-integrity` or `<caller> / exam-integrity` (reusable workflow, #605).
 The exam gate check (`manager-exam / gate`, or `--exam-gate`, exact name) must be SUCCESS (#608, D160). A
 SKIPPED `docker` passes only when `changes` is SUCCESS and no commit of the PR touches a file under
-`.github/workflows/` (new or previous name; D160 amendment 1).
+`.github/workflows/` (new or previous name; D160 amendment 1). That docker rule applies unless the
+repository's repos.yaml entry says `docker_check: false`; it always applies to this repository (#645, D177).
 """
 
 from __future__ import annotations
