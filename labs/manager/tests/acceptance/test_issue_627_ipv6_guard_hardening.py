@@ -503,7 +503,16 @@ def guarded(v6_pre, run):
         _run(["sudo", "-n", "sysctl", "-w", f"{key}={old}"])
 
 
-def _listens6(lab: str, port: int = PORT, wait: float = 40.0) -> None:
+PORT6 = 7682  # the exam's own IPv6 listener: the lab image's ttyd (port 7681) is IPv4-only (D170)
+
+
+def _serve6(lab: str, port: int = PORT6) -> None:
+    """Start a second ttyd with -6 (listens on [::]) in `lab`, and prove it answers on [::1]."""
+    _docker("exec", "-d", lab, "ttyd", "-6", "-p", str(port), "sleep", "3600")
+    _listens6(lab, port)
+
+
+def _listens6(lab: str, port: int = PORT6, wait: float = 40.0) -> None:
     """Proof that `lab` has a listener on IPv6: curl to [::1] gets an HTTP answer (exit 0)."""
     deadline = time.time() + wait
     rc = -1
@@ -618,8 +627,8 @@ def test_rules_only_and_a_normal_run_leave_the_forwarding_guard_in_one_chain(gua
 def test_cross_bridge_probe_targets_a_real_ipv6_listener(guarded, image, request, record_property):
     a = h3._lab(image, request, "--network", NET)
     _docker("exec", a, "true")
-    other = h3._lab(image, request)  # default bridge, its ttyd listens on [::]:7681
-    _listens6(other)
+    other = h3._lab(image, request)  # default bridge; the lab ttyd is IPv4-only: add our own
+    _serve6(other)
     nets = h3.json.loads(_docker("inspect", other).stdout)[0]["NetworkSettings"]["Networks"]
     mac = nets["bridge"]["MacAddress"]
     assert mac, "no MAC on the default bridge container"
@@ -627,7 +636,7 @@ def test_cross_bridge_probe_targets_a_real_ipv6_listener(guarded, image, request
     targets = {addr for _, addr in h44._link_local(other)} | {h44._eui64(mac)}
     _record_outcome(record_property, h44._link_local(a))
     for addr in sorted(targets):
-        rc = h44._probe(a, addr, "eth0", PORT)
+        rc = h44._probe(a, addr, "eth0", PORT6)
         assert rc in BLOCKED, f"lab reached the listener on [{addr}] of another bridge (exit {rc})"
 
 
@@ -639,14 +648,13 @@ def test_lab_to_lab_target_listens_on_ipv6_and_the_outcome_is_recorded(
     a_ll, b_ll = h44._link_local(a), h44._link_local(b)
     outcome = _record_outcome(record_property, a_ll)
     h44._assert_probe_works(b, "eth0")
-    if a_ll:
-        _listens6(a)  # lab A has fe80: its ttyd must really listen on IPv6, else the probe is empty
+    _serve6(a)  # lab ttyd is IPv4-only: lab A gets its own IPv6 listener
     targets = {addr for _, addr in a_ll} | {h44._eui64(h44._lab_mac(a))}
     for addr in sorted(targets):
         for scope in sorted({"eth0", *(i for i, _ in b_ll)}):
-            rc = h44._probe(b, addr, scope, PORT)
+            rc = h44._probe(b, addr, scope, PORT6)
             assert rc in BLOCKED, (
-                f"outcome {outcome}: lab B reached [{addr}%{scope}]:{PORT} on lab A (exit {rc})"
+                f"outcome {outcome}: lab B reached [{addr}%{scope}]:{PORT6} on lab A (exit {rc})"
             )
 
 
@@ -654,7 +662,7 @@ def test_lab_to_lab_target_listens_on_ipv6_and_the_outcome_is_recorded(
 
 
 def _helper(image: str, request, nets_ready: list[str]) -> str:
-    """A plain (runc) container on lf-labs with IPv6 forced on, listening with ttyd on [::]:7681."""
+    """A plain (runc) container on lf-labs with IPv6 forced on (`_serve6` adds a listener)."""
     name = f"lf-exam-v6h-{uuid.uuid4().hex[:8]}"
     request.addfinalizer(lambda: _run(["docker", "rm", "-f", "-v", name], timeout=120))
     _docker("run", "-d", "--name", name, "--network", NET, "--log-driver", "none",
@@ -707,18 +715,18 @@ def _wait_reach(src: str, addr: str, scope: str, port: int, wait: float = 15.0) 
 def test_helper_pair_with_ipv6_forced_on_is_blocked_by_the_forwarding_drop(guarded, image, request):
     a = _helper(image, request, [])
     b = _helper(image, request, [])
-    _listens6(a)
+    _serve6(a)
     (_, a_ll), *_ = h44._link_local(a)
     h44._assert_probe_works(b, "eth0")
-    rc = h44._probe(b, a_ll, "eth0", PORT)
+    rc = h44._probe(b, a_ll, "eth0", PORT6)
     assert rc in BLOCKED, f"with the guard in place B reached A over IPv6 (exit {rc})"
     with _GuardOff():
-        rc = _wait_reach(b, a_ll, "eth0", PORT)
+        rc = _wait_reach(b, a_ll, "eth0", PORT6)
         assert rc == 0, (
             f"control failed: without the drops B cannot reach A either (exit {rc}), so a blocked "
             "probe proves nothing (is net.bridge.bridge-nf-call-ip6tables 1?)"
         )
-    rc = h44._probe(b, a_ll, "eth0", PORT)
+    rc = h44._probe(b, a_ll, "eth0", PORT6)
     assert rc in BLOCKED, f"after the guard came back B reached A over IPv6 (exit {rc})"
 
 
