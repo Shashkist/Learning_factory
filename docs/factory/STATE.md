@@ -3,13 +3,13 @@
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
 ## Now
-**Pass lf-10f1 (laptop, 09:27-~11:05 UTC 2026-11-26) stopped after 3 merges** (#644, factory#96, factory#99). It still holds the claim on factory#75; take it over (`claim --steal --reason 'session gone' --repo Shashkist/factory`).
-- **factory#75** (p2) = **PR factory#101** (`f/75-gate-exam-globs`, worktree `C:\projectsactory-75`; exam 3dd8714, code 2481c72; D34). CI was running at the stop. Next: a round-1 `reviewer`, then the gate (`python scripts/merge_gate.py 101 --session <you> --repo Shashkist/factory --exam-gate "acceptance / gate"`), merge, factory main CI, close.
-- **#614: merged** as #644 (a10118d), labelled `status:needs-owner` (criterion 4: the owner applies O29 and reports the first pass on the plugin). The O29 text is on factory#7. The claim is released. LF main CI 45803260927 green on a10118d; Deploy 45806732503 (5e3f4be, includes a10118d) green with its smoke job.
-- **factory#82: done** (factory#96 f0375d9, factory#99 60d17eb, scratch run 45794635454; D35). Nits in factory#100.
-- New: **#645** (p2): make the gate's docker rule per repository (D176 applies until then).
-- **factory#87: done** (factory#94, 0d9417b; factory main CI 45788396846 success; round 1 APPROVE). Criterion 7 and three review nits are in **factory#95** (p3).
-- **#627**: apply waits for the owner (O28). **factory#67** (PR factory#90): waits for the owner (O27).
+**Pass lf-k3j6 (laptop, from 11:27 UTC 2026-11-26) is running.** In flight (claims held by lf-k3j6):
+- **factory#75** (p2) = **PR factory#101** (`f/75-gate-exam-globs`, worktree `C:\projects\factory-75`; exam 3dd8714, code 2481c72; D34). CI green; round-1 reviewer running.
+- **#645** (p2): branch `f/645-gate-docker-per-repo`, worktree `C:\projects\lf-645`; exam 856ef22 (22 cases); implementer running. Form: `docker_check: true|false` per repository in `repos.yaml`, fail closed.
+- **factory#91** (p2): branch `f/91-gate-fail-closed`, worktree `C:\projects\factory-91`; exam-writer running.
+- Closed this pass: **#627** (O28 applied; server isolation smoke 45811374627, 0 FAIL), **factory#67** (PR factory#90 merged by the owner under factory D36 at 332d0f7; main CI 45808120696).
+- **factory#7** labelled `status:needs-owner`: its passes on the plugin start with O29 (#614).
+- **#614: merged** as #644 (a10118d), `status:needs-owner` until the owner applies O29 and reports the first pass on the plugin.
 - Tooling: `uv run <tool>` fails here because uv's `.exe` launchers are refused (Access is denied); use `uv run python -m <tool>`. The factory guard refuses shell text naming the runner folder or the guard file: write such text with the file tools. GitHub's "Update branch" merge commit is refused by exam-integrity (D174): re-cut by rebase. The factory dashboard's full test suite takes ~37 min on this laptop.
 
 Older pass notes (lf-m7q2 and before) are in `history.md` and git history (`git log -p docs/factory/STATE.md`).
