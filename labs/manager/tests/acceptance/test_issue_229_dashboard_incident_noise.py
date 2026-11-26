@@ -70,9 +70,13 @@ def _wf() -> dict:
     return data
 
 
+# the tooling pin #364's exam requires (the `tooling` job's profile check uses it too)
+TOOLING_PIN = "95753bb72e9c5d885376311efea91db7272f9d16"
+
+
 def _pinned_incident_calls() -> dict:
     """D166: jobs that call the factory's incident.yml pinned to a 40-hex SHA (reusable layout)."""
-    pinned = re.compile(r"^Shashkist/factory/\.github/workflows/incident\.yml@[0-9a-f]{40}$")
+    pinned = re.compile(r"^Shashkist/factory/\.github/workflows/incident\.yml@" + TOOLING_PIN + "$")
     return {k: v for k, v in _wf()["jobs"].items()
             if isinstance(v, dict) and pinned.match(str(v.get("uses", "")))}
 
@@ -176,6 +180,11 @@ def test_the_issue_is_only_opened_or_commented_when_the_gate_says_raise():
             cond = str(job.get("if", ""))
             assert "needs.decide.outputs" in cond and "raise" in cond, (
                 "the incident call must test the decide job's `raise` output")
+            # amendment 3: it must not run past a skipped `decide` (always() with a fail-open
+            # '' decision would raise an incident on every successful run)
+            assert ("needs.decide.result != 'skipped'" in cond
+                    or not any(f in cond for f in ("always()", "cancelled()", "failure()"))), (
+                "the incident call must not run when `decide` was skipped")
         return
     job = next(iter(_wf()["jobs"].values()))
     steps = job["steps"]
