@@ -3,9 +3,9 @@
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
 ## Now
-**Pass lf-j5w2 (laptop, from 17:27 UTC 2026-11-26) is running.** It took over lf-n4t2's claims (that pass ended at ~17:15 without a stop note; it merged factory#107 and factory#111 and closed factory#11).
-- **factory#102** = PR factory#108 (`f/102-gate-rounds-past-limit`, worktree `C:\projectsactory-102`): exam for D38 amendment 1 (c9987a7) and the round-1 fixes (ac4f673) pushed, rebased on main; local: 504 tests, ruff and mypy clean. CI, then the round-2 reviewer.
-- **#648** (slice 1 of #85: prune old images after a deploy), branch `f/648-prune-images`, worktree `C:\projects\lf-648`: exam 54afc94 pushed; implementer running.
+**Pass lf-r8c4 (laptop, from 19:27 UTC 2026-11-26) is running.** It took over lf-j5w2's claims (that pass ended without a stop note; it merged factory#113 (#102) and factory#115 (PR 0 of #109)).
+- **factory#109**: PR A (judge) = factory#116 (`f/109-surface`, worktree `C:\projectsactory-109a`), rebased; local 348 unit, 187 exam (#109 + #65 + #11) passed; CI, then reviewer. PR B = `exam/109-surface` (worktree `C:\projectsactory-109`): D41 amendment 1 exam commit in progress; lands after A.
+- **#648** (slice 1 of #85), branch `f/648-prune-images`, worktree `C:\projects\lf-648`: implementer's `deploy.sh` change (uncommitted) under exam run.
 - **factory#7** and **#614** stay `status:needs-owner` (O29).
 - Tooling: `uv run <tool>` fails here (launcher .exe refused); use `uv run python -m <tool>`. The factory guard refuses shell text naming the runner folder or the guard file: write such text with the file tools. GitHub's "Update branch" merge commit is refused by exam-integrity (D174): re-cut by rebase. A change to `src/factory_tools/ci/**` in the factory repository cannot ship with its exam (factory D27): judge first, exam second. The factory's full acceptance suite is slow here; list files explicitly. The deploy exams (bash fakes) are very slow on Windows: run single tests with `-k`.
 
