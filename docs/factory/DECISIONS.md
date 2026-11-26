@@ -1771,3 +1771,9 @@ in force · factory · 2026-11-26 · revertible
 **Why.** The rule guards against a workflow edit that skips this repository's docker job; there is no such job to skip in the other repository, and its own gate checks the stronger binding.
 **Alternatives.** Add a dummy `docker` job to the factory's CI (a fake check to satisfy a rule). Wait for #645 (blocks factory#82 for a rule that cannot apply).
 **Revert.** Hold such PRs until #645 ships.
+
+## D177 · #645: the docker rule is a `docker_check` key per repository in repos.yaml, fail closed
+**Decision.** `docs/factory/repos.yaml` carries `docker_check: true|false` per repository; `scripts/merge_gate.py` turns its docker rule (D160 amendment 1) off only for an entry that says `docker_check: false` (Shashkist/factory). A repository that is not listed, has no key or an unrecognised value, or a missing or unreadable file keeps the rule on. One parser (`issue_lock._read_entries`) serves `read_repos` and `docker_check`. D176 lapses once #646 ships.
+**Why.** The issue offered a boolean key or a list of required checks per repository; the boolean is the smallest change, and failing closed keeps the guard for any repository nobody thought about. The gate runs from the manager's checkout of `main`, so a PR's own edit of repos.yaml does not change the gate that judges it.
+**Alternatives.** A list of required check names per repository (more general, more to get wrong); detect the docker job from the PR's own workflows (a PR could delete the job to escape the rule).
+**Revert.** Drop the key and the `docker_rule` argument; D176 applies again.
