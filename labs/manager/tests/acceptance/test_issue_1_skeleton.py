@@ -1,4 +1,5 @@
 """Acceptance tests for issue #1: repo skeleton and CI pipeline."""
+import re
 from pathlib import Path
 
 import pytest
@@ -76,5 +77,18 @@ def test_incident_workflow_reacts_to_ci_deploy_smoke_failures():
 
 def test_incident_workflow_applies_incident_labels():
     text = (WORKFLOWS / "incident.yml").read_text(encoding="utf-8")
+    # D166: the reusable layout calls the factory's incident.yml (pinned), which applies
+    # these labels itself (docs/ci.md); the local layout names them in this file
+    jobs = _load("incident.yml")["jobs"]
+    # the tooling pin #364's exam requires (D166 amendment 3)
+    TOOLING_PIN = "95753bb72e9c5d885376311efea91db7272f9d16"
+    pinned = re.compile(r"^Shashkist/factory/\.github/workflows/incident\.yml@" + TOOLING_PIN + "$")
+    called = [j for j in jobs.values() if pinned.match(str(j.get("uses", "")))]
+    if called:
+        # a real job (not a comment) calls the pinned workflow; its own `uses:` line carries
+        # the version comment
+        assert re.search(r"^[ \t-]*uses:[ \t]*Shashkist/factory/\.github/workflows/incident\.yml"
+                         r"@" + TOOLING_PIN + r"[ \t]+#[ \t]*v\d", text, re.M)
+        return
     for label in ("type:incident", "priority:p0", "status:ready"):
         assert label in text

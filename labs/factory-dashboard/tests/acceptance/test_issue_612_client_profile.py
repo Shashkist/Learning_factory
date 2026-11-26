@@ -47,6 +47,20 @@ def test_limits_are_learning_factorys_real_values(profile):
     assert limits == {"ci_rounds": 5, "review_rounds": 2, "parallel_issues": 3}
 
 
+# jobs of the factory reusable workflows at v0.1.0 (docs/ci.md of Shashkist/factory)
+REUSABLE_JOBS = {
+    "exam-integrity.yml": ["exam-integrity"],
+    "junit-gate.yml": ["exam", "gate"],
+    "incident.yml": ["incident"],
+}
+
+
+def _called_jobs(job):
+    uses = job.get("uses", "") if isinstance(job, dict) else ""
+    m = re.fullmatch(r"Shashkist/factory/\.github/workflows/([\w.-]+\.yml)@[0-9a-f]{40}", uses)
+    return REUSABLE_JOBS.get(m.group(1), []) if m else []
+
+
 def test_required_checks_exist_in_ci_yml(profile, ci):
     checks = profile.get("required_checks")
     assert isinstance(checks, list) and checks
@@ -55,10 +69,17 @@ def test_required_checks_exist_in_ci_yml(profile, ci):
         names.add(job_id)
         if isinstance(job, dict) and job.get("name"):
             names.add(job["name"])
+        # D166: a caller job (`uses:`) of a factory reusable workflow also reports one check
+        # per job of the called workflow, named `<caller job> / <called job>`
+        called = _called_jobs(job)
+        shown = job.get("name") or job_id if isinstance(job, dict) else job_id
+        names.update(f"{shown} / {c}" for c in called)
     missing = [c for c in checks if c not in names]
     assert not missing, f"required_checks not found as jobs in ci.yml: {missing}"
-    assert "manager-exam" in checks
-    assert "exam-integrity" in checks
+    # the exam must stay required, as the bare job or as the reusable job's checks
+    # exactly the bare job or the reusable gate job (`exam` succeeds on skipped tests)
+    assert any(c in ("manager-exam", "manager-exam / gate") for c in checks)
+    assert any(c in ("exam-integrity", "exam-integrity / exam-integrity") for c in checks)
 
 
 def _commands(profile, area):

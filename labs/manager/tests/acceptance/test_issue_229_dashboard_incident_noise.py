@@ -30,6 +30,7 @@ Workflow `.github/workflows/incident.yml`:
   * the step that creates or comments on the issue only runs when the gate said `raise`
     (the string `raise` appears in an `if:` / shell test that guards it).
 """
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -67,6 +68,17 @@ def _wf() -> dict:
     data = yaml.safe_load(INCIDENT.read_text(encoding="utf-8"))
     assert isinstance(data, dict)
     return data
+
+
+# the tooling pin #364's exam requires (the `tooling` job's profile check uses it too)
+TOOLING_PIN = "95753bb72e9c5d885376311efea91db7272f9d16"
+
+
+def _pinned_incident_calls() -> dict:
+    """D166: jobs that call the factory's incident.yml pinned to a 40-hex SHA (reusable layout)."""
+    pinned = re.compile(r"^Shashkist/factory/\.github/workflows/incident\.yml@" + TOOLING_PIN + "$")
+    return {k: v for k, v in _wf()["jobs"].items()
+            if isinstance(v, dict) and pinned.match(str(v.get("uses", "")))}
 
 
 def _steps_text() -> str:
@@ -125,6 +137,9 @@ def test_incident_workflow_still_watches_the_same_six_workflows():
 
 
 def test_incident_workflow_keeps_the_labels_and_title():
+    if _pinned_incident_calls():
+        # D166: the pinned factory workflow applies the labels and title itself (docs/ci.md)
+        return
     text = INCIDENT.read_text(encoding="utf-8")
     for needle in ("type:incident", "priority:p0", "status:ready", "Incident: $WF_NAME failed", "Failed again:"):
         assert needle in text
@@ -153,6 +168,24 @@ def test_incident_workflow_can_read_runs():
 
 
 def test_the_issue_is_only_opened_or_commented_when_the_gate_says_raise():
+    calls = _pinned_incident_calls()
+    if calls:
+        jobs = _wf()["jobs"]
+        assert "decide" in jobs
+        assert any("incident_gate.py" in str(s.get("run", "")) for s in jobs["decide"]["steps"])
+        for job in calls.values():
+            needs = job.get("needs")
+            needs = [needs] if isinstance(needs, str) else list(needs or [])
+            assert "decide" in needs, "the incident call must wait for the decide job"
+            cond = str(job.get("if", ""))
+            assert "needs.decide.outputs" in cond and "raise" in cond, (
+                "the incident call must test the decide job's `raise` output")
+            # amendment 3: it must not run past a skipped `decide` (always() with a fail-open
+            # '' decision would raise an incident on every successful run)
+            assert ("needs.decide.result != 'skipped'" in cond
+                    or not any(f in cond for f in ("always()", "cancelled()", "failure()"))), (
+                "the incident call must not run when `decide` was skipped")
+        return
     job = next(iter(_wf()["jobs"].values()))
     steps = job["steps"]
     idx = next(i for i, s in enumerate(steps) if "gh issue create" in s.get("run", ""))

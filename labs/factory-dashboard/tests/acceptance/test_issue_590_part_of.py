@@ -92,7 +92,7 @@ class Gh:
             # D160: the exam gate and `changes` checks are green in this world
             pr = dict(self.pr)
             pr["statusCheckRollup"] = pr["statusCheckRollup"] + [
-                check("manager-exam"), check("changes")]
+                check("manager-exam"), check("manager-exam / gate"), check("changes")]
             return json.dumps(pr)
         if argv[0] == "api":
             listing = pr_api(argv, [HEAD])

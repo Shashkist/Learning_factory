@@ -72,7 +72,8 @@ class PrGh(base.Gh):
 
 
 def gate(capsys, rollup, *, commits, **kw):
-    code = merge_gate.main(["9", "--session", base.SESSION], run=PrGh(rollup, commits, **kw))
+    argv = ["9", "--session", base.SESSION, "--exam-gate", base.EXAM]  # explicit (D166)
+    code = merge_gate.main(argv, run=PrGh(rollup, commits, **kw))
     lines = [ln for ln in capsys.readouterr().out.splitlines() if ln.strip()]
     return code, lines
 
@@ -194,3 +195,32 @@ def test_moving_a_file_out_of_a_heavy_folder_is_heavy(tmp_path, monkeypatch, src
 def test_moving_a_file_between_light_folders_is_not_heavy(tmp_path, monkeypatch):
     first, head = _moved(tmp_path, monkeypatch, "docs/a.txt", "scripts/a.txt")
     assert _ci_paths().is_heavy(first, head) is False
+
+
+# D166: the default exam gate stays tested with a workflow change in the PR; both default
+# names are served so the cases hold under `manager-exam` (main) and `manager-exam / gate`.
+
+DEFAULT_GATES = ("manager-exam", "manager-exam / gate")
+
+
+def default_gate(capsys, rollup):
+    code = merge_gate.main(["9", "--session", base.SESSION], run=PrGh(rollup, [[CI_YML]]))
+    lines = [ln for ln in capsys.readouterr().out.splitlines() if ln.strip()]
+    return code, lines
+
+
+def test_default_gate_success_merges(capsys):
+    rollup = green(check("docker"), *[check(n) for n in DEFAULT_GATES], exam=False)
+    assert default_gate(capsys, rollup) == (0, ["MERGE"])
+
+
+def test_default_gate_missing_holds_naming_manager_exam(capsys):
+    code, lines = default_gate(capsys, green(check("docker"), exam=False))
+    assert_held_naming(code, lines, "manager-exam")
+
+
+@pytest.mark.parametrize("state", ["SKIPPED", "FAILURE"])
+def test_default_gate_not_success_holds_naming_manager_exam(capsys, state):
+    rollup = green(check("docker"), *[check(n, state) for n in DEFAULT_GATES], exam=False)
+    code, lines = default_gate(capsys, rollup)
+    assert_held_naming(code, lines, "manager-exam")
