@@ -4,7 +4,7 @@
 
 ## Now
 **Pass lf-x7p3 (laptop, 05:27-~07:05 UTC 2026-11-26) stopped after 3 merges** (#638, #639, #640). It holds **no claims**.
-- **#613:** PR B merged as **2e7e6d2** (#639, round 2 APPROVE at a7ec53c; D173 exam corrections). If #613 is still open when you read this: check main CI on 2e7e6d2/522950d and the next Deploy are green, then close #613 citing #635 + #639 and those runs (the closing comment may already be there). Then remove old worktrees `C:\projects\lf-613`, `lf-613-a`, `lf-613-c`, `lf-613-0`, `lf-613-rv2-*` (`worktree_prune.py`). Follow-up **#642** (p3: `u`/`un`/`uni` globs + round-2 nits).
+- **#613: done** (closed with evidence: #635 + #639, main CI 45768610861, Deploy 45771009491 at 334cff8). Worktrees lf-613, lf-613-0, lf-613-a, lf-613-c and lf-631 removed; `lf-613-rv2-*` may remain (check `worktree_prune.py`). Follow-up **#642** (p3).
 - **#614 (needs:laptop, p1) is next.** Depends on #613 and factory#80 (closed). Factory has only `v0.1.0` (95753bb, before #80's 53ce802): criterion 1 needs a new tag (for example `v0.2.0`) on factory's green `main` (29a613e, CI 45745611278 success); see factory D30 for how v0.1.0 was made. The OWNER.md item needs a diff of the laptop runner files: the factory guard blocks any shell command whose text names that folder, so read those files with the file tools, not the shell.
 - **#627:** merged as **522950d** (#640; red check #641 showed the new cases fail without the fix). Bootstrap dry run 45768715118 success (the live bridge-nf value is 1). **The apply waits for the owner (O28)**: the factory's `gh workflow run bootstrap.yml -f apply=true` was refused by the laptop's permission settings. Issue is open, `status:needs-owner`. When O28 is ticked: server isolation smoke, then close #627. Next time, put `[bootstrap apply]` as its own line in the squash message of a bootstrap change (that is how #626 applied).
 - **#631:** done (e1250c9, #638 = D174 re-cut of #634); live snapshot shows memory and disk; factory#43 closed.
@@ -35,7 +35,7 @@ Older pass notes (lf-m7q2 and before) are in `history.md` and git history (`git 
 
 ## Next (in order)
 
-1. Close #613 if still open (see Now). Then #614 (client #1, D162, needs:laptop), then `factory_pick.py`: factory#67, factory#75, factory#82 (dogfood v0.1.0); LF p2: #15, #21, #47, #85; factory#87 (live page leftovers, from #64), factory#10, #11, #44.
+1. #614 (client #1, D162, needs:laptop), then `factory_pick.py`: factory#67, factory#75, factory#82 (dogfood v0.1.0); LF p2: #15, #21, #47, #85; factory#87 (live page leftovers, from #64), factory#10, #11, #44.
 2. p3 follow-ups: #642, #636, #637, #633, #623 (new, from #622 review), #619, #621, #603, #604, factory#70, #601, #594, #597, #588, factory#57, factory#59, #579, #580, factory#49, #574, factory#33, factory#36, factory#40, factory#41, #561, #564, factory#17, factory#24, #523, #555, #468, #423 (old worktree `C:\projects\lf-423`), #436, #431. Owner item **O26** (heartbeat task).
 
 ## Waiting for the owner
