@@ -15,6 +15,8 @@ on:
       - "scripts/issue_lock.py"
       - "scripts/factory_pick.py"
       - "scripts/_hook_io.py"
+      # The #631 exam loads this by file path.
+      - "scripts/dashboard_server_stats.py"
       # The #569 exam reads CLAUDE.md (D151).
       - "CLAUDE.md"
       - ".claude/agents/**"
@@ -35,6 +37,8 @@ on:
       - "scripts/issue_lock.py"
       - "scripts/factory_pick.py"
       - "scripts/_hook_io.py"
+      # The #631 exam loads this by file path.
+      - "scripts/dashboard_server_stats.py"
       # The #569 exam reads CLAUDE.md (D151).
       - "CLAUDE.md"
       - ".claude/agents/**"

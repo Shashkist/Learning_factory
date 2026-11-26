@@ -35,3 +35,20 @@ def test_main_merges_and_tolerates_failure(tmp_path, capsys):
     assert m.main(["x", str(snap), str(tmp_path / "missing")]) == 0
     assert json.loads(snap.read_text()) == {"server": None}
     assert len(capsys.readouterr().out.strip().splitlines()) == 2
+
+
+def test_parse_overflow_is_none():
+    huge = "Mem: " + "9" * 400 + " 1 2 3 4 " + "9" * 400
+    assert m.parse("total used free shared buff/cache available\n" + huge, DF) is None
+    assert m.parse(FREE, "/dev/a 1 " + "9" * 400 + " 1 1% /\n") is None
+
+
+def test_free_without_available_column_is_none():
+    free = "total used free shared buff/cache\nMem: 100 1 2 3 4 5\n"
+    assert m.parse(free, DF) is None
+    assert m.parse("Mem: 100 1 2 3 4 5\n", DF) is None
+
+
+def test_disk_read_from_the_end_with_spaces_in_device():
+    df = "Filesystem 1-blocks Used Available Capacity Mounted on\nmy dev x 21474836480 5368709120 1 26% /\n"
+    assert m.parse(FREE, df)["disk"] == "5.0 GiB of 20.0 GiB (25%)"
