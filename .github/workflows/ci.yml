@@ -154,13 +154,29 @@ jobs:
       - name: Install gVisor runsc and register it with Docker
         working-directory: .
         run: |
+          set -o pipefail
           curl -fsSL https://gvisor.dev/archive.key | sudo gpg --dearmor -o /usr/share/keyrings/gvisor-archive-keyring.gpg
           echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/gvisor-archive-keyring.gpg] https://storage.googleapis.com/gvisor/releases release main" | sudo tee /etc/apt/sources.list.d/gvisor.list
           sudo apt-get update
           sudo apt-get install -y runsc
           sudo runsc install
+          # runsc-suid (D179, D181) runs what the server runs: the release pinned in bootstrap.sh
+          # (sha512 checked) with the server's runsc args plus --allow-suid. It lives outside
+          # /usr/local/bin: the #50 exam allows no other runsc* file next to the runsc it installs.
+          rel=$(sed -n 's/^RUNSC_RELEASE=//p' labs/deploy/bootstrap/bootstrap.sh)
+          sum=$(sed -n 's/^RUNSC_SHA512=//p' labs/deploy/bootstrap/bootstrap.sh)
+          overlay=$(sed -n 's/^RUNSC_OVERLAY="\(.*\)"$/\1/p' labs/deploy/bootstrap/bootstrap.sh)
+          [ -n "$rel" ] && [ -n "$sum" ] && [ -n "$overlay" ]
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/runsc" "https://storage.googleapis.com/gvisor/releases/release/$rel/x86_64/runsc"
+          echo "$sum  $RUNNER_TEMP/runsc" | sha512sum -c -
+          sudo install -D -m 0755 "$RUNNER_TEMP/runsc" /opt/lf-runsc/runsc
+          /opt/lf-runsc/runsc --version | head -n 1
+          sudo jq --arg o "$overlay" '.runtimes["runsc-suid"] = {"path": "/opt/lf-runsc/runsc", "runtimeArgs": [$o, "--allow-suid"]}' /etc/docker/daemon.json > "$RUNNER_TEMP/daemon.json"
+          sudo install -m 0644 "$RUNNER_TEMP/daemon.json" /etc/docker/daemon.json
           sudo systemctl reload docker || sudo systemctl restart docker
-          docker info --format '{{json .Runtimes}}' | grep -q runsc
+          docker info --format '{{json .Runtimes}}' | jq -e '.runsc.path' >/dev/null
+          docker info --format '{{json .Runtimes}}' | jq -c '."runsc-suid" | {path, runtimeArgs}'
+          docker info --format '{{json .Runtimes}}' | jq -e '."runsc-suid".runtimeArgs | index("--allow-suid")' >/dev/null
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
       - run: uv sync
       # Docker-marked unit tests only; the docker-marked exams run once, in the gate below.
