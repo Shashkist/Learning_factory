@@ -1755,3 +1755,8 @@ in force · factory · 2026-11-26 · revertible
 **Why.** #614 criteria 1 to 3. A pinned SHA beside the tag keeps the runner on reviewed code even if the tag moves; one revert is the simplest switch back.
 **Alternatives.** `uv tool install git+https://...@v0.2.0` without a clone (the plugin still needs files on disk); a `$UsePlugin` switch inside the runner (two code paths to keep working); the literal `labs/*/tests/**` glob.
 **Revert.** Delete the tag (`git push origin :refs/tags/v0.2.0`) and drop the OWNER.md item; the runner is unchanged until the owner applies it.
+
+**Amendment 1 (2026-11-26).** The #612 exam pins `verify.dashboard` to exactly `uv run ruff check .` and `uv run pytest -q` (`test_verify_exact_commands`) and requires it to equal CLAUDE.md's Verification commands for `labs/factory-dashboard` (`test_verify_area_matches_claude_md_verification_commands`), while the owner asked on #614 for Dashboard CI's strict acceptance step in that list. The #612 exam's exact list is replaced by the new exact list of four commands (no glob, prefix or superset match: as strict as before), and CLAUDE.md's Verification commands for the dashboard gain the same two commands, so the equality case stays exact. The exam change is an exam-only commit on a fresh branch `f/614-switch-kit-2` (D103), before the code commit is cherry-picked onto it.
+**Why.** The owner's request is a requirement of #614; an exact list for an exact list does not weaken #612.
+**Alternatives.** Drop the strict step and correct the #614 exam (ignores the owner's comment); a superset match in #612 (weaker).
+**Revert.** Restore the two-command list in the #612 exam, the profile and CLAUDE.md.
