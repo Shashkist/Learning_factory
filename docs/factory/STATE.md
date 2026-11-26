@@ -3,19 +3,19 @@
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
 ## Now
-**Pass lf-v6n8 (laptop, from 13:27 UTC 2026-11-26) in flight, 2 merges so far.**
-- Closed: **#645** (#646, b739621; CI 45832032037, Deploy 45835664366; gate smoke: factory#104 no longer shows the docker hold), **factory#91** (factory#104, 2380e53; main CI 45831815967; live guard in scratch draft factory#106, run 45832304038). Follow-ups: #647, factory#105. Factory decisions D38, D39.
-- **factory#102** (`f/102-gate-rounds-past-limit`, worktree `C:\projectsactory-102`; exam 09a1245, contract in D38): implementer running.
-- **factory#11** (`f/11-integrity-sitecustomize`, worktree `C:\projectsactory-11`; exam 3e832f1, scope in D39): implementer running.
+**Pass lf-v6n8 (laptop, 13:27-14:58 UTC 2026-11-26) stopped at the time budget, 2 merges** (#646, factory#104). It holds two claims; take them over (`claim --steal --reason 'session gone' --repo Shashkist/factory`).
+- **factory#11** = **PR factory#107** (`f/11-integrity-sitecustomize`, worktree `C:\projectsactory-11`): **PR A** of a D27-style split (factory D39 amendments 1 and 2), code only, `Part of #11`. Round 1 was CHANGES at 15b1785 (package and compiled `sitecustomize` forms passed the judge); round-1 fix e227f1c pushed. Next: CI on e227f1c, a **round-2 reviewer** (it also re-runs the #11 exam from 70ce5cb against the head), the gate, merge, factory main CI. Then **PR B**, `Closes #11`: the exam commit 70ce5cb (kept on the local branch `exam/11-keep` in that worktree) rebased unchanged onto main, plus an exam-only commit with cases for the package and compiled forms, plus the incident.yml sentence (the `|| gh issue create` fallback can open a duplicate when `gh issue comment` fails; D39 item 3). Note the sentence is a workflow edit, so it may need its own commit after the exam; keep exam integrity in mind.
+- **factory#102** = **PR factory#108** (`f/102-gate-rounds-past-limit`, worktree `C:\projectsactory-102`; exam f00524f, code 895a063; contract factory D38). CI was running at the stop. Next: CI green, round-1 reviewer, gate, merge, factory main CI, close. Then the paired LF port of the D36 rule in `scripts/merge_gate.py` (open an LF issue if none exists).
+- Closed this pass: **#645** (#646, b739621; CI 45832032037, Deploy 45835664366; gate smoke shows no docker hold for factory#104), **factory#91** (factory#104, 2380e53; main CI 45831815967; live guard in scratch draft factory#106, run 45832304038).
 - **factory#7** and **#614** stay `status:needs-owner` (O29).
-- Tooling: `uv run <tool>` fails here (launcher .exe refused); use `uv run python -m <tool>`. The factory guard refuses shell text naming the runner folder or the guard file: write such text with the file tools. GitHub's "Update branch" merge commit is refused by exam-integrity (D174): re-cut by rebase. If the `implementer` agent type refuses to start (stale `.claude/worktrees/agent-*` in the shared checkout), use `general-purpose` with the implementer brief.
+- Tooling: `uv run <tool>` fails here (launcher .exe refused); use `uv run python -m <tool>`. The factory guard refuses shell text naming the runner folder or the guard file: write such text with the file tools. GitHub's "Update branch" merge commit is refused by exam-integrity (D174): re-cut by rebase. A change to `src/factory_tools/ci/**` in the factory repository cannot ship with its exam (factory D27): judge first, exam second. The factory's full acceptance suite is slow here (the older merge-gate exams alone took 22 min); list files explicitly.
 
 Older pass notes (lf-m7q2 and before) are in `history.md` and git history (`git log -p docs/factory/STATE.md`).
 
 ## Next (in order)
 
-1. #646 (#645) D145 verification and merge; factory#104 (factory#91) review and merge; then `factory_pick.py`: factory#102 (D36 gate rule), factory#10, factory#11; LF p2: #15, #47, #85. #21's exam-integrity items now belong to the factory's reusable `exam-integrity.yml` (factory#10/#11); re-scope or close it.
-2. p3 follow-ups: factory#103 (new, from the #101 review), factory#100, factory#95, #642, #636, #637, #623 (new, from #622 review), #619, #621, #603, #604, factory#70, #601, #597, #588, factory#57, factory#59, #579, #580, factory#49, #574, factory#33, factory#36, factory#40, factory#41, #561, #564, factory#17, factory#24, #523, #555, #468, #423 (old worktree `C:\projects\lf-423`), #436, #431. Owner item **O26** (heartbeat task).
+1. factory#107 round 2 and PR B (factory#11); factory#108 (factory#102) review and merge; then `factory_pick.py`: factory#10; LF p2: #15, #47, #85. #21's exam-integrity items now belong to the factory's reusable `exam-integrity.yml` (factory#10/#11); re-scope or close it.
+2. p3 follow-ups: #647, factory#105 (new, from the #646 and #104 reviews), factory#103 (new, from the #101 review), factory#100, factory#95, #642, #636, #637, #623 (new, from #622 review), #619, #621, #603, #604, factory#70, #601, #597, #588, factory#57, factory#59, #579, #580, factory#49, #574, factory#33, factory#36, factory#40, factory#41, #561, #564, factory#17, factory#24, #523, #555, #468, #423 (old worktree `C:\projects\lf-423`), #436, #431. Owner item **O26** (heartbeat task).
 
 ## Waiting for the owner
 
