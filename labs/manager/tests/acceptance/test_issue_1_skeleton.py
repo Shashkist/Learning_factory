@@ -79,15 +79,14 @@ def test_incident_workflow_applies_incident_labels():
     text = (WORKFLOWS / "incident.yml").read_text(encoding="utf-8")
     # D166: the reusable layout calls the factory's incident.yml (pinned), which applies
     # these labels itself (docs/ci.md); the local layout names them in this file
-    import yaml
-
-    jobs = yaml.safe_load(text)["jobs"]
+    jobs = _load("incident.yml")["jobs"]
     pinned = re.compile(r"^Shashkist/factory/\.github/workflows/incident\.yml@[0-9a-f]{40}$")
     called = [j for j in jobs.values() if pinned.match(str(j.get("uses", "")))]
     if called:
-        # a real job (not a comment) calls the pinned workflow, with its version comment
-        assert re.search(r"uses:\s*Shashkist/factory/\.github/workflows/incident\.yml"
-                         r"@[0-9a-f]{40}[ \t]+#[ \t]*v\d", text)
+        # a real job (not a comment) calls the pinned workflow; its own `uses:` line carries
+        # the version comment
+        assert re.search(r"^[ \t-]*uses:[ \t]*Shashkist/factory/\.github/workflows/incident\.yml"
+                         r"@[0-9a-f]{40}[ \t]+#[ \t]*v\d", text, re.M)
         return
     for label in ("type:incident", "priority:p0", "status:ready"):
         assert label in text
