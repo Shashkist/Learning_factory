@@ -1765,3 +1765,9 @@ in force · factory · 2026-11-26 · revertible
 **Why.** Review round 1 findings 1 to 6 of #644; the reviewer reproduced the refusal from bash and PowerShell 5.1.
 **Alternatives.** `uv sync` into the clone and `-m factory_tools` everywhere (needs an exam change for the hook strings); ask the owner to allow uv launchers (an owner-only change to the machine's policy).
 **Revert.** Back to amendment 1's diff.
+
+## D176 · factory#96: a Shashkist/factory PR that changes its workflows merges past the gate's docker rule when the factory's own gate binds the exam checks
+**Decision.** `scripts/merge_gate.py` held factory#96 with one reason only: "docker must succeed when a file under .github/workflows/ changed; no check named docker ran". The docker job exists only in this repository (D160 amendment 1); Shashkist/factory has none and ships on `main-ci`. For a Shashkist/factory PR, when that is the gate's only HOLD, the manager also runs that repository's own gate (`python -m factory_tools merge-gate <pr> --repo Shashkist/factory --session <you>`), which binds the exam checks to the pinned reusable workflows (factory D29). If its only HOLD is the missing `Closes #n` for a line-anchored `Part of #n` PR (D19, which our gate accepts), the PR merges. #645 makes the docker rule per repository, after which this decision lapses.
+**Why.** The rule guards against a workflow edit that skips this repository's docker job; there is no such job to skip in the other repository, and its own gate checks the stronger binding.
+**Alternatives.** Add a dummy `docker` job to the factory's CI (a fake check to satisfy a rule). Wait for #645 (blocks factory#82 for a rule that cannot apply).
+**Revert.** Hold such PRs until #645 ships.
