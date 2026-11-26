@@ -1795,3 +1795,11 @@ in force · factory · 2026-11-26
 **Alternatives.** A root helper with a unix socket and a `sudo` shim (most code, a home-made privilege boundary); the terminal as root (no real `sudo`, root-owned files); runc for sudo labs (breaks spec §6, owner's call).
 **Assumption.** The pinned runsc release 20260817.0 has `--allow-suid` (the flag dates from 2020); slice 1 proves it on the runner (`sudo -n id -u` prints 0 under `runsc-suid`) before the server apply.
 **Revert.** Remove `runtimes.runsc-suid` from daemon.json (reload) and set the manager back to `runsc` for every lab.
+
+## D180 · #651 ships as two PRs: the runner registration first, then the exam with the bootstrap
+in force · factory · 2026-11-26
+
+**Decision.** Exam integrity counts `.github/workflows/ci.yml` as CI surface (ci.yml `ci-paths`), so the #651 exam cannot ride with the `ci.yml` change that registers `runsc-suid` on the runner. PR #654 (`f/651-runsc-suid-ci`) carries only the `ci.yml` step; after it merges, `f/651-runsc-suid` (exam 23bc132, bootstrap c5df928) is rebased onto main, which drops its now-identical `ci.yml` hunk, and ships as the second PR with `Closes #651`.
+**Why.** Same rule as D27 in the factory repository: what judges or runs the exam lands without the exam; the docker-marked #651 cases then run against a runner that already has the runtime.
+**Alternatives.** Register `runsc-suid` inside a docker-marked fixture (root on the runner from a test; the exam would own runner setup).
+**Revert.** Drop the `runsc-suid` lines from the `docker` job.

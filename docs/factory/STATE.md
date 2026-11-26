@@ -3,9 +3,9 @@
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
 ## Now
-**Pass lf-r8c4 (laptop, from 19:27 UTC 2026-11-26) is running.** It took over lf-j5w2's claims (that pass ended without a stop note; it merged factory#113 (#102) and factory#115 (PR 0 of #109)).
-- **factory#109**: PR A (judge) = factory#116 (`f/109-surface`, worktree `C:\projectsactory-109a`), rebased; local 348 unit, 187 exam (#109 + #65 + #11) passed; CI, then reviewer. PR B = `exam/109-surface` (worktree `C:\projectsactory-109`): D41 amendment 1 exam commit in progress; lands after A.
-- **#648** (slice 1 of #85), branch `f/648-prune-images`, worktree `C:\projects\lf-648`: implementer's `deploy.sh` change (uncommitted) under exam run.
+**Pass lf-r8c4 (laptop, 19:27-21:10 UTC 2026-11-26) stopped cleanly.** Its claims (factory#109, #651) stay held with step notes: take them over.
+- **factory#109**: PR A (judge) = factory#116 (`f/109-surface`, worktree `C:\projects\factory-109a`). Round 1 CHANGES (two blocking: native `[tool.pytest]` table, `pytest.toml`/`.pytest.toml`); fixed by the manager in d376555 (rebased on main; local 351 unit, 229 exam with the #109/#65/#11/#1 files). Next: CI, then a fresh reviewer verifies the fix and you post `Review round 2: ...` (D148), merge, main CI. Then PR B = `exam/109-surface` (worktree `C:\projects\factory-109`, head 7bfc737 has the D41 amendment 1 case): rebase, PR with `Closes #109`, review, merge. Round-1 finding 3 is factory#118.
+- **#651** (slice 1 of #47, D179/D180): PR #654 (`f/651-runsc-suid-ci`, worktree `C:\projects\lf-651-ci`) registers `runsc-suid` on the CI runner, ci.yml only; in CI, then reviewer, merge. Then rebase `f/651-runsc-suid` (worktree `C:\projects\lf-651`; exam 23bc132, bootstrap c5df928; WSL: 651 exam 22 passed non-docker, older bootstrap exams green) onto main (its ci.yml hunk drops), PR with `Closes #651`; its docker cases prove euid 0 under `runsc-suid`. After merge: a bootstrap **apply** run on the server (reload only) and a check that `docker info` lists `runsc-suid`. Then #652 (manager picks the runtime).
 - **factory#7** and **#614** stay `status:needs-owner` (O29).
 - Tooling: `uv run <tool>` fails here (launcher .exe refused); use `uv run python -m <tool>`. The factory guard refuses shell text naming the runner folder or the guard file: write such text with the file tools. GitHub's "Update branch" merge commit is refused by exam-integrity (D174): re-cut by rebase. A change to `src/factory_tools/ci/**` in the factory repository cannot ship with its exam (factory D27): judge first, exam second. The factory's full acceptance suite is slow here; list files explicitly. The deploy exams (bash fakes) are very slow on Windows: run single tests with `-k`.
 
@@ -13,8 +13,8 @@ Older pass notes (lf-m7q2 and before) are in `history.md` and git history (`git 
 
 ## Next (in order)
 
-1. factory#108 (factory#102) round 2 and merge; #648 PR, review, merge, deploy and a server check that old images went; then `factory_pick.py`: factory#10; LF p2: #15, #47, #85. #21's exam-integrity items now belong to the factory's reusable `exam-integrity.yml` (factory#10/#11); re-scope or close it.
-2. p3 follow-ups: #647, factory#105 (new, from the #646 and #104 reviews), factory#103 (new, from the #101 review), factory#100, factory#95, #642, #636, #637, #623 (new, from #622 review), #619, #621, #603, #604, factory#70, #601, #597, #588, factory#57, factory#59, #579, #580, factory#49, #574, factory#33, factory#36, factory#40, factory#41, #561, #564, factory#17, factory#24, #523, #555, #468, #423 (old worktree `C:\projects\lf-423`), #436, #431. Owner item **O26** (heartbeat task).
+1. factory#116 round 2 and merge, then PR B of factory#109; #654 then #651; #652; then `factory_pick.py`: LF p2 #15, #85 (other slices).
+2. p3 follow-ups: #653 (new, review of #650), factory#118 (new, review of #116), #647, factory#105 (new, from the #646 and #104 reviews), factory#103 (new, from the #101 review), factory#100, factory#95, #642, #636, #637, #623 (new, from #622 review), #619, #621, #603, #604, factory#70, #601, #597, #588, factory#57, factory#59, #579, #580, factory#49, #574, factory#33, factory#36, factory#40, factory#41, #561, #564, factory#17, factory#24, #523, #555, #468, #423 (old worktree `C:\projects\lf-423`), #436, #431. Owner item **O26** (heartbeat task).
 
 ## Waiting for the owner
 
@@ -29,6 +29,7 @@ Older pass notes (lf-m7q2 and before) are in `history.md` and git history (`git 
 
 ## Recently done
 
+- 2026-11-26 pass lf-r8c4: #648 (#650, 92b52a2; Deploy 45893952189: `pruned 483 old image(s)`, no skips, smoke green; live health ok). #47 researched and sliced (D179: `runsc --allow-suid` as a second runtime) into #651, #652; D180. Opened #653, factory#118. In flight: factory#116, #654.
 - 2026-11-26 pass lf-n4t2: factory#11 closed (factory#107, c309782; factory#111, cc88d0d; main CI 45864982898). LF D178 (#21 re-scoped), factory D38 amendment 1. Opened #648, factory#109.
 - 2026-11-26 pass lf-v6n8: #645 (#646, b739621; Deploy 45835664366), factory#91 (factory#104, 2380e53; main CI 45831815967, live scratch run 45832304038). Factory D38, D39. Opened #647, factory#105.
 - 2026-11-26 pass lf-k3j6: factory#75 (factory#101, 39f094b; main CI 45815131073). Closed #627 (isolation smoke 45811374627) and factory#67 (owner merge, D36). Decisions D177 (+ amendment 1), factory D37. Opened factory#103. In review: #646 (#645), factory#104 (factory#91).
