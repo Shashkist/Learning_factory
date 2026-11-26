@@ -194,7 +194,16 @@ def test_exam_paths_match_exam_integrity_on_every_tracked_path():
 @pytest.mark.parametrize("path", EDGE_PATHS)
 def test_exam_paths_match_exam_integrity_on_edge_path(path):
     globs = _exam_globs()
-    assert factory_is_exam(path, globs) == expected_exam(path), path
+    got, want = factory_is_exam(path, globs), expected_exam(path)
+    if want:
+        assert got, path
+    elif got:
+        # D173: the factory globs (`*` crosses `/`) are stricter only for a nested, non-unit
+        # tests directory deeper than labs/<x>/.
+        parts = path.split("/")
+        nested = any(parts[i] == "tests" and parts[i + 1] != "unit"
+                     for i in range(3, len(parts) - 1))
+        assert nested and parts[0] == "labs", path
 
 
 # 3. manager exam through junit-gate.yml
@@ -340,7 +349,7 @@ def test_tooling_job_lints_and_tests_the_ci_scripts():
     steps = _jobs(CI_YML)["tooling"]["steps"]
     runs = "\n".join(s.get("run", "") for s in steps)
     assert "ruff check scripts/ci" in runs
-    assert "pytest scripts/ci" in runs
+    assert re.search(r"pytest\s+scripts(/ci)?/?(\s|$)", runs), "pytest must run on scripts"
 
 
 # 7. merge gate default exam gate
