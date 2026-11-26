@@ -3,21 +3,20 @@
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
 ## Now
-**Pass lf-k3j6 (laptop, from 11:27 UTC 2026-11-26) is running.** In flight (claims held by lf-k3j6):
-- **factory#75** (p2) = **PR factory#101** (`f/75-gate-exam-globs`, worktree `C:\projects\factory-75`; exam 3dd8714, code 2481c72; D34). CI green; round-1 reviewer running.
-- **#645** (p2): branch `f/645-gate-docker-per-repo`, worktree `C:\projects\lf-645`; exam 856ef22 (22 cases); implementer running. Form: `docker_check: true|false` per repository in `repos.yaml`, fail closed.
-- **factory#91** (p2): branch `f/91-gate-fail-closed`, worktree `C:\projects\factory-91`; exam-writer running.
-- Closed this pass: **#627** (O28 applied; server isolation smoke 45811374627, 0 FAIL), **factory#67** (PR factory#90 merged by the owner under factory D36 at 332d0f7; main CI 45808120696).
-- **factory#7** labelled `status:needs-owner`: its passes on the plugin start with O29 (#614).
-- **#614: merged** as #644 (a10118d), `status:needs-owner` until the owner applies O29 and reports the first pass on the plugin.
+**Pass lf-k3j6 (laptop, 11:27-13:05 UTC 2026-11-26) stopped at the time budget, 1 merge** (factory#101). It holds two claims; take them over (`claim --steal --reason 'session gone'`, add `--repo Shashkist/factory` for #91).
+- **#645** (p2) = **PR #646** (`f/645-gate-docker-per-repo`, worktree `C:\projects\lf-645`; exam 856ef22, code a8ab9eb, round-1 fixes 0859165, round-2 fix 1474ee9). Round 1 and round 2 were CHANGES (PR comments). The manager fixed round 2 itself (D145): SKILL.md §6 and FACTORY.md step 9 now require the factory's own gate for factory workflow PRs (D177 amendment 1), and the unused `path` parameter is gone. Local: affected exams 216 passed, unit tests 105 passed. Next: wait for CI on 1474ee9, then a **fresh reviewer verifies the round-2 fix**, post `Review round 2: APPROVE|CHANGES at <head>`, then the gate, merge, Deploy, smoke (the gate run on a factory workflow PR shows no docker hold), close.
+- **factory#91** (p2) = **PR factory#104** (`f/91-gate-fail-closed`, worktree `C:\projectsactory-91`; exam 3533c51, #67 harness edit 34595a5 (factory D37), code 9329298). CI green. A round-1 reviewer was still running at the stop and its verdict was not posted. Next: a fresh round-1 reviewer, then both gates (ours with `--repo Shashkist/factory --exam-gate "acceptance / gate"`, plus the factory's own `merge-gate`: it changes workflows, D177 amendment 1), merge, factory main CI, close.
+- Closed this pass: **factory#75** (factory#101, 39f094b; main CI 45815131073; follow-up factory#103), **#627** (O28 applied; isolation smoke 45811374627, 0 FAIL), **factory#67** (factory#90 merged by the owner under factory D36; main CI 45808120696).
+- **factory#7** is labelled `status:needs-owner`: its plugin passes start with O29 (#614). **#614** is merged as #644 and stays `status:needs-owner` until the owner applies O29.
+- The `implementer` agent type failed to start this pass ("Refusing to use ... as an isolation worktree: the protected checkout C:/projects/Learning_factory has git metadata that could not be resolved"). Earlier dispatches in the same pass worked. A stale `.claude/worktrees/agent-*` entry in the shared checkout is the likely cause (`worktree_prune.py` reported three as busy). Use `general-purpose` with the implementer brief if it happens again.
 - Tooling: `uv run <tool>` fails here because uv's `.exe` launchers are refused (Access is denied); use `uv run python -m <tool>`. The factory guard refuses shell text naming the runner folder or the guard file: write such text with the file tools. GitHub's "Update branch" merge commit is refused by exam-integrity (D174): re-cut by rebase. The factory dashboard's full test suite takes ~37 min on this laptop.
 
 Older pass notes (lf-m7q2 and before) are in `history.md` and git history (`git log -p docs/factory/STATE.md`).
 
 ## Next (in order)
 
-1. factory#101 (factory#75) review and merge; #645; then `factory_pick.py`: factory#67 (O27), factory#10, factory#11; LF p2: #15, #21, #47, #85; factory#87 (live page leftovers, from #64), factory#10, #11, #44.
-2. p3 follow-ups: factory#100, factory#95, #642, #636, #637, #623 (new, from #622 review), #619, #621, #603, #604, factory#70, #601, #597, #588, factory#57, factory#59, #579, #580, factory#49, #574, factory#33, factory#36, factory#40, factory#41, #561, #564, factory#17, factory#24, #523, #555, #468, #423 (old worktree `C:\projects\lf-423`), #436, #431. Owner item **O26** (heartbeat task).
+1. #646 (#645) D145 verification and merge; factory#104 (factory#91) review and merge; then `factory_pick.py`: factory#102 (D36 gate rule), factory#10, factory#11; LF p2: #15, #47, #85. #21's exam-integrity items now belong to the factory's reusable `exam-integrity.yml` (factory#10/#11); re-scope or close it.
+2. p3 follow-ups: factory#103 (new, from the #101 review), factory#100, factory#95, #642, #636, #637, #623 (new, from #622 review), #619, #621, #603, #604, factory#70, #601, #597, #588, factory#57, factory#59, #579, #580, factory#49, #574, factory#33, factory#36, factory#40, factory#41, #561, #564, factory#17, factory#24, #523, #555, #468, #423 (old worktree `C:\projects\lf-423`), #436, #431. Owner item **O26** (heartbeat task).
 
 ## Waiting for the owner
 
@@ -32,6 +31,7 @@ Older pass notes (lf-m7q2 and before) are in `history.md` and git history (`git 
 
 ## Recently done
 
+- 2026-11-26 pass lf-k3j6: factory#75 (factory#101, 39f094b; main CI 45815131073). Closed #627 (isolation smoke 45811374627) and factory#67 (owner merge, D36). Decisions D177 (+ amendment 1), factory D37. Opened factory#103. In review: #646 (#645), factory#104 (factory#91).
 - 2026-11-26 pass lf-10f1: #644 (#614 switch kit, a10118d; round-2 D145 fixes verified twice), factory#96 (f0375d9; factory main CI 45799890573) and factory#99 (60d17eb; main CI 45803678313) closed factory#82. Decisions: factory D34, D35; LF D176. Opened #645, factory#100. factory#101 (factory#75) in CI.
 - 2026-11-26 pass lf-q8n5: #633 and #594 (one bug) shipped in #643 (42dac55; main CI 45779431933, Deploy 45783809538). Factory tag v0.2.0 (29a613e). D175 with amendments 1 and 2. factory#87 shipped in factory#94 (0d9417b; main CI 45788396846). #644 (#614) in review round 2. Opened factory#95.
 - 2026-11-26 pass lf-x7p3: #631 shipped (#638, D174), #613 PR B (#639, D173), #627 merged (#640; apply = O28). Opened #642. factory#43 closed.
