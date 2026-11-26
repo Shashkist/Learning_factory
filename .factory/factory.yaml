@@ -26,10 +26,11 @@ verify:
       - uv run ruff check .
       - uv run pytest -q
 
-# The exam as CLAUDE.md counts it. scripts/ci/exam_integrity.py stays the authority:
-# it also counts every other path under labs/*/tests/ and leaves tests/unit/ out,
-# so a conftest.py, pytest.ini, tox.ini or setup.cfg under labs/*/tests/unit/ is
-# NOT exam even though the globs below match it.
+# The exam as CLAUDE.md counts it. In CI the pinned reusable exam-integrity check
+# (ci.yml, exam-paths) is the authority; scripts/ci/exam_integrity.py is the local
+# pre-check. Both also count every other path under labs/*/tests/ and leave
+# tests/unit/ out, so a conftest.py, pytest.ini, tox.ini or setup.cfg under
+# labs/*/tests/unit/ is NOT exam even though the globs below match it.
 exam:
   - "labs/**/tests/acceptance/**"
   - "labs/**/conftest.py"
