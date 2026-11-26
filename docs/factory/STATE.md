@@ -3,10 +3,11 @@
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
 ## Now
-**Pass lf-10f1 (laptop, from 09:27 UTC 2026-11-26) running.** Took over #614 from lf-q8n5 (ended). 1 merge so far (factory#96).
-- **#614** (p1, needs:laptop) = **PR #644** (`f/614-switch-kit-2`, worktree `C:\projects\lf-614`). Round 2 CHANGES at ee8ae66; D145 fixes e7b5853 (check steps, lock-guarded install, `-P` shims) and a4eb5a1 (two control bytes in the check path). A fresh reviewer is verifying a4eb5a1. After APPROVE: merge gate, merge, Deploy, post the O29 text on factory#7, label #614 `status:needs-owner`, release the claim.
-- **factory#75** (p2) = branch `f/75-gate-exam-globs`, worktree `C:\projectsactory-75`, exam 3dd8714 (pushed), D34. Implementer running; then PR, CI, review.
-- **factory#82** (p2): criterion 1 shipped (factory#96, f0375d9, main CI 45799890573); criterion 2 evidence on the issue (scratch #97, run 45794635454, incident #98 closed). Criterion 3 = **PR factory#99** (`f/82-uses-exam`, worktree `C:\projectsactory-82-exam`): round 1 CHANGES (the broad pattern let fork/local lines count as pins); exam-writer is fixing. D35 (factory), D176 (LF: the gate's docker rule does not apply to factory PRs; #645 fixes the gate).
+**Pass lf-10f1 (laptop, 09:27-~11:05 UTC 2026-11-26) stopped after 3 merges** (#644, factory#96, factory#99). It still holds the claim on factory#75; take it over (`claim --steal --reason 'session gone' --repo Shashkist/factory`).
+- **factory#75** (p2) = **PR factory#101** (`f/75-gate-exam-globs`, worktree `C:\projectsactory-75`; exam 3dd8714, code 2481c72; D34). CI was running at the stop. Next: a round-1 `reviewer`, then the gate (`python scripts/merge_gate.py 101 --session <you> --repo Shashkist/factory --exam-gate "acceptance / gate"`), merge, factory main CI, close.
+- **#614: merged** as #644 (a10118d), labelled `status:needs-owner` (criterion 4: the owner applies O29 and reports the first pass on the plugin). The O29 text is on factory#7. The claim is released. **Check that LF main CI 45803260927 and the Deploy for a10118d were green** (they were still running at the stop).
+- **factory#82: done** (factory#96 f0375d9, factory#99 60d17eb, scratch run 45794635454; D35). Nits in factory#100.
+- New: **#645** (p2): make the gate's docker rule per repository (D176 applies until then).
 - **factory#87: done** (factory#94, 0d9417b; factory main CI 45788396846 success; round 1 APPROVE). Criterion 7 and three review nits are in **factory#95** (p3).
 - **#627**: apply waits for the owner (O28). **factory#67** (PR factory#90): waits for the owner (O27).
 - Tooling: `uv run <tool>` fails here because uv's `.exe` launchers are refused (Access is denied); use `uv run python -m <tool>`. The factory guard refuses shell text naming the runner folder or the guard file: write such text with the file tools. GitHub's "Update branch" merge commit is refused by exam-integrity (D174): re-cut by rebase. The factory dashboard's full test suite takes ~37 min on this laptop.
@@ -15,8 +16,8 @@ Older pass notes (lf-m7q2 and before) are in `history.md` and git history (`git 
 
 ## Next (in order)
 
-1. #644 (#614) round 2 and merge; then `factory_pick.py`: factory#67, factory#75, factory#82 (dogfood v0.1.0); LF p2: #15, #21, #47, #85; factory#87 (live page leftovers, from #64), factory#10, #11, #44.
-2. p3 follow-ups: factory#95, #642, #636, #637, #623 (new, from #622 review), #619, #621, #603, #604, factory#70, #601, #597, #588, factory#57, factory#59, #579, #580, factory#49, #574, factory#33, factory#36, factory#40, factory#41, #561, #564, factory#17, factory#24, #523, #555, #468, #423 (old worktree `C:\projects\lf-423`), #436, #431. Owner item **O26** (heartbeat task).
+1. factory#101 (factory#75) review and merge; #645; then `factory_pick.py`: factory#67 (O27), factory#10, factory#11; LF p2: #15, #21, #47, #85; factory#87 (live page leftovers, from #64), factory#10, #11, #44.
+2. p3 follow-ups: factory#100, factory#95, #642, #636, #637, #623 (new, from #622 review), #619, #621, #603, #604, factory#70, #601, #597, #588, factory#57, factory#59, #579, #580, factory#49, #574, factory#33, factory#36, factory#40, factory#41, #561, #564, factory#17, factory#24, #523, #555, #468, #423 (old worktree `C:\projects\lf-423`), #436, #431. Owner item **O26** (heartbeat task).
 
 ## Waiting for the owner
 
@@ -31,6 +32,7 @@ Older pass notes (lf-m7q2 and before) are in `history.md` and git history (`git 
 
 ## Recently done
 
+- 2026-11-26 pass lf-10f1: #644 (#614 switch kit, a10118d; round-2 D145 fixes verified twice), factory#96 (f0375d9; factory main CI 45799890573) and factory#99 (60d17eb; main CI 45803678313) closed factory#82. Decisions: factory D34, D35; LF D176. Opened #645, factory#100. factory#101 (factory#75) in CI.
 - 2026-11-26 pass lf-q8n5: #633 and #594 (one bug) shipped in #643 (42dac55; main CI 45779431933, Deploy 45783809538). Factory tag v0.2.0 (29a613e). D175 with amendments 1 and 2. factory#87 shipped in factory#94 (0d9417b; main CI 45788396846). #644 (#614) in review round 2. Opened factory#95.
 - 2026-11-26 pass lf-x7p3: #631 shipped (#638, D174), #613 PR B (#639, D173), #627 merged (#640; apply = O28). Opened #642. factory#43 closed.
 - 2026-11-26 pass lf-r5k2: #613 PR A (#635, b2c947a; replaced #630 under D172). Decisions D170, D171 (+ amendment 1), D172, D165 amendment 1. Opened #631 (from factory#43), #633, #636, #637. #632 round 1 CHANGES, re-sequenced to `-4`; #634 approved, re-running CI after the main update.
