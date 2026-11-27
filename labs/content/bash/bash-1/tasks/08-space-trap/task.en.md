@@ -4,7 +4,7 @@ Write a script `~/firstline.sh` that prints the first line of the file you give 
 
 1. `~/firstline.sh FILE` prints the first line of FILE and nothing else.
 2. It must work on every file, also on `~/docs/my notes.txt`. Setup made that file, and yes, the name has a space in it.
-3. Make the script executable.
+3. Make the script executable, and start it with the line `#!/bin/bash`.
 
 Try it on `~/docs/readme.txt` and on `~/docs/my notes.txt`.
 

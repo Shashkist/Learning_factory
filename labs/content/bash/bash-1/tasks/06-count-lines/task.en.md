@@ -5,7 +5,7 @@ Write a script `~/count_lines.sh` that counts the lines of the file you give it.
 1. `~/count_lines.sh FILE` prints the number of lines in FILE, and only the number.
 2. A last line that has no newline at the end still counts as a line.
 3. An empty file gives `0`, and blank lines count too.
-4. Make the script executable.
+4. Make the script executable, and start it with the line `#!/bin/bash`.
 
 To try it, setup made `~/data/fruits.txt`. Its last line has no newline at the end, so the right answer for it is `5`.
 

@@ -21,7 +21,20 @@ run() {
 if [ -f "$S" ] && [ -x "$S" ]; then echo "S ok"
 elif [ -f "$S" ]; then echo "S noexec"
 else echo "S missing"; fi
-if [ -f "$S" ] && [ "$(head -c 2 "$S")" = '#!' ]; then echo "H ok"; else echo "H no"; fi
+hok=0
+if [ -f "$S" ]; then
+  cr=$(printf '\r')
+  first=$(timeout 2 head -c 300 "$S" 2>/dev/null | head -n 1)
+  case $first in
+    *"$cr"*) ;;
+    '#!'*)
+      set -f
+      set -- ${first#??}
+      set +f
+      if [ -n "$1" ] && [ -f "$1" ] && [ -x "$1" ]; then hok=1; fi;;
+  esac
+fi
+if [ "$hok" = 1 ]; then echo "H ok"; else echo "H no"; fi
 if [ -f "$S" ] && [ -x "$S" ]; then
   printf 'plain first line\nsecond\nthird\n' > "$d/plain.txt"
   printf 'Quarterly plan draft\nsecond line\nthird line\n' > "$d/plan for may.txt"
