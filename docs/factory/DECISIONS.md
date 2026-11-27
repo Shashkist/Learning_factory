@@ -1943,3 +1943,12 @@ in force · factory · 2026-11-27 · revertible
 **Why.** Keeps #49 and the #675 crontab cases as strict as they are; the spool is bounded the same way as every other student-writable path.
 **Alternatives.** A root-owned, group-`student` spool (passes the #49 `find` but defeats its intent: refused); a symlink into `/tmp` (needs a directory created at every start and breaks when the entrypoint is bypassed); drop `crontab` (fails D191).
 **Revert.** Remove the tmpfs key and restore the D192 spool ownership.
+
+## D194 · #703 ships after review round 2 (the last); the pending-Deploy hole moves to #704
+in force · factory · 2026-11-27 · revertible
+
+**Context.** Review round 2 of #703 (#658, the last round) is CHANGES at 9841f82 with one blocking finding: a pending Deploy that will not deploy the target (a later-finishing CI re-run for an older sha; a Deploy whose `deploy` job is skipped) counts as "a pending Deploy holds the slot", so the cancelled Deploy of the target is neither re-dispatched nor reported. The #658 exam requires that behaviour (lines 515-531), so the fix needs an exam change, and an exam commit after code is refused (D187 amendment 2): only a fourth branch could carry it.
+**Decision.** Ship #703 as it is and move findings 1-4 to **#704** (p2: D189 amendment 3, an exam-only commit on a fresh branch, then the code). A fresh reviewer checks #703 at 9841f82 with findings 1-4 out of scope; its verdict is posted as round 2 at the same head. The merge gate still needs its APPROVE.
+**Why.** Main notices no cancelled Deploy at all today; #703 notices every case except finding 1, and in that case it does nothing (no wrong dispatch, no loop), the same as main. The case needs a CI re-run that finishes after a newer commit's CI, or a skipped Deploy, while the target's Deploy waits: rare. A fourth re-sequence costs a pass and keeps the whole detection off main.
+**Alternatives.** Re-sequence to `f/658-deploy-cancelled-4` now (one more pass with nothing shipped); park #658 on the owner (not an owner question).
+**Revert.** Revert the #703 squash commit; #704 then carries all of #658.
