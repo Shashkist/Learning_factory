@@ -34,9 +34,16 @@ started=$(jq -er '[.jobs[] | select(.name == "deploy" and ((.steps // [] | lengt
 covering=$(jq -er --arg t "Deploy $sha" '[.workflow_runs[] | select(.display_title == $t and
   ((.status | IN("queued", "in_progress", "waiting", "pending", "requested"))
    or (.status == "completed" and .conclusion == "success")))] | length' <<<"$deploy")   || { echo "bad deploy runs list" >&2; exit 2; }
-# Any other Deploy run waiting for the slot would be replaced by a dispatch.
-pending_deploy=$(jq -er --arg id "$RUN_ID" '[.workflow_runs[] | select((.id | tostring) != $id and
-  (.status | IN("queued", "pending", "waiting", "requested")))] | length' <<<"$deploy")   || { echo "bad deploy runs list" >&2; exit 2; }
+# Another Deploy run waiting for the slot would be replaced by a dispatch (D189 amendments 3, 4):
+# only a run in the pending slot (pending, waiting, requested) is replaced; a queued run holds the running slot.
+deploy_count() {
+  jq -er --arg ev "$1" --arg st "$2" '[.workflow_runs[] | select(
+    ((.event == "workflow_dispatch") == ($ev == "dispatch")) and (.status | IN($st | split(",")[])))] | length' <<<"$deploy"   || { echo "bad deploy runs list" >&2; exit 2; }
+}
+pending_dispatch=$(deploy_count dispatch pending,waiting,requested)
+pending_other=$(deploy_count other pending,waiting,requested)
+queued_dispatch=$(deploy_count dispatch queued)
+queued_other=$(deploy_count other queued)
 # A bootstrap run holds the one pending slot only while pending, waiting or requested.
 pending=$(jq -er '[.workflow_runs[] | select(.status | IN("pending", "waiting", "requested"))] | length' <<<"$boot")   || { echo "bad bootstrap runs list" >&2; exit 2; }
 # A smoke run holds it only through its `smoke` job: waiting for the lock, no runner, no steps.
@@ -61,12 +68,24 @@ if [ "$covering" -gt 0 ]; then
   echo "a Deploy for $sha already covers main"
   exit 0
 fi
-if [ "$pending_deploy" -gt 0 ]; then
+if [ $((pending + pending_smoke)) -gt 0 ]; then
+  echo "a bootstrap or smoke run is pending: not re-dispatching, $sha is not deployed" >&2
+  exit 1
+fi
+if [ "$pending_dispatch" -gt 0 ]; then
   echo "a pending Deploy holds the slot, nothing to do"
   exit 0
 fi
-if [ $((pending + pending_smoke)) -gt 0 ]; then
-  echo "a bootstrap or smoke run is pending: not re-dispatching, $sha is not deployed" >&2
+if [ "$pending_other" -gt 0 ]; then
+  echo "a pending Deploy will not deploy $sha: not re-dispatching, $sha is not deployed" >&2
+  exit 1
+fi
+if [ "$queued_dispatch" -gt 0 ]; then
+  echo "a pending Deploy holds the slot, nothing to do"
+  exit 0
+fi
+if [ "$queued_other" -gt 0 ]; then
+  echo "a pending Deploy will not deploy $sha: not re-dispatching, $sha is not deployed" >&2
   exit 1
 fi
 if [ "$event" != "workflow_run" ]; then
