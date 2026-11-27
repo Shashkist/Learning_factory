@@ -56,10 +56,9 @@ INTERFACE this exam fixes for the implementer
    30 minutes (terminal + soak). The isolation runner never runs the soak. Failed runs reach the
    Incident workflow, which already lists `Server smoke`.
 
-3. `labs/content/smoke-soak/lab.yaml` (D188; outside `labs/content/smoke/`, which #128 pins to one
+3. `labs/content/soak/smoke-soak/lab.yaml` (D188 amendment 1; course folder `soak`; outside `labs/content/smoke/`, which #128 pins to one
    lab): `status: internal`, `time_limit_min: 1`, id `smoke-soak`, image `term`. The content loader
-   (app.content.load_labs) must serve it from that path (its layout today is
-   `<root>/<course>/<lab>/lab.yaml`, so a lab directly under the root needs loader support) and
+   (app.content.load_labs, unchanged layout `<root>/<course>/<lab>/lab.yaml`) serves it and
    refuses `time_limit_min` below 5 unless the status is `internal`.
 
 Nothing here touches a server; the fake API and fake host below stand in for it.
@@ -770,7 +769,7 @@ def test_ac4_the_smoke_soak_lab_exists_internal_with_a_one_minute_limit():
     assert lab.status == "internal"
     assert lab.time_limit_min == 1
     assert lab.image == "term"
-    assert (CONTENT / "smoke-soak" / "lab.yaml").is_file()
+    assert (CONTENT / "soak" / "smoke-soak" / "lab.yaml").is_file()
     assert not (CONTENT / "smoke" / "smoke-soak").exists(), "the lab stays out of labs/content/smoke/ (#128)"
 
 
