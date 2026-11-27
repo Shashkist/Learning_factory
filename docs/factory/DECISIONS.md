@@ -1982,3 +1982,12 @@ in force · factory · 2026-11-27 · revertible
 **Revert.** Add the fresh-path refusal with an exam amendment that names the four older exams' cases.
 
 **Amendment 1 (2026-11-27, #670 build).** The fresh-path refusal of an unloaded foreign runtime applies only when `docker info` returns a runtimes list. With no dockerd running (the #56 dry-run and apply exams start a fresh host that way, with an unloaded `other` runtime in the file) nothing is reloaded, so there is no unreviewed live change to refuse, and dockerd's own start reads and validates the file. Revert: drop the condition together with an exam amendment for the two #56 cases.
+
+## D198 · #670 is re-sequenced to `f/670-bootstrap-pending-2` (round 1 CHANGES on #711, one finding is in the exam)
+in force · factory · 2026-11-27 · revertible
+
+**Context.** Review round 1 of #711 (CHANGES at 0201384) found two reload gaps in the code (a loaded foreign runtime's `runtimeType` or `options` edit is not seen; with no `daemon.json`, a runtime added by a dockerd flag is dropped by the reload) and one exam check that cannot fail (`assert named in h.out`: the name is already printed by the report lines).
+**Decision.** A fresh branch `f/670-bootstrap-pending-2` from main carries the #670 exam commit (cherry-picked), then one exam-only commit (refusal lines must name the runtime or key; cases for an edited `options`/`runtimeType`, a missing `daemon.json` with a flag-added runtime, and a fresh-path loaded runtime that is edited or removed in the file), then the code. #711 is closed for the new PR. Review round 2 (the last) runs on the new PR. **D197 amendment 2:** on the fresh path the bootstrap also refuses a loaded foreign runtime that is edited or removed in the file (D197 (1) named only the unloaded case). For any runtime other than `runsc`, an entry key the live side cannot show (anything besides `path` and `runtimeArgs`) counts as a difference; a missing `daemon.json` reads as `{}`.
+**Why.** Same pattern as D187 amendment 2 and D196: exam first, then code, on a branch the exam-integrity check accepts.
+**Alternatives.** Split findings 1 to 3 into a follow-up and merge #711 on round 2 (leaves a known reload gap and a check that cannot fail).
+**Revert.** Close the new PR and reopen #711.
