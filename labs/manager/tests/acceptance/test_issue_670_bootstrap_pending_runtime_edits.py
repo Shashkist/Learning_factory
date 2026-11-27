@@ -15,6 +15,23 @@ docker is not reloaded, and the pending change is named. #670 widens "pending":
 3. RELOADABLE_KEYS covers every key that Docker's reload applies, for the pinned engine.
 4. `runsc_matches_live` and `suid_matches_live` are one function that takes the runtime name.
 
+Review round 1 of #711 and D198 (with D197 amendment 2) add:
+
+5. `docker info` shows only the path and runtimeArgs of a loaded runtime. For any runtime other than
+   `runsc`, a file entry key besides `path` and `runtimeArgs` (`options`, `runtimeType`) cannot be
+   compared with the live side and counts as a difference (D198). So a foreign entry that carries
+   `options` or `runtimeType` is refused, even when nothing in it was edited.
+6. With no daemon.json on the host, a runtime that `docker info` lists (added by a dockerd flag,
+   for example `nvidia`) would be dropped by the reload that follows the bootstrap's write: a
+   missing file reads as `{}`, so the bootstrap refuses, creates no file and does not reload.
+7. On the fresh path a loaded foreign runtime that is edited or removed in the file is refused too
+   (D197 amendment 2), not only an unloaded one.
+
+Pinned refusal form: the script reports on stdout (`log`) and refuses on stderr (`err`). The report
+lines print every runtime and key name before any refusal, so the check looks at stderr only: the
+refusal must say `Nothing was changed` and name the pending change there as a whole word: a runtime
+as `runtime <name>`, a reloadable key by its name. The rest of the wording is free.
+
 Pinned Docker version: the repository requires Engine 28.0.0 or newer (`labs/deploy/deploy.sh`,
 `version_ge "$engine" 28.0.0`), so the key list is derived from moby tag v28.0.0:
 - https://github.com/moby/moby/blob/v28.0.0/daemon/reload.go (`Daemon.Reload`: debug,
@@ -54,6 +71,16 @@ FOREIGN_LIVE = {"path": "/opt/exam/foreign", "runtimeArgs": ["--a"]}
 SUID_ENTRY = {"path": SERVER_RUNSC["path"], "runtimeArgs": [*SERVER_RUNSC["runtimeArgs"], SUID_ARG]}
 
 
+def _refusal_names(h: _Harness, named: str) -> None:
+    """The refusal's own lines (stderr; the stdout report prints every name anyway) say that
+    nothing was changed and name the pending change `named` as a whole word."""
+    assert h.res is not None
+    err = h.res.stderr
+    assert "Nothing was changed" in err, "the refusal does not say so\n" + h.tail()
+    assert re.search(rf"(?<![\w-]){re.escape(named)}(?![\w-])", err), \
+        f"the refusal does not name {named!r}\n" + h.tail()
+
+
 def _refused(h: _Harness, named: str) -> None:
     """Failed run, file byte-equal, docker not reloaded, nothing stray, the change named."""
     assert h.res.returncode != 0, "the bootstrap went ahead\n" + h.tail()
@@ -62,7 +89,7 @@ def _refused(h: _Harness, named: str) -> None:
     assert h.reloads == [] and h.restarts == [], \
         f"docker was reloaded although a pending change would be applied: {h.systemctl_calls}"
     assert h.etc_files == ["daemon.json"], h.etc_files
-    assert named in h.out, f"the pending change {named!r} is not named\n" + h.tail()
+    _refusal_names(h, named)
 
 
 def _seed(start: str, foreign: "dict | None") -> dict:
@@ -97,8 +124,70 @@ def test_loaded_foreign_runtime_edited_or_removed_in_the_file_is_a_pending_chang
     tmp_path, start, foreign
 ):
     h = _Harness(tmp_path, _seed(start, foreign), live=LIVE_WITH_FOREIGN).run()
-    _refused(h, "foreign")
+    _refused(h, "runtime foreign")
     assert h.live == LIVE_WITH_FOREIGN, f"the live runtimes changed: {h.live}"
+
+
+@needs_linux
+@pytest.mark.parametrize("start", ["write", "reload-only"])
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"options": {"TypeUrl": "io.containerd.exam.v1.Options", "ConfigPath": "/etc/exam.toml"}},
+        {"runtimeType": "io.containerd.kata.v2"},
+    ],
+    ids=["options", "runtimeType"],
+)
+def test_loaded_foreign_runtime_with_options_or_runtimetype_is_a_pending_change(
+    tmp_path, start, extra
+):
+    """`docker info` shows only path and runtimeArgs, so an `options` or `runtimeType` key of a
+    foreign entry cannot be compared with the live side and counts as a difference (D198)."""
+    h = _Harness(tmp_path, _seed(start, {**FOREIGN_LIVE, **extra}), live=LIVE_WITH_FOREIGN).run()
+    _refused(h, "runtime foreign")
+    assert h.live == LIVE_WITH_FOREIGN, f"the live runtimes changed: {h.live}"
+
+
+# ------------------------------------------------ no daemon.json, a runtime from a dockerd flag
+
+
+def _no_file_host(tmp_path, live: dict) -> _Harness:
+    """A host without /etc/docker/daemon.json: the harness always seeds one, so remove it."""
+    h = _Harness(tmp_path, {}, live=live)
+    h.daemon_json.unlink()
+    return h
+
+
+@needs_linux
+@pytest.mark.parametrize(
+    "live",
+    [
+        {"nvidia": {"path": "nvidia-container-runtime"}, **BUILTINS},
+        {"nvidia": {"path": "nvidia-container-runtime"}, "other": {"path": "/opt/o"}, **BUILTINS},
+    ],
+    ids=["nvidia", "two-flag-runtimes"],
+)
+def test_no_daemon_json_with_a_runtime_added_by_a_dockerd_flag_is_refused(tmp_path, live):
+    """The reload after the write would drop the flag-added runtime (a file with `runtimes` wins
+    over the flag). Refuse: no file is created, docker is not reloaded, the runtime is named."""
+    h = _no_file_host(tmp_path, live).run()
+    assert h.res.returncode != 0, "the bootstrap went ahead\n" + h.tail()
+    assert h.last_line == f"{RESULT} failed", h.tail()
+    assert not h.daemon_json.exists(), "a daemon.json was created\n" + h.tail()
+    assert h.reloads == [] and h.restarts == [], h.systemctl_calls
+    assert h.etc_files == [], h.etc_files
+    assert h.live == live, f"the live runtimes changed: {h.live}"
+    _refusal_names(h, "runtime nvidia")
+
+
+@needs_linux
+def test_no_daemon_json_with_only_docker_builtin_runtimes_still_goes_ahead(tmp_path):
+    """Control: runc and io.containerd.runc.v2 are not flag-added runtimes."""
+    h = _no_file_host(tmp_path, dict(BUILTINS)).run()
+    assert h.res.returncode == 0, h.tail()
+    assert h.last_line == f"{RESULT} changed", h.tail()
+    assert len(h.reloads) == 1 and h.restarts == [], h.systemctl_calls
+    assert {"runsc", SUID} <= set(h.daemon["runtimes"]), h.daemon
 
 
 @needs_linux
@@ -133,8 +222,53 @@ def test_fresh_path_with_a_foreign_runtime_in_the_file_not_loaded_is_refused(tmp
     foreign runtime. Refuse, name it, leave file and docker alone."""
     seed = {**QUIET_KEYS, "runtimes": {"foreign": FOREIGN_LIVE}}
     h = _Harness(tmp_path, seed, live=dict(BUILTINS)).run()
-    _refused(h, "foreign")
+    _refused(h, "runtime foreign")
     assert "runsc" not in h.live and SUID not in h.live, h.live
+
+
+@needs_linux
+@pytest.mark.parametrize(
+    "foreign",
+    [
+        {**FOREIGN_LIVE, "path": "/opt/exam/foreign-edited"},
+        {**FOREIGN_LIVE, "runtimeArgs": ["--b"]},
+        {**FOREIGN_LIVE, "options": {"ConfigPath": "/etc/exam.toml"}},
+        {**FOREIGN_LIVE, "runtimeType": "io.containerd.kata.v2"},
+        None,
+    ],
+    ids=["path-edited", "runtimeArgs-edited", "options", "runtimeType", "removed"],
+)
+def test_fresh_path_with_a_loaded_foreign_runtime_edited_or_removed_in_the_file_is_refused(
+    tmp_path, foreign
+):
+    """D197 amendment 2: no runsc in the file, not loaded; the foreign runtime IS loaded but the
+    file edits or drops it, and the reload that registers runsc would apply that."""
+    seed = {**QUIET_KEYS, "runtimes": {"foreign": foreign} if foreign else {}}
+    live = {"foreign": FOREIGN_LIVE, **BUILTINS}
+    h = _Harness(tmp_path, seed, live=live).run()
+    _refused(h, "runtime foreign")
+    assert h.live == live, f"the live runtimes changed: {h.live}"
+
+
+@needs_linux
+def test_fresh_path_with_a_loaded_runtime_and_no_runtimes_key_in_the_file_is_refused(tmp_path):
+    """The file has no `runtimes` key but docker has `foreign` loaded (a dockerd flag): the
+    bootstrap's write adds `runtimes`, so the reload would drop `foreign`."""
+    live = {"foreign": FOREIGN_LIVE, **BUILTINS}
+    h = _Harness(tmp_path, dict(QUIET_KEYS), live=live).run()
+    _refused(h, "runtime foreign")
+    assert h.live == live, f"the live runtimes changed: {h.live}"
+
+
+@needs_linux
+def test_fresh_path_with_a_loaded_foreign_runtime_unchanged_in_the_file_goes_ahead(tmp_path):
+    """Control: the file entry equals the loaded one, so the reload only adds runsc."""
+    seed = {**QUIET_KEYS, "runtimes": {"foreign": FOREIGN_LIVE}}
+    h = _Harness(tmp_path, seed, live={"foreign": FOREIGN_LIVE, **BUILTINS}).run()
+    assert h.res.returncode == 0, h.tail()
+    assert h.last_line == f"{RESULT} changed", h.tail()
+    assert len(h.reloads) == 1 and h.restarts == [], h.systemctl_calls
+    assert h.daemon["runtimes"]["foreign"] == FOREIGN_LIVE
 
 
 # ------------------------------------------------ 3: RELOADABLE_KEYS against moby v28.0.0
