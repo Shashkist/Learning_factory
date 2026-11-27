@@ -461,13 +461,11 @@ def test_guard_d_a_running_or_green_deploy_whose_display_title_names_the_target_
 @pytest.mark.parametrize("head", [HEAD, DOCS], ids=["same head_sha", "head_sha is a docs-only commit"])
 @pytest.mark.parametrize("status", ["queued", "pending", "waiting", "requested"])
 def test_guard_d_a_pending_deploy_whose_display_title_names_the_target_covers_it(tmp_path, status, head):
-    # covered and slot held at once: either one-line refusal is right; never a dispatch
+    # D189 amendment 3 (c): the cover line for every pending status, `requested` included
     dep = _scenario()["deploy"]
     dep["workflow_runs"].append(_dep(4200, status, None, HEAD, head))
     r, calls = _run(tmp_path, _scenario(deploy=dep))
-    assert r.returncode == 0, f"exit {r.returncode}: {r.stderr}"
-    assert _dispatches(calls) == [], f"re-dispatched: {calls}"
-    assert _lines(r) in ([COVER_LINE], [PENDING_LINE]), f"stdout was {r.stdout!r}"
+    _assert_refused(r, calls, COVER_LINE)
 
 
 @needs_tools
@@ -512,23 +510,112 @@ def test_guard_d_failed_cancelled_or_other_sha_deploys_do_not_cover_the_target(t
 
 # ------------------------------------------------------------------ amendment 2: a pending Deploy holds the slot
 
+PENDING_STATUSES = ["queued", "pending", "waiting", "requested"]
+WILL_NOT_DEPLOY = f"a pending Deploy will not deploy {HEAD}: not re-dispatching, {HEAD} is not deployed"
+
+
+def _assert_will_not_deploy(r, calls):
+    """D189 amendment 3 (f): no dispatch, exit 1, one stderr line naming the target."""
+    assert r.returncode == 1, f"exit {r.returncode}: {r.stdout!r} {r.stderr!r}"
+    assert _dispatches(calls) == [], f"re-dispatched: {calls}"
+    assert WILL_NOT_DEPLOY in r.stderr.splitlines(), f"stderr was {r.stderr!r}"
+
+
 @needs_tools
-@pytest.mark.parametrize("status", ["queued", "pending", "waiting", "requested"])
+@pytest.mark.parametrize("status", PENDING_STATUSES)
 @pytest.mark.parametrize("sha", [OTHER, DOCS, OLD])
-def test_any_other_pending_deploy_run_means_no_dispatch_and_one_line_exit_0(tmp_path, status, sha):
+def test_any_other_pending_workflow_dispatch_deploy_run_means_no_dispatch_and_one_line_exit_0(tmp_path, status, sha):
     dep = _scenario()["deploy"]
-    dep["workflow_runs"].append(_dep(4400, status, None, sha))
+    dep["workflow_runs"].append(_dep(4400, status, None, sha, event="workflow_dispatch"))
     r, calls = _run(tmp_path, _scenario(deploy=dep))
     _assert_refused(r, calls, PENDING_LINE)
 
 
 @needs_tools
-def test_a_pending_deploy_run_holds_the_slot_for_a_cancelled_workflow_dispatch_run_too(tmp_path):
+@pytest.mark.parametrize("status", PENDING_STATUSES)
+@pytest.mark.parametrize("sha", [OTHER, DOCS, OLD])
+def test_any_other_pending_workflow_run_deploy_will_not_deploy_the_target_so_no_dispatch_and_exit_1_naming_it(tmp_path, status, sha):
+    # a CI re-run of an older sha that finished later, or a run whose deploy job its `if` skips
+    dep = _scenario()["deploy"]
+    dep["workflow_runs"].append(_dep(4400, status, None, sha, event="workflow_run"))
+    r, calls = _run(tmp_path, _scenario(deploy=dep))
+    _assert_will_not_deploy(r, calls)
+
+
+@needs_tools
+@pytest.mark.parametrize("status", PENDING_STATUSES)
+def test_a_pending_workflow_run_deploy_with_a_foreign_title_also_stops_a_cancelled_workflow_dispatch_run(tmp_path, status):
     run = {"id": int(RUN_ID), "event": "workflow_dispatch", "head_sha": OLD, "conclusion": "cancelled"}
     dep = _scenario()["deploy"]
-    dep["workflow_runs"].append(_dep(4400, "queued", None, OTHER))
+    dep["workflow_runs"].append(_dep(4400, status, None, OTHER, event="workflow_run"))
+    r, calls = _run(tmp_path, _scenario(run=run, deploy=dep))
+    _assert_will_not_deploy(r, calls)
+
+
+@needs_tools
+def test_a_pending_workflow_dispatch_and_a_pending_workflow_run_deploy_together_give_the_pending_line_exit_0(tmp_path):
+    dep = _scenario()["deploy"]
+    dep["workflow_runs"].append(_dep(4400, "queued", None, OTHER, event="workflow_run"))
+    dep["workflow_runs"].append(_dep(4401, "pending", None, OLD, event="workflow_dispatch"))
+    r, calls = _run(tmp_path, _scenario(deploy=dep))
+    _assert_refused(r, calls, PENDING_LINE)
+
+
+@needs_tools
+@pytest.mark.parametrize("status", PENDING_STATUSES)
+def test_a_pending_deploy_for_the_target_covers_it_even_beside_a_pending_workflow_run_deploy(tmp_path, status):
+    dep = _scenario()["deploy"]
+    dep["workflow_runs"].append(_dep(4200, status, None, HEAD, event="workflow_dispatch"))
+    dep["workflow_runs"].append(_dep(4400, "queued", None, OTHER, event="workflow_run"))
+    r, calls = _run(tmp_path, _scenario(deploy=dep))
+    _assert_refused(r, calls, COVER_LINE)
+
+
+@needs_tools
+@pytest.mark.parametrize("status", PENDING_STATUSES)
+def test_a_pending_workflow_dispatch_deploy_run_holds_the_slot_for_a_cancelled_workflow_dispatch_run_too(tmp_path, status):
+    run = {"id": int(RUN_ID), "event": "workflow_dispatch", "head_sha": OLD, "conclusion": "cancelled"}
+    dep = _scenario()["deploy"]
+    dep["workflow_runs"].append(_dep(4400, status, None, OTHER, event="workflow_dispatch"))
     r, calls = _run(tmp_path, _scenario(run=run, deploy=dep))
     _assert_refused(r, calls, PENDING_LINE)
+
+
+# D189 amendment 3 (d): a pending bootstrap run or smoke job is checked before any Deploy-slot check,
+# so a queued Deploy that holds the running slot never hides it.
+
+@needs_tools
+@pytest.mark.parametrize("event", ["workflow_run", "workflow_dispatch", "push"])
+@pytest.mark.parametrize("sha", [OTHER, OLD, DOCS])
+def test_a_queued_deploy_does_not_hide_a_smoke_job_that_holds_the_pending_slot(tmp_path, event, sha):
+    dep = _scenario()["deploy"]
+    dep["workflow_runs"].append(_dep(4400, "queued", None, sha, event=event))
+    jobs = [_sjob("gate", "completed"), _sjob("smoke", "queued")]
+    r, calls = _run(tmp_path, _scenario(deploy=dep, **_smoke("in_progress", jobs)))
+    assert r.returncode == 1, f"exit {r.returncode}: {r.stdout!r} {r.stderr!r}"
+    assert _dispatches(calls) == [], f"re-dispatched: {calls}"
+
+
+@needs_tools
+@pytest.mark.parametrize("event", ["workflow_run", "workflow_dispatch"])
+@pytest.mark.parametrize("boot_status", ["pending", "waiting", "requested"])
+def test_a_queued_deploy_does_not_hide_a_pending_bootstrap_run(tmp_path, event, boot_status):
+    dep = _scenario()["deploy"]
+    dep["workflow_runs"].append(_dep(4400, "queued", None, OTHER, event=event))
+    boot = {"workflow_runs": [{"id": 5301, "head_sha": OTHER, "event": "push", "status": boot_status, "conclusion": None}]}
+    r, calls = _run(tmp_path, _scenario(deploy=dep, boot=boot))
+    assert r.returncode == 1, f"exit {r.returncode}: {r.stdout!r} {r.stderr!r}"
+    assert _dispatches(calls) == [], f"re-dispatched: {calls}"
+
+
+@needs_tools
+def test_a_queued_deploy_for_the_target_still_covers_it_beside_a_pending_smoke_job(tmp_path):
+    # (c) comes before (d): the target is covered, so the cover line and exit 0
+    dep = _scenario()["deploy"]
+    dep["workflow_runs"].append(_dep(4200, "queued", None, HEAD))
+    jobs = [_sjob("gate", "completed"), _sjob("smoke", "queued")]
+    r, calls = _run(tmp_path, _scenario(deploy=dep, **_smoke("in_progress", jobs)))
+    _assert_refused(r, calls, COVER_LINE)
 
 
 @needs_tools
