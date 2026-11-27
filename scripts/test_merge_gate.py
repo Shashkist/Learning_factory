@@ -519,3 +519,43 @@ def test_latest_runs_fails_closed_when_the_latest_cannot_be_told(runs):
 
 def test_latest_runs_single_entry_needs_no_timestamp():
     assert merge_gate._latest_runs([_run("a", "SUCCESS")]) == ([_run("a", "SUCCESS")], [])
+
+
+def _url(run_id, job=1):
+    return f"https://github.com/o/r/actions/runs/{run_id}/job/{job}"
+
+
+def _with(run, url):
+    return {**run, "detailsUrl": url}
+
+
+def test_latest_runs_older_run_rerun_later_does_not_hide_newer_failure():
+    old = _with(_run("a", "SUCCESS", "2026-01-03T00:00:00Z"), _url(10))
+    new = _with(_run("a", "FAILURE", "2026-01-02T00:00:00Z"), _url(20))
+    assert merge_gate._latest_runs([old, new]) == ([new], [])
+
+
+def test_latest_runs_newer_run_id_passing_wins_over_older_failure():
+    old = _with(_run("a", "FAILURE", "2026-01-03T00:00:00Z"), _url(10))
+    new = _with(_run("a", "SUCCESS", "2026-01-02T00:00:00Z"), _url(20))
+    assert merge_gate._latest_runs([old, new]) == ([new], [])
+
+
+def test_latest_runs_same_run_id_attempts_are_ordered_by_start_time():
+    first = _with(_run("a", "FAILURE", "2026-01-01T00:00:00Z"), _url(10, 1))
+    second = _with(_run("a", "SUCCESS", "2026-01-01T00:05:00Z"), _url(10, 2))
+    assert merge_gate._latest_runs([second, first]) == ([second], [])
+
+
+def test_latest_runs_mixed_run_id_presence_holds():
+    a = _with(_run("a", "FAILURE", "2026-01-01T00:00:00Z"), _url(10))
+    b = _run("a", "SUCCESS", "2026-01-02T00:00:00Z")
+    kept, reasons = merge_gate._latest_runs([a, b])
+    assert kept == [] and "a" in reasons[0]
+
+
+def test_latest_runs_mixed_started_and_completed_at_holds():
+    a = {"name": "a", "startedAt": "2026-01-01T00:00:00Z"}
+    b = {"name": "a", "completedAt": "2026-01-02T00:00:00Z"}
+    kept, reasons = merge_gate._latest_runs([a, b])
+    assert kept == [] and "a" in reasons[0]

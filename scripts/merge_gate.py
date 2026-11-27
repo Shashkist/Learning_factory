@@ -9,6 +9,8 @@ The exam gate check (`manager-exam / gate`, or `--exam-gate`, exact name) must b
 SKIPPED `docker` passes only when `changes` is SUCCESS and no commit of the PR touches a file under
 `.github/workflows/` (new or previous name; D160 amendment 1). That docker rule applies unless the
 repository's repos.yaml entry says `docker_check: false`; it always applies to this repository (#645, D177).
+Of several runs of one check only the latest counts: highest workflow run id, then newest start time; if the
+order cannot be told the gate holds (#674, D190).
 """
 
 from __future__ import annotations
@@ -46,28 +48,44 @@ def _state(c: dict) -> str:
     return (c.get("conclusion") or c.get("state") or "").upper()
 
 
-def _stamp(c: dict) -> str:
+RUN_ID = re.compile(r"/actions/runs/(\d+)/")
+
+
+def _time(c: dict, key: str) -> str:
     # gh fills a pending run's completedAt with the zero time: that is no timestamp
-    for k in ("startedAt", "completedAt"):
-        v = c.get(k) or ""
-        if v and not v.startswith("0001-01-01"):
-            return v
-    return ""
+    v = c.get(key) or ""
+    return "" if v.startswith("0001-01-01") else v
+
+
+def _order_keys(runs: list[dict]) -> list[tuple] | None:
+    """One sort key per run, or None when the order cannot be told. Workflow run id first (all or
+    none of the runs must have one), then startedAt (all runs) else completedAt (all runs)."""
+    ids = [RUN_ID.search(r.get("detailsUrl") or "") for r in runs]
+    if any(ids) and not all(ids):
+        return None
+    times = None
+    for key in ("startedAt", "completedAt"):
+        got = [_time(r, key) for r in runs]
+        if all(got):
+            times = got
+            break
+    if times is None:
+        return None
+    return [(int(i.group(1)) if i else 0, t) for i, t in zip(ids, times)]
 
 
 def _latest_runs(checks: list[dict]) -> tuple[list[dict], list[str]]:
-    """Keep the newest run of each (workflow, check name); a group whose newest run cannot be
-    told (a missing or equal timestamp) is dropped and named in the reasons (fail closed, D190)."""
+    """Keep the newest run of each (workflow, check name): by workflow run id, then start time; a
+    group whose newest run cannot be told is dropped and named in the reasons (fail closed, #674, D190)."""
     groups: dict[tuple, list[dict]] = {}
     for c in checks:
         key = (c.get("workflowName") or "", c.get("name") or c.get("context") or "?")
         groups.setdefault(key, []).append(c)
     kept, reasons = [], []
     for (_, name), runs in groups.items():
-        stamps = [_stamp(r) for r in runs]
-        top = max(stamps)
-        if len(runs) == 1 or (all(stamps) and stamps.count(top) == 1):
-            kept.append(runs[stamps.index(top)])
+        keys = [(0, "")] if len(runs) == 1 else _order_keys(runs)
+        if keys is not None and keys.count(max(keys)) == 1:
+            kept.append(runs[keys.index(max(keys))])
         else:
             reasons.append(f"{name} has several runs and the latest cannot be told")
     return kept, reasons
