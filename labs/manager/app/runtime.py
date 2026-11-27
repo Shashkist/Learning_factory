@@ -65,7 +65,7 @@ def container_spec(lab: Lab, session_id: str) -> dict[str, Any]:
         "Env": env,
         "Labels": {"lf": "1", "lf.session": session_id, "lf.expires": str(expires)},
         "HostConfig": {
-            "Runtime": "runsc",
+            "Runtime": (os.environ.get("LF_SUDO_RUNTIME") or "runsc-suid") if lab.sudo else "runsc",
             "NetworkMode": os.environ.get("LF_LAB_NETWORK", "lf-labs"),
             "Memory": memory,
             "MemorySwap": memory,
@@ -203,6 +203,12 @@ def kill_command(marker: str, deadline_s: float) -> list[str]:
     `timeout ...` wrapper: it stays a second exec that runs a kill program (#117)."""
     wrapper = 'exec timeout -s KILL "$1" /bin/sh -c "$2" sh "$3"'
     return ["/bin/sh", "-c", wrapper, "sh", f"{deadline_s:.1f}", KILL_SCRIPT, marker]
+
+
+def _is_gvisor(entry: object) -> bool:
+    """A runtime entry of /info whose binary is runsc (a sudo lab never runs on runc)."""
+    path = entry.get("path") if isinstance(entry, dict) else None
+    return isinstance(path, str) and path.replace("\\", "/").rsplit("/", 1)[-1].startswith("runsc")
 
 
 class DockerRuntime:
@@ -381,10 +387,31 @@ class DockerRuntime:
             timeout=_TIMEOUT,
         )
 
+    @staticmethod
+    async def _loaded_runtimes(c: httpx.AsyncClient) -> dict[str, Any]:
+        """The `Runtimes` of GET /info; anything unreadable counts as none loaded."""
+        try:
+            info = await c.get("/info")
+            data = info.json() if info.status_code == 200 else None
+        except (httpx.HTTPError, ValueError):
+            return {}
+        runtimes = data.get("Runtimes") if isinstance(data, dict) else None
+        return runtimes if isinstance(runtimes, dict) else {}
+
     async def start(self, spec: dict[str, Any]) -> str:
         body = dict(spec)
         name = str(body.pop("name"))
         async with self._client() as c:
+            host_config = dict(body.get("HostConfig") or {})
+            wanted = host_config.get("Runtime")
+            if wanted and wanted != "runsc":
+                loaded = await self._loaded_runtimes(c)
+                if not _is_gvisor(loaded.get(wanted)):
+                    log.info(
+                        "runtime %s is not a loaded gVisor runtime; creating the lab with runsc",
+                        wanted,
+                    )
+                    body["HostConfig"] = {**host_config, "Runtime": "runsc"}
             resp = await c.post("/containers/create", params={"name": name}, json=body)
             if resp.status_code != 201:
                 raise RuntimeError(f"docker create failed: {resp.status_code} {resp.text[:200]}")
