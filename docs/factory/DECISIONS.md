@@ -1880,3 +1880,5 @@ in force · factory · 2026-11-27 · revertible
 3. Everything else in the #656 exam stays (client against the fake API, end reasons, free/df, 50 MB, no `lab-*` containers or orphan volumes, the read-only `session-end` command, the loader guard, a failed scheduled run raises an incident through `Server smoke`).
 **Alternatives.** Loosen #86/#90/#128 (no spec section requires a second cron or a second folder); a separate `server-soak.yml` (loosens #229 and needs a seventh watched workflow).
 **Revert.** Give the soak its own cron and option after loosening #86/#90 in a named exam-only commit, and move the lab back after loosening #128.
+
+**Amendment 1 (exam cdd4353).** The content loader reads only `<root>/<course>/<lab>/lab.yaml` (`app/content.py`), so a lab directly at `labs/content/smoke-soak/lab.yaml` is never loaded. **Decision:** the lab lives in its own course folder, `labs/content/soak/smoke-soak/lab.yaml` (course `soak`, still `status: internal`, `time_limit_min: 1`), so the loader layout does not change and nothing sits under `labs/content/smoke/` (#128 stays strict). An exam-only commit moves the path in the #656 exam before any code.
