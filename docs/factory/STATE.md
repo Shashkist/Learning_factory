@@ -3,7 +3,11 @@
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
 ## Now
-**Pass lf-r8t3 (laptop, from 18:57 UTC 2026-11-27) in flight:** #652 (`f/652-sudo-runtime`, worktree `C:\projects\lf-652`, exam), #670 (`f/670-bootstrap-pending`, `C:\projects\lf-670`, exam), #677 (`f/677-bash-scripting-lab`, `C:\projects\lf-677`, exam). **#651 closed** (O31 apply run 45963880191 `BOOTSTRAP RESULT: changed` with `runsc-suid`; smoke 46050910654 green). #676 (Linux 2, sudo) waits for #652.
+**Pass lf-r8t3 (laptop, from 18:57 UTC 2026-11-27) in flight, claims held by lf-r8t3:**
+- **#652** PR #712 (`f/652-sudo-runtime`, `C:\projects\lf-652`): CI green at 5b5fdc3 (431 docker exams, the 7 #652 cases among them). Review round 1 CHANGES: `LF_SUDO_RUNTIME=runc` would put a sudo lab on runc; fix = one code commit (only a gVisor runtime, unreadable `/info` degrades to `runsc`). Then CI, **round 2 (last)**, gate, merge, Deploy + smoke, close.
+- **#670** re-sequenced under **D198**: PR #711 (round 1 CHANGES at 0201384) is replaced by `f/670-bootstrap-pending-2` (`C:\projects\lf-670-2`: exam 643af52, exam amendment 44448cb, then one code commit). Next: push, new PR, close #711, CI, round 2 (last). D197 (+ amendments 1, 2 in D198) settle criteria 2 and 3.
+- **#677** (`f/677-bash-scripting-lab`, `C:\projects\lf-677`): exam 37d049f (44 non-docker + 81 docker cases); implementer building the `bash-1` lab.
+- **#651 closed** (O31 apply run 45963880191 `BOOTSTRAP RESULT: changed` with `runsc-suid`; smoke 46050910654 green). #674 got its evidence comment and claim release. #676 (Linux 2, sudo) waits for #652.
 
 **Pass lf-c5p2 (laptop, 16:57-18:50 UTC 2026-11-27) stopped at 3 merges (#706, #707, #708).** No claims held; the next pass claims afresh.
 - **#675 closed**: #702 (round 2 APPROVE at e7cd3d7) was held by the merge gate's CI-round limit (6 code commits > 5), so it was re-sequenced under **D195** to #706 (two exam commits + one code commit, diff byte-identical; a fresh reviewer verified it) and merged (4b3dc31). Main CI 46044979574, Deploy 46047753949 green with smoke. Round-2 nits added to #705.
