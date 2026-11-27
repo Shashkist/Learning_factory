@@ -1952,3 +1952,12 @@ in force · factory · 2026-11-27 · revertible
 **Why.** Main notices no cancelled Deploy at all today; #703 notices every case except finding 1, and in that case it does nothing (no wrong dispatch, no loop), the same as main. The case needs a CI re-run that finishes after a newer commit's CI, or a skipped Deploy, while the target's Deploy waits: rare. A fourth re-sequence costs a pass and keeps the whole detection off main.
 **Alternatives.** Re-sequence to `f/658-deploy-cancelled-4` now (one more pass with nothing shipped); park #658 on the owner (not an owner question).
 **Revert.** Revert the #703 squash commit; #704 then carries all of #658.
+
+## D195 · #702 is re-sequenced to `f/675-course-tools-3` with one code commit (CI-round limit)
+in force · factory · 2026-11-27 · revertible
+
+**Context.** PR #702 (#675) got review round 2 APPROVE at e7cd3d7 with every required check green (run 46036530406), but `merge_gate.py` holds it: `ci round 6 is over the limit of 5` (D148: each code commit is a round). The six code commits were the build plus the round-1 fixes; nothing is left to fix.
+**Decision.** As D172: the same change goes onto `f/675-course-tools-3` from main as the two exam-only commits (cherry-picked unchanged) and one code commit whose diff is byte-identical to `e12fc60..e7cd3d7` (checked with `diff` of the two `git diff` outputs). It opens as a new PR and #702 is closed in its favour. No verdict carries over: a fresh reviewer checks that the new diff equals the approved one and only that verdict is posted. The new PR runs full CI before the gate. Round-2 non-blocking findings went to #705.
+**Why.** The loop the CI-round limit guards against is over; one squashed commit ships exactly what was reviewed and keeps the gate unchanged.
+**Alternatives.** Raise the limit or teach the gate a decision override (a gate change for one PR); park (nothing to decide for the owner).
+**Revert.** Revert the squash commit of the new PR.
