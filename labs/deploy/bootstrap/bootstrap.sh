@@ -403,6 +403,13 @@ reload_extras() {
   done
 }
 
+# The runsc entry in the file is the loaded one (path and runtimeArgs, as `docker info` shows them).
+runsc_matches_live() {
+  local live
+  live="$(runtimes_json)"
+  jq -e --argjson l "$live" '.runtimes.runsc as $f | $f != null and ($f.path == $l.runsc.path) and (($f.runtimeArgs // []) == ($l.runsc.runtimeArgs // []))' "$DAEMON_JSON" >/dev/null 2>&1
+}
+
 # For the report: what a docker reload would apply from the file besides runsc.
 report_reload_extras() {
   local extras
@@ -474,16 +481,22 @@ apply_runtime() {
   local runsc_bin new orig i extras existing=0
   if runsc_in_file && ! runsc_loaded; then
     check_existing_runsc
-  elif runsc_in_file && suid_in_file; then
-    # Only a reload is left (runsc-suid is in the file, not loaded): it applies the whole file,
-    # so refuse, changing nothing, when other pending keys or runtimes (or a differing runsc-suid) come with it.
+  elif runsc_in_file; then
+    # runsc is loaded and a reload (or the write below) applies the whole file: refuse, changing
+    # nothing, when other pending keys or runtimes, an edited runsc or a differing runsc-suid come with it.
     extras="$(reload_extras)"
+    if ! runsc_matches_live; then extras="${extras:+$extras$'
+'}runtime runsc (path or runtimeArgs differ from the loaded one)"; fi
     if [ -n "$extras" ]; then
       err "a reload of $DAEMON_JSON would apply more than the runsc runtimes (the running values are not known):"
       err "$extras"
       err "Nothing was changed. Check the file, run 'systemctl reload docker' yourself if it is right, then re-run."
       return 1
     fi
+  elif suid_in_file; then
+    # Fresh path: a runsc-suid already in the file would go live with the reload.
+    err "$DAEMON_JSON has a $SUID_RT entry but no runsc: the reload would make that entry live. Nothing was changed. Remove it or add runsc by hand, then re-run."
+    return 1
   fi
   if [ -f "$DAEMON_JSON" ]; then
     DAEMON_BACKUP="$DAEMON_JSON.lf-bak.$STAMP"
