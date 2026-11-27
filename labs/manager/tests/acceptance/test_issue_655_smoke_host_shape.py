@@ -181,6 +181,13 @@ def test_ac2_the_step_waits_about_thirty_seconds_before_the_recheck():
     assert 25 <= max(nums) <= 60 or sum(nums) >= 25, f"wait of about 30 s expected, got sleeps {nums}"
 
 
+ALLOWED_REMOTE = re.compile(
+    r"^(iptables\s+(-w(\s+\d+)?\s+)*-C\s+DOCKER-USER\b[^;&|`$]*"
+    r"|docker\s+ps\b[^;&|`$]*"
+    r"|docker\s+exec\s+lf-manager\s+python\s+-m\s+app\.cli\s+live-sessions)$"
+)
+
+
 # ---------------------------------------------------------------- 5. secrets
 
 
@@ -207,6 +214,7 @@ FAKE_SSH = """#!/usr/bin/env bash
 # fake ssh: run the last argument (the remote command) locally, under the fakes on PATH
 cmd="${@: -1}"
 echo "ssh" >> "$FAKE_STATE/log"
+printf '%s\\n' "$cmd" >> "$FAKE_STATE/remote"
 exec bash -c "$cmd"
 """
 
@@ -217,6 +225,12 @@ exit 0
 
 FAKE_IPTABLES = """#!/usr/bin/env bash
 echo "iptables $*" >> "$FAKE_STATE/log"
+args=()
+while [ $# -gt 0 ]; do
+  if [ "$1" = "-w" ]; then shift; case "${1:-}" in ''|*[!0-9]*) ;; *) shift ;; esac; continue; fi
+  args+=("$1"); shift
+done
+set -- "${args[@]}"
 if [ "$1" = "-C" ]; then
   if [ "$(cat "$FAKE_STATE/rule" 2>/dev/null)" = "1" ] && \\
      [ "$*" = "-C DOCKER-USER -i br-lf-labs ! -s 172.31.240.2 -m comment --comment lf-labs -j DROP" ]; then
@@ -258,7 +272,7 @@ case "$1" in
   exec)
     case "$*" in
       *live-sessions*) echo "live-sessions" >> "$S/log"; nth live ;;
-      *) echo "docker-exec-other $*" >> "$S/log" ;;
+      *) echo "WRITE: docker $*" >> "$S/writes" ;;
     esac
     ;;
   *)
@@ -294,6 +308,7 @@ def _run(tmp_path: Path, *, rule: bool = True, ps=(), live=()):
         (state / f"ps.{n}").write_text("\n".join(names) + "\n", newline="\n")
     for n, ids in enumerate(live or [[]], 1):
         (state / f"live.{n}").write_text("\n".join(ids) + "\n", newline="\n")
+    (tmp_path / "ssh_config").write_text("Host smoke" + chr(10), encoding="utf-8")
     script = tmp_path / "step.sh"
     script.write_text(_script() + "\n", encoding="utf-8", newline="\n")
     env = {
@@ -317,6 +332,9 @@ def _run(tmp_path: Path, *, rule: bool = True, ps=(), live=()):
     )
     log = (state / "log").read_text().splitlines() if (state / "log").exists() else []
     writes = (state / "writes").read_text().splitlines() if (state / "writes").exists() else []
+    remote = (state / "remote").read_text().splitlines() if (state / "remote").exists() else []
+    for cmd in remote:
+        assert ALLOWED_REMOTE.match(cmd), f"the step sent a remote command outside the three allowed forms: {cmd!r}"
     return proc, proc.stdout + proc.stderr, log, writes
 
 

@@ -226,16 +226,34 @@ jobs:
           done
           exit "$rc"
       - name: Check the lab firewall rule and leftover lab containers
-        if: env.CHECK == 'terminal'
+        if: "!cancelled() && env.CHECK == 'terminal'"
         run: |
+          if [ ! -f "$RUNNER_TEMP/ssh_config" ]; then
+            echo "ssh was never configured; nothing to check"
+            exit 0
+          fi
           # Read-only on the server (D182, D184): one firewall check, the lab container list and the
           # manager's live session ids. Only container names are printed.
           set -o pipefail
-          lab_names() { ssh -F "$RUNNER_TEMP/ssh_config" smoke "docker ps -a --filter name=lab- --format '{{.Names}}'"; }
-          if ! ssh -F "$RUNNER_TEMP/ssh_config" smoke "iptables -C DOCKER-USER -i br-lf-labs ! -s 172.31.240.2 -m comment --comment lf-labs -j DROP"; then
-            echo "the DOCKER-USER drop rule for the lf-labs bridge is missing" >&2
-            exit 1
-          fi
+          lab_names() { ssh -F "$RUNNER_TEMP/ssh_config" smoke "docker ps -a --filter label=lf=1 --filter name=lab- --format '{{.Names}}'"; }
+          # ssh passes the remote exit code through: 1 = rule missing, 4 = xtables lock held (retry
+          # with -w), 255 = ssh itself failed.
+          rc=0
+          ssh -F "$RUNNER_TEMP/ssh_config" smoke "iptables -C DOCKER-USER -i br-lf-labs ! -s 172.31.240.2 -m comment --comment lf-labs -j DROP" || rc=$?
+          tries=1
+          while [ "$rc" = 4 ] && [ "$tries" -lt 4 ]; do
+            sleep 2
+            tries=$((tries + 1))
+            rc=0
+            ssh -F "$RUNNER_TEMP/ssh_config" smoke "iptables -w 5 -C DOCKER-USER -i br-lf-labs ! -s 172.31.240.2 -m comment --comment lf-labs -j DROP" || rc=$?
+          done
+          case "$rc" in
+            0) ;;
+            1) echo "firewall rule missing: DOCKER-USER -i br-lf-labs ! -s 172.31.240.2 -m comment --comment lf-labs -j DROP" >&2; exit 1 ;;
+            4) echo "the xtables lock stayed held for $tries tries; the firewall rule was not checked" >&2; exit 1 ;;
+            255) echo "ssh failed (exit 255) while checking the firewall" >&2; exit 1 ;;
+            *) echo "the firewall check failed with exit $rc" >&2; exit 1 ;;
+          esac
           nl=$'\n'
           live1=$(ssh -F "$RUNNER_TEMP/ssh_config" smoke "docker exec lf-manager python -m app.cli live-sessions")
           listed1=$(lab_names)
