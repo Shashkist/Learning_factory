@@ -428,6 +428,59 @@ def test_runsc_loaded_runsc_suid_in_file_not_loaded_with_other_pending_changes_i
     assert h.live == {"runsc": SERVER_RUNSC}, f"the live runtimes changed: {h.live}"
 
 
+# D187: the #50 extras rule holds on the write path and the fresh path too.
+EDITED_RUNSC = {"path": "/opt/exam/runsc-edited", "runtimeArgs": [OVERLAY]}
+EDITED_SUID = {
+    "path": EDITED_RUNSC["path"],
+    "runtimeArgs": [*EDITED_RUNSC["runtimeArgs"], SUID_ARG],
+}
+
+
+@needs_linux
+@pytest.mark.parametrize(
+    "extra,named",
+    [({"debug": True}, "debug"), ({"runtimes": {"foreign": FOREIGN}}, "foreign")],
+    ids=["pending-unrelated-key", "foreign-runtime-in-file"],
+)
+def test_runsc_loaded_runsc_suid_missing_with_other_pending_changes_is_refused(
+    tmp_path, extra, named
+):
+    """The production start (D179): runsc in the file and loaded, runsc-suid missing. Writing
+    runsc-suid and reloading would also apply `debug` or load the foreign runtime: refuse, name
+    it, leave the file and docker alone."""
+    runtimes = {"runsc": SERVER_RUNSC, **extra.get("runtimes", {})}
+    seed = {**QUIET_KEYS, **{k: v for k, v in extra.items() if k != "runtimes"},
+            "runtimes": runtimes}
+    h = _Harness(tmp_path, seed, live={"runsc": SERVER_RUNSC}).run()
+    _refused(h)
+    assert named in h.out, f"the pending change {named!r} is not named\n" + h.tail()
+    assert h.live == {"runsc": SERVER_RUNSC}, f"the live runtimes changed: {h.live}"
+
+
+@needs_linux
+@pytest.mark.parametrize("with_suid", [False, True], ids=["suid-missing", "suid-matches-edit"])
+def test_runsc_loaded_but_its_entry_edited_in_the_file_and_not_reloaded_is_refused(
+    tmp_path, with_suid
+):
+    """The file's runsc differs from the live one (hand edit, never reloaded): a reload would
+    make the edit live, so it counts as a pending change."""
+    runtimes = {"runsc": EDITED_RUNSC, **({SUID: EDITED_SUID} if with_suid else {})}
+    seed = {**QUIET_KEYS, "runtimes": runtimes}
+    h = _Harness(tmp_path, seed, live={"runsc": SERVER_RUNSC}).run()
+    _refused(h)
+    assert h.live == {"runsc": SERVER_RUNSC}, f"the live runsc changed: {h.live}"
+
+
+@needs_linux
+def test_fresh_path_with_a_differing_runsc_suid_already_in_the_file_never_makes_it_live(tmp_path):
+    """No runsc in the file: the step would register it and reload, which would also load the
+    foreign runsc-suid that sudo labs then run on. Refuse."""
+    seed = {**FRESH, "runtimes": {SUID: FOREIGN}}
+    h = _Harness(tmp_path, seed).run()
+    _refused(h)
+    assert SUID not in h.live, f"the foreign {SUID} is live: {h.live}\n" + h.tail()
+
+
 @needs_linux
 def test_runsc_loaded_without_the_overlay_adds_no_runsc_suid(tmp_path):
     """A runsc-suid copied from a runsc without the overlay would let a sudo lab's root writes
