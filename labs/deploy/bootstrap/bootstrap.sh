@@ -410,11 +410,12 @@ runsc_matches_live() {
   jq -e --argjson l "$live" '.runtimes.runsc as $f | $f != null and ($f.path == $l.runsc.path) and (($f.runtimeArgs // []) == ($l.runsc.runtimeArgs // []))' "$DAEMON_JSON" >/dev/null 2>&1
 }
 
-# The runsc-suid entry in the file is the loaded one (path and runtimeArgs, as `docker info` shows them).
+# The runsc-suid entry in the file is the loaded one: docker lists runsc-suid, the file entry has no
+# key besides path and runtimeArgs, and both equal the live ones (as `docker info` shows them).
 suid_matches_live() {
   local live
   live="$(runtimes_json)"
-  jq -e --argjson l "$live" '.runtimes["runsc-suid"] as $f | $f != null and ($f.path == $l["runsc-suid"].path) and (($f.runtimeArgs // []) == ($l["runsc-suid"].runtimeArgs // []))' "$DAEMON_JSON" >/dev/null 2>&1
+  jq -e --argjson l "$live" '.runtimes["runsc-suid"] as $f | ($f | type) == "object" and ($l | type) == "object" and ($l | has("runsc-suid")) and ((($f | keys) - ["path", "runtimeArgs"]) == []) and ($f.path == $l["runsc-suid"].path) and (($f.runtimeArgs // []) == ($l["runsc-suid"].runtimeArgs // []))' "$DAEMON_JSON" >/dev/null 2>&1
 }
 
 # For the report: what a docker reload would apply from the file besides runsc.
@@ -432,6 +433,7 @@ RUNSC_DEST=/usr/local/bin/runsc
 RUNSC_INSTALLED=0
 RELOAD_EXISTING=0
 RUNSC_LOADED_BEFORE=0
+SUID_LIVE_BEFORE=0
 DAEMON_TMP=""
 
 # Used only for the jq install (ensure_jq), which never runs in a dry run.
@@ -522,6 +524,8 @@ apply_runtime() {
   fi
   RUNSC_LOADED_BEFORE=0
   if runsc_loaded; then RUNSC_LOADED_BEFORE=1; fi
+  SUID_LIVE_BEFORE=0
+  if runtime_has "$SUID_RT"; then SUID_LIVE_BEFORE=1; fi
   if [ "$(printf '%s' "$new" | jq -S .)" = "$(printf '%s' "$orig" | jq -S .)" ]; then
     log "the runtimes are already in $DAEMON_JSON and nothing else would change: validating, then only reloading docker"
     validate_daemon_json "$DAEMON_JSON"
@@ -650,8 +654,11 @@ rollback_runtime() {
     fi
     # The original file lists runsc when this run only reloaded it: a reload now would load it again.
     if [ "$RELOAD_EXISTING" = 0 ]; then systemctl reload docker || true; fi
-    # runsc stays loaded when the original file had it loaded; runsc-suid always goes.
-    if [ "$RUNSC_LOADED_BEFORE" = 1 ]; then wait_runtimes_gone "$SUID_RT" || true; else wait_runtimes_gone runsc "$SUID_RT" || true; fi
+    # runsc stays loaded when the original file had it loaded; runsc-suid goes unless it was live before.
+    gone_after=()
+    if [ "$RUNSC_LOADED_BEFORE" = 0 ]; then gone_after+=(runsc); fi
+    if [ "$SUID_LIVE_BEFORE" = 0 ]; then gone_after+=("$SUID_RT"); fi
+    if [ "${#gone_after[@]}" -gt 0 ]; then wait_runtimes_gone "${gone_after[@]}" || true; fi
   fi
   # An /etc/docker this run created goes away only when empty (rmdir fails on anything else).
   if [ "$DOCKER_DIR_CREATED" = 1 ]; then rmdir /etc/docker 2>/dev/null || true; fi
