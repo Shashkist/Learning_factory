@@ -1,5 +1,8 @@
 name: Deploy
 
+# The run is named after the sha it deploys; the cancelled-Deploy watch matches on it (#658, D189).
+run-name: Deploy ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
+
 # Deploys the lf-manager image that CI pushed for a commit on main to the shared server (#13, D34).
 # Runs after CI succeeded on main, or by hand with a commit sha (default: the branch head).
 # The server side is labs/deploy/deploy.sh. Secrets travel only on the ssh stdin, never in a

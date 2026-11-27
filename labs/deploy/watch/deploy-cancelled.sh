@@ -30,12 +30,24 @@ ci_conclusion=$(jq -er '.conclusion // "none"' <<<"$newest") || { echo "bad ci r
 event=$(jq -er '.event | select(type == "string")' <<<"$run") || { echo "no event in run" >&2; exit 2; }
 # GitHub fills started_at even for a job that never ran: started means steps or a runner.
 started=$(jq -er '[.jobs[] | select(.name == "deploy" and ((.steps // [] | length) > 0 or .runner_id != null))] | length' <<<"$jobs")   || { echo "bad jobs list" >&2; exit 2; }
-covering=$(jq -er --arg sha "$sha" '[.workflow_runs[] | select(.head_sha == $sha and
+# D189 amendment 2: a Deploy run is named `Deploy <sha deployed>` (run-name); head_sha is only main's head.
+covering=$(jq -er --arg t "Deploy $sha" '[.workflow_runs[] | select(.display_title == $t and
   ((.status | IN("queued", "in_progress", "waiting", "pending", "requested"))
    or (.status == "completed" and .conclusion == "success")))] | length' <<<"$deploy")   || { echo "bad deploy runs list" >&2; exit 2; }
-# A pending bootstrap or smoke run holds the one pending slot of the shared concurrency group.
-pending=$(jq -er '[.workflow_runs[] | select(.status | IN("queued", "pending", "waiting", "requested"))] | length' <<<"$boot")   || { echo "bad bootstrap runs list" >&2; exit 2; }
-pending_smoke=$(jq -er '[.workflow_runs[] | select(.status | IN("queued", "pending", "waiting", "requested"))] | length' <<<"$smoke")   || { echo "bad smoke runs list" >&2; exit 2; }
+# Any other Deploy run waiting for the slot would be replaced by a dispatch.
+pending_deploy=$(jq -er --arg id "$RUN_ID" '[.workflow_runs[] | select((.id | tostring) != $id and
+  (.status | IN("queued", "pending", "waiting", "requested")))] | length' <<<"$deploy")   || { echo "bad deploy runs list" >&2; exit 2; }
+# A bootstrap run holds the one pending slot only while pending, waiting or requested.
+pending=$(jq -er '[.workflow_runs[] | select(.status | IN("pending", "waiting", "requested"))] | length' <<<"$boot")   || { echo "bad bootstrap runs list" >&2; exit 2; }
+# A smoke run holds it only through its `smoke` job: waiting for the lock, no runner, no steps.
+pending_smoke=0
+smoke_ids=$(jq -r '.workflow_runs[] | select(.status != "completed") | .id' <<<"$smoke")   || { echo "bad smoke runs list" >&2; exit 2; }
+for sid in $smoke_ids; do
+  sjobs=$(read_api "repos/$GH_REPO/actions/runs/$sid/jobs")
+  n=$(jq -er '[.jobs[] | select(.name == "smoke" and (.status | IN("queued", "pending", "waiting"))
+    and .runner_id == null and ((.steps // []) | length) == 0)] | length' <<<"$sjobs")   || { echo "bad smoke jobs list" >&2; exit 2; }
+  pending_smoke=$((pending_smoke + n))
+done
 
 if [ "$started" -gt 0 ]; then
   echo "deploy job had started: deliberate cancel or timeout, nothing to do"
@@ -47,6 +59,10 @@ if [ "$ci_conclusion" != "success" ]; then
 fi
 if [ "$covering" -gt 0 ]; then
   echo "a Deploy for $sha already covers main"
+  exit 0
+fi
+if [ "$pending_deploy" -gt 0 ]; then
+  echo "a pending Deploy holds the slot, nothing to do"
   exit 0
 fi
 if [ $((pending + pending_smoke)) -gt 0 ]; then
