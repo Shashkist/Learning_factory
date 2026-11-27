@@ -179,7 +179,9 @@ def _install_lists() -> list[list[str]]:
 def test_c2_apt_get_install_package_lists_unchanged() -> None:
     lists = _install_lists()
     assert len(lists) == 2, f"expected two apt-get install calls, got {len(lists)}"
-    assert lists[0] == INSTALL_PACKAGES
+    # D192: every #545 package, in its order; packages added later (course tools) come after them.
+    kept = lists[0][: len(INSTALL_PACKAGES)]
+    assert kept == INSTALL_PACKAGES, f"#545 packages missing or reordered: {lists[0]}"
     assert lists[1] == REINSTALL_PACKAGES
 
 
