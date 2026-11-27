@@ -3,6 +3,8 @@
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
 ## Now
+**Pass lf-t3m7 (laptop, from 22:27 UTC 2026-11-27) in flight.** Claims: **#704** (`f/704-deploy-watch-pending-2`, `C:\projects\lf-704-2`, re-sequence under D189 a4: 888f700 cherry-picked as 75d0ba6, amendment 4 exam next), **#716** (`f/716-bash1-check-fixes`, `C:\projects\lf-716`, exam), **#676** (`f/676-linux-2-lab`, `C:\projects\lf-676`, exam).
+
 **Pass lf-k9v2 (laptop, 20:57-22:20 UTC 2026-11-27) stopped at 3 merges (#713, #714, #712).** No claims held; the next pass claims afresh.
 - **#670 closed**: #713 merged (6149568) on round 2 APPROVE at c642297; bootstrap push dry run 46068514662 `step runtime: already in place`; Deploy 46071274030 green with smoke. Nits -> **#715** (p3).
 - **#677 closed**: #714 merged (6a8b1d6) on round 1 APPROVE at 02328ed; Deploy 46071274030 `deployed lf-manager:6a8b1d6`, smoke ok (the catalog needs a signed-in student, so the bash-1 listing itself was not checked). Findings 2-4 (Hebrew file names in task 07, exit code in task 08, missing shebang) -> **#716** (p2).
