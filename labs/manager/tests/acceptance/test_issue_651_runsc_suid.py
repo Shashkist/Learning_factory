@@ -110,7 +110,8 @@ def _live(cfg: dict) -> str:
 class _Harness:
     """One temp host. `run()` executes the real script once; state carries over between runs."""
 
-    def __init__(self, tmp_path: Path, seed: dict, *, live: bool = False, trip: bool = False):
+    def __init__(self, tmp_path: Path, seed: dict, *, live: "bool | dict" = False,
+                 trip: bool = False):
         self.dir = tmp_path
         self.bindir = tmp_path / "bin"
         self.stub = tmp_path / "stub"
@@ -125,7 +126,9 @@ class _Harness:
         self.seed = _bytes(seed)
         self.daemon_json.write_bytes(self.seed)
         (self.stub / "docker.calls").write_text("")
-        if live:
+        if isinstance(live, dict):  # what docker has loaded, when that differs from the file
+            (self.stub / "live-runtimes").write_text(json.dumps(live, separators=(",", ":")))
+        elif live:
             (self.stub / "live-runtimes").write_text(_live(seed))
         text = SCRIPT.read_text(encoding="utf-8")
         for server_path, local in (
@@ -214,6 +217,15 @@ def _after_report(h: _Harness) -> str:
 
 FRESH = dict(OTHER_KEYS)
 LOADED = {**OTHER_KEYS, "runtimes": {"runsc": SERVER_RUNSC}}
+# D185 amendment 1: runsc is in the file (same entry as LOADED) but docker has not loaded it, and
+# runsc-suid is missing: the write branch of the step starts from an already-registered runsc.
+# No reloadable key here (max-concurrent-uploads is one): a reload must apply nothing but runsc,
+# or the bootstrap refuses (#50).
+QUIET_KEYS = {"log-opts": {"max-size": "10m"}}
+NOT_LOADED = {**QUIET_KEYS, "runtimes": {"runsc": SERVER_RUNSC}}
+# (seed, docker has it loaded)
+SEEDS = [(FRESH, False), (LOADED, True), (NOT_LOADED, False)]
+SEED_IDS = ["fresh", "runsc-loaded", "runsc-in-file-not-loaded"]
 
 
 # ---------------------------------------------------------------- 1: the runtime step adds it
@@ -245,18 +257,18 @@ def test_existing_runsc_entry_is_copied_path_and_args_then_allow_suid_is_appende
 
 
 @needs_linux
-@pytest.mark.parametrize("seed", [FRESH, LOADED], ids=["fresh", "runsc-loaded"])
-def test_runtime_step_changes_no_other_daemon_json_key_jq_s_equal(tmp_path, seed):
-    h = _Harness(tmp_path, seed, live="runtimes" in seed).run()
+@pytest.mark.parametrize("seed,loaded", SEEDS, ids=SEED_IDS)
+def test_runtime_step_changes_no_other_daemon_json_key_jq_s_equal(tmp_path, seed, loaded):
+    h = _Harness(tmp_path, seed, live=loaded).run()
     assert h.res.returncode == 0, h.tail()
     assert SUID in h.daemon.get("runtimes", {}), "exam precondition: entry added\n" + h.tail()
     assert _other_keys(h.daemon) == _other_keys(seed)
 
 
 @needs_linux
-@pytest.mark.parametrize("seed", [FRESH, LOADED], ids=["fresh", "runsc-loaded"])
-def test_runtime_step_applies_it_with_one_docker_reload_and_never_a_restart(tmp_path, seed):
-    h = _Harness(tmp_path, seed, live="runtimes" in seed).run()
+@pytest.mark.parametrize("seed,loaded", SEEDS, ids=SEED_IDS)
+def test_runtime_step_applies_it_with_one_docker_reload_and_never_a_restart(tmp_path, seed, loaded):
+    h = _Harness(tmp_path, seed, live=loaded).run()
     assert h.res.returncode == 0, h.tail()
     assert SUID in h.live, f"docker does not list {SUID} after the step: {h.live}\n" + h.tail()
     assert len(h.reloads) == 1, f"expected one reload: {h.systemctl_calls}"
@@ -275,9 +287,11 @@ def test_runtime_step_does_not_leave_a_stray_temp_file_in_etc_docker(tmp_path):
 
 
 @needs_linux
-@pytest.mark.parametrize("seed", [FRESH, LOADED], ids=["fresh", "runsc-loaded"])
-def test_second_run_reports_the_runtime_step_already_in_place_and_changes_nothing(tmp_path, seed):
-    h = _Harness(tmp_path, seed, live="runtimes" in seed).run()
+@pytest.mark.parametrize("seed,loaded", SEEDS, ids=SEED_IDS)
+def test_second_run_reports_the_runtime_step_already_in_place_and_changes_nothing(
+    tmp_path, seed, loaded
+):
+    h = _Harness(tmp_path, seed, live=loaded).run()
     assert h.res.returncode == 0 and SUID in h.daemon.get("runtimes", {}), \
         "exam precondition: the first run adds the entry\n" + h.tail()
     after_first = h.daemon_json.read_bytes()
@@ -326,9 +340,9 @@ def test_existing_differing_runsc_suid_entry_gets_one_warning_line(tmp_path, ent
 
 
 @needs_linux
-@pytest.mark.parametrize("seed", [FRESH, LOADED], ids=["fresh", "runsc-loaded"])
-def test_failed_baseline_after_the_step_restores_daemon_json_byte_for_byte(tmp_path, seed):
-    h = _Harness(tmp_path, seed, live="runtimes" in seed, trip=True).run()
+@pytest.mark.parametrize("seed,loaded", SEEDS, ids=SEED_IDS)
+def test_failed_baseline_after_the_step_restores_daemon_json_byte_for_byte(tmp_path, seed, loaded):
+    h = _Harness(tmp_path, seed, live=loaded, trip=True).run()
     assert "baseline differs after step 'runtime'" in h.out, \
         f"exam precondition: the baseline failed after the runtime step\n{h.tail()}"
     assert h.res.returncode != 0, h.tail()
@@ -338,28 +352,120 @@ def test_failed_baseline_after_the_step_restores_daemon_json_byte_for_byte(tmp_p
 
 
 @needs_linux
-@pytest.mark.parametrize("seed", [FRESH, LOADED], ids=["fresh", "runsc-loaded"])
+@pytest.mark.parametrize("seed,loaded", SEEDS, ids=SEED_IDS)
 def test_failed_baseline_after_the_step_reloads_docker_and_runsc_suid_is_no_longer_loaded(
-    tmp_path, seed
+    tmp_path, seed, loaded
 ):
-    h = _Harness(tmp_path, seed, live="runtimes" in seed, trip=True).run()
+    h = _Harness(tmp_path, seed, live=loaded, trip=True).run()
     assert "baseline differs after step 'runtime'" in h.out, \
         f"exam precondition: the baseline failed after the runtime step\n{h.tail()}"
     assert SUID not in h.live, f"docker still lists {SUID}: {h.live}\n" + h.tail()
-    if "runtimes" in seed:
+    if loaded:
         assert "runsc" in h.live, f"the rollback also dropped runsc: {h.live}"
     assert len(h.reloads) >= 2, f"no reload after the restore: {h.systemctl_calls}"
     assert h.restarts == [], h.systemctl_calls
     assert "baseline restored" in h.out, h.tail()
 
 
+# ---------------------------------------------------------------- 3b: refusals (D185 amendment 1)
+
+SUID_ENTRY = {"path": SERVER_RUNSC["path"], "runtimeArgs": [*SERVER_RUNSC["runtimeArgs"], SUID_ARG]}
+FOREIGN = {"path": "/opt/exam/foreign-runtime"}
+
+
+def _refused(h: _Harness) -> None:
+    """The bootstrap refused: failed run, file untouched, docker never reloaded."""
+    assert h.res.returncode != 0, "the bootstrap went ahead\n" + h.tail()
+    assert h.last_line == f"{RESULT} failed", h.tail()
+    assert h.daemon_json.read_bytes() == h.seed, "daemon.json was modified\n" + h.tail()
+    assert h.reloads == [] and h.restarts == [], \
+        f"docker was reloaded although other pending changes would be applied: {h.systemctl_calls}"
+    assert h.etc_files == ["daemon.json"], h.etc_files
+
+
+@needs_linux
+def test_runsc_in_file_not_loaded_runsc_suid_missing_with_a_pending_unrelated_key_is_refused(
+    tmp_path,
+):
+    """The #50 rule on the write branch: a reload would also apply `debug`, so refuse."""
+    seed = {**NOT_LOADED, "debug": True}
+    _refused(_Harness(tmp_path, seed).run())
+
+
+@needs_linux
+def test_runsc_loaded_runsc_suid_in_file_not_loaded_failed_baseline_keeps_runsc_loaded(tmp_path):
+    """The reload-only start: both entries are in the file, only runsc is loaded. The reload
+    brings runsc-suid up, the baseline fails, and the rollback must not unload runsc."""
+    seed = {**QUIET_KEYS, "runtimes": {"runsc": SERVER_RUNSC, SUID: SUID_ENTRY}}
+    h = _Harness(tmp_path, seed, live={"runsc": SERVER_RUNSC}, trip=True).run()
+    assert "baseline differs after step 'runtime'" in h.out, \
+        f"exam precondition: the baseline failed after the runtime step\n{h.tail()}"
+    assert h.res.returncode != 0, h.tail()
+    assert h.last_line == f"{RESULT} failed", h.tail()
+    assert h.daemon_json.read_bytes() == h.seed, "daemon.json was not restored byte for byte"
+    assert "runsc" in h.live, \
+        f"the rollback unloaded runsc, which was loaded before: {h.live}\n" + h.tail()
+    assert SUID not in h.live, f"docker still lists {SUID}: {h.live}\n" + h.tail()
+    assert h.restarts == [], h.systemctl_calls
+    assert [n for n in h.etc_files if ".lf-new." in n or ".lf-stage." in n] == [], h.etc_files
+
+
+@needs_linux
+@pytest.mark.parametrize(
+    "extra",
+    [{"debug": True}, {"runtimes": {"foreign": FOREIGN}}],
+    ids=["pending-unrelated-key", "foreign-runtime-in-file"],
+)
+def test_runsc_loaded_runsc_suid_in_file_not_loaded_with_other_pending_changes_is_refused(
+    tmp_path, extra
+):
+    """Same start as above; a reload would also apply `debug` or load a foreign runtime."""
+    runtimes = {"runsc": SERVER_RUNSC, SUID: SUID_ENTRY, **extra.get("runtimes", {})}
+    seed = {**QUIET_KEYS, **{k: v for k, v in extra.items() if k != "runtimes"},
+            "runtimes": runtimes}
+    h = _Harness(tmp_path, seed, live={"runsc": SERVER_RUNSC}).run()
+    _refused(h)
+    assert h.live == {"runsc": SERVER_RUNSC}, f"the live runtimes changed: {h.live}"
+
+
+@needs_linux
+def test_runsc_loaded_without_the_overlay_adds_no_runsc_suid(tmp_path):
+    """A runsc-suid copied from a runsc without the overlay would let a sudo lab's root writes
+    bypass the memory cap: the step warns (as for runsc itself) and registers nothing."""
+    bare = {"path": SERVER_RUNSC["path"], "runtimeArgs": ["--platform=systrap"]}
+    seed = {**QUIET_KEYS, "runtimes": {"runsc": bare}}
+    h = _Harness(tmp_path, seed, live=True).run()
+    assert h.res.returncode == 0, h.tail()
+    assert h.daemon_json.read_bytes() == h.seed, "daemon.json was edited\n" + h.tail()
+    assert SUID not in h.live, f"{SUID} was registered: {h.live}\n" + h.tail()
+    assert h.reloads == [] and h.restarts == [], h.systemctl_calls
+    assert any("WARNING" in ln and OVERLAY in ln for ln in h.out.splitlines()), h.tail()
+
+
+@needs_linux
+def test_runsc_suid_entry_with_runsc_path_and_allow_suid_but_no_overlay_is_not_accepted(tmp_path):
+    """AC2: the expected entry is runsc's whole entry plus --allow-suid; anything else differs
+    and is left untouched with the warning."""
+    entry = {"path": SERVER_RUNSC["path"], "runtimeArgs": [SUID_ARG]}
+    seed = {**OTHER_KEYS, "runtimes": {"runsc": SERVER_RUNSC, SUID: entry}}
+    h = _Harness(tmp_path, seed, live=True).run()
+    assert h.res.returncode == 0, h.tail()
+    assert h.daemon_json.read_bytes() == h.seed, "daemon.json was edited\n" + h.tail()
+    assert h.reloads == [] and h.restarts == [], h.systemctl_calls
+    warnings = [ln for ln in h.out.splitlines() if "WARNING" in ln and SUID in ln]
+    assert warnings and "left untouched" in warnings[0], \
+        "an entry without the overlay was accepted as the expected one\n" + h.tail()
+
+
 # ---------------------------------------------------------------- 4: dry run and report
 
 
 @needs_linux
-@pytest.mark.parametrize("seed", [FRESH, LOADED], ids=["fresh", "runsc-loaded"])
-def test_dry_run_prints_the_planned_diff_with_runsc_suid_and_changes_nothing(tmp_path, seed):
-    h = _Harness(tmp_path, seed, live="runtimes" in seed).run(dry=True)
+@pytest.mark.parametrize("seed,loaded", SEEDS, ids=SEED_IDS)
+def test_dry_run_prints_the_planned_diff_with_runsc_suid_and_changes_nothing(
+    tmp_path, seed, loaded
+):
+    h = _Harness(tmp_path, seed, live=loaded).run(dry=True)
     assert h.res.returncode == 0, h.tail()
     assert h.last_line == f"{RESULT} dry run", h.tail()
     assert h.daemon_json.read_bytes() == h.seed, "a dry run edited daemon.json"
