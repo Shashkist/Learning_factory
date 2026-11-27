@@ -1934,3 +1934,12 @@ in force · factory · 2026-11-27 · revertible
 **Why.** The spec decision (D191) needs the packages; the #545 intent (no package removed or swapped by the mirror change) is kept by the in-order subset. The lab container is single-user and isolated, so a student-writable cron spool exposes nothing.
 **Alternatives.** A second `RUN apt-get update` step (refused by the same #545 case); run course labs on `runsc-suid` (#652, broader change, only for sudo labs); drop `crontab` from the image (fails D191 and #675 AC1).
 **Revert.** Restore the exact list in the #545 case and remove the course packages.
+
+## D193 · #675: the student cron spool is a capped tmpfs in the lab container spec
+in force · factory · 2026-11-27 · revertible
+
+**Context.** CI on #702 (run 45993017480) is green except one older case: `test_issue_49_lifecycle_docker.py::test_everything_student_can_write_or_owns_is_on_a_capped_tmpfs` lists `/var/spool/cron` and `/var/spool/cron/crontabs` (owned by `student` on the overlay root fs since D192). The #49 intent: nothing `student` can write may grow the host disk.
+**Decision.** No exam changes. (1) `container_spec` adds a capped tmpfs `/var/spool/cron/crontabs` (`size=1m,mode=0700,uid=1001,gid=1001`), like `/home/student`; Docker creates the mount point in an image that lacks it (the code image). (2) The term image leaves `/var/spool/cron` owned by root (`0755`) and only `crontabs` owned by `student` (`0700`), so a plain `docker run` (the #675 exam fixture) still has a working `crontab`. If `crontab` turns out to need a writable `/var/spool/cron` itself, the tmpfs moves up to `/var/spool/cron` and the entrypoint creates `crontabs` in it as `student` (as it already copies `/etc/skel` as `student`).
+**Why.** Keeps #49 and the #675 crontab cases as strict as they are; the spool is bounded the same way as every other student-writable path.
+**Alternatives.** A root-owned, group-`student` spool (passes the #49 `find` but defeats its intent: refused); a symlink into `/tmp` (needs a directory created at every start and breaks when the entrypoint is bypassed); drop `crontab` (fails D191).
+**Revert.** Remove the tmpfs key and restore the D192 spool ownership.
