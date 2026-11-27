@@ -205,6 +205,12 @@ def kill_command(marker: str, deadline_s: float) -> list[str]:
     return ["/bin/sh", "-c", wrapper, "sh", f"{deadline_s:.1f}", KILL_SCRIPT, marker]
 
 
+def _is_gvisor(entry: object) -> bool:
+    """A runtime entry of /info whose binary is runsc (a sudo lab never runs on runc)."""
+    path = entry.get("path") if isinstance(entry, dict) else None
+    return isinstance(path, str) and path.replace("\\", "/").rsplit("/", 1)[-1].startswith("runsc")
+
+
 class DockerRuntime:
     """Docker Engine API over the unix socket named by LF_DOCKER_HOST."""
 
@@ -381,6 +387,17 @@ class DockerRuntime:
             timeout=_TIMEOUT,
         )
 
+    @staticmethod
+    async def _loaded_runtimes(c: httpx.AsyncClient) -> dict[str, Any]:
+        """The `Runtimes` of GET /info; anything unreadable counts as none loaded."""
+        try:
+            info = await c.get("/info")
+            data = info.json() if info.status_code == 200 else None
+        except (httpx.HTTPError, ValueError):
+            return {}
+        runtimes = data.get("Runtimes") if isinstance(data, dict) else None
+        return runtimes if isinstance(runtimes, dict) else {}
+
     async def start(self, spec: dict[str, Any]) -> str:
         body = dict(spec)
         name = str(body.pop("name"))
@@ -388,10 +405,12 @@ class DockerRuntime:
             host_config = dict(body.get("HostConfig") or {})
             wanted = host_config.get("Runtime")
             if wanted and wanted != "runsc":
-                info = await c.get("/info")
-                loaded = info.json().get("Runtimes") or {} if info.status_code == 200 else None
-                if loaded is not None and wanted not in loaded:
-                    log.info("runtime %s is not loaded; creating the lab with runsc", wanted)
+                loaded = await self._loaded_runtimes(c)
+                if not _is_gvisor(loaded.get(wanted)):
+                    log.info(
+                        "runtime %s is not a loaded gVisor runtime; creating the lab with runsc",
+                        wanted,
+                    )
                     body["HostConfig"] = {**host_config, "Runtime": "runsc"}
             resp = await c.post("/containers/create", params={"name": name}, json=body)
             if resp.status_code != 201:
