@@ -384,38 +384,50 @@ validate_daemon_json() {
 
 # Keys of daemon.json that dockerd applies on a reload. A reload applies the whole file, so
 # runsc in the file but not loaded is only reloaded when none of these (and no other runtime that
-# is not loaded) would change with it. The running values are not observable: any is a "differs".
-RELOADABLE_KEYS='["debug","labels","live-restore","max-concurrent-downloads","max-concurrent-uploads","max-download-attempts","shutdown-timeout","default-runtime","allow-nondistributable-artifacts","insecure-registries","registry-mirrors","authorization-plugins","features","node-generic-resources","network-diagnostic-port","metrics-addr","cdi-spec-dirs","default-network-opts","proxies"]'
+# is not loaded) would change with it. Source: moby v28.0.0 daemon/reload.go, reload_unix.go and
+# cmd/dockerd/daemon.go (D197). The running values are not observable: any is a "differs".
+RELOADABLE_KEYS='["debug","labels","live-restore","max-concurrent-downloads","max-concurrent-uploads","max-download-attempts","shutdown-timeout","default-runtime","allow-nondistributable-artifacts","insecure-registries","registry-mirrors","authorization-plugins","features","node-generic-resources","network-diagnostic-port","metrics-addr","cdi-spec-dirs","default-network-opts","proxies","default-shm-size","default-ipc-mode","default-cgroupns-mode"]'
+
+# The file as dockerd reads it: a missing daemon.json is {}.
+daemon_doc() { if [ -f "$DAEMON_JSON" ]; then cat "$DAEMON_JSON"; else echo '{}'; fi; }
+
+# The refusal: $1 what the reload would do, $2 the items (one per line). Nothing was changed.
+refuse_reload() {
+  err "$1"
+  err "$2"
+  err "Nothing was changed. Check the file, run 'systemctl reload docker' yourself if it is right, then re-run."
+}
 
 # Prints what a reload would change besides runsc, one item per line.
 reload_extras() {
-  local k name
-  for k in $(jq -r --argjson r "$RELOADABLE_KEYS" 'keys[] | select(. as $k | $r | index($k))' "$DAEMON_JSON"); do
+  local k name doc
+  doc="$(daemon_doc)"
+  for k in $(jq -r --argjson r "$RELOADABLE_KEYS" 'keys[] | select(. as $k | $r | index($k))' <<<"$doc"); do
     echo "key $k"
   done
-  for name in $(jq -r '(.runtimes // {}) | del(.runsc) | keys[]' "$DAEMON_JSON"); do
+  for name in $(jq -r '(.runtimes // {}) | del(.runsc) | keys[]' <<<"$doc"); do
     if [ "$name" = "$SUID_RT" ]; then
       if suid_entry_ok; then continue; fi
       echo "runtime $name (differs from the expected entry)"
       continue
     fi
-    runtime_has "$name" || echo "runtime $name (not loaded)"
+    if ! runtime_has "$name"; then echo "runtime $name (not loaded)"; continue; fi
+    runtime_matches_live "$name" || echo "runtime $name (differs from the loaded one)"
+  done
+  # Loaded, but gone from the file: a reload would drop it (docker's built-in runtimes are not in the file).
+  for name in $(runtimes_json | jq -r --argjson f "$doc" '(keys - ["runc","io.containerd.runc.v2","runsc"])[] as $n | select(($f.runtimes // {}) | has($n) | not) | $n' 2>/dev/null); do
+    [ "$name" = "$SUID_RT" ] && continue
+    echo "runtime $name (loaded, removed from the file)"
   done
 }
 
-# The runsc entry in the file is the loaded one (path and runtimeArgs, as `docker info` shows them).
-runsc_matches_live() {
+# The file entry of runtime $1 is the loaded one (path and runtimeArgs, as `docker info` shows them).
+# Any runtime but runsc also needs an entry without a key besides path and runtimeArgs: docker
+# info cannot show the others (options, runtimeType), so they count as a difference.
+runtime_matches_live() {
   local live
   live="$(runtimes_json)"
-  jq -e --argjson l "$live" '.runtimes.runsc as $f | $f != null and ($f.path == $l.runsc.path) and (($f.runtimeArgs // []) == ($l.runsc.runtimeArgs // []))' "$DAEMON_JSON" >/dev/null 2>&1
-}
-
-# The runsc-suid entry in the file is the loaded one: docker lists runsc-suid, the file entry has no
-# key besides path and runtimeArgs, and both equal the live ones (as `docker info` shows them).
-suid_matches_live() {
-  local live
-  live="$(runtimes_json)"
-  jq -e --argjson l "$live" '.runtimes["runsc-suid"] as $f | ($f | type) == "object" and ($l | type) == "object" and ($l | has("runsc-suid")) and ((($f | keys) - ["path", "runtimeArgs"]) == []) and ($f.path == $l["runsc-suid"].path) and (($f.runtimeArgs // []) == ($l["runsc-suid"].runtimeArgs // []))' "$DAEMON_JSON" >/dev/null 2>&1
+  jq -e --arg n "$1" --argjson l "$live" '.runtimes[$n] as $f | ($f | type) == "object" and ($l | type) == "object" and ($l | has($n)) and ($n == "runsc" or (($f | keys) - ["path", "runtimeArgs"]) == []) and ($f.path == $l[$n].path) and (($f.runtimeArgs // []) == ($l[$n].runtimeArgs // []))' "$DAEMON_JSON" >/dev/null 2>&1
 }
 
 # For the report: what a docker reload would apply from the file besides runsc.
@@ -479,11 +491,19 @@ check_existing_runsc() {
   fi
   extras="$(reload_extras)"
   if [ -n "$extras" ]; then
-    err "runsc is in $DAEMON_JSON but not loaded, and a reload would apply more than runsc (the running values are not known):"
-    err "$extras"
-    err "Nothing was changed. Check the file, run 'systemctl reload docker' yourself if it is right, then re-run."
+    refuse_reload "runsc is in $DAEMON_JSON but not loaded, and a reload would apply more than runsc (the running values are not known):" "$extras"
     return 1
   fi
+}
+
+# Fresh path, docker answering: another runtime the reload would load, change or drop (other
+# reloadable keys: D197, not refused here). Refuses and returns 0 when there is one.
+fresh_runtime_extras() {
+  local extras
+  [ -n "$(runtimes_json | jq -r 'keys[]' 2>/dev/null)" ] || return 1
+  extras="$(reload_extras | grep "^runtime " | grep -v "^runtime $SUID_RT " || true)"
+  [ -n "$extras" ] || return 1
+  refuse_reload "a reload of $DAEMON_JSON would also apply other runtimes (the running values are not known):" "$extras"
 }
 
 apply_runtime() {
@@ -494,17 +514,17 @@ apply_runtime() {
     # runsc is loaded and a reload (or the write below) applies the whole file: refuse, changing
     # nothing, when other pending keys or runtimes, an edited runsc or a differing runsc-suid come with it.
     extras="$(reload_extras)"
-    if ! runsc_matches_live; then extras="${extras:+$extras$'
-'}runtime runsc (path or runtimeArgs differ from the loaded one)"; fi
+    if ! runtime_matches_live runsc; then extras="${extras:+$extras$'
+'}runtime runsc (differs from the loaded one)"; fi
     if [ -n "$extras" ]; then
-      err "a reload of $DAEMON_JSON would apply more than the runsc runtimes (the running values are not known):"
-      err "$extras"
-      err "Nothing was changed. Check the file, run 'systemctl reload docker' yourself if it is right, then re-run."
+      refuse_reload "a reload of $DAEMON_JSON would apply more than the runsc runtimes (the running values are not known):" "$extras"
       return 1
     fi
-  elif suid_in_file && ! suid_matches_live; then
+  elif suid_in_file && ! runtime_matches_live "$SUID_RT"; then
     # Fresh path: a runsc-suid in the file that is not live as written would go live with the reload.
     err "$DAEMON_JSON has a $SUID_RT entry but no runsc: the reload would make that entry live. Nothing was changed. Remove it or add runsc by hand, then re-run."
+    return 1
+  elif fresh_runtime_extras; then
     return 1
   fi
   if [ -f "$DAEMON_JSON" ]; then
