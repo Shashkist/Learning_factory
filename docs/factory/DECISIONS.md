@@ -1902,3 +1902,24 @@ in force · factory · 2026-11-27
 **Revert.** Once the gate takes the latest check run per name, the empty commit is no longer needed.
 
 **D189 amendment 1 (review round 1 of #672, CHANGES at 096c647).** (1) Before a re-dispatch, the script also reads the `bootstrap.yml` and `server-smoke.yml` runs; when any is `queued`, `pending`, `waiting` or `requested` (it holds the one pending slot of `server-lab-host`), it does not dispatch (that would cancel it) and exits 1, so the incident step reports the undeployed commit. (2) The deploy target is not main's head but the `head_sha` of the newest `push` CI run on `main` (by `created_at`): a docs-only head (every state commit) has no CI run, so the newest code commit is the one to deploy; guard (c) reads that run's conclusion (not `success`: one line, nothing to deploy), guard (d) and the dispatch use that sha. No push CI run on main at all is an error (exit non-zero). (3) The incident step creates the issue with the labels `type:incident`, `priority:p0`, `status:ready` and finds an open one by the `type:incident` label and its title. (4) "Started" means the `deploy` job has at least one step or a `runner_id` (GitHub fills `started_at` even for a job that never ran); the exam fixtures use that real job shape. (5) `requested` counts as covering in guard (d). (6) An owner's cancel of a pending `workflow_run` Deploy looks like a queue cancel and is re-dispatched once; a second cancel raises an incident, so it never loops. The #658 exam is corrected in exam-only commits before the code (D189 is this PR's own design, so no older exam changes).
+
+## D191 · Course labs: a catalog for the v2 lesson plan, KodeKloud-style tasks, published after review
+in force · owner session (owner request, 2026-11-27) · revertible
+
+**Decision.**
+- The lab catalog follows the v2 lesson plan (`courses/multi-engineering/lesson-plan.md`, kept outside the repository). Its numbers replace D16's module and lesson ranges: M0 1–4, M1 5–14, M2 15–24, M3 25–33, M4 34–43, M5 44–55, M6 56–63. Linux 1 stays lesson 5.
+- **Now:** labs that fit an offline terminal container, one content issue per lab, under the epic "Course labs v2". They need one image change first: python3 with venv, pytest and Flask, git, sqlite3, jq, cron (the `crontab` command) and netcat.
+- **Later:** Docker, AWS and the AI module. They need internet, Docker inside a lab, or keys.
+- **Task style, from KodeKloud's public outlines and task titles:**
+  - every task gives exact names and values;
+  - checks look at state (files, users, processes, repositories, databases), never at the commands typed;
+  - each lab has one deliberate trap (for example `usermod` without `-a`, `UPDATE` without `WHERE`, a decoy process or log, `rm` instead of truncate);
+  - Python checks run the student's code on hidden inputs that differ from the examples.
+- Fixtures hold no real student data. An API key in a lab is a fake lab value.
+- **Publishing:** a lab ships `status: published` once the reviewer approves and the docker solve test passes (PASS with the solution, FAIL on a fresh machine). The owner reviews by taking labs as a student; wording fixes come as normal issues (as O17 said). The owner delegated decisions to the factory and owner sessions on 2026-11-26.
+
+**Why.** The owner asked for more labs like KodeKloud's for the course. Labs that run offline in today's terminal image can ship now.
+
+**Alternatives.** Wait for the VS Code image (Phase 2) before the Python labs: that delays the whole Python module. Publish only after the owner reads each lab: that kept Linux 1 in draft for days.
+
+**Revert.** Set a lab back to `status: draft`. Restore D16's numbering.
