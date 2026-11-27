@@ -581,6 +581,84 @@ def test_a_pending_workflow_dispatch_deploy_run_holds_the_slot_for_a_cancelled_w
     _assert_refused(r, calls, PENDING_LINE)
 
 
+# D189 amendment 4: a dispatch replaces only the run in the pending slot (pending, waiting,
+# requested). A `queued` workflow_dispatch Deploy holds the running slot, so it must not hide a
+# workflow_run Deploy of another sha that sits in the pending slot.
+
+SLOT_STATUSES = ["pending", "waiting", "requested"]
+
+
+def _assert_t_not_deployed_exit_1(r, calls):
+    assert r.returncode == 1, f"exit {r.returncode}: {r.stdout!r} {r.stderr!r}"
+    assert _dispatches(calls) == [], f"re-dispatched: {calls}"
+    assert HEAD in r.stderr, f"stderr must name the target {HEAD}: {r.stderr!r}"
+
+
+@needs_tools
+@pytest.mark.parametrize("status", SLOT_STATUSES)
+@pytest.mark.parametrize("dispatch_sha", [OTHER, OLD, DOCS])
+def test_a_queued_workflow_dispatch_deploy_does_not_hide_a_workflow_run_deploy_in_the_pending_slot(tmp_path, status, dispatch_sha):
+    dep = _scenario()["deploy"]
+    dep["workflow_runs"].append(_dep(4400, "queued", None, dispatch_sha, event="workflow_dispatch"))
+    dep["workflow_runs"].append(_dep(4401, status, None, OTHER, event="workflow_run"))
+    r, calls = _run(tmp_path, _scenario(deploy=dep))
+    _assert_t_not_deployed_exit_1(r, calls)
+
+
+@needs_tools
+@pytest.mark.parametrize("status", SLOT_STATUSES)
+def test_a_queued_workflow_dispatch_deploy_beside_a_pending_workflow_run_deploy_stops_a_cancelled_workflow_dispatch_run_too(tmp_path, status):
+    run = {"id": int(RUN_ID), "event": "workflow_dispatch", "head_sha": OLD, "conclusion": "cancelled"}
+    dep = _scenario()["deploy"]
+    dep["workflow_runs"].append(_dep(4400, "queued", None, OTHER, event="workflow_dispatch"))
+    dep["workflow_runs"].append(_dep(4401, status, None, OLD, event="workflow_run"))
+    r, calls = _run(tmp_path, _scenario(run=run, deploy=dep))
+    _assert_t_not_deployed_exit_1(r, calls)
+
+
+# (e1): a workflow_dispatch Deploy of another sha in the pending slot is checked first.
+
+@needs_tools
+@pytest.mark.parametrize("run_status", SLOT_STATUSES)
+@pytest.mark.parametrize("dispatch_status", SLOT_STATUSES)
+def test_e1_a_workflow_dispatch_deploy_in_the_pending_slot_wins_over_a_workflow_run_deploy_in_it(tmp_path, dispatch_status, run_status):
+    dep = _scenario()["deploy"]
+    dep["workflow_runs"].append(_dep(4400, run_status, None, OTHER, event="workflow_run"))
+    dep["workflow_runs"].append(_dep(4401, dispatch_status, None, OLD, event="workflow_dispatch"))
+    r, calls = _run(tmp_path, _scenario(deploy=dep))
+    _assert_refused(r, calls, PENDING_LINE)
+
+
+# (e3): a queued workflow_dispatch Deploy alone is the owner's or a re-dispatch choice.
+
+@needs_tools
+def test_e3_only_a_queued_workflow_dispatch_deploy_gives_the_pending_line_exit_0(tmp_path):
+    dep = _scenario()["deploy"]
+    dep["workflow_runs"].append(_dep(4400, "queued", None, OTHER, event="workflow_dispatch"))
+    r, calls = _run(tmp_path, _scenario(deploy=dep))
+    _assert_refused(r, calls, PENDING_LINE)
+
+
+@needs_tools
+def test_e3_comes_before_f_a_queued_dispatch_beside_a_queued_workflow_run_deploy_gives_the_pending_line(tmp_path):
+    dep = _scenario()["deploy"]
+    dep["workflow_runs"].append(_dep(4400, "queued", None, OTHER, event="workflow_dispatch"))
+    dep["workflow_runs"].append(_dep(4401, "queued", None, OLD, event="workflow_run"))
+    r, calls = _run(tmp_path, _scenario(deploy=dep))
+    _assert_refused(r, calls, PENDING_LINE)
+
+
+# (f): a queued Deploy with any other event.
+
+@needs_tools
+@pytest.mark.parametrize("event", ["workflow_run", "push", "schedule"])
+def test_f_a_queued_deploy_with_another_event_gives_a_stderr_line_naming_the_target_exit_1(tmp_path, event):
+    dep = _scenario()["deploy"]
+    dep["workflow_runs"].append(_dep(4400, "queued", None, OTHER, event=event))
+    r, calls = _run(tmp_path, _scenario(deploy=dep))
+    _assert_t_not_deployed_exit_1(r, calls)
+
+
 # D189 amendment 3 (d): a pending bootstrap run or smoke job is checked before any Deploy-slot check,
 # so a queued Deploy that holds the running slot never hides it.
 
@@ -962,3 +1040,16 @@ def test_the_six_watched_workflows_and_the_existing_jobs_are_unchanged():
     assert "cancelled" not in decide, "decide stays failure-only; cancelled has its own job"
     assert str(jobs["incident"].get("uses", "")).startswith("Shashkist/factory/.github/workflows/incident.yml@")
     assert wf["permissions"] == {"actions": "read", "contents": "read", "issues": "write"}
+
+
+def test_the_incident_body_names_the_incident_runs_own_url():
+    # D189 amendment 4: the Incident run's `deploy-cancelled` log carries the line naming the target
+    text = _failure_text()
+    body = text[text.index("body="):] if "body=" in text else text
+    url = re.search(
+        r"(\$\{?GITHUB_SERVER_URL\}?|\$\{\{\s*github\.server_url\s*\}\})/"
+        r"(\$\{?GITHUB_REPOSITORY\}?|\$\{\{\s*github\.repository\s*\}\})/actions/runs/"
+        r"(\$\{?GITHUB_RUN_ID\}?|\$\{\{\s*github\.run_id\s*\}\})",
+        body,
+    )
+    assert url, f"the incident body must hold $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID: {body}"
