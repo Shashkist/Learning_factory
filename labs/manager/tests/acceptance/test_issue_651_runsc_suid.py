@@ -216,12 +216,14 @@ def _after_report(h: _Harness) -> str:
 
 
 FRESH = dict(OTHER_KEYS)
-LOADED = {**OTHER_KEYS, "runtimes": {"runsc": SERVER_RUNSC}}
+# D187 amendment 1: no reloadable key in the LOADED seed (max-concurrent-uploads is one): its live
+# value cannot be observed, so a reload would be refused (#50); see the D187 refusal case.
+QUIET_KEYS = {"log-opts": {"max-size": "10m"}}
+LOADED = {**QUIET_KEYS, "runtimes": {"runsc": SERVER_RUNSC}}
 # D185 amendment 1: runsc is in the file (same entry as LOADED) but docker has not loaded it, and
 # runsc-suid is missing: the write branch of the step starts from an already-registered runsc.
 # No reloadable key here (max-concurrent-uploads is one): a reload must apply nothing but runsc,
 # or the bootstrap refuses (#50).
-QUIET_KEYS = {"log-opts": {"max-size": "10m"}}
 NOT_LOADED = {**QUIET_KEYS, "runtimes": {"runsc": SERVER_RUNSC}}
 # (seed, docker has it loaded)
 SEEDS = [(FRESH, False), (LOADED, True), (NOT_LOADED, False)]
@@ -439,15 +441,19 @@ EDITED_SUID = {
 @needs_linux
 @pytest.mark.parametrize(
     "extra,named",
-    [({"debug": True}, "debug"), ({"runtimes": {"foreign": FOREIGN}}, "foreign")],
-    ids=["pending-unrelated-key", "foreign-runtime-in-file"],
+    [
+        ({"debug": True}, "debug"),
+        ({"runtimes": {"foreign": FOREIGN}}, "foreign"),
+        ({"max-concurrent-uploads": 4}, "max-concurrent-uploads"),
+    ],
+    ids=["pending-unrelated-key", "foreign-runtime-in-file", "reloadable-key"],
 )
 def test_runsc_loaded_runsc_suid_missing_with_other_pending_changes_is_refused(
     tmp_path, extra, named
 ):
     """The production start (D179): runsc in the file and loaded, runsc-suid missing. Writing
-    runsc-suid and reloading would also apply `debug` or load the foreign runtime: refuse, name
-    it, leave the file and docker alone."""
+    runsc-suid and reloading would also apply `debug` or a reloadable key, or load the foreign
+    runtime: refuse, name it, leave the file and docker alone."""
     runtimes = {"runsc": SERVER_RUNSC, **extra.get("runtimes", {})}
     seed = {**QUIET_KEYS, **{k: v for k, v in extra.items() if k != "runtimes"},
             "runtimes": runtimes}
