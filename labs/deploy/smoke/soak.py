@@ -15,6 +15,7 @@ import os
 import subprocess
 import sys
 import time
+import uuid
 from collections.abc import Callable
 
 from lab_api import Fail, end_session, login, request, start
@@ -55,7 +56,10 @@ def run_soak(
 
     failures: list[str] = []
     counts: dict[str, int] = {}
+    seen: set[str] = set()
+    volume_names = getattr(host, "volume_names", None)
     mem0, disk0 = host.memory_available(), host.disk_available()
+    vols0 = set(volume_names()) if volume_names else set()
     for i in range(sessions):
         expected, lab = "student", LAB
         if i == 0:
@@ -68,17 +72,25 @@ def run_soak(
         except Exception as exc:  # noqa: BLE001
             fail(f"{n}: start failed ({type(exc).__name__})")
             continue
+        if sid in seen:
+            fail(f"{n}: session id repeated")
+        seen.add(sid)
+        failed = False
         try:
             if expected == "student":
                 api.heartbeat(sid)
                 api.end(sid)
             elif not wait_for(lambda s=sid: api.end_reason(s) is not None):
+                failed = True
                 fail(f"{n}: not ended with {expected} within {wait_s:g} s")
             reason = api.end_reason(sid)
         except Exception as exc:  # noqa: BLE001
+            failed = True
             fail(f"{n}: {type(exc).__name__}")
             reason = None
         if reason is None:  # a session must never stay live: the next start would be refused
+            if not failed:
+                fail(f"{n}: no end reason recorded")
             try:
                 api.end(sid)
             except Exception:  # noqa: BLE001
@@ -87,16 +99,27 @@ def run_soak(
             counts[reason] = counts.get(reason, 0) + 1
         else:
             fail(f"{n}: ended with {reason}, expected {expected}")
-    wait_for(lambda: not host.lab_containers() and not host.lab_volumes())
-    for name in host.lab_containers():
-        fail(f"lab container left: {name}")
-    for name in host.lab_volumes():
-        fail(f"orphan lab volume left: {name}")
-    mem_d, disk_d = host.memory_available() - mem0, host.disk_available() - disk0
-    if mem_d < -tolerance:
-        fail(f"available memory dropped by {-mem_d} bytes")
-    if disk_d < -tolerance:
-        fail(f"available disk dropped by {-disk_d} bytes")
+    mem_d = disk_d = 0
+    try:
+        wait_for(lambda: not host.lab_containers() and not host.lab_volumes())
+        for name in host.lab_containers():
+            fail(f"lab container left: {name}")
+        for name in host.lab_volumes():
+            fail(f"orphan lab volume left: {name}")
+        if volume_names:
+            for name in sorted(set(volume_names()) - vols0):
+                fail(f"new docker volume left: {name}")
+        mem_d, disk_d = host.memory_available() - mem0, host.disk_available() - disk0
+        if mem_d < -tolerance:
+            fail(f"available memory dropped by {-mem_d} bytes")
+        if disk_d < -tolerance:
+            fail(f"available disk dropped by {-disk_d} bytes")
+    except Exception as exc:  # noqa: BLE001
+        fail(f"final reads failed ({type(exc).__name__})")
+    want = {"student": max(sessions - 2, 0), "heartbeat": min(sessions, 1),
+            "time_limit": max(min(sessions, 2) - 1, 0)}
+    if not failures and counts != {k: v for k, v in want.items() if v}:
+        fail(f"end reasons {counts}, expected {want}")
     kinds = ("student", "heartbeat", "time_limit")
     ends = "".join(f" {k}={counts[k]}" for k in kinds if k in counts)
     out(f"soak summary: sessions={sessions}{ends} memory_delta={mem_d} disk_delta={disk_d}")
@@ -110,7 +133,13 @@ class PublicApi:
         self.base, self.cookie, self.host = base, cookie, host
 
     def start(self, lab_id: str) -> str:
-        return start(self.base, self.cookie, lab_id)
+        sid = start(self.base, self.cookie, lab_id)
+        try:
+            sid = str(uuid.UUID(sid))  # it reaches a remote shell command: nothing unchecked
+        except (ValueError, AttributeError, TypeError):
+            raise Fail("start returned an invalid session id") from None
+        self.host.own.add(sid)
+        return sid
 
     def heartbeat(self, sid: str) -> None:
         status, _, _ = request(self.base, "POST", f"/api/sessions/{sid}/heartbeat", self.cookie)
@@ -131,6 +160,7 @@ class SshHost:
 
     def __init__(self, config: str) -> None:
         self.config = config
+        self.own: set[str] = set()  # the soak's own session ids
 
     def sh(self, command: str) -> str:
         res = subprocess.run(
@@ -147,7 +177,15 @@ class SshHost:
 
     def lab_containers(self) -> list[str]:
         out = self.sh("docker ps -a --filter name=lab- --format '{{.Names}}'")
-        return [n for n in out.split() if n.startswith("lab-")]
+        # containers of live sessions that are not the soak's (real students) are not ours to count
+        foreign = set(self.sh(f"{MANAGER} live-sessions").split()) - self.own
+        return [
+            n for n in out.split()
+            if n.startswith("lab-") and n.rsplit("lab-", 1)[1] not in foreign
+        ]
+
+    def volume_names(self) -> list[str]:
+        return self.sh("docker volume ls -q").split()
 
     def lab_volumes(self) -> list[str]:
         live = set(self.sh(f"{MANAGER} live-sessions").split())
