@@ -19,6 +19,7 @@ run() {
 if [ -f "$S" ] && [ -x "$S" ]; then echo "S ok"
 elif [ -f "$S" ]; then echo "S noexec"
 else echo "S missing"; fi
+if [ -f "$S" ] && [ "$(head -c 2 "$S")" = '#!' ]; then echo "H ok"; else echo "H no"; fi
 if [ -f "$S" ] && [ -x "$S" ]; then
   run a "$S"
   run b "$S" Noa
@@ -36,8 +37,11 @@ x() {
 late() { case $1 in 124|137) return 0;; esac; return 1; }
 
 st=$(printf '%s\n' "$facts" | sed -n 's/^S //p' | head -n 1)
+hs=$(printf '%s\n' "$facts" | sed -n 's/^H //p' | head -n 1)
 case $st in
-  ok) pass 1;;
+  ok)
+    if [ "$hs" = ok ]; then pass 1
+    else fail 1 "the first line of ~/usage.sh must be #!/bin/bash, so the system knows which shell runs the script; add it at the top with nano ~/usage.sh"; fi;;
   noexec) fail 1 "~/usage.sh is not executable; make it executable with chmod +x ~/usage.sh";;
   *) fail 1 "the file ~/usage.sh does not exist; create it with nano ~/usage.sh";;
 esac
