@@ -1837,3 +1837,11 @@ in force · factory · 2026-11-27
 **Why.** The container's `lf.expires` label alone would miss a stuck container of a session that ended early until its expiry; the manager's own list is exact. Two reads and a re-check follow the janitor's race handling.
 **Alternatives.** Only `lf.expires` plus a grace period (no manager code, less precise); a `psql` query from the workflow (couples the workflow to the schema).
 **Revert.** Drop the leftover half of the step and the command; keep the firewall check.
+
+## D185 · #651 and the #50 exam: "runsc in the file but not loaded" starts from the complete file, which now includes `runsc-suid`
+in force · factory · 2026-11-27 · revertible
+
+**Finding.** CI on #661 (docker job, run 45911922210): `test_issue_50_bootstrap_safety.py::test_runsc_in_file_but_not_loaded_is_reloaded_when_nothing_else_differs` failed with "daemon.json must not be rewritten, only reloaded". Its fixture `in_file_not_loaded` writes a `daemon.json` whose runtimes hold `runsc` only; #651 AC1 requires the bootstrap to add `runsc-suid` whenever it is missing, which rewrites the file. The two exams contradict each other for that one input (411 other docker exams passed).
+**Decision.** Keep the #50 case's meaning: when the file already holds everything the bootstrap registers but docker has not loaded it, the bootstrap reloads and never rewrites. Since #651, "everything" includes `runsc-suid`, so an exam-only commit sets the fixture's runtimes to `runsc` (path, `RUNSC_OVERLAY`) plus a matching `runsc-suid` (same path, `RUNSC_OVERLAY` and `--allow-suid`), and the case also asserts that `runsc-suid` is loaded with `--allow-suid` after the reload (stricter). Case (a) of the same fixture ("something else differs: fail, file unchanged, no reload") keeps its assertions. "runsc-suid missing from the file" stays covered by the #651 exam's scenarios. Re-sequenced (D174 style): branch `f/651-runsc-suid-3` = the #651 exam, its D181 amendment 1 fix, this #50 fixture fix, then the bootstrap commit unchanged; #661 is closed for it.
+**Alternatives.** Skip adding `runsc-suid` when `runsc` is merely unloaded (breaks #651 AC1); loosen the #50 case to allow a rewrite (weaker).
+**Revert.** Restore the fixture's runtimes to `runsc` only and drop the extra assertion, together with removing the `runsc-suid` step.
