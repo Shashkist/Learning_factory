@@ -108,6 +108,18 @@ async def live_sessions(dsn: str) -> list[str]:
         await conn.close()
 
 
+async def session_end(dsn: str, session_id: str) -> str | None:
+    """The end reason of a session, None while it is live or unknown. Read-only."""
+    conn = await db.connect(dsn)
+    try:
+        row = await conn.fetchrow(
+            f"select end_reason from {db.SCHEMA}.lab_sessions where id::text = $1", session_id
+        )
+        return row["end_reason"] if row else None
+    finally:
+        await conn.close()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="app.cli")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -119,12 +131,16 @@ def main(argv: list[str] | None = None) -> int:
     )
     sp.add_argument("--disable", action="store_true", help="disable it and sign it out")
     sub.add_parser("live-sessions", help="print the id of every live session, one per line")
+    ep = sub.add_parser("session-end", help="print the end reason of a session (empty while live)")
+    ep.add_argument("session_id")
     args = parser.parse_args(argv)
 
     if args.command == "smoke-student":
         return _smoke_main(args.disable)
     if args.command == "live-sessions":
         return _live_main()
+    if args.command == "session-end":
+        return _session_end_main(args.session_id)
     dsn = db.database_url_from_env()
     if dsn is None:
         print("LF_DATABASE_URL is not set", file=sys.stderr)
@@ -161,6 +177,21 @@ def _live_main() -> int:
         return 1
     for sid in ids:
         print(sid)
+    return 0
+
+
+def _session_end_main(session_id: str) -> int:
+    dsn = db.database_url_from_env()
+    if dsn is None:
+        print("LF_DATABASE_URL is not set", file=sys.stderr)
+        return 1
+    try:
+        reason = asyncio.run(session_end(dsn, session_id))
+    except Exception as exc:  # never print the message: it can contain the DSN
+        print(f"database error ({type(exc).__name__})", file=sys.stderr)
+        return 1
+    if reason:
+        print(reason)
     return 0
 
 

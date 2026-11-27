@@ -1,0 +1,27 @@
+id: smoke-soak
+title:
+  en: Smoke test, nightly soak
+  he: בדיקת עשן, בדיקת העומס הליליות
+description:
+  en: Internal lab with a one minute limit, used by the nightly soak. Not for students.
+  he: מעבדה פנימית עם מגבלת דקה אחת לבדיקת העומס הליליות. לא לתלמידים.
+image: term
+time_limit_min: 1
+internet: false
+allow_domains: []
+sudo: false
+status: internal
+module: 0
+lesson: 1
+tasks:
+  - id: 01-quiz
+    kind: quiz
+    question:
+      en: Which command creates an empty file?
+      he: איזו פקודה יוצרת קובץ ריק?
+    options:
+      - en: rm
+        he: rm
+      - en: touch
+        he: touch
+    correct: 1
