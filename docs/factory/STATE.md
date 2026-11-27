@@ -3,6 +3,8 @@
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
 ## Now
+**Pass lf-k9d2 (laptop, from 09:27 UTC 2026-11-27) in progress**: claims #673 (#697 CI green, reviewer round 1), #658 (implementer on `f/658-deploy-cancelled-2`), factory#120 (D47 exam-only commit on #128).
+
 **Pass lf-b3w8 (laptop, 07:29-09:30 UTC 2026-11-27) stopped at the time limit with no merges** (the laptop was overloaded: each agent took 30-70 min, hooks timed out). Claims released; the next pass claims afresh.
 - **#673 (p1)**: **PR #697** (`f/673-soak-dangling`, worktree `C:\projects\lf-673`): exam 22c74d0 + exam fix 706ef66 (`sessions=3`; the #656 exam pins the default at 30), code 6324bb8. Locally 89 passed (unit + #673 + #656 exams), ruff and mypy clean. Next: CI green, then `reviewer` round 1, merge, Deploy watch; should land before the 03:30 UTC soak.
 - **#658**: re-sequenced to **`f/658-deploy-cancelled-2`** (pushed; worktree `C:\projects\lf-658-2`): e658387 original exam, **ba1a8dc** exam amended to D189 a1 (76 cases; 54 fail against the old script, 22 isolated reasons listed in the commit's run), 45e3e89 the old code (cherry-pick of 096c647). #672 closed. Next: `implementer` makes the 76 pass (exam needs jq: run it under WSL Ubuntu), open the new PR, CI, review round 1 (fresh PR, so 2 rounds).
