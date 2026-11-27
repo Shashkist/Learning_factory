@@ -481,3 +481,41 @@ def test_docker_check_warns_on_an_unreadable_repos_file(capsys, tmp_path, monkey
     monkeypatch.setenv("LF_REPOS_FILE", str(tmp_path / "missing.yaml"))
     assert issue_lock.docker_check("o/fac") is True
     assert "repos.yaml" in capsys.readouterr().err
+
+
+def _run(name, state, started=None, wf="ci"):
+    c = {"name": name, "status": "COMPLETED", "conclusion": state, "workflowName": wf}
+    if started:
+        c["startedAt"] = started
+    return c
+
+
+def test_latest_runs_keeps_the_newest_per_workflow_and_name():
+    old = _run("a", "FAILURE", "2026-01-01T00:00:00Z")
+    new = _run("a", "SUCCESS", "2026-01-02T00:00:00Z")
+    other = _run("a", "FAILURE", "2026-01-01T00:00:00Z", wf="other")
+    kept, reasons = merge_gate._latest_runs([new, old, other])
+    assert reasons == [] and kept == [new, other]
+
+
+def test_latest_runs_uses_completed_at_and_ignores_the_zero_time():
+    old = {"name": "a", "completedAt": "2026-01-01T00:00:00Z"}
+    new = {"name": "a", "completedAt": "2026-01-02T00:00:00Z"}
+    assert merge_gate._latest_runs([old, new]) == ([new], [])
+    pending = {"name": "a", "completedAt": "0001-01-01T00:00:00Z"}
+    kept, reasons = merge_gate._latest_runs([old, pending])
+    assert kept == [] and "a" in reasons[0]
+
+
+@pytest.mark.parametrize("runs", [
+    [_run("a", "FAILURE"), _run("a", "SUCCESS")],
+    [_run("a", "FAILURE", "2026-01-01T00:00:00Z"), _run("a", "SUCCESS")],
+    [_run("a", "FAILURE", "2026-01-01T00:00:00Z"), _run("a", "SUCCESS", "2026-01-01T00:00:00Z")],
+])
+def test_latest_runs_fails_closed_when_the_latest_cannot_be_told(runs):
+    kept, reasons = merge_gate._latest_runs(runs)
+    assert kept == [] and "a" in reasons[0]
+
+
+def test_latest_runs_single_entry_needs_no_timestamp():
+    assert merge_gate._latest_runs([_run("a", "SUCCESS")]) == ([_run("a", "SUCCESS")], [])

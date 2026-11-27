@@ -46,11 +46,38 @@ def _state(c: dict) -> str:
     return (c.get("conclusion") or c.get("state") or "").upper()
 
 
+def _stamp(c: dict) -> str:
+    # gh fills a pending run's completedAt with the zero time: that is no timestamp
+    for k in ("startedAt", "completedAt"):
+        v = c.get(k) or ""
+        if v and not v.startswith("0001-01-01"):
+            return v
+    return ""
+
+
+def _latest_runs(checks: list[dict]) -> tuple[list[dict], list[str]]:
+    """Keep the newest run of each (workflow, check name); a group whose newest run cannot be
+    told (a missing or equal timestamp) is dropped and named in the reasons (fail closed, D190)."""
+    groups: dict[tuple, list[dict]] = {}
+    for c in checks:
+        key = (c.get("workflowName") or "", c.get("name") or c.get("context") or "?")
+        groups.setdefault(key, []).append(c)
+    kept, reasons = [], []
+    for (_, name), runs in groups.items():
+        stamps = [_stamp(r) for r in runs]
+        top = max(stamps)
+        if len(runs) == 1 or (all(stamps) and stamps.count(top) == 1):
+            kept.append(runs[stamps.index(top)])
+        else:
+            reasons.append(f"{name} has several runs and the latest cannot be told")
+    return kept, reasons
+
+
 def _check_reasons(checks: list[dict], exam_gate: str = "manager-exam / gate",
                    changed: tuple | list | set = (), docker_rule: bool = True) -> list[str]:
     if not checks:
         return ["no checks have run on this PR"]
-    reasons = []
+    checks, reasons = _latest_runs(checks)
     changes_ok = any(c.get("name") == "changes" and _state(c) == "SUCCESS" for c in checks)
     # A workflow change can skip, rename or drop the docker job, so only a check named `docker`
     # that concluded SUCCESS proves the heavy exam ran (D160 amendment 1, D163)
