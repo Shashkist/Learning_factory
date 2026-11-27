@@ -3,11 +3,12 @@
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
 ## Now
-**Pass lf-r8t3 (laptop, from 18:57 UTC 2026-11-27) in flight, claims held by lf-r8t3:**
-- **#652** PR #712 (`f/652-sudo-runtime`, `C:\projects\lf-652`): CI green at 5b5fdc3 (431 docker exams, the 7 #652 cases among them). Review round 1 CHANGES: `LF_SUDO_RUNTIME=runc` would put a sudo lab on runc; fix = one code commit (only a gVisor runtime, unreadable `/info` degrades to `runsc`). Then CI, **round 2 (last)**, gate, merge, Deploy + smoke, close.
-- **#670** re-sequenced under **D198**: PR #711 (round 1 CHANGES at 0201384) is replaced by `f/670-bootstrap-pending-2` (`C:\projects\lf-670-2`: exam 643af52, exam amendment 44448cb, then one code commit). Next: push, new PR, close #711, CI, round 2 (last). D197 (+ amendments 1, 2 in D198) settle criteria 2 and 3.
-- **#677** (`f/677-bash-scripting-lab`, `C:\projects\lf-677`): exam 37d049f (44 non-docker + 81 docker cases); implementer building the `bash-1` lab.
-- **#651 closed** (O31 apply run 45963880191 `BOOTSTRAP RESULT: changed` with `runsc-suid`; smoke 46050910654 green). #674 got its evidence comment and claim release. #676 (Linux 2, sudo) waits for #652.
+**Pass lf-r8t3 (laptop, 18:57-20:36 UTC 2026-11-27) stopped at the time limit: 0 merges, 3 PRs parked in CI/review.** Claims released; the next pass claims afresh and **resumes these three PRs first** (each is one review round from merge):
+- **#652** PR #712 (`f/652-sudo-runtime`, `C:\projects\lf-652`). Round 1 CHANGES at 5b5fdc3 (`LF_SUDO_RUNTIME=runc` reached the create body). Fix pushed at **12699fb** (only a runtime whose `/info` path basename starts with `runsc`; unreadable `/info` degrades to `runsc` with one log line; 8 unit tests). Next: CI green on 12699fb, a fresh reviewer for **round 2 (the last)**: ask it to judge the `startswith("runsc")` rule (the exam's fake daemon reports the runtime name as its path, so an exact `runsc` basename would fail the exam). Then gate, merge, Deploy + smoke (a sudo lab is not live yet; smoke = the normal terminal smoke plus Deploy green), close. Then #676 (Linux 2, sudo) can start.
+- **#670** PR **#713** (`f/670-bootstrap-pending-2`, `C:\projects\lf-670-2`), re-sequenced under **D198** from #711 (closed). Head c642297: exam 643af52, exam amendment 44448cb, one code commit. Locally 45/45 and every older bootstrap exam green in WSL. CI was running at 20:34 (all but docker green). Next: a fresh reviewer for **round 2 (the last)** at c642297, gate, merge, Deploy + smoke (bootstrap changes ship via the bootstrap dry run on push; check it says nothing to change on the server), close.
+- **#677** PR **#714** (`f/677-bash-scripting-lab`, `C:\projects\lf-677`): lab `bash-1`, exam 37d049f + content 02328ed; 44 + 81 exam cases green locally (docker in WSL without gVisor). CI was running at 20:34. Next: CI green, reviewer **round 1**, gate, merge, Deploy + smoke, then check the lab is listed on the live site.
+- **#651 closed** (O31 apply run 45963880191 `BOOTSTRAP RESULT: changed` with `runsc-suid`; smoke 46050910654 green). #674 got its evidence comment and its claim was released.
+- **Lessons:** a reviewer probing the env override found a sandbox escape the exam never tried (`LF_SUDO_RUNTIME=runc`); ask reviewers to try hostile values of every new env var. An exam that asserts "the name appears in the output" is useless when report lines print every name: assert on the refusal's own lines (D198).
 
 **Pass lf-c5p2 (laptop, 16:57-18:50 UTC 2026-11-27) stopped at 3 merges (#706, #707, #708).** No claims held; the next pass claims afresh.
 - **#675 closed**: #702 (round 2 APPROVE at e7cd3d7) was held by the merge gate's CI-round limit (6 code commits > 5), so it was re-sequenced under **D195** to #706 (two exam commits + one code commit, diff byte-identical; a fresh reviewer verified it) and merged (4b3dc31). Main CI 46044979574, Deploy 46047753949 green with smoke. Round-2 nits added to #705.
@@ -30,7 +31,7 @@ Older pass notes (lf-m7q2 and before) are in `history.md` and git history (`git 
 
 ## Next (in order)
 
-1. #704 (p2, D189 amendment 3, then an exam-only commit on a fresh branch, then the code), then the course lab content issues #676-#695 (p2, #675 is done: the term image has the tools), then #652 (after #651 closes; O31), #670 (after #651). A factory tag that includes 494826e (#121), 19d5d54 (#119) and #120, then LF's pin moves (exam-integrity in ci.yml, with `pull-requests: read` in the same change; runner pin is owner-only).
+1. Resume #712, #713, #714 (see Now). Then #704 (p2, D189 amendment 3, then an exam-only commit on a fresh branch, then the code), then the course lab content issues #676 (after #652), #678-#695 (p2), then A factory tag that includes 494826e (#121), 19d5d54 (#119) and #120, then LF's pin moves (exam-integrity in ci.yml, with `pull-requests: read` in the same change; runner pin is owner-only).
 2. p3 follow-ups: #709 (new), #710 (new), #705, #698, #700, factory#124 (new, review of #123), factory#122 (new, review of #121), #657, #659, #660 (new, slices of #15 and #85), #653 (new, review of #650), factory#118 (new, review of #116), #647, factory#105 (new, from the #646 and #104 reviews), factory#103 (new, from the #101 review), factory#100, factory#95, #642, #636, #637, #623 (new, from #622 review), #619, #621, #603, #604, factory#70, #601, #597, #588, factory#57, factory#59, #579, #580, factory#49, #574, factory#33, factory#36, factory#40, factory#41, #561, #564, factory#17, factory#24, #523, #555, #468, #423 (old worktree `C:\projects\lf-423`), #436, #431. Owner item **O26** (heartbeat task).
 
 ## Waiting for the owner
@@ -47,6 +48,7 @@ Older pass notes (lf-m7q2 and before) are in `history.md` and git history (`git 
 
 ## Recently done
 
+- 2026-11-27 pass lf-r8t3: no merges. Closed #651 (O31 evidence). Opened #712 (#652), #713 (#670, replaces #711 under D198), #714 (#677, lab bash-1). D197 (+ amendments 1, 2), D198.
 - 2026-11-27 pass lf-c5p2: #706 merged (4b3dc31, #675; Deploy 46047753949 smoke green) under D195; #707 merged (f64bde5, #674) with D190 amendment 1; #708 merged (9da1115, #665; manual smoke 46050910654) under D196. factory#7 criterion 4 posted (not met). Opened #709, #710.
 - 2026-11-27 pass lf-w4t6: #703 merged (f885cbb, #658; Deploy 46033533823 green with smoke) under D194; factory#128 merged (1b05e51, factory#120) on round 3 (factory D47 marker). D193 (#702 green), D194. Opened #704, #705.
 - 2026-11-27 pass lf-k9d2: #697 merged (b5678ef, #673; Deploy 45980241418, manual soak 45980691085 green); closed #673 and #656. D189 amendment 2 (#699 round 1 CHANGES, re-sequenced to `-3`), D192 (#701 CI red). Opened #698, #699, #700, #701.
