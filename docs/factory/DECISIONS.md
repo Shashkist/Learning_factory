@@ -1961,3 +1961,12 @@ in force · factory · 2026-11-27 · revertible
 **Why.** The loop the CI-round limit guards against is over; one squashed commit ships exactly what was reviewed and keeps the gate unchanged.
 **Alternatives.** Raise the limit or teach the gate a decision override (a gate change for one PR); park (nothing to decide for the owner).
 **Revert.** Revert the squash commit of the new PR.
+
+## D196 · #665 is re-sequenced to `f/665-smoke-host-shape-2` (backspace bytes in the exam)
+in force · factory · 2026-11-27 · revertible
+
+**Context.** The #665 exam commit 9355fce tightened the #655 exam for criterion 4 (every remote command is one of three allowed forms), but its regex held a literal backspace byte (0x08) after `DOCKER-USER` and after `docker\s+ps` where `\b` was meant, so no remote command could match and every behavioural `_run` case of the #655 exam failed (16 failed in WSL with the code at 7e25f40; 10 of them from this). An exam commit after a code commit is refused (D187 amendment 2).
+**Decision.** A fresh branch `f/665-smoke-host-shape-2` from main carries one exam-only commit (f079a7c: the two files of 9355fce with the two bytes replaced by `\b`, nothing else), then the unchanged code commit cherry-picked (00f2447). The old branch gets no PR. No older exam is loosened: the #655 exam gains the allowed-forms check, its fakes accept `iptables -w [N]` (the retry the issue asks for) and `_run` creates `$RUNNER_TEMP/ssh_config` because the step now exits early without it (criterion 2).
+**Why.** Same pattern as D166 amendment 2 and D187 amendment 2: exam first, then code, on a branch the exam-integrity check accepts.
+**Alternatives.** Loosen the regex in a code commit (refused, and an exam edit by the implementer).
+**Revert.** Revert the squash commit of the PR.
