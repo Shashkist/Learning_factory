@@ -83,9 +83,9 @@ jobs:
         run: |
           title="Incident: a cancelled Deploy was not re-dispatched"
           body="Deploy run $RUN_ID was cancelled and could not be re-dispatched automatically: $RUN_URL"
-          number=$(gh issue list --state open --search "$title in:title" --json number --jq '.[0].number // empty')
+          number=$(gh issue list --state open --label type:incident --search "$title in:title" --json number --jq '.[0].number // empty')
           if [ -n "$number" ]; then
             gh issue comment "$number" --body "$body"
           else
-            gh issue create --title "$title" --body "$body"
+            gh issue create --title "$title" --body "$body" --label type:incident --label priority:p0 --label status:ready
           fi
