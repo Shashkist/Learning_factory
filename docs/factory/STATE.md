@@ -3,7 +3,9 @@
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
 ## Now
-**Pass lf-m3q8 (laptop, from 11:27 UTC 2026-11-27) in progress:** claimed factory#120 (fresh reviewer, round 3), #675 (D192 exam-only commit on `f/675-course-tools-2`, worktree `C:\projects\lf-675-2`, then the code), #658 (implementer on `f/658-deploy-cancelled-3`).
+**Pass lf-w4t6 (laptop, from 15:27 UTC 2026-11-27) in progress:** took over the stale lf-m3q8 claims (silent ~4 h). #675: PR #702 CI red only on the #49 tmpfs case (cron spool on the root fs): **D193** (spool on a capped tmpfs in `container_spec`), implementer on `f/675-course-tools-2`. #658: PR #703 (CI green at 9841f82), reviewer round 2 (the last). factory#120: PR factory#128 (CI green at 69f72ca), fresh reviewer round 3 (factory D47).
+
+**Pass lf-m3q8 (laptop, 11:27 UTC) left no state update:** it opened #702 (replaces #701) and #703 (replaces #699).
 
 **Pass lf-k9d2 (laptop, 09:27-11:10 UTC 2026-11-27) stopped at the time limit: 1 merge (#697).** Claims released; the next pass claims afresh.
 - **#658**: PR #699 round 1 **CHANGES** at 2cc1838 (guard (d) matched Deploy `head_sha`, which is main's head at trigger time, not the deployed sha). Decided in **D189 amendment 2** (Deploy `run-name` carries the deployed sha, guard (d) matches `display_title`; no dispatch while another Deploy is pending; smoke counted by its `smoke` job; bootstrap `queued` no longer blocks). #699 closed. Re-sequenced to **`f/658-deploy-cancelled-3`** (pushed; worktree `C:\projects\lf-658-3`): 64dd5f0 + 2b94276 old exams, **cf0e3f9 exam to a2** (122 cases; 42 fail against the old script), then cherry-picked old code 5f5993d + 89612b8. Next: `implementer` makes the 122 pass (WSL Ubuntu for bash + jq; the `deploy.yml` `run-name` line is part of the code), open the PR, CI, **review round 2 (the last)**. Finding 3 = #700 (p3).
