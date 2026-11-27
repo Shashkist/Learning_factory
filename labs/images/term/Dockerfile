@@ -48,7 +48,9 @@ RUN printf 'Acquire::Retries "3";\nAcquire::http::Timeout "30";\n' > /etc/apt/ap
  && groupadd team \
  && usermod -aG team student \
  && mkdir -p /var/spool/cron/crontabs \
- && chown root:root /var/spool/cron \n && chown student:student /var/spool/cron/crontabs \n && chmod 0755 /var/spool/cron \
+ && chown root:root /var/spool/cron \
+ && chown student:student /var/spool/cron/crontabs \
+ && chmod 0755 /var/spool/cron \
  && chmod 0700 /var/spool/cron/crontabs \
  && mkdir -p /var/log/lf \
  && chown root:root /var/log/lf \
