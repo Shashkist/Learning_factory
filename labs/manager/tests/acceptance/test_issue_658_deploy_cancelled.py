@@ -20,39 +20,51 @@ query string, so the script must filter by sha, event and branch itself, from th
   1. gh api repos/<GH_REPO>/actions/runs/<RUN_ID>
        -> {"id", "event", "head_sha", "conclusion", ...}        (the cancelled run)
   2. gh api repos/<GH_REPO>/actions/runs/<RUN_ID>/jobs
-       -> {"jobs": [{"name", "started_at"}, ...]}                (started_at may be null)
-  3. gh api repos/<GH_REPO>/commits/main
-       -> {"sha": "<main head>"}
-  4. gh api "repos/<GH_REPO>/actions/workflows/ci.yml/runs?branch=main&event=push&head_sha=<sha>..."
+       -> {"jobs": [{"name", "started_at", "runner_id", "steps": [...]}, ...]}   (real shape:
+          started_at is filled even for a job that never ran; it had 0 steps and no runner_id)
+  3. gh api "repos/<GH_REPO>/actions/workflows/ci.yml/runs?branch=main&event=push..."
        -> {"workflow_runs": [{"head_sha", "head_branch", "event", "status", "conclusion",
-            "created_at"}, ...]}  newest first, like GitHub; decoys for other shas/branches/events
-  5. gh api "repos/<GH_REPO>/actions/workflows/deploy.yml/runs?head_sha=<sha>..."
+            "created_at"}, ...]}  in no promised order; decoys for other branches and events
+  4. gh api "repos/<GH_REPO>/actions/workflows/deploy.yml/runs..."
        -> {"workflow_runs": [{"id", "head_sha", "event", "status", "conclusion"}, ...]}
-  6. gh workflow run deploy.yml --ref main -f sha=<main head>    (the only write; at most once)
+  5. gh api "repos/<GH_REPO>/actions/workflows/bootstrap.yml/runs..."   (same shape)
+  6. gh api "repos/<GH_REPO>/actions/workflows/server-smoke.yml/runs..." (same shape)
+  7. gh workflow run deploy.yml --ref main -f sha=<target sha>    (the only write; at most once)
+The fake also answers `gh api repos/<GH_REPO>/commits/main` (a docs-only head that has no CI run);
+the script may read it but must not deploy it.
 
-Behaviour the exam fixes (D189 (2), (3))
------------------------------------------
-  * Guards, in this reading: (b) no job named `deploy` of the cancelled run has a `started_at`;
-    (c) the latest push CI run on main for main's head has conclusion `success`; (d) no Deploy run
-    for main's head is queued, in progress, waiting, pending or completed `success` already;
-    (a) the cancelled run's `event` is `workflow_run`.
+Behaviour the exam fixes (D189 and its amendment 1)
+----------------------------------------------------
+  * The target sha is the head_sha of the newest `push` CI run on `main` by created_at (a
+    docs-only main head has no CI run, so the newest code commit is deployed). No such CI run at
+    all: non-zero exit, no dispatch.
+  * Guards, in this reading: (b) the cancelled run's `deploy` job never started, i.e. no job named
+    `deploy` has a step or a runner_id (started_at proves nothing); (c) that CI run's conclusion is
+    `success`; (d) no Deploy run for the target sha is queued, in progress, waiting, pending,
+    requested or completed `success` already; (a) the cancelled run's `event` is `workflow_run`.
   * (b) false -> stdout is exactly one line
         deploy job had started: deliberate cancel or timeout, nothing to do      exit 0
-    (d) false (a Deploy covers main) -> exactly one line
+    (d) false (a Deploy covers the target) -> exactly one line
         a Deploy for <sha> already covers main                                   exit 0
     (c) false -> exactly one line
         CI for main's head is <conclusion>: nothing to deploy                    exit 0
     No `gh workflow run` in any of these.
-  * (a) false (the cancelled run was a `workflow_dispatch`) with (b) and (c) true and nothing
-    covering main's head: no dispatch, exit 1 (the job's `if: failure()` step opens an incident).
+  * A `bootstrap.yml` or `server-smoke.yml` run that is queued, pending, waiting or requested holds
+    the one pending slot of the shared concurrency group: no dispatch (it would cancel that run),
+    exit 1, so the incident step names the undeployed commit.
+  * (a) false (the cancelled run was a `workflow_dispatch`: a second cancel) with (b), (c) true and
+    nothing covering the target: no dispatch, exit 1 (the `if: failure()` step opens an incident),
+    so a Deploy cancelled again never loops.
   * All hold and the event is `workflow_run`: one `gh workflow run deploy.yml --ref main -f
-    sha=<main head>` and stdout exactly `re-dispatched Deploy for <sha>`, exit 0. The sha is main's
-    head (read from commits/main), not the cancelled run's head_sha.
-  * A failed read (gh exits 1) or an empty read (gh exits 0 with no output) of any of the five
+    sha=<target sha>` and stdout exactly `re-dispatched Deploy for <sha>`, exit 0.
+  * A failed read (gh exits 1) or an empty read (gh exits 0 with no output) of any of the six
     endpoints is an error: non-zero exit, never a dispatch. A well-formed empty list
-    (`{"jobs": []}`, `{"workflow_runs": []}`) is a real answer and is read as zero.
+    (`{"jobs": []}`, `{"workflow_runs": []}`) is a real answer and is read as zero (for the CI
+    list that means no push CI run: an error too).
   * Check order when a guard fails is not fixed, except that an exit 1 and a dispatch happen only
     when (b), (c) and (d) all say "go on", and the event decides which of the two.
+  * incident.yml's failure step creates the issue with labels type:incident, priority:p0,
+    status:ready and looks for an open one by the type:incident label and its title.
 """
 import json
 import os
@@ -73,9 +85,10 @@ SCRIPT_REL = "labs/deploy/watch/deploy-cancelled.sh"
 
 REPO = "Shashkist/Learning_factory"
 RUN_ID = "4242"
-HEAD = "a" * 40  # main's head
+HEAD = "a" * 40  # the head_sha of the newest push CI run on main: the deploy target
 OLD = "b" * 40   # an older sha (the cancelled run's own head_sha)
 OTHER = "c" * 40
+DOCS = "d" * 40  # main's head: a docs-only commit with no CI run
 
 SIX = ["CI", "Dashboard CI", "Factory dashboard", "Deploy", "Server smoke", "Server bootstrap"]
 
@@ -107,6 +120,8 @@ case "${1:-}" in
       "repos/$GH_REPO/commits/main") key=commit ;;
       "repos/$GH_REPO/actions/workflows/ci.yml/runs") key=ci ;;
       "repos/$GH_REPO/actions/workflows/deploy.yml/runs") key=deploy ;;
+      "repos/$GH_REPO/actions/workflows/bootstrap.yml/runs") key=boot ;;
+      "repos/$GH_REPO/actions/workflows/server-smoke.yml/runs") key=smoke ;;
       *) echo "fake gh: unexpected endpoint $ep" >&2; exit 99 ;;
     esac
     case ",${FAKE_GH_FAIL:-}," in *",$key,"*) echo "gh: HTTP 500" >&2; exit 1 ;; esac
@@ -122,24 +137,46 @@ esac
 """
 
 
+def _job(started_at="2026-11-27T10:00:00Z", steps=None, runner_id=None, name="deploy"):
+    """A job in the real shape: GitHub fills started_at even for a job that never ran."""
+    return {"name": name, "started_at": started_at, "conclusion": "cancelled",
+            "runner_id": runner_id, "steps": steps or []}
+
+
+STEP = {"name": "Set up job", "status": "completed", "conclusion": "success", "number": 1}
+
+
+def _ci(sha=HEAD, conclusion="success", created="2026-11-27T10:03:00Z", **kw):
+    return {"head_sha": sha, "head_branch": "main", "event": "push", "status": "completed",
+            "conclusion": conclusion, "created_at": created, **kw}
+
+
 def _scenario(**over) -> dict:
-    """Default: every guard holds and the cancelled run was a workflow_run Deploy."""
+    """Default: every guard holds, the cancelled run was a workflow_run Deploy, main's head is a
+    docs-only commit and the newest push CI run on main is HEAD's (green)."""
     s = {
         "run": {"id": int(RUN_ID), "event": "workflow_run", "head_sha": OLD, "conclusion": "cancelled"},
-        "jobs": {"jobs": [{"name": "deploy", "started_at": None, "conclusion": "cancelled"}]},
-        "commit": {"sha": HEAD},
+        "jobs": {"jobs": [_job()]},
+        "commit": {"sha": DOCS},
         "ci": {"workflow_runs": [
-            # decoys: another sha, another branch, another event; the real one is the first for HEAD
-            {"head_sha": OTHER, "head_branch": "main", "event": "push", "status": "completed", "conclusion": "failure", "created_at": "2026-11-27T10:05:00Z"},
-            {"head_sha": HEAD, "head_branch": "f/x", "event": "pull_request", "status": "completed", "conclusion": "failure", "created_at": "2026-11-27T10:04:00Z"},
-            {"head_sha": HEAD, "head_branch": "main", "event": "push", "status": "completed", "conclusion": "success", "created_at": "2026-11-27T10:03:00Z"},
-            {"head_sha": HEAD, "head_branch": "main", "event": "push", "status": "completed", "conclusion": "failure", "created_at": "2026-11-27T10:01:00Z"},
+            # decoys: another branch, another event (both newer than the real one), an older push
+            {"head_sha": OTHER, "head_branch": "f/y", "event": "push", "status": "completed", "conclusion": "failure", "created_at": "2026-11-27T10:07:00Z"},
+            {"head_sha": OTHER, "head_branch": "main", "event": "pull_request", "status": "completed", "conclusion": "failure", "created_at": "2026-11-27T10:06:00Z"},
+            _ci(HEAD, "success", "2026-11-27T10:03:00Z"),
+            _ci(OLD, "failure", "2026-11-27T10:01:00Z"),
         ]},
         "deploy": {"workflow_runs": [
             {"id": int(RUN_ID), "head_sha": HEAD, "event": "workflow_run", "status": "completed", "conclusion": "cancelled"},
             {"id": 4100, "head_sha": OTHER, "event": "workflow_run", "status": "completed", "conclusion": "success"},
             {"id": 4101, "head_sha": OTHER, "event": "workflow_run", "status": "in_progress", "conclusion": None},
             {"id": 4102, "head_sha": HEAD, "event": "workflow_run", "status": "completed", "conclusion": "failure"},
+            {"id": 4103, "head_sha": DOCS, "event": "workflow_run", "status": "completed", "conclusion": "success"},
+        ]},
+        "boot": {"workflow_runs": [
+            {"id": 5100, "head_sha": HEAD, "event": "push", "status": "completed", "conclusion": "success"},
+        ]},
+        "smoke": {"workflow_runs": [
+            {"id": 5200, "head_sha": HEAD, "event": "workflow_run", "status": "completed", "conclusion": "success"},
         ]},
     }
     s.update(over)
@@ -201,24 +238,46 @@ def _assert_error(r, calls):
 
 # ------------------------------------------------------------------ the script: the happy path
 
+DISPATCH = f"workflow run deploy.yml --ref main -f sha={HEAD}"
+
+
 @needs_tools
-def test_all_guards_hold_redispatches_deploy_for_mains_head_exactly_once(tmp_path):
+def test_all_guards_hold_redispatches_deploy_for_the_newest_push_ci_sha_exactly_once(tmp_path):
     r, calls = _run(tmp_path)
     assert r.returncode == 0, r.stderr
-    assert _dispatches(calls) == [f"workflow run deploy.yml --ref main -f sha={HEAD}"]
+    assert _dispatches(calls) == [DISPATCH]
     assert _lines(r) == [f"re-dispatched Deploy for {HEAD}"]
+
+
+@needs_tools
+def test_a_docs_only_main_head_deploys_the_newest_code_commit_not_the_head(tmp_path):
+    r, calls = _run(tmp_path)  # commits/main says DOCS, which has no CI run
+    assert DOCS not in " ".join(_dispatches(calls))
+    assert _dispatches(calls) == [DISPATCH]
+
+
+@needs_tools
+def test_the_newest_push_ci_run_is_found_by_created_at_not_by_list_order(tmp_path):
+    ci = {"workflow_runs": [
+        _ci(OLD, "failure", "2026-11-27T09:00:00Z"),
+        _ci(HEAD, "success", "2026-11-27T11:00:00Z"),
+        _ci(OTHER, "failure", "2026-11-27T10:00:00Z"),
+    ]}
+    r, calls = _run(tmp_path, _scenario(ci=ci))
+    assert r.returncode == 0, r.stderr
+    assert _dispatches(calls) == [DISPATCH]
 
 
 @needs_tools
 def test_a_deploy_run_with_no_jobs_listed_yet_counts_as_never_started(tmp_path):
     r, calls = _run(tmp_path, _scenario(jobs={"jobs": []}))
     assert r.returncode == 0, r.stderr
-    assert _dispatches(calls) == [f"workflow run deploy.yml --ref main -f sha={HEAD}"]
+    assert _dispatches(calls) == [DISPATCH]
 
 
 @needs_tools
 def test_a_started_job_with_another_name_does_not_stop_the_redispatch(tmp_path):
-    jobs = {"jobs": [{"name": "deploy", "started_at": None}, {"name": "notify", "started_at": "2026-11-27T10:00:00Z"}]}
+    jobs = {"jobs": [_job(), _job(name="notify", steps=[STEP], runner_id=7)]}
     r, calls = _run(tmp_path, _scenario(jobs=jobs))
     assert r.returncode == 0, r.stderr
     assert len(_dispatches(calls)) == 1
@@ -227,8 +286,18 @@ def test_a_started_job_with_another_name_does_not_stop_the_redispatch(tmp_path):
 @needs_tools
 def test_the_latest_ci_run_decides_not_an_older_success(tmp_path):
     ci = {"workflow_runs": [
-        {"head_sha": HEAD, "head_branch": "main", "event": "push", "status": "completed", "conclusion": "failure", "created_at": "2026-11-27T10:09:00Z"},
-        {"head_sha": HEAD, "head_branch": "main", "event": "push", "status": "completed", "conclusion": "success", "created_at": "2026-11-27T10:01:00Z"},
+        _ci(HEAD, "failure", "2026-11-27T10:09:00Z"),
+        _ci(OLD, "success", "2026-11-27T10:01:00Z"),
+    ]}
+    r, calls = _run(tmp_path, _scenario(ci=ci))
+    _assert_refused(r, calls, "CI for main's head is failure: nothing to deploy")
+
+
+@needs_tools
+def test_a_newer_failed_push_ci_run_for_another_sha_decides_not_an_older_green_one(tmp_path):
+    ci = {"workflow_runs": [
+        _ci(OTHER, "failure", "2026-11-27T10:09:00Z"),
+        _ci(HEAD, "success", "2026-11-27T10:01:00Z"),
     ]}
     r, calls = _run(tmp_path, _scenario(ci=ci))
     _assert_refused(r, calls, "CI for main's head is failure: nothing to deploy")
@@ -253,66 +322,125 @@ def test_guard_a_the_loop_stops_after_one_redispatch(tmp_path):
     assert r.returncode != 0
 
 
+@needs_tools
+def test_a_second_cancel_raises_an_incident_instead_of_looping(tmp_path):
+    # first cancel (workflow_run): one dispatch. The dispatched run is cancelled in turn (event
+    # workflow_dispatch): no dispatch, exit 1, so the failure step opens the incident.
+    (tmp_path / "one").mkdir()
+    (tmp_path / "two").mkdir()
+    first, calls1 = _run(tmp_path / "one")
+    assert first.returncode == 0 and len(_dispatches(calls1)) == 1
+    run = {"id": int(RUN_ID), "event": "workflow_dispatch", "head_sha": HEAD, "conclusion": "cancelled"}
+    second, calls2 = _run(tmp_path / "two", _scenario(run=run))
+    assert second.returncode == 1, f"{second.stdout!r} {second.stderr!r}"
+    assert _dispatches(calls2) == []
+
+
 # ------------------------------------------------------------------ guard (b): the deploy job never started
 
 @needs_tools
-def test_guard_b_a_started_deploy_job_means_deliberate_cancel_or_timeout_so_no_redispatch(tmp_path):
-    jobs = {"jobs": [{"name": "deploy", "started_at": "2026-11-27T10:00:00Z", "conclusion": "cancelled"}]}
+def test_guard_b_a_deploy_job_that_ran_a_step_means_deliberate_cancel_so_no_redispatch(tmp_path):
+    jobs = {"jobs": [_job(steps=[STEP])]}
     r, calls = _run(tmp_path, _scenario(jobs=jobs))
     _assert_refused(r, calls, "deploy job had started: deliberate cancel or timeout, nothing to do")
 
 
 @needs_tools
+def test_guard_b_a_deploy_job_with_a_runner_id_had_started_even_with_no_steps(tmp_path):
+    jobs = {"jobs": [_job(runner_id=12)]}
+    r, calls = _run(tmp_path, _scenario(jobs=jobs))
+    _assert_refused(r, calls, "deploy job had started: deliberate cancel or timeout, nothing to do")
+
+
+@needs_tools
+def test_guard_b_started_at_alone_does_not_mean_the_job_started(tmp_path):
+    # real shape of a job that never ran: started_at filled, zero steps, no runner
+    jobs = {"jobs": [_job(started_at="2026-11-27T10:00:00Z", steps=[], runner_id=None)]}
+    r, calls = _run(tmp_path, _scenario(jobs=jobs))
+    assert r.returncode == 0, r.stderr
+    assert _dispatches(calls) == [DISPATCH]
+
+
+@needs_tools
 def test_guard_b_applies_to_a_workflow_dispatch_run_too_and_is_not_an_incident(tmp_path):
     run = {"id": int(RUN_ID), "event": "workflow_dispatch", "head_sha": OLD, "conclusion": "cancelled"}
-    jobs = {"jobs": [{"name": "deploy", "started_at": "2026-11-27T10:00:00Z"}]}
+    jobs = {"jobs": [_job(steps=[STEP], runner_id=3)]}
     r, calls = _run(tmp_path, _scenario(run=run, jobs=jobs))
     _assert_refused(r, calls, "deploy job had started: deliberate cancel or timeout, nothing to do")
 
 
-# ------------------------------------------------------------------ guard (c): CI for main's head is green
+# ------------------------------------------------------------------ guard (c): CI for the target is green
 
 @needs_tools
 @pytest.mark.parametrize("conclusion", ["failure", "cancelled", "timed_out"])
-def test_guard_c_ci_for_main_head_not_success_means_nothing_to_deploy(tmp_path, conclusion):
-    ci = {"workflow_runs": [
-        {"head_sha": HEAD, "head_branch": "main", "event": "push", "status": "completed", "conclusion": conclusion, "created_at": "2026-11-27T10:03:00Z"},
-    ]}
+def test_guard_c_ci_for_the_target_not_success_means_nothing_to_deploy(tmp_path, conclusion):
+    ci = {"workflow_runs": [_ci(HEAD, conclusion)]}
     r, calls = _run(tmp_path, _scenario(ci=ci))
     _assert_refused(r, calls, f"CI for main's head is {conclusion}: nothing to deploy")
 
 
 @needs_tools
-def test_guard_c_a_green_ci_for_another_sha_or_a_pull_request_is_not_proof(tmp_path):
+def test_guard_c_a_green_ci_on_another_branch_or_a_pull_request_is_not_proof(tmp_path):
     ci = {"workflow_runs": [
-        {"head_sha": OTHER, "head_branch": "main", "event": "push", "status": "completed", "conclusion": "success", "created_at": "2026-11-27T10:05:00Z"},
-        {"head_sha": HEAD, "head_branch": "f/x", "event": "pull_request", "status": "completed", "conclusion": "success", "created_at": "2026-11-27T10:04:00Z"},
-        {"head_sha": HEAD, "head_branch": "main", "event": "push", "status": "completed", "conclusion": "failure", "created_at": "2026-11-27T10:03:00Z"},
+        {"head_sha": OTHER, "head_branch": "f/y", "event": "push", "status": "completed", "conclusion": "success", "created_at": "2026-11-27T10:05:00Z"},
+        {"head_sha": HEAD, "head_branch": "main", "event": "pull_request", "status": "completed", "conclusion": "success", "created_at": "2026-11-27T10:04:00Z"},
+        _ci(HEAD, "failure", "2026-11-27T10:03:00Z"),
     ]}
     r, calls = _run(tmp_path, _scenario(ci=ci))
     _assert_refused(r, calls, "CI for main's head is failure: nothing to deploy")
 
 
 @needs_tools
-def test_guard_c_no_ci_run_at_all_for_main_head_never_redispatches(tmp_path):
-    r, calls = _run(tmp_path, _scenario(ci={"workflow_runs": []}))
+def test_guard_c_a_ci_run_still_in_progress_is_not_green_and_never_redispatches(tmp_path):
+    ci = {"workflow_runs": [
+        {"head_sha": HEAD, "head_branch": "main", "event": "push", "status": "in_progress", "conclusion": None, "created_at": "2026-11-27T10:09:00Z"},
+        _ci(OLD, "success", "2026-11-27T10:01:00Z"),
+    ]}
+    r, calls = _run(tmp_path, _scenario(ci=ci))
     assert _dispatches(calls) == []
 
 
-# ------------------------------------------------------------------ guard (d): a newer Deploy covers main's head
+NO_PUSH_CI = [
+    {"workflow_runs": []},
+    {"workflow_runs": [
+        {"head_sha": OTHER, "head_branch": "f/y", "event": "push", "status": "completed", "conclusion": "success", "created_at": "2026-11-27T10:05:00Z"},
+        {"head_sha": HEAD, "head_branch": "main", "event": "pull_request", "status": "completed", "conclusion": "success", "created_at": "2026-11-27T10:04:00Z"},
+    ]},
+]
+
+
+@needs_tools
+@pytest.mark.parametrize("ci", NO_PUSH_CI, ids=["empty list", "only other branches and events"])
+def test_guard_c_no_push_ci_run_on_main_at_all_is_an_error_and_never_redispatches(tmp_path, ci):
+    r, calls = _run(tmp_path, _scenario(ci=ci))
+    _assert_error(r, calls)
+
+
+# ------------------------------------------------------------------ guard (d): a Deploy covers the target
 
 @needs_tools
 @pytest.mark.parametrize(
     ("status", "conclusion"),
-    [("queued", None), ("in_progress", None), ("waiting", None), ("pending", None), ("completed", "success")],
+    [
+        ("queued", None), ("in_progress", None), ("waiting", None), ("pending", None),
+        ("requested", None), ("completed", "success"),
+    ],
 )
-def test_guard_d_a_deploy_for_main_head_that_is_queued_running_or_green_already_covers_it(tmp_path, status, conclusion):
+def test_guard_d_a_deploy_for_the_target_that_is_queued_running_requested_or_green_covers_it(tmp_path, status, conclusion):
     dep = _scenario()["deploy"]
     dep["workflow_runs"].append(
         {"id": 4200, "head_sha": HEAD, "event": "workflow_run", "status": status, "conclusion": conclusion}
     )
     r, calls = _run(tmp_path, _scenario(deploy=dep))
     _assert_refused(r, calls, f"a Deploy for {HEAD} already covers main")
+
+
+@needs_tools
+def test_guard_d_a_deploy_for_the_docs_only_main_head_does_not_cover_the_target(tmp_path):
+    dep = {"workflow_runs": [{"id": 4200, "head_sha": DOCS, "event": "workflow_run", "status": "queued", "conclusion": None}]}
+    r, calls = _run(tmp_path, _scenario(deploy=dep))
+    assert r.returncode == 0, r.stderr
+    assert _dispatches(calls) == [DISPATCH]
 
 
 @needs_tools
@@ -324,7 +452,7 @@ def test_guard_d_coverage_stops_an_exit_1_for_a_cancelled_workflow_dispatch_run(
 
 
 @needs_tools
-def test_guard_d_failed_cancelled_or_other_sha_deploys_do_not_cover_main(tmp_path):
+def test_guard_d_failed_cancelled_or_other_sha_deploys_do_not_cover_the_target(tmp_path):
     dep = {"workflow_runs": [
         {"id": 4300, "head_sha": HEAD, "event": "workflow_run", "status": "completed", "conclusion": "failure"},
         {"id": 4301, "head_sha": HEAD, "event": "workflow_run", "status": "completed", "conclusion": "cancelled"},
@@ -333,7 +461,7 @@ def test_guard_d_failed_cancelled_or_other_sha_deploys_do_not_cover_main(tmp_pat
     ]}
     r, calls = _run(tmp_path, _scenario(deploy=dep))
     assert r.returncode == 0, r.stderr
-    assert _dispatches(calls) == [f"workflow run deploy.yml --ref main -f sha={HEAD}"]
+    assert _dispatches(calls) == [DISPATCH]
 
 
 @needs_tools
@@ -343,9 +471,58 @@ def test_guard_d_an_empty_deploy_run_list_is_zero_runs_not_an_error(tmp_path):
     assert len(_dispatches(calls)) == 1
 
 
+# ------------------------------------------------------------------ the pending slot of server-lab-host
+
+QUEUED_STATES = ["queued", "pending", "waiting", "requested"]
+
+
+@needs_tools
+@pytest.mark.parametrize("key", ["boot", "smoke"])
+@pytest.mark.parametrize("status", QUEUED_STATES)
+def test_a_queued_bootstrap_or_smoke_run_holds_the_slot_so_no_dispatch_and_exit_1(tmp_path, key, status):
+    runs = {"workflow_runs": [
+        {"id": 5300, "head_sha": HEAD, "event": "push", "status": "completed", "conclusion": "success"},
+        {"id": 5301, "head_sha": HEAD, "event": "push", "status": status, "conclusion": None},
+    ]}
+    r, calls = _run(tmp_path, _scenario(**{key: runs}))
+    assert r.returncode == 1, f"exit {r.returncode}: {r.stdout!r} {r.stderr!r}"
+    assert _dispatches(calls) == [], f"dispatch would cancel the pending run: {calls}"
+
+
+@needs_tools
+@pytest.mark.parametrize("key", ["boot", "smoke"])
+def test_a_pending_bootstrap_or_smoke_run_blocks_a_workflow_dispatch_cancel_too(tmp_path, key):
+    run = {"id": int(RUN_ID), "event": "workflow_dispatch", "head_sha": OLD, "conclusion": "cancelled"}
+    runs = {"workflow_runs": [{"id": 5301, "head_sha": OTHER, "event": "push", "status": "pending", "conclusion": None}]}
+    r, calls = _run(tmp_path, _scenario(run=run, **{key: runs}))
+    assert r.returncode == 1
+    assert _dispatches(calls) == []
+
+
+@needs_tools
+@pytest.mark.parametrize("key", ["boot", "smoke"])
+@pytest.mark.parametrize(
+    ("status", "conclusion"),
+    [("in_progress", None), ("completed", "success"), ("completed", "cancelled"), ("completed", "failure")],
+)
+def test_a_running_or_finished_bootstrap_or_smoke_run_does_not_stop_the_redispatch(tmp_path, key, status, conclusion):
+    runs = {"workflow_runs": [{"id": 5301, "head_sha": HEAD, "event": "push", "status": status, "conclusion": conclusion}]}
+    r, calls = _run(tmp_path, _scenario(**{key: runs}))
+    assert r.returncode == 0, r.stderr
+    assert _dispatches(calls) == [DISPATCH]
+
+
+@needs_tools
+@pytest.mark.parametrize("key", ["boot", "smoke"])
+def test_an_empty_bootstrap_or_smoke_run_list_is_zero_runs_not_an_error(tmp_path, key):
+    r, calls = _run(tmp_path, _scenario(**{key: {"workflow_runs": []}}))
+    assert r.returncode == 0, r.stderr
+    assert _dispatches(calls) == [DISPATCH]
+
+
 # ------------------------------------------------------------------ positive checks: a bad read is never "no"
 
-READS = ["run", "jobs", "commit", "ci", "deploy"]
+READS = ["run", "jobs", "ci", "deploy", "boot", "smoke"]
 
 
 @needs_tools
@@ -365,7 +542,7 @@ def test_an_empty_gh_read_is_an_error_and_never_a_redispatch(tmp_path, key):
 @needs_tools
 def test_an_empty_jobs_read_is_not_taken_as_no_deploy_job_started(tmp_path):
     # a deliberate cancel of a started job, and the jobs read is broken: must not re-dispatch
-    jobs = {"jobs": [{"name": "deploy", "started_at": "2026-11-27T10:00:00Z"}]}
+    jobs = {"jobs": [_job(steps=[STEP], runner_id=3)]}
     r, calls = _run(tmp_path, _scenario(jobs=jobs), empty="jobs")
     _assert_error(r, calls)
 
@@ -412,7 +589,7 @@ def _wf() -> dict:
     return data
 
 
-def _job() -> dict:
+def _wf_job() -> dict:
     jobs = _wf()["jobs"]
     assert "deploy-cancelled" in jobs, "incident.yml has no job `deploy-cancelled`"
     return jobs["deploy-cancelled"]
@@ -423,13 +600,13 @@ def _norm(s) -> str:
 
 
 def test_the_job_runs_only_for_a_cancelled_deploy_workflow_run():
-    cond = _norm(_job().get("if", ""))
+    cond = _norm(_wf_job().get("if", ""))
     assert "github.event.workflow_run.name == 'Deploy'" in cond, cond
     assert "github.event.workflow_run.conclusion == 'cancelled'" in cond, cond
 
 
 def test_the_job_permissions_are_contents_read_actions_write_and_nothing_broader():
-    perms = _job().get("permissions")
+    perms = _wf_job().get("permissions")
     assert isinstance(perms, dict), "the job needs its own permissions block"
     assert perms.get("contents") == "read"
     assert perms.get("actions") == "write"
@@ -438,7 +615,7 @@ def test_the_job_permissions_are_contents_read_actions_write_and_nothing_broader
 
 
 def test_the_job_checks_out_and_runs_the_script_with_run_id_repo_and_token():
-    job = _job()
+    job = _wf_job()
     steps = job["steps"]
     assert any("actions/checkout" in str(s.get("uses", "")) for s in steps), "the script comes from a checkout"
     runner = [s for s in steps if SCRIPT_REL in str(s.get("run", ""))]
@@ -451,7 +628,7 @@ def test_the_job_checks_out_and_runs_the_script_with_run_id_repo_and_token():
 
 
 def test_a_failure_step_after_the_script_opens_or_updates_an_incident():
-    steps = _job()["steps"]
+    steps = _wf_job()["steps"]
     fail = [s for s in steps if "failure()" in str(s.get("if", ""))]
     assert fail, "needs a step with `if: failure()`"
     text = "\n".join(f"{s.get('run', '')}\n{s.get('uses', '')}" for s in fail).lower()
@@ -461,8 +638,34 @@ def test_a_failure_step_after_the_script_opens_or_updates_an_incident():
     assert steps.index(fail[0]) > idx_run, "the failure step comes after the script step"
 
 
+def _failure_text() -> str:
+    steps = _wf_job()["steps"]
+    fail = [s for s in steps if "failure()" in str(s.get("if", ""))]
+    assert fail, "needs a step with `if: failure()`"
+    return "\n".join(str(s.get("run", "")) for s in fail)
+
+
+def test_the_failure_step_creates_the_incident_with_the_three_factory_labels():
+    text = _failure_text()
+    assert "gh issue create" in text, text
+    created = text[text.index("gh issue create"):]
+    for label in ("type:incident", "priority:p0", "status:ready"):
+        assert label in created, f"the created issue lacks the label {label}: {created}"
+    assert "--label" in created, created
+
+
+def test_the_failure_step_finds_an_open_incident_by_label_and_title():
+    text = _failure_text()
+    assert "gh issue list" in text, text
+    listed = text[text.index("gh issue list"):]
+    listed = listed.split("gh issue create")[0].split("gh issue comment")[0]
+    assert re.search(r"--label[ =]['\"]?type:incident", listed), f"search by the type:incident label: {listed}"
+    assert "--state open" in listed or "-s open" in listed, listed
+    assert "title" in listed.lower(), f"search by the title too: {listed}"
+
+
 def test_the_failure_step_names_the_run_it_reports():
-    steps = _job()["steps"]
+    steps = _wf_job()["steps"]
     fail = next(s for s in steps if "failure()" in str(s.get("if", "")))
     blob = f"{fail.get('run', '')}\n{fail.get('env', '')}\n{fail.get('with', '')}"
     assert "html_url" in blob or "workflow_run.id" in blob or "RUN_ID" in blob
