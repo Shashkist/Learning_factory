@@ -1925,3 +1925,12 @@ in force · owner session (owner request, 2026-11-27) · revertible
 **Alternatives.** Wait for the VS Code image (Phase 2) before the Python labs: that delays the whole Python module. Publish only after the owner reads each lab: that kept Linux 1 in draft for days.
 
 **Revert.** Set a lab back to `status: draft`. Restore D16's numbering.
+
+## D192 · #675: the #545 package-list case allows added packages; crontab works without setgid under gVisor
+in force · factory · 2026-11-27 · revertible
+
+**Context.** CI on #701 (run 45984147829) failed twice. (1) `test_issue_545_apt_mirror_list.py::test_c2_apt_get_install_package_lists_unchanged` pins the first `apt-get install` list of the term image exactly, and pins exactly one `RUN` step with `apt-get update`, so no package can ever be added; its purpose (#545, D144) was that the mirror change keeps today's package set. D191 requires the course tools in that image. (2) As `student` under gVisor, `crontab -l` prints `crontabs/student/: fopen: permission denied` and `crontab <file>` prints `/var/spool/cron/: mkstemp: Permission denied`: `crontab` is setgid `crontab`, and gVisor's default runtime does not honour setuid/setgid (the #47 cause).
+**Decision.** (1) Older exam loosened, one named case: `test_c2_apt_get_install_package_lists_unchanged` keeps the two-call shape, the exact reinstall list, and requires every #545 package in the first list in its order, allowing added packages after them; all other #545 cases stay as they are. The exam-writer makes this one exam-only commit, together with nothing else, on a fresh branch `f/675-course-tools-2` (the #675 exam commit, then this commit, then the code), replacing #701. (2) Code: the image makes `crontab` work for `student` without setgid, inside the lab container only (for example the spool directories owned by or writable for `student` with the sticky bit, or `crontab` setgid dropped and the spool owned by `student`); no daemon. The #675 crontab exam cases stay as strict as they are.
+**Why.** The spec decision (D191) needs the packages; the #545 intent (no package removed or swapped by the mirror change) is kept by the in-order subset. The lab container is single-user and isolated, so a student-writable cron spool exposes nothing.
+**Alternatives.** A second `RUN apt-get update` step (refused by the same #545 case); run course labs on `runsc-suid` (#652, broader change, only for sudo labs); drop `crontab` from the image (fails D191 and #675 AC1).
+**Revert.** Restore the exact list in the #545 case and remove the course packages.
