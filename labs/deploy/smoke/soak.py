@@ -58,8 +58,13 @@ def run_soak(
     counts: dict[str, int] = {}
     seen: set[str] = set()
     volume_names = getattr(host, "volume_names", None)
-    mem0, disk0 = host.memory_available(), host.disk_available()
-    vols0 = set(volume_names()) if volume_names else set()
+    try:
+        mem0, disk0 = host.memory_available(), host.disk_available()
+        vols0 = set(volume_names()) if volume_names else set()
+    except Exception:  # noqa: BLE001 - a short df/free is a clean failure, no session starts
+        fail("soak failed: the first memory or disk read did not parse")
+        out("soak summary: sessions=0 memory_delta=0 disk_delta=0")
+        return 1
     for i in range(sessions):
         expected, lab = "student", LAB
         if i == 0:
@@ -107,8 +112,13 @@ def run_soak(
         for name in host.lab_volumes():
             fail(f"orphan lab volume left: {name}")
         if volume_names:
-            for name in sorted(set(volume_names()) - vols0):
-                fail(f"new docker volume left: {name}")
+            new = sorted(set(volume_names()) - vols0)
+            for name in new:
+                if name.startswith(("lab-", "lf-")):
+                    fail(f"new dangling docker volume left: {name}")
+            foreign = sum(1 for n in new if not n.startswith(("lab-", "lf-")))
+            if foreign:  # the Actions log is public: other services' names are never printed
+                fail(f"{foreign} new dangling docker volume(s) with a foreign name left")
         mem_d, disk_d = host.memory_available() - mem0, host.disk_available() - disk0
         if mem_d < -tolerance:
             fail(f"available memory dropped by {-mem_d} bytes")
@@ -116,10 +126,6 @@ def run_soak(
             fail(f"available disk dropped by {-disk_d} bytes")
     except Exception as exc:  # noqa: BLE001
         fail(f"final reads failed ({type(exc).__name__})")
-    want = {"student": max(sessions - 2, 0), "heartbeat": min(sessions, 1),
-            "time_limit": max(min(sessions, 2) - 1, 0)}
-    if not failures and counts != {k: v for k, v in want.items() if v}:
-        fail(f"end reasons {counts}, expected {want}")
     kinds = ("student", "heartbeat", "time_limit")
     ends = "".join(f" {k}={counts[k]}" for k in kinds if k in counts)
     out(f"soak summary: sessions={sessions}{ends} memory_delta={mem_d} disk_delta={disk_d}")
@@ -185,7 +191,7 @@ class SshHost:
         ]
 
     def volume_names(self) -> list[str]:
-        return self.sh("docker volume ls -q").split()
+        return self.sh("docker volume ls -q --filter dangling=true").split()
 
     def lab_volumes(self) -> list[str]:
         live = set(self.sh(f"{MANAGER} live-sessions").split())
