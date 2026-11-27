@@ -32,6 +32,8 @@ RUN printf 'Acquire::Retries "3";\nAcquire::http::Timeout "30";\n' > /etc/apt/ap
  && apt-get install -y --no-install-recommends \
       ca-certificates tini sudo nano vim less tree curl dnsutils iputils-ping traceroute \
       iproute2 net-tools procps file man-db \
+      python3 python3-venv python3-pytest python3-flask git sqlite3 jq cron netcat-openbsd \
+      systemd-standalone-sysusers \
  && apt-get install -y --no-install-recommends --reinstall \
       coreutils findutils grep sed tar gzip bash util-linux passwd procps \
  && if [ -f /etc/apt/ubuntu.sources.lf-orig ]; then \
@@ -46,6 +48,11 @@ RUN printf 'Acquire::Retries "3";\nAcquire::http::Timeout "30";\n' > /etc/apt/ap
  && useradd --uid 1001 --create-home --home-dir /home/student --shell /bin/bash student \
  && groupadd team \
  && usermod -aG team student \
+ && mkdir -p /var/spool/cron/crontabs \
+ && chown root:root /var/spool/cron \
+ && chown student:student /var/spool/cron/crontabs \
+ && chmod 0755 /var/spool/cron \
+ && chmod 0700 /var/spool/cron/crontabs \
  && mkdir -p /var/log/lf \
  && chown root:root /var/log/lf \
  && chmod 0700 /var/log/lf
