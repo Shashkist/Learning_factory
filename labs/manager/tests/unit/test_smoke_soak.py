@@ -107,12 +107,37 @@ def test_wrong_counts_fail():
     api = _api()
     api.reasons = {api.ids[0]: "heartbeat", api.ids[1]: "student"}
     rc, _, err = _go(api, Host())
-    assert rc == 1 and err
+    assert rc == 1 and any("ended with student, expected time_limit" in e for e in err)
 
 
-def test_new_anonymous_volume_fails():
-    rc, _, err = _go(_api(), Host(vols=(["a"], ["a", "deadbeef"])))
-    assert rc == 1 and any("deadbeef" in e for e in err)
+def test_new_foreign_volume_is_counted_never_named():
+    rc, out, err = _go(_api(), Host(vols=(["a"], ["a", "deadbeef", "other"])))
+    assert rc == 1 and len(out) == 1
+    assert any("2 new dangling docker volume" in e for e in err)
+    assert not any("deadbeef" in e or "other" in e for e in err + out)
+
+
+def test_new_lab_volume_is_named():
+    rc, _, err = _go(_api(), Host(vols=([], ["lf-left"])))
+    assert rc == 1 and any("lf-left" in e for e in err)
+
+
+def test_volumes_listed_dangling_only(monkeypatch):
+    host = soak.SshHost("cfg")
+    seen = []
+    monkeypatch.setattr(host, "sh", lambda c: seen.append(c) or "a b")
+    assert host.volume_names() == ["a", "b"]
+    assert seen == ["docker volume ls -q --filter dangling=true"]
+
+
+@pytest.mark.parametrize("text", ["", "h\n/dev/x 1 2\n", "h\n/dev/x 1 2 nope 4% /\n"])
+def test_short_first_df_fails_cleanly_without_sessions(text):
+    api = _api()
+    host = Host()
+    host.disk_available = lambda: soak.parse_df_available(text)
+    rc, out, err = _go(api, host)
+    assert rc == 1 and api.n == 0 and len(out) == 1
+    assert any(e.startswith("soak failed:") for e in err)
 
 
 def test_final_read_error_is_a_failure_and_summary_printed():
