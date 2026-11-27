@@ -1972,3 +1972,11 @@ in force · factory · 2026-11-27 · revertible
 **Why.** Same pattern as D166 amendment 2 and D187 amendment 2: exam first, then code, on a branch the exam-integrity check accepts.
 **Alternatives.** Loosen the regex in a code commit (refused, and an exam edit by the implementer).
 **Revert.** Revert the squash commit of the PR.
+
+## D197 · #670: the fresh path does not refuse other reloadable keys; Docker's reload list is pinned at moby v28.0.0
+in force · factory · 2026-11-27 · revertible
+
+**Context.** #670 criterion 2 asks that the fresh path (no `runsc` in `daemon.json`, `runsc` not loaded) refuse other pending reloadable keys, "or the decision records why not". The #3, #56, #180 and #294 exams start a fresh host from a file holding `max-concurrent-uploads`, `max-concurrent-downloads` or `registry-mirrors` and expect the bootstrap to go ahead. Criterion 3 asks that `RELOADABLE_KEYS` be checked against Docker's reload code; the repository pins no exact Engine version, only `>= 28.0.0` (`labs/deploy/deploy.sh`).
+**Decision.** (1) On the fresh path the bootstrap refuses an unloaded foreign *runtime* in the file (the #670 exam pins it), but not other reloadable keys. Why not: on a fresh host dockerd has normally started from that very file, so the keys are already live and the reload applies nothing new; refusing them would loosen four older exams, which needs a spec reason, and there is none. (2) `RELOADABLE_KEYS` is checked against moby **v28.0.0** (`daemon/reload.go` `Daemon.Reload`, `daemon/reload_unix.go` `reloadPlatform`, `cmd/dockerd/daemon.go` `reloadConfig`). The script must list `default-shm-size`, `default-ipc-mode` and `default-cgroupns-mode` in addition to its current keys. Keys it lists that the v28.0.0 source does not reload (`allow-nondistributable-artifacts`, `metrics-addr`, `node-generic-resources`, `cdi-spec-dirs`, `default-network-opts`, `proxies`) may stay: listing more keys only refuses more, which is the safe side.
+**Alternatives.** Refuse every reloadable key on the fresh path (loosens #3, #56, #180, #294). Pin a newer moby tag (the server's exact Engine version is not recorded in the repository).
+**Revert.** Add the fresh-path refusal with an exam amendment that names the four older exams' cases.
