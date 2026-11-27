@@ -57,3 +57,35 @@ jobs:
       workflow-name: ${{ github.event.workflow_run.name }}
       run-url: ${{ github.event.workflow_run.html_url }}
       conclusion: ${{ github.event.workflow_run.conclusion }}
+
+  # A Deploy cancelled before its job started (replaced in the concurrency queue) is
+  # re-dispatched for main's head, or raises an incident (#658, D189).
+  deploy-cancelled:
+    if: github.event.workflow_run.name == 'Deploy' && github.event.workflow_run.conclusion == 'cancelled'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+      issues: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      RUN_ID: ${{ github.event.workflow_run.id }}
+      RUN_URL: ${{ github.event.workflow_run.html_url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Re-dispatch the cancelled Deploy
+        run: bash labs/deploy/watch/deploy-cancelled.sh
+      - name: Open or update the incident
+        if: failure()
+        run: |
+          title="Incident: a cancelled Deploy was not re-dispatched"
+          body="Deploy run $RUN_ID was cancelled and could not be re-dispatched automatically: $RUN_URL"
+          number=$(gh issue list --state open --label type:incident --search "$title in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body" --label type:incident --label priority:p0 --label status:ready
+          fi
