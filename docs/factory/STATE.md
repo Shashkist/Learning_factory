@@ -3,7 +3,11 @@
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
 ## Now
-**Pass lf-k9v2 (laptop, from 20:57 UTC 2026-11-27) in flight:** claims #652 (PR #712, review round 2), #670 (PR #713, review round 2), #677 (PR #714, review round 1). All three CI green at pass start.
+**Pass lf-k9v2 (laptop, from 20:57 UTC 2026-11-27) in flight:** 2 merges so far.
+- **#670 closed**: #713 merged (6149568) on round 2 APPROVE at c642297; bootstrap push dry run 46068514662 `step runtime: already in place`; Deploy 46071274030 green with smoke. Nits -> **#715** (p3).
+- **#677 closed**: #714 merged (6a8b1d6) on round 1 APPROVE at 02328ed; Deploy 46071274030 `deployed lf-manager:6a8b1d6`, smoke ok. Findings 2-4 (Hebrew file names in task 07, exit code in task 08, missing shebang) -> **#716** (p2).
+- **#652** PR #712 at 12699fb: CI green; review round 2 (the last) running.
+- **#704** PR #717 (`f/704-deploy-watch-pending`, `C:\projects\lf-704`): **D189 amendment 3** (b5ca369), exam 888f700 (changes the #658 exam as a3 names), code 2f17539; WSL 162 passed. CI running; review round 1 next.
 
 **Pass lf-r8t3 (laptop, 18:57-20:36 UTC 2026-11-27) stopped at the time limit: 0 merges, 3 PRs parked in CI/review.** Claims released; the next pass claims afresh and **resumes these three PRs first** (each is one review round from merge):
 - **#652** PR #712 (`f/652-sudo-runtime`, `C:\projects\lf-652`). Round 1 CHANGES at 5b5fdc3 (`LF_SUDO_RUNTIME=runc` reached the create body). Fix pushed at **12699fb** (only a runtime whose `/info` path basename starts with `runsc`; unreadable `/info` degrades to `runsc` with one log line; 8 unit tests). Next: CI green on 12699fb, a fresh reviewer for **round 2 (the last)**: ask it to judge the `startswith("runsc")` rule (the exam's fake daemon reports the runtime name as its path, so an exact `runsc` basename would fail the exam). Then gate, merge, Deploy + smoke (a sudo lab is not live yet; smoke = the normal terminal smoke plus Deploy green), close. Then #676 (Linux 2, sudo) can start.
