@@ -3,6 +3,8 @@
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
 ## Now
+**Pass lf-r8t3 (laptop, from 18:57 UTC 2026-11-27) in flight:** #652 (`f/652-sudo-runtime`, worktree `C:\projects\lf-652`, exam), #670 (`f/670-bootstrap-pending`, `C:\projects\lf-670`, exam), #677 (`f/677-bash-scripting-lab`, `C:\projects\lf-677`, exam). **#651 closed** (O31 apply run 45963880191 `BOOTSTRAP RESULT: changed` with `runsc-suid`; smoke 46050910654 green). #676 (Linux 2, sudo) waits for #652.
+
 **Pass lf-c5p2 (laptop, 16:57-18:50 UTC 2026-11-27) stopped at 3 merges (#706, #707, #708).** No claims held; the next pass claims afresh.
 - **#675 closed**: #702 (round 2 APPROVE at e7cd3d7) was held by the merge gate's CI-round limit (6 code commits > 5), so it was re-sequenced under **D195** to #706 (two exam commits + one code commit, diff byte-identical; a fresh reviewer verified it) and merged (4b3dc31). Main CI 46044979574, Deploy 46047753949 green with smoke. Round-2 nits added to #705.
 - **#674 closed when main CI on f64bde5 is green** (see Recently done): #707 merged (f64bde5) on round 2 APPROVE at 67708a5. The gate now judges the latest run per (workflow, check), ordered by run id from `detailsUrl`, then one time field; undecidable groups hold (**D190 amendment 1**: the empty-commit refresh after a close and reopen is no longer needed). Remaining gap (matrix siblings, push+PR siblings) is **#710** (p3).
