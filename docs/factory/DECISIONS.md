@@ -1993,3 +1993,12 @@ in force · factory · 2026-11-27 · revertible
 **Why.** Same pattern as D187 amendment 2 and D196: exam first, then code, on a branch the exam-integrity check accepts.
 **Alternatives.** Split findings 1 to 3 into a follow-up and merge #711 on round 2 (leaves a known reload gap and a check that cannot fail).
 **Revert.** Close the new PR and reopen #711.
+
+## D199 · #652: a sudo lab keeps its override runtime only when the daemon reports it as a runsc binary, else runsc
+in force · factory · 2026-11-27 · revertible
+
+**Context.** Review round 1 of #712 found `LF_SUDO_RUNTIME=runc` reached the container create body (a sandbox escape). The fix at 12699fb goes beyond #652 AC2; review round 2 (APPROVE at 12699fb) asked for this entry.
+**Decision.** For a sudo lab the manager reads `GET /info` and keeps the requested runtime only when its `Runtimes` entry has a `path` whose basename starts with `runsc`. Anything else (a non-gVisor runtime, a missing entry, an unreadable or malformed `/info`: HTTP error, timeout, non-200, non-JSON, wrong shapes) falls back to plain `runsc` with one INFO line on `lab-manager`. Non-sudo labs always send `runsc` and never read `/info`.
+**Why.** Fails closed: the worst case is the pre-#652 state (sudo labs under gVisor without suid). `startswith` and not an exact basename because the #652 exam's fake daemon reports the runtime name as its path; tightening to the exact binary and args (rejects `runscope`, wrapper scripts, a `runsc` entry with `--network=host`) is **#718**, exam first. Using such a runtime today needs two owner-controlled steps (daemon.json through the validated bootstrap, and `.env`).
+**Alternatives.** Trust `LF_SUDO_RUNTIME` (refused: round 1 escape); exact match now (fails the #652 exam).
+**Revert.** Drop the `/info` check in `DockerRuntime.start` and send `LF_SUDO_RUNTIME` as is (reopens round 1 finding 1).
