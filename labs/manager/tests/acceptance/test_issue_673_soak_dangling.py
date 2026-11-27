@@ -90,7 +90,7 @@ def _run(before=(), after=(), df_first=DF_OK, monkeypatch=None):
     server = Server(api, before, after, df_first)
     host.sh = server
     out, err = [], []
-    rc = mod.run_soak(api, host, wait_s=0, out=out.append, err=err.append)
+    rc = mod.run_soak(api, host, sessions=3, wait_s=0, out=out.append, err=err.append)
     return rc, out, err, server
 
 
@@ -162,7 +162,7 @@ def test_ac3_short_df_failure_does_not_start_any_session():
     host = mod.SshHost("cfg")
     host.sh = Server(api, df_first="")
     out, err = [], []
-    mod.run_soak(api, host, wait_s=0, out=out.append, err=err.append)
+    mod.run_soak(api, host, sessions=3, wait_s=0, out=out.append, err=err.append)
     assert api.started == 0
 
 
@@ -176,7 +176,7 @@ def test_ac4_wrong_end_reasons_fail_with_the_per_session_line():
     host = mod.SshHost("cfg")
     host.sh = Server(api)
     out, err = [], []
-    rc = mod.run_soak(api, host, wait_s=0, out=out.append, err=err.append)
+    rc = mod.run_soak(api, host, sessions=3, wait_s=0, out=out.append, err=err.append)
     assert rc == 1
     assert any("ended with student, expected heartbeat" in e for e in err), err
     assert len(out) == 1
