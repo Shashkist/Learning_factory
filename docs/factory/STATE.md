@@ -31,7 +31,7 @@ Older pass notes (lf-m7q2 and before) are in `history.md` and git history (`git 
 
 ## Next (in order)
 
-1. Resume #712, #713, #714 (see Now). Then #704 (p2, D189 amendment 3, then an exam-only commit on a fresh branch, then the code), then the course lab content issues #676 (after #652), #678-#695 (p2), then A factory tag that includes 494826e (#121), 19d5d54 (#119) and #120, then LF's pin moves (exam-integrity in ci.yml, with `pull-requests: read` in the same change; runner pin is owner-only).
+1. Resume #712, #713, #714 (see Now). Then #704 (p2, D189 amendment 3, then an exam-only commit on a fresh branch, then the code), then the course lab content issues #676 (after #652), #678-#695 (p2), then a factory tag that includes 494826e (#121), 19d5d54 (#119) and #120, then LF's pin moves (exam-integrity in ci.yml, with `pull-requests: read` in the same change; runner pin is owner-only).
 2. p3 follow-ups: #709 (new), #710 (new), #705, #698, #700, factory#124 (new, review of #123), factory#122 (new, review of #121), #657, #659, #660 (new, slices of #15 and #85), #653 (new, review of #650), factory#118 (new, review of #116), #647, factory#105 (new, from the #646 and #104 reviews), factory#103 (new, from the #101 review), factory#100, factory#95, #642, #636, #637, #623 (new, from #622 review), #619, #621, #603, #604, factory#70, #601, #597, #588, factory#57, factory#59, #579, #580, factory#49, #574, factory#33, factory#36, factory#40, factory#41, #561, #564, factory#17, factory#24, #523, #555, #468, #423 (old worktree `C:\projects\lf-423`), #436, #431. Owner item **O26** (heartbeat task).
 
 ## Waiting for the owner
