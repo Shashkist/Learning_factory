@@ -32,3 +32,9 @@ def test_a_repeated_step_failure_is_logged_once_and_again_after_recovery(caplog)
         asyncio.run(run())
     errors = [r for r in caplog.records if r.levelno == logging.ERROR]
     assert len(errors) == 2
+
+
+def test_cron_spool_is_a_capped_tmpfs_owned_by_student():
+    lab = Lab("l", {}, "ready", "term", 1, 1, Path("."))
+    opts = container_spec(lab, "abc")["HostConfig"]["Tmpfs"]["/var/spool/cron/crontabs"]
+    assert "size=1m" in opts and "uid=1001" in opts and "gid=1001" in opts

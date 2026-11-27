@@ -84,6 +84,8 @@ def container_spec(lab: Lab, session_id: str) -> dict[str, Any]:
                 "/run/lock": "size=1m,mode=1777",
                 # hides the mail spool `useradd -m` leaves owned by student on the root fs
                 "/var/mail": "size=1m,mode=0755",
+                # the student's crontab spool is student-owned in the image; cap it (D193)
+                "/var/spool/cron/crontabs": "size=1m,mode=0700,uid=1001,gid=1001",
             },
         },
     }
