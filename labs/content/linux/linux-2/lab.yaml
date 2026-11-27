@@ -1,0 +1,118 @@
+id: linux-2
+title:
+  en: "Linux 2: users, groups, processes, sudo and cron"
+  he: "לינוקס 2: משתמשים, קבוצות, תהליכים, sudo ו-cron"
+description:
+  en: Manage a Linux machine as an administrator. Create users and groups, lock an account, find and stop processes, write a safe sudo rule, and schedule a job with cron.
+  he: מנהלים מכונת לינוקס כמו מנהלי מערכת. יוצרים משתמשים וקבוצות, נועלים חשבון, מוצאים ועוצרים תהליכים, כותבים כלל sudo בטוח ומתזמנים משימה עם cron.
+image: term
+time_limit_min: 45
+internet: false
+allow_domains: []
+sudo: true
+status: published
+module: 1
+lesson: 6
+tasks:
+  - id: 01-create-user
+    kind: hands-on
+    checklist:
+      - en: The user dev1 exists
+        he: "המשתמש ‎dev1‎ קיים"
+      - en: dev1 has the home folder /home/dev1, owned by dev1
+        he: "ל-‎dev1‎ יש תיקיית בית ‎‎/home/dev1‎‎, והיא שייכת ל-‎dev1‎"
+      - en: The login shell of dev1 is /bin/bash
+        he: "ה-shell של ‎dev1‎ הוא ‎‎/bin/bash‎"
+  - id: 02-group-ops
+    kind: hands-on
+    checklist:
+      - en: The group ops exists
+        he: "הקבוצה ‎ops‎ קיימת"
+      - en: dev1 is a member of ops
+        he: "‎dev1‎ חבר בקבוצה ‎ops‎"
+      - en: dev1 is still a member of the group webdev
+        he: "‎dev1‎ עדיין חבר בקבוצה ‎webdev‎"
+  - id: 03-service-user
+    kind: hands-on
+    checklist:
+      - en: The user svc-app exists
+        he: "המשתמש ‎svc-app‎ קיים"
+      - en: The shell of svc-app is /usr/sbin/nologin
+        he: "ה-shell של ‎svc-app‎ הוא ‎‎/usr/sbin/nologin‎"
+      - en: svc-app has no home folder
+        he: "ל-‎svc-app‎ אין תיקיית בית"
+  - id: 04-lock-olduser
+    kind: hands-on
+    checklist:
+      - en: The user olduser still exists
+        he: "המשתמש ‎olduser‎ עדיין קיים"
+      - en: The account olduser is locked
+        he: "החשבון ‎olduser‎ נעול"
+  - id: 05-sleep-pid
+    kind: hands-on
+    checklist:
+      - en: The file ~/sleep.pid exists and holds a number
+        he: "הקובץ ‎‎~/sleep.pid‎‎ קיים ומכיל מספר"
+      - en: A process sleep 600 is running
+        he: "תהליך ‎‎sleep 600‎‎ רץ ברקע"
+      - en: The number in sleep.pid is the PID of that sleep
+        he: "המספר ב-‎sleep.pid‎ הוא ה-PID של אותו ‎‎sleep‎"
+  - id: 06-runaway-worker
+    kind: hands-on
+    checklist:
+      - en: The process runaway-worker is no longer running
+        he: "התהליך ‎runaway-worker‎ כבר לא רץ"
+      - en: The process runaway-worker-keep is still running
+        he: "התהליך ‎runaway-worker-keep‎ עדיין רץ"
+  - id: 07-sudoers-dev1
+    kind: hands-on
+    checklist:
+      - en: The file /etc/sudoers.d/dev1 exists
+        he: "הקובץ ‎‎/etc/sudoers.d/dev1‎‎ קיים"
+      - en: The file passes visudo -cf
+        he: "הקובץ עובר את הבדיקה של ‎‎visudo -cf‎"
+      - en: The file has mode 0440 and belongs to root
+        he: "לקובץ יש הרשאות ‎‎0440‎‎ והוא שייך ל-‎root‎"
+      - en: dev1 may run /usr/bin/systemctl status *
+        he: "‎dev1‎ רשאי להריץ ‎‎/usr/bin/systemctl status *‎"
+      - en: dev1 may run nothing else
+        he: "‎dev1‎ לא רשאי להריץ שום דבר אחר"
+  - id: 08-cron-backup
+    kind: hands-on
+    checklist:
+      - en: ~/backup.sh is executable
+        he: "הקובץ ‎‎~/backup.sh‎‎ ניתן להרצה"
+      - en: The crontab of student has a line that runs ~/backup.sh
+        he: "ב-crontab של ‎student‎ יש שורה שמריצה את ‎‎~/backup.sh‎"
+      - en: That line runs it every 5 minutes
+        he: "השורה הזאת מריצה אותו כל 5 דקות"
+  - id: 09-quiz-kill
+    kind: quiz
+    question:
+      en: What does `kill -9 PID` do differently from a plain `kill PID`?
+      he: "מה ‎‎kill -9 PID‎‎ עושה אחרת מ-‎‎kill PID‎‎ רגיל?"
+    options:
+      - en: It sends SIGKILL (signal 9), which cannot be caught or ignored, so the kernel ends the process at once
+        he: "שולח SIGKILL (סיגנל 9) שאי אפשר לתפוס או להתעלם ממנו, ולכן הקרנל מסיים את התהליך מיד"
+      - en: It sends SIGTERM, a polite request that lets the process clean up before it stops
+        he: "שולח SIGTERM, בקשה מנומסת שנותנת לתהליך לנקות אחריו לפני שהוא נעצר"
+      - en: It pauses the process, and it continues later when it gets another signal
+        he: "משהה את התהליך, והוא ממשיך מאוחר יותר כשהוא מקבל סיגנל נוסף"
+      - en: It also ends all the files that the process had open, without saving them
+        he: "סוגר גם את כל הקבצים שהתהליך פתח, בלי לשמור אותם"
+    correct: 0
+  - id: 10-quiz-cron
+    kind: quiz
+    question:
+      en: What are the five time fields at the start of a crontab line, from left to right?
+      he: "מהם חמשת שדות הזמן בתחילת שורה ב-crontab, משמאל לימין?"
+    options:
+      - en: "minute, hour, day of month, month, day of week"
+        he: "דקה, שעה, יום בחודש, חודש, יום בשבוע"
+      - en: "hour, minute, day of month, month, day of week"
+        he: "שעה, דקה, יום בחודש, חודש, יום בשבוע"
+      - en: "second, minute, hour, day of month, month"
+        he: "שנייה, דקה, שעה, יום בחודש, חודש"
+      - en: "minute, hour, day of week, month, year"
+        he: "דקה, שעה, יום בשבוע, חודש, שנה"
+    correct: 0
