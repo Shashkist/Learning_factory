@@ -50,7 +50,7 @@ tasks:
   - id: 04-exists
     kind: hands-on
     checklist:
-      - en: The script ~/exists.sh starts with #!/bin/bash, exists and is executable
+      - en: "The script ~/exists.sh starts with #!/bin/bash, exists and is executable"
         he: "הסקריפט ‎~/exists.sh‎ מתחיל ב-‎#!/bin/bash‎, קיים וניתן להרצה"
       - en: It prints found for a path that exists, a file or a folder
         he: "הוא מדפיס ‎found‎ לנתיב שקיים, קובץ או תיקייה"
@@ -61,7 +61,7 @@ tasks:
   - id: 05-usage
     kind: hands-on
     checklist:
-      - en: The script ~/usage.sh starts with #!/bin/bash, exists and is executable
+      - en: "The script ~/usage.sh starts with #!/bin/bash, exists and is executable"
         he: "הסקריפט ‎~/usage.sh‎ מתחיל ב-‎#!/bin/bash‎, קיים וניתן להרצה"
       - en: With no argument it prints the usage line on standard output
         he: "בלי ארגומנט הוא מדפיס את שורת ה-usage לפלט הרגיל"
@@ -72,7 +72,7 @@ tasks:
   - id: 06-count-lines
     kind: hands-on
     checklist:
-      - en: The script ~/count_lines.sh starts with #!/bin/bash, exists and is executable
+      - en: "The script ~/count_lines.sh starts with #!/bin/bash, exists and is executable"
         he: "הסקריפט ‎~/count_lines.sh‎ מתחיל ב-‎#!/bin/bash‎, קיים וניתן להרצה"
       - en: It prints the number of lines of a file, and only the number
         he: "הוא מדפיס את מספר השורות של קובץ, ורק את המספר"
@@ -83,7 +83,7 @@ tasks:
   - id: 07-backup
     kind: hands-on
     checklist:
-      - en: The script ~/backup.sh starts with #!/bin/bash, exists and is executable
+      - en: "The script ~/backup.sh starts with #!/bin/bash, exists and is executable"
         he: "הסקריפט ‎~/backup.sh‎ מתחיל ב-‎#!/bin/bash‎, קיים וניתן להרצה"
       - en: Running it creates ~/backup.tar.gz, a compressed archive
         he: "הרצה שלו יוצרת את ‎~/backup.tar.gz‎, ארכיון דחוס"
@@ -96,7 +96,7 @@ tasks:
   - id: 08-space-trap
     kind: hands-on
     checklist:
-      - en: The script ~/firstline.sh starts with #!/bin/bash, exists and is executable
+      - en: "The script ~/firstline.sh starts with #!/bin/bash, exists and is executable"
         he: "הסקריפט ‎~/firstline.sh‎ מתחיל ב-‎#!/bin/bash‎, קיים וניתן להרצה"
       - en: It prints the first line of a file
         he: "הוא מדפיס את השורה הראשונה של קובץ"
