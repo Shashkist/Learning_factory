@@ -32,6 +32,7 @@ RUN printf 'Acquire::Retries "3";\nAcquire::http::Timeout "30";\n' > /etc/apt/ap
  && apt-get install -y --no-install-recommends \
       ca-certificates tini sudo nano vim less tree curl dnsutils iputils-ping traceroute \
       iproute2 net-tools procps file man-db \
+      python3 python3-venv python3-pytest python3-flask git sqlite3 jq cron netcat-openbsd \
  && apt-get install -y --no-install-recommends --reinstall \
       coreutils findutils grep sed tar gzip bash util-linux passwd procps \
  && if [ -f /etc/apt/ubuntu.sources.lf-orig ]; then \
