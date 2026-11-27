@@ -196,6 +196,8 @@ def _validate(lab_dir: Path, data: Any) -> tuple[Lab | None, list[str]]:
     limit = data.get("time_limit_min", 60)
     if not _is_int(limit) or limit <= 0:
         errs.append("time_limit_min: must be a positive integer")
+    elif limit < 5 and status != "internal":
+        errs.append("time_limit_min: at least 5 unless the status is internal")
     fast_min: Any = data.get("fast_lab_min")
     if fast_min is not None and (not _is_int(fast_min) or fast_min < 0):
         errs.append("fast_lab_min: must be a non-negative integer (minutes)")
