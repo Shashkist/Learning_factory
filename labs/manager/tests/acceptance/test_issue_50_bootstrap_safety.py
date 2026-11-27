@@ -78,6 +78,7 @@ SBIN = "/usr/local/sbin/lf-labs-iptables"
 UNIT_PATH = f"/etc/systemd/system/{UNIT}"
 RUNSC_DEST = "/usr/local/bin/runsc"
 OVERLAY = "--overlay2=root:memory"
+SUID_ARG = "--allow-suid"
 DROPIN = "/etc/systemd/system/docker.service.d/lf-exam-50-runsc-flag.conf"
 OUTDATED_SBIN = b"#!/bin/sh\n# outdated lf-labs rules copy (exam 50)\nexit 0\n"
 ASIDE = ".lf-exam-aside"
@@ -841,12 +842,16 @@ def test_normal_run_keeps_the_other_daemon_json_keys(normal_run):
 
 @pytest.fixture(scope="module")
 def in_file_not_loaded():
-    """runsc is in daemon.json but docker has not loaded it. (a) the file also differs from the
+    """daemon.json holds everything the bootstrap registers (runsc and runsc-suid, D185) but
+    docker has not loaded it. (a) the file also differs from the
     running config in another key; (b) runsc is the only difference."""
     s = SimpleNamespace()
     with _runner_scope() as sc:
         cfg = _unregister_runsc(sc)
-        cfg["runtimes"] = {"runsc": {"path": sc.runsc_path, "runtimeArgs": [OVERLAY]}}
+        cfg["runtimes"] = {
+            "runsc": {"path": sc.runsc_path, "runtimeArgs": [OVERLAY]},
+            "runsc-suid": {"path": sc.runsc_path, "runtimeArgs": [OVERLAY, SUID_ARG]},
+        }
 
         s.cfg_a = {**cfg, "max-concurrent-downloads": 7}
         s.bytes_a = _dump(s.cfg_a)
@@ -885,3 +890,7 @@ def test_runsc_in_file_but_not_loaded_is_reloaded_when_nothing_else_differs(in_f
     runsc = s.runtimes_b.get("runsc")
     assert runsc, f"docker info lists no runsc after the reload: {s.runtimes_b}\n" + _tail(out)
     assert OVERLAY in (runsc.get("runtimeArgs") or []), f"{runsc}\n" + _tail(out)
+    suid = s.runtimes_b.get("runsc-suid")
+    assert suid, f"docker info lists no runsc-suid after the reload: {s.runtimes_b}\n" + _tail(out)
+    assert SUID_ARG in (suid.get("runtimeArgs") or []), f"{suid}\n" + _tail(out)
+    assert OVERLAY in (suid.get("runtimeArgs") or []), f"{suid}\n" + _tail(out)
