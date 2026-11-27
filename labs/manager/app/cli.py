@@ -11,6 +11,7 @@ import os
 import sys
 
 from app import auth, db
+from app.sessions import LIVE
 from app.smoke import SMOKE_COHORT
 
 
@@ -97,6 +98,16 @@ async def smoke_student(dsn: str, secret: str, password: str | None) -> None:
         await conn.close()
 
 
+async def live_sessions(dsn: str) -> list[str]:
+    """The id of every live session (the janitor's LIVE predicate). Read-only."""
+    conn = await db.connect(dsn)
+    try:
+        rows = await conn.fetch(f"select id from {db.SCHEMA}.lab_sessions where {LIVE}")
+        return [str(r["id"]) for r in rows]
+    finally:
+        await conn.close()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="app.cli")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -107,10 +118,13 @@ def main(argv: list[str] | None = None) -> int:
         "smoke-student", help="upsert the synthetic smoke student (password on stdin)"
     )
     sp.add_argument("--disable", action="store_true", help="disable it and sign it out")
+    sub.add_parser("live-sessions", help="print the id of every live session, one per line")
     args = parser.parse_args(argv)
 
     if args.command == "smoke-student":
         return _smoke_main(args.disable)
+    if args.command == "live-sessions":
+        return _live_main()
     dsn = db.database_url_from_env()
     if dsn is None:
         print("LF_DATABASE_URL is not set", file=sys.stderr)
@@ -132,6 +146,21 @@ def main(argv: list[str] | None = None) -> int:
         print(f"admin {args.username!r} already exists (use --reset to change the password)")
     else:
         print(f"admin {args.username!r}: {result}")
+    return 0
+
+
+def _live_main() -> int:
+    dsn = db.database_url_from_env()
+    if dsn is None:
+        print("LF_DATABASE_URL is not set", file=sys.stderr)
+        return 1
+    try:
+        ids = asyncio.run(live_sessions(dsn))
+    except Exception as exc:  # never print the message: it can contain the DSN
+        print(f"database error ({type(exc).__name__})", file=sys.stderr)
+        return 1
+    for sid in ids:
+        print(sid)
     return 0
 
 
