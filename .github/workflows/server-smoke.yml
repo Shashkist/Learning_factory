@@ -200,6 +200,44 @@ jobs:
             fi
           done
           exit "$rc"
+      - name: Check the lab firewall rule and leftover lab containers
+        if: env.CHECK == 'terminal'
+        run: |
+          # Read-only on the server (D182, D184): one firewall check, the lab container list and the
+          # manager's live session ids. Only container names are printed.
+          set -o pipefail
+          lab_names() { ssh -F "$RUNNER_TEMP/ssh_config" smoke "docker ps -a --filter name=lab- --format '{{.Names}}'"; }
+          if ! ssh -F "$RUNNER_TEMP/ssh_config" smoke "iptables -C DOCKER-USER -i br-lf-labs ! -s 172.31.240.2 -m comment --comment lf-labs -j DROP"; then
+            echo "the DOCKER-USER drop rule for the lf-labs bridge is missing" >&2
+            exit 1
+          fi
+          nl=$'\n'
+          live1=$(ssh -F "$RUNNER_TEMP/ssh_config" smoke "docker exec lf-manager python -m app.cli live-sessions")
+          listed1=$(lab_names)
+          live2=$(ssh -F "$RUNNER_TEMP/ssh_config" smoke "docker exec lf-manager python -m app.cli live-sessions")
+          live="$nl$live1$nl$live2$nl"
+          candidates=""
+          for name in $listed1; do
+            case "$name" in lab-*) ;; *) continue ;; esac
+            case "$live" in *"$nl${name#lab-}$nl"*) ;; *) candidates="$candidates $name" ;; esac
+          done
+          if [ -z "$candidates" ]; then
+            echo "no leftover lab containers"
+            exit 0
+          fi
+          # A start or an end can be in flight: look again after a wait.
+          sleep 30
+          listed2=$(lab_names)
+          live3=$(ssh -F "$RUNNER_TEMP/ssh_config" smoke "docker exec lf-manager python -m app.cli live-sessions")
+          live="$live$live3$nl"
+          rc=0
+          for name in $candidates; do
+            case "$nl$listed2$nl" in *"$nl$name$nl"*) ;; *) continue ;; esac
+            case "$live" in *"$nl${name#lab-}$nl"*) continue ;; esac
+            echo "leftover lab container: $name" >&2
+            rc=1
+          done
+          exit "$rc"
       - name: Disable the smoke student
         if: always() && env.CHECK == 'terminal'
         run: |
