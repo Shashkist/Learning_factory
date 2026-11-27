@@ -1892,3 +1892,11 @@ in force · factory · 2026-11-27
 **Why.** The `server-lab-host` concurrency group keeps one pending run, so a Deploy queued behind a smoke or bootstrap run can be replaced and cancelled; nothing deploys main's head then until the next push. A re-dispatch fixes it without the owner; the event guard and the started-job guard make it loop-free and leave deliberate cancels alone. A job in incident.yml keeps the watched-workflow list (#229) and its incident path.
 **Alternatives.** An incident only (the owner re-runs by hand); a separate workflow file (a seventh watched workflow, loosens #229); `cancel-in-progress` changes on the shared group (would cancel smoke and bootstrap runs instead).
 **Revert.** Delete the job and the script; cancelled Deploys go back to being silent.
+
+## D190 · Stale check runs on a PR head after a close and reopen: refresh with an empty commit, verified at the new head
+in force · factory · 2026-11-27
+
+**Decision.** When a PR's checks must run again on a newer merge base (here: #669 and #672 failed `dashboard` only because main's O29 kit diff had gone stale after #671, fixed on main in 66d8d22), the factory closes and reopens the PR to get a fresh merge ref. The cancelled and failed runs of the earlier attempt stay attached to the same head and `scripts/merge_gate.py` (fail-closed, every check in the rollup) keeps holding on them, while a plain re-run reuses the old merge commit. So the factory pushes one empty commit (`chore(ci): re-run the checks ...`) to get a fresh head; a fresh reviewer verifies that the commit is empty, and its verdict is posted at the new head (the round number does not grow). Follow-up issue: the gate judges only the latest check run per name and workflow.
+**Why.** The gate must stay fail-closed; an empty commit changes nothing under review and costs one CI run.
+**Alternatives.** Merge on HOLD (never); GitHub's "Update branch" (refused by exam-integrity, D174); change the gate first (a separate issue with its own exam).
+**Revert.** Once the gate takes the latest check run per name, the empty commit is no longer needed.
