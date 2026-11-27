@@ -3,7 +3,10 @@
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
 ## Now
-**Pass lf-t3m7 (laptop, from 22:27 UTC 2026-11-27) in flight.** Claims: **#704** (`f/704-deploy-watch-pending-2`, `C:\projects\lf-704-2`, re-sequence under D189 a4: 888f700 cherry-picked as 75d0ba6, amendment 4 exam next), **#716** (`f/716-bash1-check-fixes`, `C:\projects\lf-716`, exam), **#676** (`f/676-linux-2-lab`, `C:\projects\lf-676`, exam).
+**Pass lf-t3m7 (laptop, from 22:27 UTC 2026-11-27) in flight.**
+- **#704 closed**: #719 (re-sequenced from #717 under D189 a4) merged (ff69cda) on round 2 APPROVE at 138172e; main CI 46081611565, Deploy 46084110224 green with smoke. Nits -> **#722** (p3).
+- **#716** PR **#720** (`f/716-bash1-check-fixes`, `C:\projects\lf-716`): round 1 CHANGES at 71db242 (checklist did not name the shebang; probe accepted a broken one), fix 5ee1094; round 2 (the last) review and CI running.
+- **#676** PR **#721** (`f/676-linux-2-lab`, `C:\projects\lf-676`): lab linux-2, CI green (all 87 docker cases under gVisor); round 1 review running.
 
 **Pass lf-k9v2 (laptop, 20:57-22:20 UTC 2026-11-27) stopped at 3 merges (#713, #714, #712).** No claims held; the next pass claims afresh.
 - **#670 closed**: #713 merged (6149568) on round 2 APPROVE at c642297; bootstrap push dry run 46068514662 `step runtime: already in place`; Deploy 46071274030 green with smoke. Nits -> **#715** (p3).
