@@ -4,7 +4,7 @@
 
 ## Now
 **Pass lf-h2k9 (laptop, from 23:26 UTC 2026-11-26) in flight.** Merged #654 (185fb86). factory#7 un-parked (O29 applied): plugin pass 2 of 3 counted on the issue.
-- **#651** PR 2 is **#661** (`f/651-runsc-suid-2`, worktree `C:\projects\lf-651`): exam 69973c5, exam fix 19a0ebe (D181 amendment 1), bootstrap fea946f (main's `ci.yml` kept). CI running. After merge: bootstrap **apply** (reload only), `docker info` lists `runsc-suid`. Then #652.
+- **#651** PR 2 is **#662** (`f/651-runsc-suid-3`, worktree `C:\projects\lf-651`; replaced #661 under D185): exam 6e145e8, D181 am. 1 fix c394287, #50 fixture fix c609386 (D185), bootstrap 21798b6. #654 shipped (main CI 45911365028, Deploy 45913478498 smoke green). After #662 merges: bootstrap **apply** (reload only), `docker info` lists `runsc-suid`. Then #652.
 - **#655** (D184) claimed, worktree `C:\projects\lf-655`, branch `f/655-smoke-firewall-check`: exam being written.
 - **factory#120** (factory D43) claimed, worktree `C:\projectsactory-120`, branch `f/120-exam-commit`: exam being written; ships judge first (PR A, Part of), exam second (D27).
 - **factory#117**: code shipped (#121, 494826e); open as `status:needs-owner` until LF **O30** (progress hooks `"async": true`, factory D42) and a factory-tools pin move to a tag that includes 494826e. Follow-up factory#122.
