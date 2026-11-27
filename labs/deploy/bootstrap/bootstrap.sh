@@ -410,6 +410,13 @@ runsc_matches_live() {
   jq -e --argjson l "$live" '.runtimes.runsc as $f | $f != null and ($f.path == $l.runsc.path) and (($f.runtimeArgs // []) == ($l.runsc.runtimeArgs // []))' "$DAEMON_JSON" >/dev/null 2>&1
 }
 
+# The runsc-suid entry in the file is the loaded one (path and runtimeArgs, as `docker info` shows them).
+suid_matches_live() {
+  local live
+  live="$(runtimes_json)"
+  jq -e --argjson l "$live" '.runtimes["runsc-suid"] as $f | $f != null and ($f.path == $l["runsc-suid"].path) and (($f.runtimeArgs // []) == ($l["runsc-suid"].runtimeArgs // []))' "$DAEMON_JSON" >/dev/null 2>&1
+}
+
 # For the report: what a docker reload would apply from the file besides runsc.
 report_reload_extras() {
   local extras
@@ -493,8 +500,8 @@ apply_runtime() {
       err "Nothing was changed. Check the file, run 'systemctl reload docker' yourself if it is right, then re-run."
       return 1
     fi
-  elif suid_in_file; then
-    # Fresh path: a runsc-suid already in the file would go live with the reload.
+  elif suid_in_file && ! suid_matches_live; then
+    # Fresh path: a runsc-suid in the file that is not live as written would go live with the reload.
     err "$DAEMON_JSON has a $SUID_RT entry but no runsc: the reload would make that entry live. Nothing was changed. Remove it or add runsc by hand, then re-run."
     return 1
   fi
