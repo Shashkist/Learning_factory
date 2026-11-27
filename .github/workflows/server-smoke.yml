@@ -6,6 +6,8 @@ name: Server smoke
 # check=terminal opens a real terminal through https://labs.shashkist.com as a synthetic smoke
 # student (issue #86, D36). It runs by hand, nightly, and as a job of every Deploy run that really
 # deployed (workflow_call from deploy.yml, issue #90, D38).
+# The nightly run (and a manual run with soak=true) also runs the soak after the terminal check:
+# 30 sessions in a row with forced ends, then no leftovers and no memory or disk loss (#656, D188).
 # The class password of the smoke student is generated per run and never stored.
 
 on:
@@ -16,6 +18,10 @@ on:
         type: choice
         options: [isolation, terminal]
         default: isolation
+      soak:
+        description: "Also run the soak (30 sessions, forced ends) after the terminal check"
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       from_deploy:
@@ -75,10 +81,13 @@ jobs:
       cancel-in-progress: false
     runs-on: ubuntu-latest
     environment: production
-    timeout-minutes: 15
+    timeout-minutes: 40
     env:
       # events without inputs (workflow_call, schedule) run the terminal check
       CHECK: ${{ inputs.check || 'terminal' }}
+      # the soak rides the terminal check: on the nightly run and on a manual run that asks for it;
+      # a called run (Deploy) never soaks
+      SOAK: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.soak == true) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Outside code (setup-python, pip) runs before the server key exists on the runner.
@@ -89,6 +98,9 @@ jobs:
       - name: Install the client dependency (hash-pinned)
         if: env.CHECK == 'terminal'
         run: python -m pip install --quiet --require-hashes --only-binary=":all:" -r labs/deploy/smoke/requirements.txt
+      - name: The soak needs the terminal check
+        if: env.SOAK == 'true' && env.CHECK != 'terminal'
+        run: echo "soak needs check=terminal" >&2; exit 1
       - name: Configure SSH to the server
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -174,6 +186,19 @@ jobs:
             fi
             tasks_sid=$(sed -n 's/^ok start \([0-9a-f-]*\)$/\1/p' "$RUNNER_TEMP/tasks.out" | head -n 1)
             echo "tasks_sid=$tasks_sid" >> "$GITHUB_OUTPUT"
+          fi
+          if [ "$st" = 0 ] && [ "$SOAK" = true ]; then
+            # Same student, same env; reads the server only (free, df, docker ps, the manager's
+            # read-only commands) over the same ssh config and acts through the public URL.
+            SSH_CONFIG="$RUNNER_TEMP/ssh_config"
+            export SSH_CONFIG
+            set +e
+            timeout -k 10 1500 python labs/deploy/smoke/soak.py
+            st=$?
+            set -e
+            if [ "$st" = 124 ] || [ "$st" = 137 ]; then
+              echo "soak cut off after 1500 s" >&2
+            fi
           fi
           exit "$st"
       - name: Check that the lab container is gone
