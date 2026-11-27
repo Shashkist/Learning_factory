@@ -14,7 +14,7 @@ on:
       check:
         description: "Which smoke to run"
         type: choice
-        options: [isolation, terminal]
+        options: [isolation, terminal, soak]
         default: isolation
   workflow_call:
     inputs:
@@ -34,6 +34,7 @@ on:
         required: true
   schedule:
     - cron: "30 3 * * *"
+    - cron: "0 4 * * *"
 
 permissions:
   contents: read
@@ -75,19 +76,20 @@ jobs:
       cancel-in-progress: false
     runs-on: ubuntu-latest
     environment: production
-    timeout-minutes: 15
+    timeout-minutes: 25
     env:
-      # events without inputs (workflow_call, schedule) run the terminal check
-      CHECK: ${{ inputs.check || 'terminal' }}
+      # the 04:00 cron runs the soak (#656); other events without inputs (workflow_call, the 03:30
+      # cron) run the terminal check
+      CHECK: ${{ inputs.check || (github.event.schedule == '0 4 * * *' && 'soak') || 'terminal' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Outside code (setup-python, pip) runs before the server key exists on the runner.
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        if: env.CHECK == 'terminal'
+        if: env.CHECK == 'terminal' || env.CHECK == 'soak'
         with:
           python-version: "3.12"
       - name: Install the client dependency (hash-pinned)
-        if: env.CHECK == 'terminal'
+        if: env.CHECK == 'terminal' || env.CHECK == 'soak'
         run: python -m pip install --quiet --require-hashes --only-binary=":all:" -r labs/deploy/smoke/requirements.txt
       - name: Configure SSH to the server
         env:
@@ -124,7 +126,7 @@ jobs:
             sleep 20
           done
       - name: Run the smoke on the server
-        if: env.CHECK != 'terminal'
+        if: env.CHECK != 'terminal' && env.CHECK != 'soak'
         run: |
           case "$CHECK" in isolation) script=labs/deploy/smoke/isolation.sh ;; *) echo "unknown check" >&2; exit 1 ;; esac
           cfg="$RUNNER_TEMP/ssh_config"
@@ -176,6 +178,19 @@ jobs:
             echo "tasks_sid=$tasks_sid" >> "$GITHUB_OUTPUT"
           fi
           exit "$st"
+      - name: Run the nightly soak as the smoke student
+        if: env.CHECK == 'soak'
+        run: |
+          # Same smoke student as the terminal check; the soak only reads the server (free, df,
+          # docker ps, the manager's read-only commands) and acts through the public URL.
+          class_pw=$(openssl rand -hex 24)
+          echo "::add-mask::$class_pw"
+          ssh -F "$RUNNER_TEMP/ssh_config" smoke "docker exec -i lf-manager python -m app.cli smoke-student" <<< "$class_pw"
+          SMOKE_ID=990000000000000000000000000001
+          SMOKE_PASSWORD="$class_pw"
+          SSH_CONFIG="$RUNNER_TEMP/ssh_config"
+          export SMOKE_ID SMOKE_PASSWORD SSH_CONFIG
+          timeout -k 10 1200 python labs/deploy/smoke/soak.py
       - name: Check that the lab container is gone
         if: always() && env.CHECK == 'terminal' && (steps.client.outputs.sid != '' || steps.client.outputs.tasks_sid != '')
         env:
@@ -239,7 +254,7 @@ jobs:
           done
           exit "$rc"
       - name: Disable the smoke student
-        if: always() && env.CHECK == 'terminal'
+        if: always() && (env.CHECK == 'terminal' || env.CHECK == 'soak')
         run: |
           if [ ! -f "$RUNNER_TEMP/ssh_config" ]; then
             echo "ssh was never configured; nothing to disable"
