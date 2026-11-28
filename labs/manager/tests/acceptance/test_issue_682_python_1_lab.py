@@ -609,7 +609,7 @@ def test_a_missing_script_and_a_broken_script_fail_with_hints(machine, task_id, 
 def test_the_check_runs_the_script_and_never_as_root(machine, task_id, script):
     _setup(machine, task_id)
     _solve(machine, task_id)
-    probe = "import os; open('/tmp/who-ran-682', 'a').write(str(os.getuid()) + chr(10))"
+    probe = 'import os; open("/tmp/who-ran-682", "a").write(str(os.getuid()) + chr(10))'
     r = _student(machine, f"rm -f /tmp/who-ran-682; sed -i '1i {probe}' ~/{script}")
     assert r.returncode == 0
     _assert_passing(machine, task_id, "the solution with an id probe")
