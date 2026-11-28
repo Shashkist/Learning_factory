@@ -2043,3 +2043,12 @@ Decides: #726 round 3
 **Why.** The fixes are small and mechanical; a fourth implementer round would add nothing a fresh reviewer did not already check.
 **Alternatives.** Split the round-2 findings into a follow-up and merge dec488c (ships a hint forgery the round-1 fix introduced).
 **Revert.** Revert 30d35ba (returns to dec488c with its round-2 findings).
+
+## D204 · #727 ships in two PRs: the CI change first (#732), then its exam
+in force · factory · 2026-11-28 · revertible
+
+**Context.** PR #730 carried the #727 exam (c3d4cef) and the code (`ci.yml`, `scripts/ci/docker_shard.py`, `scripts/ci/docker_shards_gate.py`) together; exam integrity refused it: "PR changes the exam together with the CI surface" (run 46104520761). Same rule as D181 (#651).
+**Decision.** PR 1, **#732** (`f/727-split-docker-ci`, `Part of #727`), carries only the code commit (d602d5b plus the removal of an unused `noqa` that failed `tooling`), as afe3bfc. After it merges, PR 2 carries the unchanged exam commit c3d4cef on a branch from the new main, with `Closes #727`. #730 is closed in favour of #732. The exam passed against this code locally (61 passed).
+**Why.** The base-copy exam-integrity check cannot let a PR change both the exam and the CI that judges it.
+**Alternatives.** None that keep exam integrity.
+**Revert.** Revert #732 (restores the single docker job).
