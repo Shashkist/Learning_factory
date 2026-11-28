@@ -67,10 +67,10 @@ tasks:
   checklist:
   - en: The script ~/leap.py exists
     he: הסקריפט ‎~/leap.py‎ קיים
-  - en: 'It handles ordinary years: every fourth year is a leap year'
-    he: 'הוא מטפל בשנים רגילות: כל שנה רביעית היא שנה מעוברת'
-  - en: 'It handles centuries: 1900 is not a leap year, 2000 is'
-    he: 'הוא מטפל בראשי מאות: ‎1900‎ אינה שנה מעוברת, ‎2000‎ כן'
+  - en: 'It handles years that are not centuries: every fourth year is a leap year'
+    he: 'הוא מטפל בשנים שאינן סוף מאה: כל שנה רביעית היא שנה מעוברת'
+  - en: 'It handles years divisible by 100: 1900 is not a leap year, 2000 is'
+    he: 'הוא מטפל בשנים שמתחלקות ב-100: ‎1900‎ אינה שנה מעוברת, ‎2000‎ כן'
   - en: It finishes with exit code 0
     he: הוא מסתיים בקוד יציאה ‎0‎
 - id: 06-plus-quiz

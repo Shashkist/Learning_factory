@@ -1,8 +1,9 @@
 #!/bin/sh
 # Task 03-even: ~/even.py prints even or odd for a whole number.
-# The student's script runs only as student (never as root), through python3, on values that are
-# in no task text, with no stdin and a 4 s limit per run; the first run that hangs ends the
-# runs. Nothing is written in the student's home. The student side prints facts, root decides
+# The student's script runs only as student (never as root), through python3, on several values
+# (some are the examples in the task text, others are not), with no stdin and a 4 s limit per run;
+# the first run that hangs ends the runs, and after 12 s no new run starts (the manager stops a
+# check at 20 s, so a slow but correct script gets a hint, not a timeout). Nothing is written in the student's home. The student side prints facts, root decides
 # (D52, D191).
 facts=$(su student -s /bin/sh -c '/bin/sh -s' <<'READER'
 cd /home/student || exit 0
@@ -10,9 +11,11 @@ d=$(mktemp -d) || exit 0
 trap 'rm -rf "$d"' EXIT
 S=/home/student/even.py
 dead=0
+t0=$(date +%s)
 run() {
   k=$1; shift
   if [ "$dead" = 1 ]; then printf 'X %s 124 \n' "$k"; return; fi
+  if [ $(( $(date +%s) - t0 )) -ge 12 ]; then printf 'X %s 125 \n' "$k"; return; fi
   timeout -k 1 4 python3 -B "$S" "$@" </dev/null >"$d/o" 2>/dev/null
   rc=$?
   case $rc in 124|137) dead=1;; esac
@@ -39,13 +42,21 @@ x() {
   r=${g%% *}; o=${g#* }
   [ -n "$g" ] || { r=-; o=; }
 }
+# shown: what the script printed, as one short safe line
+shown() {
+  w=$(printf '%s' "$o" | tr -c '[:print:]' '?' | sed 's/|$//; s/|/ \/ /g; s/^ *//; s/ *$//' | cut -c1-40)
+  [ -n "$w" ] || w=nothing
+  printf '%s' "$w"
+}
+slow() { printf '%s' "the check ran out of time before it could try $1: the script is too slow, each run should take well under a second"; }
 # grp ITEM TIP ARGS1 WANT1 ARGS2 WANT2 ...: every run must print exactly its answer
 grp() {
   item=$1; tip=$2; shift 2
   bad=
   while [ $# -ge 2 ]; do
     x "$(printf '%s' "$1" | tr ' ' _)"
-    if [ "$o" != "$2|" ]; then bad="python3 ~/even.py $1 should print $2"; break; fi
+    if [ "$r" = 125 ]; then bad=$(slow "python3 ~/even.py $1"); tip="make it finish quickly"; break; fi
+    if [ "$o" != "$2|" ]; then bad="python3 ~/even.py $1 should print $2, it printed $(shown)"; break; fi
     shift 2
   done
   if [ -n "$bad" ]; then fail "$item" "$bad; $tip"; else pass "$item"; fi
@@ -56,6 +67,7 @@ codes() {
   bad=
   for a in "$@"; do
     x "$(printf '%s' "$a" | tr ' ' _)"
+    if [ "$r" = 125 ]; then bad=$(slow "python3 ~/even.py $a"); tip="make it finish quickly"; break; fi
     if [ "$r" != 0 ]; then bad="python3 ~/even.py $a did not finish cleanly (exit code $r)"; break; fi
   done
   if [ -n "$bad" ]; then fail "$item" "$bad; $tip"; else pass "$item"; fi
