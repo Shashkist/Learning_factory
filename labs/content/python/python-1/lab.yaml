@@ -1,0 +1,101 @@
+id: python-1
+title:
+  en: 'Python 1: variables, types and conditions'
+  he: 'Python 1: משתנים, טיפוסים ותנאים'
+description:
+  en: Write your first Python scripts. See the difference between a string and a number, use if and else, the remainder, rounding and decimals, combine conditions, and meet the classic trap of command-line arguments that arrive as strings.
+  he: כותבים סקריפטים ראשונים ב-Python. רואים את ההבדל בין string למספר, משתמשים ב-if וב-else, בשארית, בעיגול ובמספרים עשרוניים, משלבים תנאים, ופוגשים את המלכודת הקלאסית של ארגומנטים משורת הפקודה שמגיעים כ-string.
+image: term
+time_limit_min: 45
+internet: false
+allow_domains: []
+sudo: false
+status: published
+module: 2
+lesson: 15
+tasks:
+- id: 01-type-quiz
+  kind: quiz
+  question:
+    en: In Python, what do type("5") and type(5) tell you?
+    he: ב-Python, מה ‎type("5")‎ ו-‎type(5)‎ אומרים לנו?
+  options:
+  - en: type("5") is int and type(5) is str
+    he: ‎type("5")‎ הוא int ו-‎type(5)‎ הוא str
+  - en: type("5") is str and type(5) is int
+    he: ‎type("5")‎ הוא str ו-‎type(5)‎ הוא int
+  - en: Both are int, the quotes make no difference
+    he: שניהם int, המרכאות לא משנות כלום
+  - en: Both are float
+    he: שניהם float
+  correct: 1
+- id: 02-grade
+  kind: hands-on
+  checklist:
+  - en: The script ~/grade.py exists
+    he: הסקריפט ‎~/grade.py‎ קיים
+  - en: It prints pass for a grade of 60 or more, 60 included
+    he: הוא מדפיס ‎pass‎ לציון ‎60‎ ומעלה, כולל ‎60‎
+  - en: It prints fail for a grade below 60
+    he: הוא מדפיס ‎fail‎ לציון מתחת ל-‎60‎
+  - en: It finishes with exit code 0
+    he: הוא מסתיים בקוד יציאה ‎0‎
+- id: 03-even
+  kind: hands-on
+  checklist:
+  - en: The script ~/even.py exists
+    he: הסקריפט ‎~/even.py‎ קיים
+  - en: It prints even for even numbers, 0 and negative numbers too
+    he: הוא מדפיס ‎even‎ למספרים זוגיים, גם ל-‎0‎ ולמספרים שליליים
+  - en: It prints odd for odd numbers, negative ones too
+    he: הוא מדפיס ‎odd‎ למספרים אי-זוגיים, גם לשליליים
+  - en: It finishes with exit code 0
+    he: הוא מסתיים בקוד יציאה ‎0‎
+- id: 04-temp
+  kind: hands-on
+  checklist:
+  - en: The script ~/temp.py exists
+    he: הסקריפט ‎~/temp.py‎ קיים
+  - en: It converts whole Celsius values, with one decimal place (0 gives 32.0)
+    he: הוא ממיר ערכי ‎Celsius‎ שלמים, עם ספרה עשרונית אחת (‎0‎ נותן ‎32.0‎)
+  - en: It also converts Celsius values with a decimal point, rounded to one decimal place
+    he: הוא ממיר גם ערכי ‎Celsius‎ עם נקודה עשרונית, מעוגל לספרה עשרונית אחת
+  - en: It finishes with exit code 0
+    he: הוא מסתיים בקוד יציאה ‎0‎
+- id: 05-leap
+  kind: hands-on
+  checklist:
+  - en: The script ~/leap.py exists
+    he: הסקריפט ‎~/leap.py‎ קיים
+  - en: 'It handles years that are not centuries: every fourth year is a leap year'
+    he: 'הוא מטפל בשנים שאינן סוף מאה: כל שנה רביעית היא שנה מעוברת'
+  - en: 'It handles years divisible by 100: 1900 is not a leap year, 2000 is'
+    he: 'הוא מטפל בשנים שמתחלקות ב-100: ‎1900‎ אינה שנה מעוברת, ‎2000‎ כן'
+  - en: It finishes with exit code 0
+    he: הוא מסתיים בקוד יציאה ‎0‎
+- id: 06-plus-quiz
+  kind: quiz
+  question:
+    en: What happens when Python runs "5" + 5 ?
+    he: מה קורה כש-Python מריץ ‎"5" + 5‎ ?
+  options:
+  - en: It prints 10
+    he: הוא מדפיס 10
+  - en: It prints 55
+    he: הוא מדפיס 55
+  - en: It raises a TypeError, because a string and a number cannot be added
+    he: הוא זורק TypeError, כי אי אפשר לחבר string ומספר
+  - en: It prints "5 + 5" as text
+    he: הוא מדפיס "5 + 5" כטקסט
+  correct: 2
+- id: 07-input-trap
+  kind: hands-on
+  checklist:
+  - en: The script ~/add.py exists
+    he: הסקריפט ‎~/add.py‎ קיים
+  - en: It prints the sum of two positive whole numbers (3 and 4 give 7)
+    he: הוא מדפיס את הסכום של שני מספרים שלמים חיוביים (‎3‎ ו-‎4‎ נותנים ‎7‎)
+  - en: It also works with zero and negative numbers
+    he: הוא עובד גם עם אפס ועם מספרים שליליים
+  - en: It finishes with exit code 0
+    he: הוא מסתיים בקוד יציאה ‎0‎
