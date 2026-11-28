@@ -5,7 +5,7 @@ Write a script `~/exists.sh` that takes a path and says whether something is the
 1. `~/exists.sh PATH` prints `found` when the path exists. A file and a folder both count.
 2. It prints `missing` when the path does not exist.
 3. It exits with code `0` in both cases.
-4. Make the script executable.
+4. Make the script executable, and start it with the line `#!/bin/bash`.
 
 Try it on `/etc/hostname`, on `/etc` and on a path that is not there, such as `/no/such/place`.
 

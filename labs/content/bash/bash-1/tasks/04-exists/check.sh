@@ -20,6 +20,20 @@ run() {
 if [ -f "$S" ] && [ -x "$S" ]; then echo "S ok"
 elif [ -f "$S" ]; then echo "S noexec"
 else echo "S missing"; fi
+hok=0
+if [ -f "$S" ]; then
+  cr=$(printf '\r')
+  first=$(timeout 2 head -c 300 "$S" 2>/dev/null | head -n 1)
+  case $first in
+    *"$cr"*) ;;
+    '#!'*)
+      set -f
+      set -- ${first#??}
+      set +f
+      if [ -n "$1" ] && [ -f "$1" ] && [ -x "$1" ]; then hok=1; fi;;
+  esac
+fi
+if [ "$hok" = 1 ]; then echo "H ok"; else echo "H no"; fi
 if [ -f "$S" ] && [ -x "$S" ]; then
   mkdir "$d/archive"
   : > "$d/report.txt"
@@ -40,8 +54,11 @@ x() {
 late() { case $1 in 124|137) return 0;; esac; return 1; }
 
 st=$(printf '%s\n' "$facts" | sed -n 's/^S //p' | head -n 1)
+hs=$(printf '%s\n' "$facts" | sed -n 's/^H //p' | head -n 1)
 case $st in
-  ok) pass 1;;
+  ok)
+    if [ "$hs" = ok ]; then pass 1
+    else fail 1 "the first line of ~/exists.sh must be #!/bin/bash, so the system knows which shell runs the script; add it at the top with nano ~/exists.sh"; fi;;
   noexec) fail 1 "~/exists.sh is not executable; make it executable with chmod +x ~/exists.sh";;
   *) fail 1 "the file ~/exists.sh does not exist; create it with nano ~/exists.sh";;
 esac

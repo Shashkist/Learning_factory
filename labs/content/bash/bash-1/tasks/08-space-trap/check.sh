@@ -2,7 +2,8 @@
 # Task 08: ~/firstline.sh prints the first line of a file, also when the name has a space.
 # The student's script runs only as student, on two files made by the reader in a private
 # temporary folder (nothing is left behind, the files of the task are not touched), with no
-# stdin and a 3 s limit. The student side prints facts, root decides (D52, D191).
+# stdin and a 3 s limit. The student side prints facts, root decides (D52, D191). The exit code
+# is not judged, as in task 06: the task never asks for one.
 facts=$(su student -s /bin/sh -c '/bin/sh -s' <<'READER'
 cd /home/student || exit 0
 d=$(mktemp -d) || exit 0
@@ -20,6 +21,20 @@ run() {
 if [ -f "$S" ] && [ -x "$S" ]; then echo "S ok"
 elif [ -f "$S" ]; then echo "S noexec"
 else echo "S missing"; fi
+hok=0
+if [ -f "$S" ]; then
+  cr=$(printf '\r')
+  first=$(timeout 2 head -c 300 "$S" 2>/dev/null | head -n 1)
+  case $first in
+    *"$cr"*) ;;
+    '#!'*)
+      set -f
+      set -- ${first#??}
+      set +f
+      if [ -n "$1" ] && [ -f "$1" ] && [ -x "$1" ]; then hok=1; fi;;
+  esac
+fi
+if [ "$hok" = 1 ]; then echo "H ok"; else echo "H no"; fi
 if [ -f "$S" ] && [ -x "$S" ]; then
   printf 'plain first line\nsecond\nthird\n' > "$d/plain.txt"
   printf 'Quarterly plan draft\nsecond line\nthird line\n' > "$d/plan for may.txt"
@@ -39,8 +54,11 @@ x() {
 late() { case $1 in 124|137) return 0;; esac; return 1; }
 
 st=$(printf '%s\n' "$facts" | sed -n 's/^S //p' | head -n 1)
+hs=$(printf '%s\n' "$facts" | sed -n 's/^H //p' | head -n 1)
 case $st in
-  ok) pass 1;;
+  ok)
+    if [ "$hs" = ok ]; then pass 1
+    else fail 1 "the first line of ~/firstline.sh must be #!/bin/bash, so the system knows which shell runs the script; add it at the top with nano ~/firstline.sh"; fi;;
   noexec) fail 1 "~/firstline.sh is not executable; make it executable with chmod +x ~/firstline.sh";;
   *) fail 1 "the file ~/firstline.sh does not exist; create it with nano ~/firstline.sh";;
 esac
@@ -56,12 +74,12 @@ if late "$ra" || late "$rb"; then
   fail 3 "~/firstline.sh ran for more than 3 seconds; it should print one line and stop, not wait for input"
   exit 1
 fi
-if [ "$ra" = 0 ] && [ "$oa" = "plain first line|" ]; then
+if [ "$oa" = "plain first line|" ]; then
   pass 2
 else
   fail 2 "~/firstline.sh must print the first line of the file it is given, and nothing else; the file is the first argument"
 fi
-if [ "$rb" = 0 ] && [ "$ob" = "Quarterly plan draft|" ]; then
+if [ "$ob" = "Quarterly plan draft|" ]; then
   pass 3
 else
   fail 3 "it fails when the file name has a space in it: an unquoted variable is split at the spaces into separate words; put quotes around it"

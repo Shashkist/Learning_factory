@@ -24,7 +24,7 @@ run() {
 }
 # list tag: whether the archive is a gzip tar, and its first 300 names
 list() {
-  if [ -f "$A" ] && tar tzf "$A" >"$d/l" 2>/dev/null </dev/null; then
+  if [ -f "$A" ] && tar --quoting-style=literal -tzf "$A" >"$d/l" 2>/dev/null </dev/null; then
     echo "T $1 1"
     head -n 300 "$d/l" | sed "s/^/E $1 /"
   else
@@ -34,6 +34,20 @@ list() {
 if [ -f "$S" ] && [ -x "$S" ]; then echo "S ok"
 elif [ -f "$S" ]; then echo "S noexec"
 else echo "S missing"; fi
+hok=0
+if [ -f "$S" ]; then
+  cr=$(printf '\r')
+  first=$(timeout 2 head -c 300 "$S" 2>/dev/null | head -n 1)
+  case $first in
+    *"$cr"*) ;;
+    '#!'*)
+      set -f
+      set -- ${first#??}
+      set +f
+      if [ -n "$1" ] && [ -f "$1" ] && [ -x "$1" ]; then hok=1; fi;;
+  esac
+fi
+if [ "$hok" = 1 ]; then echo "H ok"; else echo "H no"; fi
 if [ -f "$S" ] && [ -x "$S" ]; then
   if [ -d notes ]; then
     rm -f "$A"
@@ -64,8 +78,11 @@ late() { case $1 in 124|137) return 0;; esac; return 1; }
 tag() { printf '%s\n' "$facts" | sed -n "s/^$1 //p"; }
 
 st=$(printf '%s\n' "$facts" | sed -n 's/^S //p' | head -n 1)
+hs=$(printf '%s\n' "$facts" | sed -n 's/^H //p' | head -n 1)
 case $st in
-  ok) pass 1;;
+  ok)
+    if [ "$hs" = ok ]; then pass 1
+    else fail 1 "the first line of ~/backup.sh must be #!/bin/bash, so the system knows which shell runs the script; add it at the top with nano ~/backup.sh"; fi;;
   noexec) fail 1 "~/backup.sh is not executable; make it executable with chmod +x ~/backup.sh";;
   *) fail 1 "the file ~/backup.sh does not exist; create it with nano ~/backup.sh";;
 esac
@@ -99,7 +116,7 @@ fi
 if [ "$(tag 'T 1')" = 1 ] && [ -s "$tmp/e1" ] && [ "$(grep -cvE '^notes(/|$)' "$tmp/e1")" -eq 0 ]; then
   pass 3
 else
-  fail 3 "the names inside the archive must start with notes/; look at them with tar tzf ~/backup.tar.gz, and use tar -C ~ to cut the path"
+  fail 3 "the names inside the archive must start with notes/; look at them with tar --quoting-style=literal -tzf ~/backup.tar.gz, and use tar -C ~ to cut the path"
 fi
 if [ "$(tag 'T 1')" = 1 ] && [ -s "$tmp/n1" ] && [ "$(grep -cvxF -f "$tmp/e1" "$tmp/n1")" -eq 0 ]; then
   pass 4

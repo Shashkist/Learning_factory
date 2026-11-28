@@ -4,7 +4,7 @@ Good scripts tell you how to use them. Write `~/usage.sh`:
 
 1. With no argument it prints the line `Usage: usage.sh NAME` on standard output, and exits with code `1`.
 2. With one argument it exits with code `0`.
-3. Make the script executable.
+3. Make the script executable, and start it with the line `#!/bin/bash`.
 
 After you run it, `echo $?` shows the exit code of the script.
 
