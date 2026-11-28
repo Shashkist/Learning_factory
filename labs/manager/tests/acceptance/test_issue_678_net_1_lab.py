@@ -423,9 +423,9 @@ HOME = "/home/student"
 SITE = f"{HOME}/site"
 
 _LISTENERS = r"""
-import os, sys
+import sys
 port = int(sys.argv[1])
-inodes = {}
+out = []
 for f in ("/proc/net/tcp", "/proc/net/tcp6"):
     try:
         lines = open(f).read().splitlines()[1:]
@@ -435,33 +435,38 @@ for f in ("/proc/net/tcp", "/proc/net/tcp6"):
         p = line.split()
         addr, prt = p[1].rsplit(":", 1)
         if p[3] == "0A" and int(prt, 16) == port:
-            inodes[p[9]] = addr
-out = set()
-for pid in [d for d in os.listdir("/proc") if d.isdigit()]:
-    try:
-        for fd in os.listdir(f"/proc/{pid}/fd"):
-            t = os.readlink(f"/proc/{pid}/fd/{fd}")
-            if t.startswith("socket:[") and t[8:-1] in inodes:
-                out.add((inodes[t[8:-1]], os.stat(f"/proc/{pid}").st_uid))
-    except OSError:
-        pass
+            out.append((addr, int(p[7])))
 for a, u in sorted(out):
     print(a, u)
 """
 
+# Runs as `student` (root in a lab container has no CAP_KILL and cannot signal it).
 _KILL_SERVERS = r"""
-import os, signal
+import os, signal, time
 me = os.getpid()
-for pid in [d for d in os.listdir("/proc") if d.isdigit()]:
-    try:
-        cmd = open(f"/proc/{pid}/cmdline").read()
-    except OSError:
-        continue
-    if int(pid) != me and "http.server" in cmd and "python" in cmd:
+
+
+def servers():
+    found = []
+    for pid in [d for d in os.listdir("/proc") if d.isdigit()]:
         try:
-            os.kill(int(pid), signal.SIGKILL)
+            cmd = open(f"/proc/{pid}/cmdline").read()
+            state = open(f"/proc/{pid}/stat").read().rsplit(")", 1)[1].split()[0]
+        except OSError:
+            continue
+        if int(pid) != me and "http.server" in cmd and "python" in cmd and state != "Z":
+            found.append(int(pid))
+    return found
+
+
+deadline = time.time() + 8
+while servers() and time.time() < deadline:
+    for pid in servers():
+        try:
+            os.kill(pid, signal.SIGKILL)
         except OSError:
             pass
+    time.sleep(0.2)
 """
 
 
@@ -484,8 +489,8 @@ def _listeners(machine: str, port: int) -> list[tuple[str, int]]:
 
 
 def _stop_http_servers(machine: str):
-    _root_py(machine, _KILL_SERVERS)
-    time.sleep(0.5)
+    _docker("exec", "-u", "student", "-i", machine, "python3", "-", check=False, timeout=60, stdin=_KILL_SERVERS)
+    time.sleep(0.3)
 
 
 def _setup(machine: str, task_id: str):
@@ -923,7 +928,7 @@ def test_echo_setup_twice_keeps_one_service(machine):
     _setup(machine, "05-post-echo")
     _setup(machine, "05-post-echo")
     got = _listeners(machine, 9090)
-    assert got and len({a for a, _ in got}) == 1
+    assert len(got) == 1, f"exactly one listening socket expected on 9090: {got}"
     _assert_failing_with_hints(machine, "05-post-echo", "after setup ran twice")
 
 
