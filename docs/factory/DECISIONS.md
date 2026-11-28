@@ -2063,3 +2063,13 @@ in force · factory · 2026-11-28 · revertible
 **Why.** A lab check is a learning aid, not proof against a student who reads the setup; the server runs as the student (the exam forbids root), so a determined student can always read the token. Re-sequencing the PR for a should-fix costs a full exam round.
 **Alternatives.** Re-sequence to `f/679-net-2-lab-2` with an amended exam before the code (one more exam round now).
 **Revert.** Ship #734.
+
+## D206 · #726 merges on two gates that each hold on one reason the other clears
+in force · factory · 2026-11-28 · revertible
+Decides: #726 round 3
+
+**Context.** After #732 (sharded docker job) merged, #726 was closed and reopened; CI run 46109487649 on head 30d35ba is green everywhere, the `docker` gate included. Review round 3 APPROVE at 30d35ba (D203 decides round 3). LF's `scripts/merge_gate.py` prints only `HOLD: review round 3 is over the limit of 2` (it does not read `Decides:` lines). The factory main gate (`python -m factory_tools merge-gate ... --decisions docs/factory/DECISIONS.md`) accepts round 3 and prints only `HOLD: docker ended in failure`, reading the pre-split `docker` check of run 46104474237 (single job, 26-minute budget), which the later run 46109487649 superseded with success (LF's gate, which orders runs by id under D190 a1, does not hold on it).
+**Decision.** Merge #726 at 30d35ba: every hold is cleared by the other gate's evidence. The factory gate's stale-run reading is a factory follow-up.
+**Why.** Every required check is green on the latest run and the last review approved the exact head; a re-run cannot remove the old check run from the commit.
+**Alternatives.** A new PR with the same commits (fresh check history, but a fourth review round for an identical diff).
+**Revert.** Revert the squash commit of #726.
