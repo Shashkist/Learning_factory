@@ -63,30 +63,30 @@ tasks:
       en: A page request comes back with a number. Which list explains the codes 200, 301, 404 and 500 correctly?
       he: בקשה לדף חוזרת עם מספר. איזו רשימה מסבירה נכון את הקודים 200, 301, 404 ו-500?
     options:
+      - en: 200 means the page was not found, 301 means a server error, 404 means OK, 500 means the page moved to another place
+        he: "200 פירושו שהדף לא נמצא, 301 פירושו שגיאה בשרת, 404 פירושו OK, 500 פירושו שהדף עבר למקום אחר"
+      - en: 200 means a redirect, 301 means OK, 404 means the server broke, 500 means the page does not exist at all
+        he: "200 פירושו redirect, 301 פירושו OK, 404 פירושו שהשרת התקלקל, 500 פירושו שהדף לא קיים בכלל"
       - en: 200 means OK, 301 means the page moved (redirect), 404 means the page was not found, 500 means a server error
         he: "200 פירושו OK, 301 פירושו שהדף עבר למקום אחר (redirect), 404 פירושו שהדף לא נמצא, 500 פירושו שגיאה בשרת"
-      - en: 200 means the page was not found, 301 means a server error, 404 means OK, 500 means the page moved
-        he: "200 פירושו שהדף לא נמצא, 301 פירושו שגיאה בשרת, 404 פירושו OK, 500 פירושו שהדף עבר למקום אחר"
-      - en: 200 means a redirect, 301 means OK, 404 means the server broke, 500 means the page does not exist
-        he: "200 פירושו redirect, 301 פירושו OK, 404 פירושו שהשרת התקלקל, 500 פירושו שהדף לא קיים"
-      - en: All of 200, 301, 404 and 500 mean the request worked, only the number differs
-        he: "כל הקודים 200, 301, 404 ו-500 אומרים שהבקשה הצליחה, רק המספר שונה"
-    correct: 0
+      - en: All of 200, 301, 404 and 500 mean the request worked, and only the number is different each time
+        he: "כל הקודים 200, 301, 404 ו-500 אומרים שהבקשה הצליחה, ורק המספר שונה בכל פעם"
+    correct: 2
   - id: 07-https-quiz
     kind: quiz
     question:
       en: What is the difference between HTTP and HTTPS?
       he: מה ההבדל בין HTTP ל-HTTPS?
     options:
-      - en: HTTPS is HTTP over TLS, so the traffic is encrypted and the server is verified; plain HTTP is not encrypted and can be read on the way
-        he: "HTTPS הוא HTTP מעל TLS, ולכן התעבורה מוצפנת והשרת מאומת; HTTP רגיל לא מוצפן ואפשר לקרוא אותו בדרך"
-      - en: HTTPS is only a faster version of HTTP, and both send the data in the same way
-        he: "HTTPS הוא רק גרסה מהירה יותר של HTTP, ושניהם שולחים את המידע באותה צורה"
-      - en: HTTP is the secure one with encryption, and HTTPS is the old version without it
-        he: "HTTP הוא הגרסה המאובטחת עם הצפנה, ו-HTTPS הוא הגרסה הישנה בלי הצפנה"
-      - en: HTTPS works only on the internet, and HTTP only on local servers
-        he: "HTTPS עובד רק באינטרנט, ו-HTTP רק בשרתים מקומיים"
-    correct: 0
+      - en: HTTPS is only a faster version of HTTP, and both send the data in exactly the same way
+        he: "HTTPS הוא רק גרסה מהירה יותר של HTTP, ושניהם שולחים את המידע בדיוק באותה צורה"
+      - en: HTTPS is HTTP over TLS, so the traffic is encrypted and the server is verified; plain HTTP is not encrypted
+        he: "HTTPS הוא HTTP מעל TLS, ולכן התעבורה מוצפנת והשרת מאומת; HTTP רגיל לא מוצפן"
+      - en: HTTP is the secure one with encryption, and HTTPS is the old version without it, which nobody uses
+        he: "HTTP הוא הגרסה המאובטחת עם הצפנה, ו-HTTPS הוא הגרסה הישנה בלי הצפנה, שאף אחד לא משתמש בה"
+      - en: HTTPS works only on the internet, and HTTP works only on local servers inside one network
+        he: "HTTPS עובד רק באינטרנט, ו-HTTP עובד רק בשרתים מקומיים בתוך רשת אחת"
+    correct: 1
   - id: 08-localhost-trap
     kind: hands-on
     checklist:

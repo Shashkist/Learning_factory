@@ -35,7 +35,8 @@ else
   set -f
   set -- $v
   set +f
-  if [ $# -eq 1 ] && [ "$1" = application/json ]; then
+  low=$(printf '%s' "$1" | tr 'A-Z' 'a-z')
+  if [ $# -eq 1 ] && [ "$low" = application/json ]; then
     pass 3
   else
     fail 3 "write only the value (the part after Content-Type:), on its own, not the whole header line"

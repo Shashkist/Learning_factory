@@ -30,8 +30,12 @@ rm -f reply.json
 ' </dev/null
 # listening PORT_HEX ADDR_HEX: a socket in the LISTEN state on that local address and port
 listening() { awk -v want="$2:$1" '$4=="0A" && $2 == want {f=1} END{exit !f}' /proc/net/tcp /proc/net/tcp6 2>/dev/null; }
-# The service source goes to /tmp, root-owned and world-readable; the process runs as the student.
-cat > /tmp/lf-net1-echo.py <<'PY'
+# The service source goes to a fresh root-owned directory (an unpredictable name, so nothing planted
+# in /tmp can take its place), world-readable; the process runs as the student.
+SRCDIR=$(mktemp -d) || { echo "cannot create a directory for the service" >&2; exit 1; }
+trap 'rm -rf "$SRCDIR"' EXIT
+chmod 0755 "$SRCDIR" || exit 1
+cat > "$SRCDIR/echo.py" <<'PY'
 import json
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -71,11 +75,11 @@ class Handler(BaseHTTPRequestHandler):
 
 ThreadingHTTPServer(("127.0.0.1", 9090), Handler).serve_forever()
 PY
-chmod 0644 /tmp/lf-net1-echo.py
+chmod 0644 "$SRCDIR/echo.py" || exit 1
 # 9090 is 2382 in hex, 127.0.0.1 is 0100007F
 if ! listening 2382 0100007F; then
   su student -s /bin/sh -c '
-setsid nohup python3 /tmp/lf-net1-echo.py </dev/null >/dev/null 2>&1 &
+setsid nohup python3 '"$SRCDIR"'/echo.py </dev/null >/dev/null 2>&1 &
 ' </dev/null
 fi
 i=0
@@ -83,5 +87,5 @@ until curl -s -m 1 -o /dev/null http://127.0.0.1:9090/ || [ "$i" -ge 40 ]; do
   i=$((i + 1))
   sleep 0.25
 done
-[ "$i" -lt 40 ]
+if [ "$i" -ge 40 ]; then echo "the service did not start" >&2; exit 1; fi
 exit 0

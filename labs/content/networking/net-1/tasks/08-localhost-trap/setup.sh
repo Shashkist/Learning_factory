@@ -30,7 +30,12 @@ rm -f pong.txt
 ' </dev/null
 # listening PORT_HEX ADDR_HEX: a socket in the LISTEN state on that local address and port
 listening() { awk -v want="$2:$1" '$4=="0A" && $2 == want {f=1} END{exit !f}' /proc/net/tcp /proc/net/tcp6 2>/dev/null; }
-cat > /tmp/lf-net1-pong.py <<'PY'
+# The service source goes to a fresh root-owned directory (an unpredictable name, so nothing planted
+# in /tmp can take its place), world-readable; the processes run as the student.
+SRCDIR=$(mktemp -d) || { echo "cannot create a directory for the service" >&2; exit 1; }
+trap 'rm -rf "$SRCDIR"' EXIT
+chmod 0755 "$SRCDIR" || exit 1
+cat > "$SRCDIR/pong.py" <<'PY'
 import socket
 import sys
 import uuid
@@ -67,16 +72,16 @@ class Server(ThreadingHTTPServer):
 
 Server(("127.0.0.1" if REAL else "::1", 9091), Handler).serve_forever()
 PY
-chmod 0644 /tmp/lf-net1-pong.py
+chmod 0644 "$SRCDIR/pong.py" || exit 1
 # 9091 is 2383 in hex; 127.0.0.1 is 0100007F, ::1 is 00000000000000000000000001000000
 if ! listening 2383 0100007F; then
   su student -s /bin/sh -c '
-setsid nohup python3 /tmp/lf-net1-pong.py real </dev/null >/dev/null 2>&1 &
+setsid nohup python3 '"$SRCDIR"'/pong.py real </dev/null >/dev/null 2>&1 &
 ' </dev/null
 fi
 if ! listening 2383 00000000000000000000000001000000; then
   su student -s /bin/sh -c '
-setsid nohup python3 /tmp/lf-net1-pong.py decoy </dev/null >/dev/null 2>&1 &
+setsid nohup python3 '"$SRCDIR"'/pong.py decoy </dev/null >/dev/null 2>&1 &
 ' </dev/null
 fi
 i=0
@@ -84,5 +89,5 @@ until { curl -s -m 1 -o /dev/null http://127.0.0.1:9091/ && curl -s -m 1 -g -o /
   i=$((i + 1))
   sleep 0.25
 done
-[ "$i" -lt 40 ]
+if [ "$i" -ge 40 ]; then echo "the service did not start" >&2; exit 1; fi
 exit 0

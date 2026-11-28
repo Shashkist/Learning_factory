@@ -7,6 +7,7 @@ while awk '$4=="0A" && $2 ~ /:1F90$/ {f=1} END{exit !f}' /proc/net/tcp /proc/net
   i=$((i + 1))
   sleep 0.25
 done
+if awk '$4=="0A" && $2 ~ /:1F90$/ {f=1} END{exit !f}' /proc/net/tcp /proc/net/tcp6 2>/dev/null; then echo "port 8080 is busy with another program" >&2; exit 1; fi
 # The practice site; the same bytes at every run.
 su student -s /bin/sh -c '
 set -e
