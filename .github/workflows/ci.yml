@@ -203,6 +203,11 @@ jobs:
       - name: Install Chromium for the browser exam
         working-directory: labs/web
         run: npx playwright install --with-deps --only-shell chromium
+      - name: Host precondition, br_netfilter loaded with ip6tables bridge calls on
+        run: |
+          # The bootstrap exam (#3) reads this host state; in the single job an earlier file left it set (D202 amendment 1).
+          sudo modprobe br_netfilter
+          sudo sysctl -w net.bridge.bridge-nf-call-ip6tables=1
       - name: Docker-marked acceptance exam must not skip
         env:
           LF_DOCKER_SHARD: ${{ matrix.shard }}/4
@@ -243,8 +248,10 @@ jobs:
         env:
           DOCKER_RESULT: ${{ needs.docker.result }}
         run: |
-          test "$DOCKER_RESULT" = success || { echo "docker shards: $DOCKER_RESULT"; exit 1; }
-          python3 scripts/ci/docker_shards_gate.py docker-shards
+          gate=0
+          python3 scripts/ci/docker_shards_gate.py docker-shards || gate=$?
+          echo "docker shards: $DOCKER_RESULT; shard gate exit: $gate"
+          test "$gate" = 0 && test "$DOCKER_RESULT" = success
 
   image-term:
     # Queue per ref. This does not order runs (a run enters the group only when its docker job ends, and a pending job can be replaced), so :latest is pushed only while main's code is still this commit's (D154).
