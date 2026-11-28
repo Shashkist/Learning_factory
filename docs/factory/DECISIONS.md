@@ -2034,6 +2034,8 @@ in force · factory · 2026-11-28 · revertible
 **Alternatives.** pytest-split (`--splits`, test-level, needs a durations file); a separately named shard job with a `docker` gate (breaks #167, #271, #364, #651 pins); xdist (shared state).
 **Revert.** Drop the matrix and the gate job, restore the single pytest line (the 26-minute budget then fails again on the course labs).
 
+**Amendment 1 (2026-11-28, pass lf-m6r9, #732 review round 1).** The first sharded run (46104955348) failed shard 3 at `test_issue_3_bootstrap.py:612`: `bridge-nf-call-ip6tables is 'absent', not 1`. In the single job `test_issue_142_bootstrap_scenarios.py` ran earlier and left `br_netfilter` loaded; under the partition it runs in another shard. Decision: each leg sets the server's host precondition (D170: the bootstrap requires it and never writes it) in its own step before the exam: `sudo modprobe br_netfilter` and `sudo sysctl -w net.bridge.bridge-nf-call-ip6tables=1`. The #627 cases that need 0 build it in their own `PROC_ROOT` sandbox, so no exam gets weaker; the exam-only alternative (the #3 fixture sets it) would need its own PR first and leaves the next hidden order dependency to the next lab. Also: the gate job runs `docker_shards_gate.py` before it judges the legs' result, so the decisive check names the failing shard. Image jobs needing the gate (not only the legs) is a follow-up, since the #271 exam pins their `needs`. Revert: drop the precondition step (shard 3 then fails while #3 and #142 sit in different shards).
+
 ## D203 · #726: round 3 decides the python-1 PR; the round-2 fixes were made by the manager and verified by a fresh reviewer
 in force · factory · 2026-11-28 · revertible
 Decides: #726 round 3
