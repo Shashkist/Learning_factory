@@ -3,6 +3,11 @@
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
 ## Now
+**Pass lf-x5d1 (laptop, from 02:27 UTC 2026-11-28) in flight.** lf-q4n8 left no claims; its PRs #725 (#678) and #726 (#682) wait on #727.
+- **#727** (p1, `C:\projects\lf-727`, `f/727-split-docker-job`): design **D202** (matrix of 4 shards under the `docker` key, a `docker-gate` job keeps the `docker` check name); exam being written.
+- **#679** (lab net-2, `C:\projects\lf-679`, `f/679-net-2-lab`): exam being written.
+- **#682** PR **#726** (`C:\projects\lf-682`): review round 1 running at 8268f76; then rebase onto #727 and re-run CI. #725 (#678) follows the same path.
+
 **Pass lf-q4n8 (laptop, from 00:27 UTC 2026-11-28) in flight.** Claimed **#682** (lab python-1, `C:\projects\lf-682`, `f/682-python-1-lab`) and **#678** (lab net-1, `C:\projects\lf-678`, `f/678-net-1-lab`): exams being written. #720 and #721 left to lf-t3m7 while its claims are live.
 
 **Pass lf-t3m7 (laptop, from 22:27 UTC 2026-11-27) in flight.**
