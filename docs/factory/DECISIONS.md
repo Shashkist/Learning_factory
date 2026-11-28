@@ -2073,3 +2073,13 @@ Decides: #726 round 3
 **Why.** Every required check is green on the latest run and the last review approved the exact head; a re-run cannot remove the old check run from the commit.
 **Alternatives.** A new PR with the same commits (fresh check history, but a fourth review round for an identical diff).
 **Revert.** Revert the squash commit of #726.
+
+## D207 · #735: round 3 decides the #727 exam PR; the exam-writer closes the round-2 holes in one exam-only commit
+in force · factory · 2026-11-28 · revertible
+Decides: #735 round 3
+
+**Context.** Review round 2 (the last, CHANGES at cd047d5, comment 7235242407) confirmed both round-1 fixes but found that a step-level `if` on the final `docker-gate` step, a `shell` override without `-e`, or a removed manifest-agreement check in `docker_shards_gate.py` would each let a failed or missing shard leave the `docker` check green, and the exam would not notice. The code on main has none of these faults; only the exam is too weak.
+**Decision.** The exam-writer fixes findings 1-6 in one exam-only commit on `f/727-docker-shard-exam` (no step `if` other than `always()`, no `shell` override at step, job or workflow level, a swapped-manifest case, exact deselected counts, the `file` style with a non-matching `classname`, the two pins owned by #1 and #167 dropped). A fresh reviewer verifies it as round 3 at the new head. Round-1 finding 3 (the "ran in shards X and Y" branch can never be the only error) is code on main: follow-up issue.
+**Why.** The PR is exam-only, the holes are real ways to turn a failed shard green, and the fixes are small; merging a known-weak exam would need a second exam PR later anyway.
+**Alternatives.** Merge cd047d5 and put findings 1-6 in a follow-up (ships an exam that misses a green-on-failure gate).
+**Revert.** Revert the round-3 exam commit (returns to cd047d5 with its round-2 findings).
