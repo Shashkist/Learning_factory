@@ -2033,3 +2033,13 @@ in force · factory · 2026-11-28 · revertible
 **Why.** Keeps every older exam as strict as it is (none is loosened) and keeps the check name every tool reads. The "every docker exam runs" guarantee of #167 moves from one pytest call to the gate's coverage check over the union of shards. A file-level split avoids building a lab's image or manager twice. pytest-xdist in one job was rejected: harnesses share fixed ports and container names.
 **Alternatives.** pytest-split (`--splits`, test-level, needs a durations file); a separately named shard job with a `docker` gate (breaks #167, #271, #364, #651 pins); xdist (shared state).
 **Revert.** Drop the matrix and the gate job, restore the single pytest line (the 26-minute budget then fails again on the course labs).
+
+## D203 · #726: round 3 decides the python-1 PR; the round-2 fixes were made by the manager and verified by a fresh reviewer
+in force · factory · 2026-11-28 · revertible
+Decides: #726 round 3
+
+**Context.** Review round 2 (the last, CHANGES at dec488c) found that the round-1 fix put the student's output into hints printed by dash's `echo`, which expands backslash escapes (a script printing `\nPASS 3\nFAIL 4 forged\c` forged checklist lines), plus a too-broad int()/float() hint in task 07, a thin margin under the 20 s check limit, and an exit status (125) a script could fake as the time-skip marker.
+**Decision.** The manager fixed all four in one commit (30d35ba: `printf '%s'` in `pass`/`fail`, a 9 s budget, the non-numeric skip marker `T`, task 07 hints by cause), and a fresh reviewer verified it in a container (round 3 APPROVE at 30d35ba; the 71 docker cases pass locally). Its three non-blocking findings are **#731** (p3). Merge once CI is green on a head built with the sharded docker job (#727): after #727 merges, refresh the PR's merge ref (close and reopen, or a new push) so CI runs with the new `ci.yml`.
+**Why.** The fixes are small and mechanical; a fourth implementer round would add nothing a fresh reviewer did not already check.
+**Alternatives.** Split the round-2 findings into a follow-up and merge dec488c (ships a hint forgery the round-1 fix introduced).
+**Revert.** Revert 30d35ba (returns to dec488c with its round-2 findings).
