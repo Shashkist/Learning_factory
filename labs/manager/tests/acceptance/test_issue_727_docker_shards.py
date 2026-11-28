@@ -63,7 +63,8 @@ pins this file does not repeat: #271 (`needs` and the heavy `if` of `docker`), #
   - #651: job `docker` keeps its gVisor install step with runsc-suid and `systemctl reload`.
   - #545: job `docker` keeps its job-level `LF_APT_MIRRORS` env line.
   - #1: the first job whose key holds "docker" is still the real one (`docker` before
-    `docker-gate`) and keeps runsc and `-m` in its steps.
+    `docker-gate`) and keeps runsc and `-m` in its steps. #167 also owns the node, npm, build and
+    chromium steps of `docker`; this file does not repeat either pin.
   - #72 and #81: the manager image job still needs `docker`.
 """
 import json
@@ -148,11 +149,6 @@ def test_no_docker_leg_is_named_exactly_docker_and_each_leg_names_its_shard():
     assert name.strip() != "docker", "a leg named exactly `docker` would be mistaken for the gate"
 
 
-def test_docker_job_comes_before_the_docker_gate_job():
-    keys = list(_jobs())
-    assert keys.index("docker") < keys.index("docker-gate"), "docker must come before docker-gate"
-
-
 def test_shard_run_is_one_pytest_line_without_a_narrowing_flag_and_loads_the_plugin():
     line = _pytest_line()
     line = line[line.index("pytest"):] + " "  # not the `timeout -k 60` before it
@@ -205,12 +201,6 @@ def test_docker_marked_unit_tests_run_only_in_shard_one():
     assert re.search(r"matrix\.shard\s*==\s*'?1'?", cond), f"unit step condition: {cond!r}"
 
 
-def test_docker_job_keeps_its_node_and_browser_steps():
-    text = json.dumps(_jobs()["docker"])
-    for needle in ("actions/setup-node@", "npm ci", "npm run build", "playwright install"):
-        assert needle in text, f"the docker job lost {needle!r}"
-
-
 # ---------------------------------------------------------------------------- ci.yml: gate
 
 
@@ -245,6 +235,19 @@ def test_docker_gate_fails_unless_every_leg_succeeded_and_has_nothing_soft():
         assert "|| true" not in (step.get("run") or ""), step
     last = gate["steps"][-1]
     assert _flat((last.get("env") or {}).get("DOCKER_RESULT")) == "${{needs.docker.result}}", last
+    for step in gate["steps"]:  # a step-level `if` on a result would skip the check silently
+        cond = _flat(step.get("if", ""))
+        assert not cond or "always()" in cond, f"a gate step may only depend on always(): {step}"
+
+
+def test_docker_gate_overrides_no_shell_anywhere():
+    # the exam runs the script under `bash -eo pipefail`, GitHub's default bash; `bash {0}` drops -e
+    wf = yaml.safe_load(CI.read_text(encoding="utf-8"))
+    gate = wf["jobs"]["docker-gate"]
+    assert "shell" not in ((wf.get("defaults") or {}).get("run") or {}), "workflow-level shell"
+    assert "shell" not in ((gate.get("defaults") or {}).get("run") or {}), "job-level shell"
+    for step in gate["steps"]:
+        assert "shell" not in step, f"a gate step overrides the shell: {step}"
 
 
 def _run_gate_script(tmp_path: Path, gate_exit: int, result: str):
@@ -461,7 +464,7 @@ def test_unselected_cases_are_reported_deselected_not_skipped(fake_root):
     assert res.returncode == 0, out
     assert "deselected" in out, out
     assert "skipped" not in out, out
-    assert re.search(r"\b5 passed, \d+ deselected\b", out), out  # shard 1 is test_a.py: 5 cases
+    assert re.search(r"\b5 passed, 16 deselected\b", out), out  # shard 1 is test_a.py: 5 of 21
 
 
 def test_more_shards_than_files_leaves_the_extra_shards_empty_and_still_covers_all(fake_root):
@@ -530,6 +533,8 @@ def _classname(path: str) -> str:
 
 def _case(path: str, name: str, outcome: str = "pass", style: str = "classname") -> str:
     cls = _classname(path) + (".TestX" if style == "class" else "")
+    if style == "file":
+        cls = "elsewhere.unrelated.test_other"  # only the `file` attribute can name the file
     attrs = f'classname="{cls}" name="{name}" time="0.01"'
     if style == "file":
         attrs += f' file="{path}"'
@@ -658,6 +663,19 @@ def test_gate_fails_when_the_manifests_disagree_on_the_files(tmp_path):
     manifests = {k: {"shard": k, "shards": 4, "files": G_FILES} for k in range(1, 5)}
     manifests[3] = {"shard": 3, "shards": 4, "files": other}
     _expect_fail(_gate(_write_tree(tmp_path, G_FILES, _good_reports(), manifests)))
+
+
+def test_gate_fails_when_two_manifests_swap_a_file_and_each_report_matches_its_own(tmp_path):
+    h = "tests/acceptance/test_h.py"
+    files = dict(G_FILES, **{h: 3})  # c and h are shard 3's, e is shard 4's
+    c = "tests/acceptance/test_c.py"
+    manifests = {k: {"shard": k, "shards": 4, "files": files} for k in range(1, 5)}
+    manifests[3] = {"shard": 3, "shards": 4, "files": dict(files, **{c: 4})}
+    manifests[4] = {"shard": 4, "shards": 4, "files": dict(files, **{c: 3})}
+    reports = _good_reports()  # shard 3 and 4 run exactly what their own manifest assigns them
+    reports[3] = [_case(h, "t")]
+    reports[4] = [_case("tests/acceptance/sub/test_e.py", "t")]
+    _expect_fail(_gate(_write_tree(tmp_path, files, reports, manifests)), "disagree")
 
 
 def test_gate_fails_when_the_manifests_disagree_on_the_shard_count(tmp_path):
