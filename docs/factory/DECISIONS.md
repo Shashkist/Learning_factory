@@ -2012,3 +2012,11 @@ in force · factory · 2026-11-28 · revertible
 **Decision.** The exam is corrected in one exam-only commit, before the code: listener addresses come from `/proc/net/tcp` and `/proc/net/tcp6` (state `0A`, the port), the owner uid from the socket's own uid column there, and servers are stopped as `student` (for example `su student -c 'pkill ...'`), then waited on until the port is free. Every assertion keeps its strength: an IPv4-only `127.0.0.1` listener, a decoy on `::1`, no root-owned server, one service after two setups, a stopped server fails the check. No older exam changes. The branch `f/678-net-1-lab` was not pushed, so it is rebuilt locally: the exam commit, this exam fix, then the unchanged code commit.
 **Alternatives.** Give the lab container `CAP_SYS_PTRACE` or `CAP_KILL`: weakens lab isolation for a test's sake. Run the servers as root: forbidden by the exam and by the spec.
 **Revert.** Restore the `/proc/<pid>/fd` helpers (they only work with a privileged root).
+
+## D201 · #682: the python-1 exam's id probe is quoted so it stays valid Python
+in force · factory · 2026-11-28 · revertible
+
+**Context.** `test_the_check_runs_the_script_and_never_as_root` (the #682 exam, 5776baa) inserts its probe with `sed -i '1i {probe}' ~/<script>`, and the probe holds single quotes (`open('/tmp/who-ran-682', 'a')`). The shell drops them, the line lands as `open(/tmp/who-ran-682, a)`, the script is a `SyntaxError`, and the case (which needs the probed solution to pass) can never pass, for all five scripts. Reproduced in WSL; with a correctly quoted probe the lab's check passes and the probe shows the student's uid.
+**Decision.** One exam-only commit, before the code, writes the probe so it reaches the script unchanged (a double-quoted probe, or a heredoc or Python write of the line); the assertion (the check runs the script, never as root) stays as strict as it is. No other case changes. The unpushed branch `f/682-python-1-lab` is rebuilt locally: exam, this fix, then the unchanged code commit.
+**Alternatives.** None that keep the case; dropping it would lose the "never as root" proof.
+**Revert.** Restore the single-quoted probe.
