@@ -1,0 +1,98 @@
+id: net-1
+title:
+  en: "Networking 1: HTTP and curl against a local server"
+  he: "רשתות 1: HTTP ו-curl מול שרת מקומי"
+description:
+  en: Start a small web server, talk to it with curl, read status codes and headers, send a POST request, and meet the classic localhost trap.
+  he: מפעילים שרת אינטרנט קטן, מדברים איתו עם curl, קוראים קודי סטטוס וכותרות, שולחים בקשת POST, ופוגשים את המלכודת הקלאסית של localhost.
+image: term
+time_limit_min: 45
+internet: false
+allow_domains: []
+sudo: false
+status: published
+module: 1
+lesson: 7
+tasks:
+  - id: 01-server
+    kind: hands-on
+    checklist:
+      - en: A program is listening on port 8080
+        he: "תוכנה מאזינה בפורט ‎8080‎"
+      - en: Port 8080 serves the files of ~/site
+        he: "פורט ‎8080‎ מגיש את הקבצים מהתיקייה ‎~/site‎"
+  - id: 02-status-codes
+    kind: hands-on
+    checklist:
+      - en: The file ~/status-ok.txt holds the status code of /index.html
+        he: "הקובץ ‎~/status-ok.txt‎ מכיל את קוד הסטטוס של ‎/index.html‎"
+      - en: The file ~/status-missing.txt holds the status code of a page that does not exist
+        he: "הקובץ ‎~/status-missing.txt‎ מכיל את קוד הסטטוס של דף שלא קיים"
+  - id: 03-headers
+    kind: hands-on
+    checklist:
+      - en: headers.txt starts with the status line of a successful response
+        he: "הקובץ ‎headers.txt‎ מתחיל בשורת הסטטוס של תשובה מוצלחת"
+      - en: headers.txt has the Content-Type header of the page
+        he: "בקובץ ‎headers.txt‎ יש את הכותרת ‎Content-Type‎ של הדף"
+      - en: headers.txt has the Content-Length header of the page
+        he: "בקובץ ‎headers.txt‎ יש את הכותרת ‎Content-Length‎ של הדף"
+      - en: headers.txt holds only headers, without the page itself
+        he: "הקובץ ‎headers.txt‎ מכיל רק כותרות, בלי הדף עצמו"
+  - id: 04-content-type
+    kind: hands-on
+    checklist:
+      - en: The file ~/content-type.txt exists
+        he: "הקובץ ‎~/content-type.txt‎ קיים"
+      - en: The file says the content type of /data.json
+        he: "הקובץ אומר מהו סוג התוכן של ‎/data.json‎"
+      - en: The file holds only the value, without the header name
+        he: "הקובץ מכיל רק את הערך, בלי שם הכותרת"
+  - id: 05-post-echo
+    kind: hands-on
+    checklist:
+      - en: The file ~/reply.json holds valid JSON
+        he: "הקובץ ‎~/reply.json‎ מכיל JSON תקין"
+      - en: The echo part of the reply is the body that was sent
+        he: "החלק ‎echo‎ של התשובה הוא הגוף שנשלח"
+      - en: The id in the reply is the id of the running service
+        he: "ה-‎id‎ בתשובה הוא ה-‎id‎ של השירות שרץ עכשיו"
+  - id: 06-status-quiz
+    kind: quiz
+    question:
+      en: A page request comes back with a number. Which list explains the codes 200, 301, 404 and 500 correctly?
+      he: בקשה לדף חוזרת עם מספר. איזו רשימה מסבירה נכון את הקודים 200, 301, 404 ו-500?
+    options:
+      - en: 200 means OK, 301 means the page moved (redirect), 404 means the page was not found, 500 means a server error
+        he: "200 פירושו OK, 301 פירושו שהדף עבר למקום אחר (redirect), 404 פירושו שהדף לא נמצא, 500 פירושו שגיאה בשרת"
+      - en: 200 means the page was not found, 301 means a server error, 404 means OK, 500 means the page moved
+        he: "200 פירושו שהדף לא נמצא, 301 פירושו שגיאה בשרת, 404 פירושו OK, 500 פירושו שהדף עבר למקום אחר"
+      - en: 200 means a redirect, 301 means OK, 404 means the server broke, 500 means the page does not exist
+        he: "200 פירושו redirect, 301 פירושו OK, 404 פירושו שהשרת התקלקל, 500 פירושו שהדף לא קיים"
+      - en: All of 200, 301, 404 and 500 mean the request worked, only the number differs
+        he: "כל הקודים 200, 301, 404 ו-500 אומרים שהבקשה הצליחה, רק המספר שונה"
+    correct: 0
+  - id: 07-https-quiz
+    kind: quiz
+    question:
+      en: What is the difference between HTTP and HTTPS?
+      he: מה ההבדל בין HTTP ל-HTTPS?
+    options:
+      - en: HTTPS is HTTP over TLS, so the traffic is encrypted and the server is verified; plain HTTP is not encrypted and can be read on the way
+        he: "HTTPS הוא HTTP מעל TLS, ולכן התעבורה מוצפנת והשרת מאומת; HTTP רגיל לא מוצפן ואפשר לקרוא אותו בדרך"
+      - en: HTTPS is only a faster version of HTTP, and both send the data in the same way
+        he: "HTTPS הוא רק גרסה מהירה יותר של HTTP, ושניהם שולחים את המידע באותה צורה"
+      - en: HTTP is the secure one with encryption, and HTTPS is the old version without it
+        he: "HTTP הוא הגרסה המאובטחת עם הצפנה, ו-HTTPS הוא הגרסה הישנה בלי הצפנה"
+      - en: HTTPS works only on the internet, and HTTP only on local servers
+        he: "HTTPS עובד רק באינטרנט, ו-HTTP רק בשרתים מקומיים"
+    correct: 0
+  - id: 08-localhost-trap
+    kind: hands-on
+    checklist:
+      - en: The file ~/pong.txt exists
+        he: "הקובץ ‎~/pong.txt‎ קיים"
+      - en: pong.txt holds a reply of the form pong:<token>
+        he: "הקובץ ‎pong.txt‎ מכיל תשובה בצורה ‎pong:<token>‎"
+      - en: pong.txt holds exactly the reply of the service at 127.0.0.1 port 9091
+        he: "הקובץ ‎pong.txt‎ מכיל בדיוק את התשובה של השירות בכתובת ‎127.0.0.1‎ בפורט ‎9091‎"
