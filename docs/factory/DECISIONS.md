@@ -2054,3 +2054,12 @@ in force · factory · 2026-11-28 · revertible
 **Why.** The base-copy exam-integrity check cannot let a PR change both the exam and the CI that judges it.
 **Alternatives.** None that keep exam integrity.
 **Revert.** Revert #732 (restores the single docker job).
+
+## D205 · #679: the net-2 fetch-by-name check (review finding 2) ships partly; the Host-bound page waits for an exam change (#734)
+in force · factory · 2026-11-28 · revertible
+
+**Context.** Review round 1 of #729 (CHANGES at dc320d9), finding 2 (should-fix): item 3 of task 02 cannot tell the page was fetched by the name `web.lab`; the fix asked for a token page served only for `Host: web.lab:8081` and a root-owned web root. The #679 exam's `_page()` reads the expected page with Host `127.0.0.1:8081` and requires `~/web-reply.txt` to equal it, so a Host-dependent page contradicts the exam.
+**Decision.** The fix commit 549469a keeps the exam as it is and does the part that does not contradict it: the web root moves to root-owned `/srv/lab-web` with a fresh token on every setup, so the student cannot rewrite the page. The Host-bound page, with the exam change it needs (exam-only commit first), is **#734** (p3). Item 1 (the `/etc/hosts` line) still has to pass, so the lab's goal is checked. Round 2 (the last) reviews 549469a with this scope.
+**Why.** A lab check is a learning aid, not proof against a student who reads the setup; the server runs as the student (the exam forbids root), so a determined student can always read the token. Re-sequencing the PR for a should-fix costs a full exam round.
+**Alternatives.** Re-sequence to `f/679-net-2-lab-2` with an amended exam before the code (one more exam round now).
+**Revert.** Ship #734.
