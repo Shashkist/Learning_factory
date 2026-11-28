@@ -2,7 +2,7 @@
 # Task 02-grade: ~/grade.py prints pass or fail for a grade.
 # The student's script runs only as student (never as root), through python3, on several values
 # (some are the examples in the task text, others are not), with no stdin and a 4 s limit per run;
-# the first run that hangs ends the runs, and after 12 s no new run starts (the manager stops a
+# the first run that hangs ends the runs, and after 9 s no new run starts (the manager stops a
 # check at 20 s, so a slow but correct script gets a hint, not a timeout). Nothing is written in the student's home. The student side prints facts, root decides
 # (D52, D191).
 facts=$(su student -s /bin/sh -c '/bin/sh -s' <<'READER'
@@ -15,7 +15,7 @@ t0=$(date +%s)
 run() {
   k=$1; shift
   if [ "$dead" = 1 ]; then printf 'X %s 124 \n' "$k"; return; fi
-  if [ $(( $(date +%s) - t0 )) -ge 12 ]; then printf 'X %s 125 \n' "$k"; return; fi
+  if [ $(( $(date +%s) - t0 )) -ge 9 ]; then printf 'X %s T \n' "$k"; return; fi
   timeout -k 1 4 python3 -B "$S" "$@" </dev/null >"$d/o" 2>/dev/null
   rc=$?
   case $rc in 124|137) dead=1;; esac
@@ -35,8 +35,8 @@ fi
 READER
 )
 rc=0
-pass() { echo "PASS $1"; }
-fail() { echo "FAIL $1 $2"; rc=1; }
+pass() { printf 'PASS %s\n' "$1"; }
+fail() { printf 'FAIL %s %s\n' "$1" "$2"; rc=1; }
 x() {
   g=$(printf '%s\n' "$facts" | sed -n "s/^X $1 //p" | head -n 1)
   r=${g%% *}; o=${g#* }
@@ -55,7 +55,7 @@ grp() {
   bad=
   while [ $# -ge 2 ]; do
     x "$(printf '%s' "$1" | tr ' ' _)"
-    if [ "$r" = 125 ]; then bad=$(slow "python3 ~/grade.py $1"); tip="make it finish quickly"; break; fi
+    if [ "$r" = T ]; then bad=$(slow "python3 ~/grade.py $1"); tip="make it finish quickly"; break; fi
     if [ "$o" != "$2|" ]; then bad="python3 ~/grade.py $1 should print $2, it printed $(shown)"; break; fi
     shift 2
   done
@@ -67,7 +67,7 @@ codes() {
   bad=
   for a in "$@"; do
     x "$(printf '%s' "$a" | tr ' ' _)"
-    if [ "$r" = 125 ]; then bad=$(slow "python3 ~/grade.py $a"); tip="make it finish quickly"; break; fi
+    if [ "$r" = T ]; then bad=$(slow "python3 ~/grade.py $a"); tip="make it finish quickly"; break; fi
     if [ "$r" != 0 ]; then bad="python3 ~/grade.py $a did not finish cleanly (exit code $r)"; break; fi
   done
   if [ -n "$bad" ]; then fail "$item" "$bad; $tip"; else pass "$item"; fi
