@@ -1,8 +1,13 @@
 #!/bin/sh
 # Task 05: ~/sleep.pid holds the PID of a running sleep 600.
 # One su call runs a fixed reader, piped on stdin, that only prints facts: the first line of the
-# file, the command line of that PID, and the PIDs of every running "sleep 600". Root decides.
+# file, whether that PID is exactly a sleep 600, and the PIDs of every running sleep 600.
+# "Exactly" means the command line split on NUL is: argv[0] with the basename sleep, then 600.
+# Root decides.
 facts=$(su student -s /bin/sh -c '/bin/sh -s' <<'READER'
+is_sleep600() {
+  [ "$(tr '\0' '\n' < "$1" 2>/dev/null | awk 'NR==1{a=$0; sub(/.*\//,"",a)} NR==2{b=$0} END{if(NR==2&&a=="sleep"&&b=="600")print "y"}')" = y ]
+}
 f=/home/student/sleep.pid
 pid=
 if [ -f "$f" ]; then
@@ -14,13 +19,10 @@ else
 fi
 case $pid in
   ''|*[!0-9]*) ;;
-  *) echo "C $({ tr '\0' ' ' < "/proc/$pid/cmdline"; } 2>/dev/null)";;
+  *) if is_sleep600 "/proc/$pid/cmdline"; then echo "C ok"; fi;;
 esac
 for d in /proc/[0-9]*; do
-  c=$({ tr '\0' ' ' < "$d/cmdline"; } 2>/dev/null)
-  case $c in
-    "sleep 600 "|*/"sleep 600 ") echo "R ${d#/proc/}";;
-  esac
+  if is_sleep600 "$d/cmdline"; then echo "R ${d#/proc/}"; fi
 done
 READER
 )
@@ -48,7 +50,7 @@ else
 fi
 
 case $cmd in
-  "sleep 600 "|*/"sleep 600 ") echo "PASS 3";;
+  ok) echo "PASS 3";;
   *)
     echo "FAIL 3 the number in ~/sleep.pid (${pid:-none}) is not the PID of a running sleep 600; take it from \$! right after you start it, or from pgrep -x sleep (\$\$ is your shell, not the sleep)"
     rc=1;;

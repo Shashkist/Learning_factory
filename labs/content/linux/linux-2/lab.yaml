@@ -28,8 +28,8 @@ tasks:
     checklist:
       - en: The group ops exists
         he: "הקבוצה ‎ops‎ קיימת"
-      - en: dev1 is a member of ops
-        he: "‎dev1‎ חבר בקבוצה ‎ops‎"
+      - en: dev1 is a secondary (supplementary) member of ops
+        he: "‎dev1‎ חבר בקבוצה המשנית ‎ops‎"
       - en: dev1 is still a member of the group webdev
         he: "‎dev1‎ עדיין חבר בקבוצה ‎webdev‎"
   - id: 03-service-user
@@ -98,7 +98,7 @@ tasks:
         he: "שולח SIGTERM, בקשה מנומסת שנותנת לתהליך לנקות אחריו לפני שהוא נעצר"
       - en: It pauses the process, and it continues later when it gets another signal
         he: "משהה את התהליך, והוא ממשיך מאוחר יותר כשהוא מקבל סיגנל נוסף"
-      - en: It also ends all the files that the process had open, without saving them
+      - en: It also closes all the files that the process had open, without saving them
         he: "סוגר גם את כל הקבצים שהתהליך פתח, בלי לשמור אותם"
     correct: 0
   - id: 10-quiz-cron
