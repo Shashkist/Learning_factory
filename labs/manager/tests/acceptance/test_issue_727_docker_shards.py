@@ -236,12 +236,14 @@ def test_docker_gate_fails_unless_every_leg_succeeded_and_has_nothing_soft():
     last = gate["steps"][-1]
     assert _flat((last.get("env") or {}).get("DOCKER_RESULT")) == "${{needs.docker.result}}", last
     for step in gate["steps"]:  # a step-level `if` on a result would skip the check silently
-        cond = _flat(step.get("if", ""))
-        assert not cond or "always()" in cond, f"a gate step may only depend on always(): {step}"
+        cond = re.sub(r"\s+", "", _flat(step.get("if", "")))
+        assert cond in ("", "always()", "${{always()}}"), (
+            f"a gate step may only depend on always(), nothing else: {step}")
 
 
 def test_docker_gate_overrides_no_shell_anywhere():
-    # the exam runs the script under `bash -eo pipefail`, GitHub's default bash; `bash {0}` drops -e
+    # the exam runs the script as GitHub's default shell does, `bash -e {0}` (no pipefail);
+    # an explicit `shell: bash` would add pipefail and `shell: sh` would drop -e
     wf = yaml.safe_load(CI.read_text(encoding="utf-8"))
     gate = wf["jobs"]["docker-gate"]
     assert "shell" not in ((wf.get("defaults") or {}).get("run") or {}), "workflow-level shell"
@@ -257,6 +259,7 @@ def _run_gate_script(tmp_path: Path, gate_exit: int, result: str):
     stub = tmp_path / "scripts" / "ci" / "docker_shards_gate.py"
     stub.parent.mkdir(parents=True)
     stub.write_text(f"import sys\nsys.exit({gate_exit})\n", encoding="utf-8")
+    (tmp_path / "docker-shards").mkdir()
     shim = tmp_path / "bin"
     shim.mkdir()
     (shim / "python3").write_text(
@@ -265,7 +268,7 @@ def _run_gate_script(tmp_path: Path, gate_exit: int, result: str):
     env = dict(os.environ, DOCKER_RESULT=result)
     env["PATH"] = f"{shim.as_posix()}{os.pathsep}{env.get('PATH', '')}"
     try:
-        return subprocess.run([bash, "--noprofile", "--norc", "-eo", "pipefail", "-c",
+        return subprocess.run([bash, "--noprofile", "--norc", "-e", "-c",
                                _gate_final_run()], cwd=tmp_path, env=env, capture_output=True,
                               text=True, timeout=60)
     except OSError as exc:
