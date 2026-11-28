@@ -1,0 +1,103 @@
+id: net-2
+title:
+  en: "Networking 2: IP addresses, /etc/hosts and DNS"
+  he: "רשתות 2: כתובות IP, ‎/etc/hosts‎ ו-DNS"
+description:
+  en: Find the IP address of your machine, give a name to a local web service through /etc/hosts, find the DNS server, and answer short questions about subnets, DNS records and well-known ports.
+  he: מוצאים את כתובת ה-IP של המכונה, נותנים שם לשירות web מקומי דרך ‎/etc/hosts‎, מוצאים את שרת ה-DNS, ועונים על שאלות קצרות על תת-רשתות, רשומות DNS ופורטים מוכרים.
+image: term
+time_limit_min: 45
+internet: false
+allow_domains: []
+sudo: true
+status: published
+module: 1
+lesson: 8
+tasks:
+  - id: 01-my-ip
+    kind: hands-on
+    checklist:
+      - en: The file ~/myip.txt exists and is not empty
+        he: "הקובץ ‎~/myip.txt‎ קיים ואינו ריק"
+      - en: It holds one value in the form address/prefix, and nothing else
+        he: "יש בו ערך אחד בצורה כתובת/prefix, ותו לא"
+      - en: The value is the IPv4 address of this machine, as ip addr shows it
+        he: "הערך הוא כתובת ה-IPv4 של המכונה, כמו ש-‎ip addr‎ מציג"
+  - id: 02-hosts-web
+    kind: hands-on
+    checklist:
+      - en: /etc/hosts maps web.lab to 127.0.0.1
+        he: "‎/etc/hosts‎ ממפה את ‎web.lab‎ ל-‎127.0.0.1‎"
+      - en: The web service answers on port 8081
+        he: "שירות ה-web עונה בפורט ‎8081‎"
+      - en: ~/web-reply.txt holds the page of the service, fetched by the name web.lab
+        he: "‎~/web-reply.txt‎ מכיל את הדף של השירות, שהובא לפי השם ‎web.lab‎"
+  - id: 03-nameserver
+    kind: hands-on
+    checklist:
+      - en: The file ~/nameserver.txt exists and is not empty
+        he: "הקובץ ‎~/nameserver.txt‎ קיים ואינו ריק"
+      - en: It holds the address alone, one word
+        he: "יש בו את הכתובת בלבד, מילה אחת"
+      - en: The address is the one of the first nameserver line of /etc/resolv.conf
+        he: "הכתובת היא זו של שורת ה-nameserver הראשונה ב-‎/etc/resolv.conf‎"
+  - id: 04-quiz-hosts-26
+    kind: quiz
+    question:
+      en: How many usable host addresses does a /26 network hold?
+      he: "כמה כתובות מארח (host) שמישות יש ברשת ‎/26‎?"
+    options:
+      - en: "62 hosts"
+        he: "62 כתובות"
+      - en: "64 hosts"
+        he: "64 כתובות"
+      - en: "63 hosts"
+        he: "63 כתובות"
+      - en: "30 hosts"
+        he: "30 כתובות"
+    correct: 0
+  - id: 05-quiz-subnet
+    kind: quiz
+    question:
+      en: Are the addresses 192.168.10.200 and 192.168.11.5 in the same /24 network?
+      he: "האם הכתובות ‎192.168.10.200‎ ו-‎192.168.11.5‎ נמצאות באותה רשת ‎/24‎?"
+    options:
+      - en: "No, the third octet is different (10 and 11), so they are in different /24 networks"
+        he: "לא, האוקטט השלישי שונה (10 ו-11), ולכן הן ברשתות ‎/24‎ שונות"
+      - en: "Yes, both start with 192.168, and that is the network part"
+        he: "כן, שתיהן מתחילות ב-‎192.168‎, וזה החלק של הרשת"
+      - en: "Yes, a /24 compares only the first two octets"
+        he: "כן, ב-‎/24‎ משווים רק את שני האוקטטים הראשונים"
+      - en: "Yes, because the last parts, 200 and 5, are both smaller than 255"
+        he: "כן, כי החלקים האחרונים, 200 ו-5, שניהם קטנים מ-255"
+    correct: 0
+  - id: 06-quiz-records
+    kind: quiz
+    question:
+      en: Which option matches the DNS record types A, CNAME and MX correctly?
+      he: "איזו אפשרות מתאימה נכון בין סוגי רשומות ה-DNS ‎A‎, ‎CNAME‎ ו-‎MX‎?"
+    options:
+      - en: "A maps a name to an IPv4 address; CNAME makes a name an alias of another name; MX points to the mail server of a domain"
+        he: "‎A‎ ממפה שם לכתובת IPv4; ‎CNAME‎ הופך שם לכינוי (alias) של שם אחר; ‎MX‎ מצביע על שרת הדואר של הדומיין"
+      - en: "A points to the mail server of a domain; CNAME maps a name to an IPv4 address; MX makes a name an alias of another name"
+        he: "‎A‎ מצביע על שרת הדואר של הדומיין; ‎CNAME‎ ממפה שם לכתובת IPv4; ‎MX‎ הופך שם לכינוי של שם אחר"
+      - en: "A makes a name an alias of another name; CNAME points to the mail server of a domain; MX maps a name to an IPv4 address"
+        he: "‎A‎ הופך שם לכינוי של שם אחר; ‎CNAME‎ מצביע על שרת הדואר של הדומיין; ‎MX‎ ממפה שם לכתובת IPv4"
+      - en: "A maps a name to an IPv4 address; CNAME points to the mail server of a domain; MX makes a name an alias of another name"
+        he: "‎A‎ ממפה שם לכתובת IPv4; ‎CNAME‎ מצביע על שרת הדואר של הדומיין; ‎MX‎ הופך שם לכינוי של שם אחר"
+    correct: 0
+  - id: 07-quiz-ports
+    kind: quiz
+    question:
+      en: Which option gives the well-known ports of SSH, DNS, HTTP and HTTPS, in this order?
+      he: "איזו אפשרות מציגה נכון את הפורטים המוכרים של SSH, DNS, HTTP ו-HTTPS, לפי הסדר הזה?"
+    options:
+      - en: "22 = SSH, 53 = DNS, 80 = HTTP, 443 = HTTPS"
+        he: "22 הוא SSH, 53 הוא DNS, 80 הוא HTTP, 443 הוא HTTPS"
+      - en: "22 = DNS, 53 = SSH, 80 = HTTPS, 443 = HTTP"
+        he: "22 הוא DNS, 53 הוא SSH, 80 הוא HTTPS, 443 הוא HTTP"
+      - en: "22 = HTTP, 53 = SSH, 80 = DNS, 443 = HTTPS"
+        he: "22 הוא HTTP, 53 הוא SSH, 80 הוא DNS, 443 הוא HTTPS"
+      - en: "22 = SSH, 53 = HTTP, 80 = DNS, 443 = HTTPS"
+        he: "22 הוא SSH, 53 הוא HTTP, 80 הוא DNS, 443 הוא HTTPS"
+    correct: 0
