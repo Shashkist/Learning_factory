@@ -2083,3 +2083,6 @@ Decides: #735 round 3
 **Why.** The PR is exam-only, the holes are real ways to turn a failed shard green, and the fixes are small; merging a known-weak exam would need a second exam PR later anyway.
 **Alternatives.** Merge cd047d5 and put findings 1-6 in a follow-up (ships an exam that misses a green-on-failure gate).
 **Revert.** Revert the round-3 exam commit (returns to cd047d5 with its round-2 findings).
+
+**Amendment 1 (2026-11-28).** Decides: #735 round 4
+Round 3 (CHANGES at c6b3928, comment on #735) confirmed round-2 findings 2-6 and found two more ways to a green `docker` on a failed shard: a gate-step `if` that contains `always()` plus a condition, and the exam running the step under `bash -eo pipefail` while GitHub runs `bash -e {0}` (a `| tee` hides the gate's exit). The exam-writer fixes both and the missing `docker-shards/` folder (nit 3) in one exam-only commit; a fresh reviewer checks only that commit as round 4. Why: each fix is one or two lines and the holes are real; the CI code on main has neither fault. Revert: revert that commit.
