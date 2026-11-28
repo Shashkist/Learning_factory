@@ -3,10 +3,14 @@
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
 ## Now
-**Pass lf-x5d1 (laptop, from 02:27 UTC 2026-11-28) in flight.** lf-q4n8 left no claims; its PRs #725 (#678) and #726 (#682) wait on #727.
-- **#727** (p1, `C:\projects\lf-727`, `f/727-split-docker-job`): design **D202** (matrix of 4 shards under the `docker` key, a `docker-gate` job keeps the `docker` check name); exam being written.
-- **#679** (lab net-2, `C:\projects\lf-679`, `f/679-net-2-lab`): exam being written.
-- **#682** PR **#726** (`C:\projects\lf-682`): review round 1 running at 8268f76; then rebase onto #727 and re-run CI. #725 (#678) follows the same path.
+**Pass lf-x5d1 (laptop, 02:27-04:05 UTC 2026-11-28) stopped at the time limit: 0 merges, 4 PRs parked.** Claims released; the next pass claims afresh and resumes in this order:
+1. **#727 PR 1 = #732** (`f/727-split-docker-ci`, `C:\projects\lf-727-ci`, head afe3bfc, `Part of #727`): CI running at 04:00 (four `docker shard <k>` legs + the `docker` gate job, first run of the split: check each leg's time and that the gate printed no FAIL). Next: reviewer **round 1** (ask it to try a shard that ran nothing, a missing artifact, a file in two shards, and to confirm the merge gate reads the `docker` gate check), gate (`python scripts/merge_gate.py 732 --session <you>`; the PR says `Part of`), merge, main CI green. **D202** (design), **D204** (two PRs: exam integrity refused exam + CI surface in #730, now closed). Then **PR 2**: branch from the new main, cherry-pick exam c3d4cef unchanged (worktree `C:\projects\lf-727`), `Closes #727`, CI, review, merge, close #727 with the main CI run.
+2. **#682 PR #726** (`C:\projects\lf-682`, head 30d35ba): **round 3 APPROVE at 30d35ba** (D203 decides round 3; the manager fixed round 2's echo-forgery finding). 71 docker cases pass locally. Only CI is missing: after #732 merges, close and reopen #726 (fresh merge ref with the sharded `ci.yml`), wait for green, gate, merge, Deploy + smoke, close #682. Nits -> **#731** (p3).
+3. **#678 PR #725** (`C:\projects\lf-678`): CI green except the docker budget; review round 1 not yet done. After #732: close/reopen for CI, reviewer round 1 (include the echo-forgery probe that caught #726).
+4. **#679 PR #729** (`C:\projects\lf-679`, head dc320d9): **round 1 CHANGES** (comment 7233392034): must-fix multi-line `~/myip.txt` passes; should-fix the page is not proven fetched by name (serve the token only for `Host: web.lab:8081`, root-owned web root), setup drops a whole hosts line holding `web.lab` (and misses `WEB.LAB`), all four quizzes have `correct: 0`. Next: implementer fixes in ONE commit (CI-round limit counts code commits), then round 2 (the last).
+- New follow-ups: **#728** (one random hidden input per item, from #726 r1), **#731** (python-1 hint nits, #726 r3).
+- **Lessons:** CI-surface changes (`ci.yml`, `scripts/ci`) never ship with their exam (D181, D204): plan two PRs from the start. A reviewer fix that echoes student output in dash reopens forgery (`echo` expands `
+` and `\c`): print student-derived text only with `printf '%s'`. A pull_request CI run uses the merge ref, so after a CI change lands, close and reopen the waiting PRs instead of rebasing (force-push is refused here).
 
 **Pass lf-q4n8 (laptop, from 00:27 UTC 2026-11-28) in flight.** Claimed **#682** (lab python-1, `C:\projects\lf-682`, `f/682-python-1-lab`) and **#678** (lab net-1, `C:\projects\lf-678`, `f/678-net-1-lab`): exams being written. #720 and #721 left to lf-t3m7 while its claims are live.
 
@@ -51,6 +55,7 @@ Older pass notes (lf-m7q2 and before) are in `history.md` and git history (`git 
 
 ## Next (in order)
 
+0. Resume the four PRs of pass lf-x5d1 (see Now): #732, then #726, #725, #729; then the course labs #680-#695.
 1. #704 re-sequence (see Now, D189 amendment 4). Then #716 (p2, bash-1 check fixes), the course lab content issues #676 (sudo, now unblocked), #678-#695 (p2), then a factory tag that includes 494826e (#121), 19d5d54 (#119) and #120, then LF's pin moves (exam-integrity in ci.yml, with `pull-requests: read` in the same change; runner pin is owner-only).
 2. p3 follow-ups: #715 (new), #718 (new), #709, #710 (new), #705, #698, #700, factory#124 (new, review of #123), factory#122 (new, review of #121), #657, #659, #660 (new, slices of #15 and #85), #653 (new, review of #650), factory#118 (new, review of #116), #647, factory#105 (new, from the #646 and #104 reviews), factory#103 (new, from the #101 review), factory#100, factory#95, #642, #636, #637, #623 (new, from #622 review), #619, #621, #603, #604, factory#70, #601, #597, #588, factory#57, factory#59, #579, #580, factory#49, #574, factory#33, factory#36, factory#40, factory#41, #561, #564, factory#17, factory#24, #523, #555, #468, #423 (old worktree `C:\projects\lf-423`), #436, #431. Owner item **O26** (heartbeat task).
 
