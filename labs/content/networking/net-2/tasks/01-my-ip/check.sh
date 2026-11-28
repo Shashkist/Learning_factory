@@ -5,7 +5,8 @@ F=/home/student/myip.txt
 exists=$(su student -s /bin/sh -c "[ -f $F ] && echo y" 2>/dev/null)
 content=$(su student -s /bin/sh -c "cat $F" 2>/dev/null)
 words=$(printf '%s' "$content" | wc -w)
-val=$(printf '%s' "$content" | awk 'NF==1{print $1}')
+# the value counts only when the file holds exactly one non-empty line with a single word
+val=$(printf '%s\n' "$content" | awk 'NF{n++; w=NF; v=$1} END{if (n==1 && w==1) print v}')
 mine=$(ip -4 -o addr show scope global 2>/dev/null | awk '{print $4}')
 rc=0
 

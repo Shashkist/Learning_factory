@@ -2,7 +2,7 @@
 # Task 02: web.lab resolves to 127.0.0.1 through /etc/hosts, the web service answers on 8081,
 # and ~/web-reply.txt holds the page that service serves now. State only.
 # The first line of /etc/hosts that names web.lab decides (like the resolver does).
-addr=$(sed 's/#.*//' /etc/hosts | awk '{for (i = 2; i <= NF; i++) if ($i == "web.lab") {print $1; exit}}')
+addr=$(sed 's/#.*//' /etc/hosts | awk '$1 ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ {for (i = 2; i <= NF; i++) if (tolower($i) == "web.lab") {print $1; exit}}')
 page=$(curl -s -f -m 5 http://127.0.0.1:8081/ 2>/dev/null)
 reply=$(su student -s /bin/sh -c 'cat /home/student/web-reply.txt' 2>/dev/null)
 rc=0

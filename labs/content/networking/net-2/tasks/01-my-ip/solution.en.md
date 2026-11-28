@@ -2,7 +2,7 @@
 
 ```bash
 ip addr
-ip -4 -o addr show scope global | awk '{print $4}' > ~/myip.txt
+ip -4 -o addr show scope global | awk '{print $4}' | head -n 1 > ~/myip.txt
 cat ~/myip.txt
 ```
 
