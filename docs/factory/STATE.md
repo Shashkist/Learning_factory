@@ -3,6 +3,8 @@
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
 ## Now
+**Pass lf-h7p2 (laptop, from 05:57 UTC 2026-11-28) in flight.** Claims: **#727** (PR #735, review round 2 running), **#678** (PR #725, CI green on the sharded job, review round 1 running), **#680** (lab net-diag, `C:\projects\lf-680`, `f/680-net-diag-lab`, exam being written). #679 labels fixed to `status:done`.
+
 **Pass lf-m6r9 (laptop, 03:57-05:35 UTC 2026-11-28) stopped at 3 merges (#732, #726, #729).** Claims released; the next pass claims afresh. Resume in this order:
 1. **#727 PR 2 = #735** (`f/727-docker-shard-exam`, `C:\projects\lf-727-exam`, exam-only, `Closes #727`): round 1 **CHANGES** at 02bf2ec (comment 7234512574: the gate's leg-result line only checked as text, the gate `if` not pinned, duplicated older pins). Exam-writer fix **cd047d5** (66 passed locally; both mutations fail the exam). Next: CI on cd047d5, a fresh reviewer for **round 2 (the last)**, gate, merge, main CI green, close #727 with the evidence that #726 and #729 went green on the sharded job (runs 46109487649, 46111016366; shards 7-13 min each vs the old 26-min stop).
 2. **#678 PR #725** (`C:\projects\lf-678`): CI refreshed on the sharded job at 04:51 (check it; refresh again with close/reopen if main moved). Review round 1 not yet done: include the `printf '%s'` echo-forgery probe and the hosts/setup probes that caught #729.
