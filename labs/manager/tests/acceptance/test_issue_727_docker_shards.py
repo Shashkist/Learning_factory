@@ -46,7 +46,9 @@ scripts/ci/docker_shards_gate.py <dir> reads, below <dir>, one folder per shard:
   errored are failures), the files seen in each report equal that shard's files in the manifest,
   and no file shows in two shards. Else `FAIL: ...` lines and exit 1.
 
-Older exams that constrain the change (they stay unchanged and must still pass)
+Older exams that constrain the change (they stay unchanged and must still pass). They own the
+pins this file does not repeat: #271 (`needs` and the heavy `if` of `docker`), #243 (timeout),
+#545 (`LF_APT_MIRRORS`), #651 (runsc-suid, `systemctl reload docker`).
   - #167 (ci wiring): the gate step of job `docker` keeps `tests/acceptance`, `-m docker`,
     `--junitxml=docker-acceptance.xml`, `junit_gate.py docker-acceptance.xml`, none of -k,
     --deselect, --ignore, --lf, --collect-only; node, npm ci, build and chromium stay before it;
@@ -67,6 +69,7 @@ Older exams that constrain the change (they stay unchanged and must still pass)
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -145,13 +148,8 @@ def test_no_docker_leg_is_named_exactly_docker_and_each_leg_names_its_shard():
     assert name.strip() != "docker", "a leg named exactly `docker` would be mistaken for the gate"
 
 
-def test_docker_job_keeps_its_needs_condition_timeout_and_first_place():
-    jobs = _jobs()
-    job = jobs["docker"]
-    assert _needs(job) == ["changes"]
-    assert str(job.get("if", "")).strip() == "needs.changes.outputs.heavy == 'true'"
-    assert 20 <= int(job["timeout-minutes"]) <= 69
-    keys = list(jobs)
+def test_docker_job_comes_before_the_docker_gate_job():
+    keys = list(_jobs())
     assert keys.index("docker") < keys.index("docker-gate"), "docker must come before docker-gate"
 
 
@@ -207,11 +205,8 @@ def test_docker_marked_unit_tests_run_only_in_shard_one():
     assert re.search(r"matrix\.shard\s*==\s*'?1'?", cond), f"unit step condition: {cond!r}"
 
 
-def test_docker_job_keeps_runsc_apt_mirror_and_browser_steps():
-    job = _jobs()["docker"]
-    text = json.dumps(job)
-    assert "runsc-suid" in text and "systemctl reload docker" in text
-    assert job["env"]["LF_APT_MIRRORS"].startswith("http")
+def test_docker_job_keeps_its_node_and_browser_steps():
+    text = json.dumps(_jobs()["docker"])
     for needle in ("actions/setup-node@", "npm ci", "npm run build", "playwright install"):
         assert needle in text, f"the docker job lost {needle!r}"
 
@@ -231,11 +226,15 @@ def test_docker_gate_job_carries_the_check_name_docker_and_needs_changes_and_doc
 
 
 def test_docker_gate_runs_even_after_failed_legs_but_only_for_heavy_changes():
-    cond = _flat(_jobs()["docker-gate"].get("if", ""))
-    assert "always()" in cond, "without always() a failed shard would skip the gate"
-    assert "needs.changes.outputs.heavy=='true'" in cond.replace(" ", ""), cond
-    assert "||" not in cond, f"an `or` could bypass the heavy test: {cond}"
-    assert "failure()" not in cond and "cancelled()" not in cond, cond
+    cond = re.sub(r"\s+", "", _flat(_jobs()["docker-gate"].get("if", "")))
+    assert cond == "${{always()&&needs.changes.outputs.heavy=='true'}}", cond
+    assert "needs.docker" not in cond, "the condition must not look at the legs"
+
+
+def _gate_final_run() -> str:
+    run = _steps("docker-gate")[-1].get("run") or ""
+    assert "DOCKER_RESULT" in run and "docker_shards_gate.py" in run, run
+    return run
 
 
 def test_docker_gate_fails_unless_every_leg_succeeded_and_has_nothing_soft():
@@ -244,9 +243,48 @@ def test_docker_gate_fails_unless_every_leg_succeeded_and_has_nothing_soft():
     for step in gate["steps"]:
         assert step.get("continue-on-error") in (None, False), step
         assert "|| true" not in (step.get("run") or ""), step
-    text = _flat(gate["steps"])
-    assert "needs.docker.result" in text, "the gate never looks at the result of the legs"
-    assert "success" in text
+    last = gate["steps"][-1]
+    assert _flat((last.get("env") or {}).get("DOCKER_RESULT")) == "${{needs.docker.result}}", last
+
+
+def _run_gate_script(tmp_path: Path, gate_exit: int, result: str):
+    bash = shutil.which("bash")
+    if bash is None:
+        pytest.skip("bash is not available on this machine")
+    stub = tmp_path / "scripts" / "ci" / "docker_shards_gate.py"
+    stub.parent.mkdir(parents=True)
+    stub.write_text(f"import sys\nsys.exit({gate_exit})\n", encoding="utf-8")
+    shim = tmp_path / "bin"
+    shim.mkdir()
+    (shim / "python3").write_text(
+        f'#!/bin/sh\nexec "{Path(sys.executable).as_posix()}" "$@"\n', encoding="utf-8")
+    (shim / "python3").chmod(0o755)
+    env = dict(os.environ, DOCKER_RESULT=result)
+    env["PATH"] = f"{shim.as_posix()}{os.pathsep}{env.get('PATH', '')}"
+    try:
+        return subprocess.run([bash, "--noprofile", "--norc", "-eo", "pipefail", "-c",
+                               _gate_final_run()], cwd=tmp_path, env=env, capture_output=True,
+                              text=True, timeout=60)
+    except OSError as exc:
+        pytest.skip(f"cannot run bash here: {exc}")
+
+
+@pytest.mark.parametrize("result", ["failure", "cancelled", "skipped"])
+def test_docker_gate_script_fails_when_the_legs_did_not_succeed_even_if_the_gate_script_passes(
+        tmp_path, result):
+    res = _run_gate_script(tmp_path, 0, result)
+    assert res.returncode != 0, f"DOCKER_RESULT={result} passed the gate:\n{res.stdout}{res.stderr}"
+
+
+def test_docker_gate_script_fails_when_the_gate_script_fails_even_if_the_legs_succeeded(tmp_path):
+    res = _run_gate_script(tmp_path, 1, "success")
+    assert res.returncode != 0, f"a failing shard gate passed:\n{res.stdout}{res.stderr}"
+
+
+def test_docker_gate_script_passes_only_when_the_legs_succeeded_and_the_gate_script_passes(
+        tmp_path):
+    res = _run_gate_script(tmp_path, 0, "success")
+    assert res.returncode == 0, f"want pass:\n{res.stdout}{res.stderr}"
 
 
 def test_docker_gate_downloads_the_shard_artifacts_and_runs_the_gate_script():
