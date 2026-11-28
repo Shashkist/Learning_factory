@@ -3,6 +3,8 @@
 **This is the resume point.** Any session that runs the factory reads this first and rewrites it as it works. Keep it short: it is a dashboard, not a log (the log is git history and the issues).
 
 ## Now
+**Pass lf-q4n8 (laptop, from 00:27 UTC 2026-11-28) in flight.** Claimed **#682** (lab python-1, `C:\projects\lf-682`, `f/682-python-1-lab`) and **#678** (lab net-1, `C:\projects\lf-678`, `f/678-net-1-lab`): exams being written. #720 and #721 left to lf-t3m7 while its claims are live.
+
 **Pass lf-t3m7 (laptop, from 22:27 UTC 2026-11-27) in flight.**
 - **#704 closed**: #719 (re-sequenced from #717 under D189 a4) merged (ff69cda) on round 2 APPROVE at 138172e; main CI 46081611565, Deploy 46084110224 green with smoke. Nits -> **#722** (p3).
 - **#716** PR **#720** (`f/716-bash1-check-fixes`, `C:\projects\lf-716`): round 1 CHANGES at 71db242 (checklist did not name the shebang; probe accepted a broken one), fix 5ee1094; round 2 (the last) review and CI running.
